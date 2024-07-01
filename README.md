@@ -61,7 +61,7 @@
 <!-- ABOUT THE PROJECT -->
 ## <a name="about"></a>About Pulsar
 
-![Pul (3)](https://github.com/YoungJibbit95/Pulsar-Development/assets/166993893/73e8d1d2-8d90-432a-a9ca-98c0085cfc41)
+https://github.com/YoungJibbit95/Pulsar-Development/assets/166993893/73e8d1d2-8d90-432a-a9ca-98c0085cfc41)
 
 - 1.8.9 free Forge Hack Client
 - Bypasses for Polar and Intave
