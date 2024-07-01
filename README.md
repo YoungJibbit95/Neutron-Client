@@ -31,8 +31,10 @@
 
 <!-- PROJECT LOGO AND TITLE -->
 <p align="center">
-  <a href="https://github.com/YoungJibbit95/Pulsar-Development/assets/166993893/ea27e58b-02ec-4e59-ba25-299573702d86">
-    <img src="https://github.com/YoungJibbit95/Pulsar-Development/assets/166993893/63c5ff5e-530c-4ffb-8e00-6f02dc44e650" alt="Logo" width="440" height="210">
+  <a href="![Pul (3) (1)](https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/9ec23d91-98de-4128-9c0d-fb37792782b7)
+">
+    <img src="![Pul (3) (1)](https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/2f3d14b2-3183-4d79-8827-4f8e0f8e0daf)
+" alt="Logo" width="440" height="210">
   </a>
 </p>
 
