@@ -31,9 +31,9 @@
 
 <!-- PROJECT LOGO AND TITLE -->
 <p align="center">
-  <a href="![Pul (3) (1)](https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/9ec23d91-98de-4128-9c0d-fb37792782b7)
+  <a href="(https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/9ec23d91-98de-4128-9c0d-fb37792782b7)
 ">
-    <img src="![Pul (3) (1)](https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/2f3d14b2-3183-4d79-8827-4f8e0f8e0daf)
+    <img src="(https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/2f3d14b2-3183-4d79-8827-4f8e0f8e0daf)
 " alt="Logo" width="440" height="210">
   </a>
 </p>
