@@ -8,8 +8,6 @@
 *** Thanks again! Now go create something AMAZING! :D
 -->
 
-
-
 <!-- PROJECT SHIELDS -->
 <!--
 *** I'm using markdown "reference style" links for readability.
@@ -32,20 +30,19 @@
 <!-- PROJECT LOGO AND TITLE -->
 <p align="center">
   <a href="https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/9ec23d91-98de-4128-9c0d-fb37792782b7">
-    <img src="https://github.com/YoungJibbit95/Pulsar-Development/assets/166993893/63c5ff5e-530c-4ffb-8e00-6f02dc44e650" alt="Logo" width="440" height="210">
+    <img src="https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/9ec23d91-98de-4128-9c0d-fb37792782b7" alt="Logo" width="440" height="210">
   </a>
 </p>
 
 
-  <h2 align="center">Pulsar Client</h2>
-  <p align="center">
-    1.8.9 Forge Hack Client
-    <br />
-    <a href="https://github.com/username/Project-Name"><strong>Check the Documentation »</strong></a>
-    <br />
-    <a href="https://github.com/YoungJibbit95/Pulsar-Development/issues/new?template=bug_report.md">Report a Bug</a>
-    <a href="https://github.com/YoungJibbit95/Pulsar-Development/issues/new?template=feature_request.md">Request Modules/Visuals</a>
-  </p>
+<h2 align="center">Pulsar Client</h2>
+<p align="center">
+  1.8.9 Forge Hack Client
+  <br />
+  <a href="https://github.com/username/Project-Name"><strong>Check the Documentation »</strong></a>
+  <br />
+  <a href="https://github.com/YoungJibbit95/Pulsar-Development/issues/new?template=bug_report.md">Report a Bug</a>
+  <a href="https://github.com/YoungJibbit95/Pulsar-Development/issues/new?template=feature_request.md">Request Modules/Visuals</a>
 </p>
 
 <!-- TABLE OF CONTENTS -->
@@ -61,14 +58,13 @@
 <!-- ABOUT THE PROJECT -->
 ## <a name="about"></a>About Pulsar
 
-https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/fa72bd84-1057-40f1-845f-290dd6acf921
-
+![Pulsar](https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/fa72bd84-1057-40f1-845f-290dd6acf921)
 
 - 1.8.9 free Forge Hack Client
 - Bypasses for Polar and Intave
 - Nice Visuals
 
-[🔝 Back to Top](#readme-top-anchor)
+[🔝 Back to Top](#readme-top)
 
 <!-- GETTING STARTED -->
 ## <a name="start"></a>Getting Started
@@ -77,13 +73,13 @@ To get the project up and running on your local system, follow these steps:
 
 ### Setting up:
 
-<p> Step 1: Download Pulsar.jar and Pulsar.json </p>
-<p> Step 2: Go to YourDrive:\Users\YourUsername\AppData\Roaming\.minecraft\versions </p>
-<p> Step 3: Create a Folder in \versions named Pulsar and put the .jar and .json in there </p>
-<p> Step 4: Start any Launcher for Minecraft and go to Installations, new Installation and search and select Pulsar as new Installation </p>
-<p> Step 5: Launch the Client by starting the Installation Pulsar. Have Fun :D </p>
+1. Download Pulsar.jar and Pulsar.json
+2. Go to `YourDrive:\Users\YourUsername\AppData\Roaming\.minecraft\versions`
+3. Create a folder in \versions named `Pulsar` and put the .jar and .json in there
+4. Start any launcher for Minecraft and go to Installations, create a new installation, and select Pulsar as the new installation
+5. Launch the client by starting the Pulsar installation. Have fun! :D
 
-### If you have any issues, contact me on discord, im online every day from 14:00PM - 22:00PM. Feel free to reach out.
+### If you have any issues, contact me on Discord. I'm online every day from 14:00 PM - 22:00 PM. Feel free to reach out.
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
