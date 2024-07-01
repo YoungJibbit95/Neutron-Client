@@ -56,10 +56,8 @@
 </details>
 
 <!-- ABOUT THE PROJECT -->
-## <a href="https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/9ec23d91-98de-4128-9c0d-fb37792782b7" name="about"></a>About 
-<a href="https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/9ec23d91-98de-4128-9c0d-fb37792782b7">
-    <img src="https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/9ec23d91-98de-4128-9c0d-fb37792782b7" alt="Logo" width="220" height="105">
-  </a>
+## <a href="https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/9ec23d91-98de-4128-9c0d-fb37792782b7" name="about"></a>About <img src="https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/9ec23d91-98de-4128-9c0d-fb37792782b7" alt="Logo" width="220" height="105">
+
 
 
 
