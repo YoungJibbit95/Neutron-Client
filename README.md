@@ -31,10 +31,8 @@
 
 <!-- PROJECT LOGO AND TITLE -->
 <p align="center">
-  <a href="https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/9ec23d91-98de-4128-9c0d-fb37792782b7
-">
-    <img src="https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/2f3d14b2-3183-4d79-8827-4f8e0f8e0daf
-" alt="Logo" width="440" height="210">
+  <a href="https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/9ec23d91-98de-4128-9c0d-fb37792782b7">
+    <img src="https://github.com/YoungJibbit95/Pulsar-Development/assets/166993893/63c5ff5e-530c-4ffb-8e00-6f02dc44e650" alt="Logo" width="440" height="210">
   </a>
 </p>
 
@@ -65,9 +63,6 @@
 
 ![Pul (3)](https://github.com/YoungJibbit95/Pulsar-Development/assets/166993893/73e8d1d2-8d90-432a-a9ca-98c0085cfc41)
 
-
-
-
 - 1.8.9 free Forge Hack Client
 - Bypasses for Polar and Intave
 - Nice Visuals
@@ -88,8 +83,6 @@ To get the project up and running on your local system, follow these steps:
 <p> Step 5: Launch the Client by starting the Installation Pulsar. Have Fun :D </p>
 
 ### If you have any issues, contact me on discord, im online every day from 14:00PM - 22:00PM. Feel free to reach out.
-
-
 
 <!-- MARKDOWN LINKS & IMAGES -->
 <!-- https://www.markdownguide.org/basic-syntax/#reference-style-links -->
@@ -122,6 +115,3 @@ To get the project up and running on your local system, follow these steps:
 [Bootstrap-url]: https://getbootstrap.com
 [JQuery.com]: https://img.shields.io/badge/jQuery-0769AD?style=for-the-badge&logo=jquery&logoColor=white
 [JQuery-url]: https://jquery.com 
-
-
-
