@@ -39,7 +39,7 @@
 <p align="center">
   1.8.9 Forge Hack Client
   <br />
-  <a href="https://projectki.net"><strong>See Changelog »</strong></a>
+  <a href="https://projectki.net"><strong>See Changelog in Dashboard»</strong></a>
   <br />
   <a href="https://github.com/YoungJibbit95/Pulsar-Development/issues/new?template=bug_report.md">Report a Bug</a>
   <a href="https://github.com/YoungJibbit95/Pulsar-Development/issues/new?template=feature_request.md">Request Modules/Visuals</a>
