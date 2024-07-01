@@ -30,7 +30,7 @@
 <!-- PROJECT LOGO AND TITLE -->
 <p align="center">
   <a href="https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/9ec23d91-98de-4128-9c0d-fb37792782b7">
-    <img src="https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/9ec23d91-98de-4128-9c0d-fb37792782b7" alt="Logo" width="440" height="210">
+    <img src="https://github.com/YoungJibbit95/Pulsar-Client/assets/166993893/9ec23d91-98de-4128-9c0d-fb37792782b7" alt="Logo" width="220" height="105">
   </a>
 </p>
 
