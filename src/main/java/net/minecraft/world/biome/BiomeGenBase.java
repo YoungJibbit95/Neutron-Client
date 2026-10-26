@@ -161,11 +161,11 @@ public abstract class BiomeGenBase
     protected List<BiomeGenBase.SpawnListEntry> spawnableCaveCreatureList;
 
     /** Set to true if snow is enabled for this biome. */
-    protected boolean enableSnow;
 
     /**
      * Is true (default) if the biome support rain (desert and nether can't have rain)
      */
+    public boolean enableSnow;
     protected boolean enableRain;
 
     /** The id number to this biome, and its index in the biomeList array. */
@@ -490,7 +490,7 @@ public abstract class BiomeGenBase
 
                         if (j1 < i && (iblockstate == null || iblockstate.getBlock().getMaterial() == Material.air))
                         {
-                            if (this.getFloatTemperature(blockpos$mutableblockpos.func_181079_c(p_180628_4_, j1, p_180628_5_)) < 0.15F)
+                            if (this.getFloatTemperature(blockpos$mutableblockpos.set(p_180628_4_, j1, p_180628_5_)) < 0.15F)
                             {
                                 iblockstate = Blocks.ice.getDefaultState();
                             }

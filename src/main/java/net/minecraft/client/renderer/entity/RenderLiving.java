@@ -20,8 +20,7 @@ public abstract class RenderLiving<T extends EntityLiving> extends RendererLivin
         super(rendermanagerIn, modelbaseIn, shadowsizeIn);
     }
 
-    protected boolean canRenderName(T entity)
-    {
+    protected boolean canRenderName(T entity) {
         return super.canRenderName(entity) && (entity.getAlwaysRenderNameTagForRender() || entity.hasCustomName() && entity == this.renderManager.pointedEntity);
     }
 

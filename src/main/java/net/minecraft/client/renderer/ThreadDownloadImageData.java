@@ -103,6 +103,11 @@ public class ThreadDownloadImageData extends SimpleTexture
                 {
                     this.bufferedImage = ImageIO.read(this.cacheFile);
 
+                    if (this.bufferedImage == null)
+                    {
+                        throw new IOException("Cached image could not be decoded: " + this.cacheFile);
+                    }
+
                     if (this.imageBuffer != null)
                     {
                         this.setBufferedImage(this.imageBuffer.parseUserSkin(this.bufferedImage));

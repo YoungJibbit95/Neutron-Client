@@ -366,12 +366,32 @@ public class BlockPos extends Vec3i
             return this.z;
         }
 
-        public BlockPos.MutableBlockPos func_181079_c(int p_181079_1_, int p_181079_2_, int p_181079_3_)
+        public BlockPos.MutableBlockPos set(int xIn, int yIn, int zIn)
         {
-            this.x = p_181079_1_;
-            this.y = p_181079_2_;
-            this.z = p_181079_3_;
+            this.x = xIn;
+            this.y = yIn;
+            this.z = zIn;
             return this;
+        }
+
+        public BlockPos.MutableBlockPos set(Vec3i vec3i) {
+            return this.set(vec3i.getX(), vec3i.getY(), vec3i.getZ());
+        }
+
+        public BlockPos.MutableBlockPos func_181079_c(int xIn, int yIn, int zIn)
+        {
+            this.x = xIn;
+            this.y = yIn;
+            this.z = zIn;
+            return this;
+        }
+
+        public BlockPos.MutableBlockPos func_181079_c(Vec3i vec3i) {
+            return this.set(vec3i.getX(), vec3i.getY(), vec3i.getZ());
+        }
+
+        public BlockPos.MutableBlockPos move(int xDist, int yDist, int zDist) {
+            return this.set(this.getX() + xDist, this.getY() + yDist, this.getZ() + zDist);
         }
     }
 }

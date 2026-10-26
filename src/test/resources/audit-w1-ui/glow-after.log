@@ -1,0 +1,6 @@
+SLF4J: Failed to load class "org.slf4j.impl.StaticLoggerBinder".
+SLF4J: Defaulting to no-operation (NOP) logger implementation
+SLF4J: See http://www.slf4j.org/codes.html#StaticLoggerBinder for further details.
+COVERAGE: Pbuffer/FBO GUI composition, production shaders and bundled font subset; synthetic backdrop/input/data.
+NOT COVERED: native Display creation, fullscreen/resize events/VSync, HTTP version check, world rendering, shader packs or full client bootstrap.
+PASS glow: 20 Gaussian/Kawase transitions, size rebuilds, repeated disable; retired FBO/texture/depth deleted, active valid, no GL errors

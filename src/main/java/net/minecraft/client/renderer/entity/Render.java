@@ -1,8 +1,19 @@
 package net.minecraft.client.renderer.entity;
 
+import me.youngjibbit.Pulsar;
+import me.youngjibbit.module.impl.render.Nametags;
+import me.youngjibbit.utils.RenderUtil;
+import me.youngjibbit.utils.RenderUtils;
+import me.youngjibbit.utils.Theme;
+import me.youngjibbit.utils.Wrapper;
+import me.youngjibbit.utils.render.Blur;
+import me.youngjibbit.utils.render.RUtil;
+import me.youngjibbit.utils.render.Roundedutil;
+import me.youngjibbit.utils.render.UIUtils;
 import net.minecraft.block.Block;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.FontRenderer;
+import net.minecraft.client.gui.Gui;
 import net.minecraft.client.model.ModelBiped;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.Tessellator;
@@ -24,12 +35,17 @@ import net.minecraft.world.World;
 import net.optifine.entity.model.IEntityRenderer;
 import net.optifine.shaders.Shaders;
 import org.lwjgl.opengl.GL11;
+import java.awt.*;
+import java.util.List;
 
 public abstract class Render<T extends Entity> implements IEntityRenderer
 {
     private static final ResourceLocation shadowTextures = new ResourceLocation("textures/misc/shadow.png");
     protected final RenderManager renderManager;
     public float shadowSize;
+    private float gradientOffset = 30.0f;
+    private static final float GRADIENT_SCROLL_SPEED = 0.5f;
+    public static long startTime = System.currentTimeMillis(), endTime = -1;
 
     /**
      * Determines the darkness of the object's shadow. Higher value makes a darker shadow.
@@ -37,10 +53,29 @@ public abstract class Render<T extends Entity> implements IEntityRenderer
     protected float shadowOpaque = 1.0F;
     private Class entityClass = null;
     private ResourceLocation locationTextureCustom = null;
+    Theme currentTheme = applyTheme();
+    int[] outlineColors = getStaticOutlineGradientColors(currentTheme);
 
     protected Render(RenderManager renderManager)
     {
         this.renderManager = renderManager;
+    }
+
+    public int[] getStaticOutlineGradientColors(Theme theme)
+    {
+        List<Color> colors = theme.getGradientColors();
+        if (colors == null || colors.size() < 2)
+        {
+            return new int[]{Color.RED.getRGB(), Color.PINK.getRGB()};
+        }
+        Color color1 = colors.get(0);
+        Color color2 = colors.get(1);
+        return new int[]{color1.getRGB(), color2.getRGB()};
+    }
+
+    public Theme applyTheme() {
+        Theme currentTheme = Pulsar.INSTANCE.getDefaultTheme();
+        return currentTheme;
     }
 
     public boolean shouldRender(T livingEntity, ICamera camera, double camX, double camY, double camZ)
@@ -72,7 +107,7 @@ public abstract class Render<T extends Entity> implements IEntityRenderer
     {
         if (this.canRenderName(entity))
         {
-            this.renderLivingLabel(entity, entity.getDisplayName().getFormattedText(), x, y, z, 64);
+            this.renderLivingLabel(entity, entity.getDisplayName().getUnformattedText(), x, y, z, 64);
         }
     }
 
@@ -366,51 +401,138 @@ public abstract class Render<T extends Entity> implements IEntityRenderer
      */
     protected void renderLivingLabel(T entityIn, String str, double x, double y, double z, int maxDistance)
     {
+        updateGradientOffset();
         double d0 = entityIn.getDistanceSqToEntity(this.renderManager.livingPlayer);
 
-        if (d0 <= (double)(maxDistance * maxDistance))
+        if (!Nametags.replacesVanillaLabel(entityIn, str, this.renderManager))
         {
-            FontRenderer fontrenderer = this.getFontRendererFromRenderManager();
-            float f = 1.6F;
-            float f1 = 0.016666668F * f;
-            GlStateManager.pushMatrix();
-            GlStateManager.translate((float)x + 0.0F, (float)y + entityIn.height + 0.5F, (float)z);
-            GL11.glNormal3f(0.0F, 1.0F, 0.0F);
-            GlStateManager.rotate(-this.renderManager.playerViewY, 0.0F, 1.0F, 0.0F);
-            GlStateManager.rotate(this.renderManager.playerViewX, 1.0F, 0.0F, 0.0F);
-            GlStateManager.scale(-f1, -f1, f1);
-            GlStateManager.disableLighting();
-            GlStateManager.depthMask(false);
-            GlStateManager.disableDepth();
-            GlStateManager.enableBlend();
-            GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
-            Tessellator tessellator = Tessellator.getInstance();
-            WorldRenderer worldrenderer = tessellator.getWorldRenderer();
-            int i = 0;
-
-            if (str.equals("deadmau5"))
+            if (d0 <= (double) (maxDistance * maxDistance))
             {
-                i = -10;
-            }
+                FontRenderer fontrenderer = this.getFontRendererFromRenderManager();
+                float f = 1.6F;
+                float f1 = 0.016666668F * f;
 
-            int j = fontrenderer.getStringWidth(str) / 2;
-            GlStateManager.disableTexture2D();
-            worldrenderer.func_181668_a(7, DefaultVertexFormats.field_181706_f);
-            worldrenderer.func_181662_b((double)(-j - 1), (double)(-1 + i), 0.0D).func_181666_a(0.0F, 0.0F, 0.0F, 0.25F).func_181675_d();
-            worldrenderer.func_181662_b((double)(-j - 1), (double)(8 + i), 0.0D).func_181666_a(0.0F, 0.0F, 0.0F, 0.25F).func_181675_d();
-            worldrenderer.func_181662_b((double)(j + 1), (double)(8 + i), 0.0D).func_181666_a(0.0F, 0.0F, 0.0F, 0.25F).func_181675_d();
-            worldrenderer.func_181662_b((double)(j + 1), (double)(-1 + i), 0.0D).func_181666_a(0.0F, 0.0F, 0.0F, 0.25F).func_181675_d();
-            tessellator.draw();
-            GlStateManager.enableTexture2D();
-            fontrenderer.drawString(str, -fontrenderer.getStringWidth(str) / 2, i, 553648127);
-            GlStateManager.enableDepth();
-            GlStateManager.depthMask(true);
-            fontrenderer.drawString(str, -fontrenderer.getStringWidth(str) / 2, i, -1);
-            GlStateManager.enableLighting();
-            GlStateManager.disableBlend();
-            GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-            GlStateManager.popMatrix();
+
+                GlStateManager.pushMatrix();
+                GlStateManager.translate((float) x + 0.0F, (float) y + entityIn.height + 0.5F, (float) z);
+                GL11.glNormal3f(0.0F, 1.0F, 0.0F);
+                GlStateManager.rotate(-this.renderManager.playerViewY, 0.0F, 1.0F, 0.0F);
+                GlStateManager.rotate(this.renderManager.playerViewX, 1.0F, 0.0F, 0.0F);
+                GlStateManager.scale(-f1, -f1, f1);
+                GlStateManager.disableLighting();
+                GlStateManager.depthMask(false);
+                GlStateManager.disableDepth();
+                GlStateManager.enableBlend();
+                GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+                Tessellator tessellator = Tessellator.getInstance();
+                WorldRenderer worldrenderer = tessellator.getWorldRenderer();
+                int i = 0;
+
+                if (str.equals("deadmau5"))
+                {
+                    i = -10;
+                }
+
+                int j = fontrenderer.getStringWidth(str) / 2;
+                GlStateManager.disableTexture2D();
+                worldrenderer.func_181668_a(7, DefaultVertexFormats.field_181706_f);
+                worldrenderer.func_181662_b((double) (-j - 1), (double) (-1 + i), 0.0D).func_181666_a(0.0F, 0.0F, 0.0F, 0.25F).func_181675_d();
+                worldrenderer.func_181662_b((double) (-j - 1), (double) (8 + i), 0.0D).func_181666_a(0.0F, 0.0F, 0.0F, 0.25F).func_181675_d();
+                worldrenderer.func_181662_b((double) (j + 1), (double) (8 + i), 0.0D).func_181666_a(0.0F, 0.0F, 0.0F, 0.25F).func_181675_d();
+                worldrenderer.func_181662_b((double) (j + 1), (double) (-1 + i), 0.0D).func_181666_a(0.0F, 0.0F, 0.0F, 0.25F).func_181675_d();
+                tessellator.draw();
+                GlStateManager.enableTexture2D();
+                //Pulsar.INSTANCE.fontManager.getFont("Poppins-Medium").drawString(str, -fontrenderer.getStringWidth(str) / 2, i, 553648127);
+                fontrenderer.drawString(str, -fontrenderer.getStringWidth(str) / 2, i, 553648127);
+                GlStateManager.enableDepth();
+                GlStateManager.depthMask(true);
+                //Pulsar.INSTANCE.fontManager.getFont("Poppins-Medium").drawStringWithShadow(str, -fontrenderer.getStringWidth(str) / 2, i, -1);
+                fontrenderer.drawString(str, -fontrenderer.getStringWidth(str) / 2, i, -1);
+                GlStateManager.enableLighting();
+                GlStateManager.disableBlend();
+                GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
+                GlStateManager.popMatrix();
+            }
         }
+    }
+
+    public static int interpolateTwoColorsSmoothly(int color1, int color2, long currentTime, float cycleDuration) {
+        float progress = (currentTime % (long) cycleDuration) / cycleDuration;
+        float factor = (float) (Math.sin(progress * 2 * Math.PI) * 0.5 + 0.5);
+
+        int red1 = (color1 >> 16) & 0xFF;
+        int green1 = (color1 >> 8) & 0xFF;
+        int blue1 = color1 & 0xFF;
+
+        int red2 = (color2 >> 16) & 0xFF;
+        int green2 = (color2 >> 8) & 0xFF;
+        int blue2 = color2 & 0xFF;
+
+        int red = (int) (red1 + (red2 - red1) * factor);
+        int green = (int) (green1 + (green2 - green1) * factor);
+        int blue = (int) (blue1 + (blue2 - blue1) * factor);
+
+        return (0xFF << 24) | (red << 16) | (green << 8) | blue; // Include alpha
+    }
+
+    private int getColorFromTheme(Theme theme, float offset)
+    {
+        List<Color> colors = theme.getGradientColors();
+        if (colors == null || colors.isEmpty())
+        {
+            return Color.WHITE.getRGB();
+        }
+
+        int size = colors.size();
+        int index1 = (int) (offset * size) % size;
+        int index2 = (index1 + 1) % size;
+
+        float blend = offset * size - index1;
+
+        Color color = Theme.convert(colors.get(index1), colors.get(index2), blend);
+
+        return color.getRGB();
+    }
+
+    public Color interpolateColor(Color color1, Color color2, float fraction)
+    {
+        int r = (int) (color1.getRed() + fraction * (color2.getRed() - color1.getRed()));
+        int g = (int) (color1.getGreen() + fraction * (color2.getGreen() - color1.getGreen()));
+        int b = (int) (color1.getBlue() + fraction * (color2.getBlue() - color1.getBlue()));
+        int a = (int) (color1.getAlpha() + fraction * (color2.getAlpha() - color1.getAlpha()));
+        return new Color(r, g, b, a);
+    }
+
+    private void drawGradientString(String text, int x, int y, Theme theme)
+    {
+        Minecraft mc = Minecraft.getMinecraft();
+        FontRenderer fr = mc.fontRendererObj;
+
+        int currentX = x;
+
+        for (int i = 0; i < text.length(); i++)
+        {
+            char currentChar = text.charAt(i);
+            double charOffset = (double) i / (double) text.length();
+
+            int color = getColorFromTheme(theme, (float) ((gradientOffset + charOffset) % 1.0));
+
+            String tmpStr = String.valueOf(currentChar);
+            Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Regular 16").drawStringWithShadow(tmpStr, currentX, y, color);
+            currentX += Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Regular 16").getWidth(tmpStr) -1;
+        }
+    }
+
+    private void updateGradientOffset()
+    {
+        long currentTime = System.currentTimeMillis();
+        long elapsedTime = currentTime - startTime;
+        startTime = currentTime;
+
+        float delta = elapsedTime / 1000f;
+        gradientOffset += delta * GRADIENT_SCROLL_SPEED;
+
+        gradientOffset %= 1.0f;
     }
 
     public RenderManager getRenderManager()

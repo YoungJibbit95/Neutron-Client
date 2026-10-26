@@ -12,6 +12,8 @@ import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.resources.I18n;
 import net.minecraft.client.stream.IStream;
 import net.minecraft.client.stream.NullStream;
+import net.minecraft.client.stream.DisabledStream;
+import net.minecraft.util.ChatComponentText;
 import net.minecraft.util.ChatComponentTranslation;
 import net.minecraft.util.IChatComponent;
 import net.minecraft.util.Session;
@@ -158,7 +160,11 @@ public class GuiStreamUnavailable extends GuiScreen
         Minecraft minecraft = Minecraft.getMinecraft();
         IStream istream = minecraft.getTwitchStream();
 
-        if (!OpenGlHelper.framebufferSupported)
+        if (istream instanceof DisabledStream)
+        {
+            minecraft.displayGuiScreen(new GuiStreamUnavailable(p_152321_0_, GuiStreamUnavailable.Reason.DISABLED));
+        }
+        else if (!OpenGlHelper.framebufferSupported)
         {
             List<ChatComponentTranslation> list = Lists.<ChatComponentTranslation>newArrayList();
             list.add(new ChatComponentTranslation("stream.unavailable.no_fbo.version", new Object[] {GL11.glGetString(GL11.GL_VERSION)}));
@@ -231,6 +237,7 @@ public class GuiStreamUnavailable extends GuiScreen
 
     public static enum Reason
     {
+        DISABLED(new ChatComponentText("Twitch broadcasting is disabled in this client.")),
         NO_FBO(new ChatComponentTranslation("stream.unavailable.no_fbo", new Object[0])),
         LIBRARY_ARCH_MISMATCH(new ChatComponentTranslation("stream.unavailable.library_arch_mismatch", new Object[0])),
         LIBRARY_FAILURE(new ChatComponentTranslation("stream.unavailable.library_failure", new Object[0]), new ChatComponentTranslation("stream.unavailable.report_to_mojang", new Object[0])),

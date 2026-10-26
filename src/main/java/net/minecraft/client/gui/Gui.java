@@ -7,12 +7,14 @@ import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.util.ResourceLocation;
 
+import static org.lwjgl.opengl.GL11.glDepthFunc;
+
 public class Gui
 {
     public static final ResourceLocation optionsBackground = new ResourceLocation("textures/gui/options_background.png");
     public static final ResourceLocation statIcons = new ResourceLocation("textures/gui/container/stats_icons.png");
     public static final ResourceLocation icons = new ResourceLocation("textures/gui/icons.png");
-    protected float zLevel;
+    protected static float zLevel;
 
     /**
      * Draw a 1 pixel wide horizontal line. Args: x1, x2, y, color
@@ -83,11 +85,48 @@ public class Gui
         GlStateManager.disableBlend();
     }
 
+    public static void drawRect(double left, double top, double right, double bottom, int color)
+    {
+        if (left < right)
+        {
+
+            double i = left;
+            left = right;
+            right = i;
+        }
+
+        if (top < bottom)
+        {
+            double j = top;
+            top = bottom;
+            bottom = j;
+        }
+
+        float f3 = (float)(color >> 24 & 255) / 255.0F;
+        float f = (float)(color >> 16 & 255) / 255.0F;
+        float f1 = (float)(color >> 8 & 255) / 255.0F;
+        float f2 = (float)(color & 255) / 255.0F;
+        Tessellator tessellator = Tessellator.getInstance();
+        WorldRenderer worldrenderer = tessellator.getWorldRenderer();
+        GlStateManager.enableBlend();
+        GlStateManager.disableTexture2D();
+        GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
+        GlStateManager.color(f, f1, f2, f3);
+        worldrenderer.func_181668_a(7, DefaultVertexFormats.field_181705_e);
+        worldrenderer.func_181662_b((left), bottom, 0.0D).func_181675_d();
+        worldrenderer.func_181662_b((right), bottom, 0.0D).func_181675_d();
+        worldrenderer.func_181662_b((right), top, 0.0D).func_181675_d();
+        worldrenderer.func_181662_b((left), top, 0.0D).func_181675_d();
+        tessellator.draw();
+        GlStateManager.enableTexture2D();
+        GlStateManager.disableBlend();
+    }
+
     /**
      * Draws a rectangle with a vertical gradient between the specified colors (ARGB format). Args : x1, y1, x2, y2,
      * topColor, bottomColor
      */
-    protected void drawGradientRect(int left, int top, int right, int bottom, int startColor, int endColor)
+    public void drawGradientRect(int left, int top, int right, int bottom, int startColor, int endColor)
     {
         float f = (float)(startColor >> 24 & 255) / 255.0F;
         float f1 = (float)(startColor >> 16 & 255) / 255.0F;
@@ -119,7 +158,7 @@ public class Gui
     /**
      * Renders the specified text to the screen, center-aligned. Args : renderer, string, x, y, color
      */
-    public void drawCenteredString(FontRenderer fontRendererIn, String text, int x, int y, int color)
+    public static void drawCenteredString(FontRenderer fontRendererIn, String text, float x, float y, int color)
     {
         fontRendererIn.drawStringWithShadow(text, (float)(x - fontRendererIn.getStringWidth(text) / 2), (float)y, color);
     }
@@ -214,4 +253,5 @@ public class Gui
         worldrenderer.func_181662_b((double)x, (double)y, 0.0D).func_181673_a((double)(u * f), (double)(v * f1)).func_181675_d();
         tessellator.draw();
     }
+
 }

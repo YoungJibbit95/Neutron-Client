@@ -89,4 +89,8 @@ public class C02PacketUseEntity implements Packet<INetHandlerPlayServer>
         ATTACK,
         INTERACT_AT;
     }
+
+    public int getEntityId() {
+        return entityId;
+    }
 }

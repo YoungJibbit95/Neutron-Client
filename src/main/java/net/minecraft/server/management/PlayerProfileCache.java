@@ -245,17 +245,23 @@ public class PlayerProfileCache
         {
             bufferedreader = Files.newReader(this.usercacheFile, Charsets.UTF_8);
             List<PlayerProfileCache.ProfileEntry> list = (List)this.gson.fromJson((Reader)bufferedreader, TYPE);
+            if (list == null) {
+                list = new ArrayList<>(); // Prevent null issues
+            }
             this.usernameToProfileEntryMap.clear();
             this.uuidToProfileEntryMap.clear();
             this.gameProfiles.clear();
 
-            for (PlayerProfileCache.ProfileEntry playerprofilecache$profileentry : Lists.reverse(list))
-            {
-                if (playerprofilecache$profileentry != null)
-                {
-                    this.addEntry(playerprofilecache$profileentry.getGameProfile(), playerprofilecache$profileentry.getExpirationDate());
+
+                if (list != null && !list.isEmpty()) {
+                    for (PlayerProfileCache.ProfileEntry playerprofilecache$profileentry : Lists.reverse(list)) {
+                        if (playerprofilecache$profileentry != null) {
+                            this.addEntry(playerprofilecache$profileentry.getGameProfile(), playerprofilecache$profileentry.getExpirationDate());
+                        }
+                    }
+                } else {
+                    System.out.println("Player profile cache list is null or empty!");
                 }
-            }
         }
         catch (FileNotFoundException var9)
         {

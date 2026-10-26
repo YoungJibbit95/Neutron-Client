@@ -64,6 +64,11 @@ public class DamageSource
         return new EntityDamageSource("player", player);
     }
 
+    public static DamageSource causeEntityDamageSource(EntityLivingBase player)
+    {
+        return new EntityDamageSource("player", player);
+    }
+
     /**
      * returns EntityDamageSourceIndirect of an arrow
      */

@@ -1,9 +1,13 @@
 package net.minecraft.client.gui;
 
+import me.youngjibbit.utils.render.Roundedutil;
+import me.youngjibbit.utils.render.UIUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.util.MathHelper;
+
+import java.awt.*;
 
 public class GuiOptionSlider extends GuiButton
 {
@@ -58,8 +62,13 @@ public class GuiOptionSlider extends GuiButton
 
             mc.getTextureManager().bindTexture(buttonTextures);
             GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
-            this.drawTexturedModalRect(this.xPosition + (int)(this.sliderValue * (float)(this.width - 8)), this.yPosition, 0, 66, 4, 20);
-            this.drawTexturedModalRect(this.xPosition + (int)(this.sliderValue * (float)(this.width - 8)) + 4, this.yPosition, 196, 66, 4, 20);
+
+            int knobX = this.xPosition + (int) (this.sliderValue * (float) (this.width - 8));
+            int knobColor = new Color(255, 255, 255, 220).getRGB(); // Slightly transparent white
+            UIUtils.drawGradientCornerLR(knobX - 1, this.yPosition +2, 6, 16, 4, Color.lightGray, Color.black);
+            //Roundedutil.drawSmoothRoundedRect(knobX, this.yPosition +1, knobX + 7, this.yPosition + 19, 10, knobColor);
+            //this.drawTexturedModalRect(this.xPosition + (int)(this.sliderValue * (float)(this.width - 8)), this.yPosition, 0, 66, 4, 20);
+            //this.drawTexturedModalRect(this.xPosition + (int)(this.sliderValue * (float)(this.width - 8)) + 4, this.yPosition, 196, 66, 4, 20);
         }
     }
 

@@ -1,11 +1,17 @@
 package net.minecraft.util;
 
+import me.youngjibbit.Pulsar;
+import me.youngjibbit.event.player.TimerManipulationEvent;
 import net.minecraft.client.Minecraft;
 
 public class Timer
 {
+    private final java.util.function.LongSupplier clock;
+    private long lastRealSample;
+    /** Raw frame duration before TimerManipulationEvent/timerSpeed; used to reject catch-up charge. */
+    public long lastFrameDurationMs;
     /** The number of timer ticks per second of real time */
-    float ticksPerSecond;
+    public float ticksPerSecond;
 
     /**
      * The time reported by the high-resolution clock at the last call of updateTimer(), in seconds
@@ -50,17 +56,64 @@ public class Timer
      */
     private double timeSyncAdjustment = 1.0D;
 
-    public Timer(float p_i1018_1_)
+    /*public Timer(float p_i1018_1_)
     {
         this.ticksPerSecond = p_i1018_1_;
         this.lastSyncSysClock = Minecraft.getSystemTime();
         this.lastSyncHRClock = System.nanoTime() / 1000000L;
+    }*/
+
+    /**
+     * Updates all fields of the Timer using the current time
+     */
+
+    public float partialTicks;
+    public float field_194148_c;
+
+    /**
+     * The time reported by the system clock at the last sync, in milliseconds
+     */
+    private final float field_194149_e;
+
+    public Timer(float tps)
+    {
+        this(tps, Minecraft::getSystemTime);
+    }
+
+    public Timer(float tps, java.util.function.LongSupplier clock)
+    {
+        if (!(tps > 0) || !Float.isFinite(tps)) throw new IllegalArgumentException("Tick rate must be finite and positive");
+        this.clock = clock;
+        this.ticksPerSecond = tps;
+        this.field_194149_e = 1000.0F / tps;
+        this.lastSyncSysClock = this.lastRealSample = clock.getAsLong();
+        this.timerSpeed = 1.0F;
     }
 
     /**
      * Updates all fields of the Timer using the current time
      */
     public void updateTimer()
+    {
+        long realSample = clock.getAsLong();
+        this.lastFrameDurationMs = Math.max(0, realSample - this.lastRealSample);
+        this.lastRealSample = realSample;
+        TimerManipulationEvent timerManipulationEvent = new TimerManipulationEvent(realSample);
+        Pulsar.INSTANCE.BUS.post(timerManipulationEvent);
+        long i = timerManipulationEvent.isCancelled() ? realSample : timerManipulationEvent.getTime();
+        long delta = Math.max(0, Math.min(1000, i - this.lastSyncSysClock));
+        float speed = Float.isFinite(this.timerSpeed) && this.timerSpeed >= 0 ? this.timerSpeed : 1;
+        double elapsed = (double) delta / this.field_194149_e * speed;
+        this.field_194148_c = (float) Math.min(10, elapsed);
+        this.lastSyncSysClock = i;
+        double total = this.partialTicks + elapsed;
+        this.elapsedTicks = (int) Math.min(10, Math.floor(total));
+        this.partialTicks = (float) (total - Math.floor(total));
+        this.elapsedPartialTicks = this.partialTicks;
+        this.renderPartialTicks = this.partialTicks;
+    }
+
+    /*public void updateTimer()
     {
         long i = Minecraft.getSystemTime();
         long j = i - this.lastSyncSysClock;
@@ -104,5 +157,5 @@ public class Timer
         }
 
         this.renderPartialTicks = this.elapsedPartialTicks;
-    }
+    }*/
 }

@@ -3,9 +3,20 @@ package net.minecraft.client.gui;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
+
+import java.awt.*;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
+
+import me.youngjibbit.Pulsar;
+import me.youngjibbit.event.render.Event2D;
+import me.youngjibbit.event.render.RenderEvent;
+import me.youngjibbit.utils.*;
+import me.youngjibbit.utils.RenderUtil;
+import me.youngjibbit.utils.render.*;
+import me.youngjibbit.utils.render.GuiShaderBloom;
+import me.youngjibbit.utils.render.shader.KawaseBloom;
 import net.minecraft.block.material.Material;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GlStateManager;
@@ -17,6 +28,7 @@ import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.client.resources.I18n;
+import net.minecraft.client.shader.Framebuffer;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.SharedMonsterAttributes;
@@ -43,12 +55,15 @@ import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.StringUtils;
 import net.minecraft.world.border.WorldBorder;
 import net.optifine.CustomColors;
+import org.lwjgl.opengl.GL11;
 
 public class GuiIngame extends Gui
 {
     private static final ResourceLocation vignetteTexPath = new ResourceLocation("textures/misc/vignette.png");
     private static final ResourceLocation widgetsTexPath = new ResourceLocation("textures/gui/widgets.png");
     private static final ResourceLocation pumpkinBlurTexPath = new ResourceLocation("textures/misc/pumpkinblur.png");
+    private final ArrayListSurface hotbarSurface=new ArrayListSurface(),scoreboardSurface=new ArrayListSurface(),hudScene=new ArrayListSurface();
+    private boolean hotbarSceneReady;
     private final Random rand = new Random();
     private final Minecraft mc;
     private final RenderItem itemRenderer;
@@ -114,6 +129,7 @@ public class GuiIngame extends Gui
 
     public void renderGameOverlay(float partialTicks)
     {
+        me.youngjibbit.utils.render.UiEffects.beginFrame();
         ScaledResolution scaledresolution = new ScaledResolution(this.mc);
         int i = scaledresolution.getScaledWidth();
         int j = scaledresolution.getScaledHeight();
@@ -154,6 +170,10 @@ public class GuiIngame extends Gui
         {
             this.renderTooltip(scaledresolution, partialTicks);
         }
+
+
+        renderClientHud(partialTicks,scaledresolution);
+
 
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
         this.mc.getTextureManager().bindTexture(icons);
@@ -344,13 +364,103 @@ public class GuiIngame extends Gui
         {
             this.overlayPlayerList.updatePlayerList(false);
         }
-
+        final RenderEvent e = new RenderEvent(partialTicks);
+        Pulsar.BUS.post(e);
         GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
         GlStateManager.disableLighting();
         GlStateManager.enableAlpha();
     }
+    Theme currentTheme = applyTheme();
+    int[] outlineColors = getStaticOutlineGradientColors(currentTheme);
+
+    private static int interpolateTwoColorsSmoothly(int color1, int color2, long currentTime, float cycleDuration) {
+
+        float progress = (currentTime % (long) cycleDuration) / cycleDuration;
+        float factor = (float) (Math.sin(progress * 2 * Math.PI) * 0.5 + 0.5);
+
+        int red1 = (color1 >> 16) & 0xFF;
+        int green1 = (color1 >> 8) & 0xFF;
+        int blue1 = color1 & 0xFF;
+
+        int red2 = (color2 >> 16) & 0xFF;
+        int green2 = (color2 >> 8) & 0xFF;
+        int blue2 = color2 & 0xFF;
+
+        int red = (int) (red1 + (red2 - red1) * factor);
+        int green = (int) (green1 + (green2 - green1) * factor);
+        int blue = (int) (blue1 + (blue2 - blue1) * factor);
+
+        return (0xFF << 24) | (red << 16) | (green << 8) | blue;
+    }
+
+    private int[] getStaticOutlineGradientColors(Theme currentTheme)
+    {
+        Theme resolvedTheme = Theme.resolve(currentTheme);
+        int color1 = resolvedTheme.getPrimaryGradientRGB();
+        int color2 = resolvedTheme.getSecondaryGradientRGB();
+
+        return new int[]
+                {
+                        color1,
+                        color2,
+                        color1,
+                        color2
+                };
+    }
+
+    /** The native Event2D owner is also exercised by the combined offscreen HUD regression. */
+    private void renderClientHud(float partialTicks,ScaledResolution resolution) {
+        me.youngjibbit.utils.render.HudDrag.context(mc.currentScreen instanceof GuiChat, org.lwjgl.input.Mouse.isCreated() && org.lwjgl.input.Mouse.isButtonDown(0));
+        final Event2D event=new Event2D(partialTicks,resolution);
+        try(me.youngjibbit.utils.render.RenderState state=new me.youngjibbit.utils.render.RenderState()){
+            Runnable overlays=()->{GuiShaderBloom.beginBatch();try{Pulsar.BUS.post(event);}finally{GuiShaderBloom.flushBatch(2,3);}};
+            boolean inherited=hotbarSceneReady&&hotbarSurface.withCapturedScene(overlays);hotbarSceneReady=false;
+            if(!inherited)hudScene.withScene(Theme.getDefaultTheme(),overlays);
+        }
+    }
+
+    public Theme applyTheme() {
+        return Theme.resolve(Pulsar.INSTANCE.getDefaultTheme());
+    }
 
     protected void renderTooltip(ScaledResolution sr, float partialTicks)
+    {
+        currentTheme = Theme.resolve(Theme.getDefaultTheme());
+        outlineColors = getStaticOutlineGradientColors(currentTheme);
+        ScaledResolution s = new ScaledResolution(Wrapper.mc);
+
+        int color01 = outlineColors[0];
+        int color02 = outlineColors[1];
+        long cT = System.currentTimeMillis();
+        float cycleDuration = 2000.0f;
+        float o = (cT % 3000L) / 3000.0f;
+        int interpolatedColor1 = interpolateTwoColorsSmoothly(color01, color02, cT, cycleDuration);
+        int interpolatedColor2 = interpolateTwoColorsSmoothly(color02, color01, cT, cycleDuration);
+        int hotbarX = s.getScaledWidth() / 2 - 92;
+        int hotbarY = s.getScaledHeight() - 26;
+        int hotbarWidth = 184;
+        int hotbarHeight = 24;
+        int selectedSlotX = hotbarX + Wrapper.mc.thePlayer.inventory.currentItem * 20;
+
+        hotbarSurface.panel(hotbarX,hotbarY,hotbarWidth,hotbarHeight,5,currentTheme,true,true,true,8,90/255f,.65f,()->{});hotbarSceneReady=true;
+        GuiShaderBloom.renderRect(selectedSlotX, hotbarY, 24, 24, 5, interpolatedColor2, 1, 1);
+        UIUtils.drawDecorationRound(selectedSlotX, hotbarY, 24, 24, 5, new Color(0,0,0,122));
+
+        EntityPlayer var3 = (EntityPlayer) this.mc.thePlayer;
+        RenderHelper.enableGUIStandardItemLighting();
+
+        for (int var6 = 0; var6 < 9; ++var6) {
+            int var7 = sr.getScaledWidth() / 2 - 90 + var6 * 20 + 2;
+            int var8 = sr.getScaledHeight() - 16 - 3;
+            this.renderHotbarItem(var6, var7, var8, partialTicks, var3);
+        }
+
+        RenderHelper.disableStandardItemLighting();
+        GlStateManager.disableRescaleNormal();
+        GlStateManager.disableBlend();
+    }
+
+    /*protected void renderTooltip(ScaledResolution sr, float partialTicks)
     {
         if (this.mc.getRenderViewEntity() instanceof EntityPlayer)
         {
@@ -379,7 +489,7 @@ public class GuiIngame extends Gui
             GlStateManager.disableRescaleNormal();
             GlStateManager.disableBlend();
         }
-    }
+    }*/
 
     public void renderHorseJumpBar(ScaledResolution p_175186_1_, int p_175186_2_)
     {
@@ -577,6 +687,12 @@ public class GuiIngame extends Gui
         int k1 = 3;
         int l1 = p_180475_2_.getScaledWidth() - i - k1;
         int j = 0;
+        int scoreboardX = l1 - 2;
+        int scoreboardY = j1 - i1 - this.getFontRenderer().FONT_HEIGHT - 8;
+        int scoreboardWidth = i + k1 + 6;
+        int scoreboardHeight = i1 + this.getFontRenderer().FONT_HEIGHT + 12;
+
+        scoreboardSurface.panel(scoreboardX,scoreboardY,scoreboardWidth,scoreboardHeight,10,currentTheme,true,true,true,8,150/255f,.65f,()->{});
 
         for (Score score1 : collection)
         {
@@ -586,16 +702,13 @@ public class GuiIngame extends Gui
             String s2 = EnumChatFormatting.RED + "" + score1.getScorePoints();
             int k = j1 - j * this.getFontRenderer().FONT_HEIGHT;
             int l = p_180475_2_.getScaledWidth() - k1 + 2;
-            drawRect(l1 - 2, k, l, k + this.getFontRenderer().FONT_HEIGHT, 1342177280);
-            this.getFontRenderer().drawString(s1, l1, k, 553648127);
-            this.getFontRenderer().drawString(s2, l - this.getFontRenderer().getStringWidth(s2), k, 553648127);
+            Pulsar.INSTANCE.fontManager.getFont("Poppins-Regular 20").drawStringWithShadow(s1, l1, k, Color.yellow.getRGB());
+            this.getFontRenderer().drawString(s2, l - this.getFontRenderer().getStringWidth(s2), k, Color.yellow.getRGB());
 
             if (j == collection.size())
             {
                 String s3 = p_180475_1_.getDisplayName();
-                drawRect(l1 - 2, k - this.getFontRenderer().FONT_HEIGHT - 1, l, k - 1, 1610612736);
-                drawRect(l1 - 2, k - 1, l, k, 1342177280);
-                this.getFontRenderer().drawString(s3, l1 + i / 2 - this.getFontRenderer().getStringWidth(s3) / 2, k - this.getFontRenderer().FONT_HEIGHT, 553648127);
+                Pulsar.INSTANCE.fontManager.getFont("Poppins-Regular 20").drawStringWithShadow(s3, l1 + i / 2 - this.getFontRenderer().getStringWidth(s3) / 2, k - this.getFontRenderer().FONT_HEIGHT - 4, Color.cyan.getRGB());
             }
         }
     }
@@ -1198,5 +1311,9 @@ public class GuiIngame extends Gui
     public void func_181029_i()
     {
         this.overlayPlayerList.func_181030_a();
+    }
+
+    public void resetPlayersOverlayFooterHeader() {
+        this.overlayPlayerList.resetFooterHeader();
     }
 }

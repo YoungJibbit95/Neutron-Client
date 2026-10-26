@@ -56,6 +56,7 @@ public class ResourcePackRepository
     private IResourcePack resourcePackInstance;
     private final ReentrantLock lock = new ReentrantLock();
     private ListenableFuture<Object> field_177322_i;
+    private ListenableFuture<Object> downloadingPacks;
     private List<ResourcePackRepository.Entry> repositoryEntriesAll = Lists.<ResourcePackRepository.Entry>newArrayList();
     public List<ResourcePackRepository.Entry> repositoryEntries = Lists.<ResourcePackRepository.Entry>newArrayList();
 
@@ -301,6 +302,25 @@ public class ResourcePackRepository
         }
         finally
         {
+            this.lock.unlock();
+        }
+    }
+
+    public void clearResourcePack() {
+        this.lock.lock();
+
+        try {
+            if (this.downloadingPacks != null) {
+                this.downloadingPacks.cancel(true);
+            }
+
+            this.downloadingPacks = null;
+
+            if (this.resourcePackInstance != null) {
+                this.resourcePackInstance = null;
+                Minecraft.getMinecraft().scheduleResourcesRefresh();
+            }
+        } finally {
             this.lock.unlock();
         }
     }

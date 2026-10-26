@@ -1,10 +1,18 @@
 package net.minecraft.client.gui;
 
+import me.youngjibbit.Pulsar;
+import me.youngjibbit.utils.Theme;
+import me.youngjibbit.utils.font.TTFFontRenderer;
+import me.youngjibbit.utils.render.UiEffects;
+import me.youngjibbit.utils.render.UIUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.audio.PositionedSoundRecord;
 import net.minecraft.client.audio.SoundHandler;
 import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.util.MathHelper;
 import net.minecraft.util.ResourceLocation;
+
+import java.awt.Color;
 
 public class GuiButton extends Gui
 {
@@ -12,6 +20,12 @@ public class GuiButton extends Gui
 
     /** Button width in pixels */
     protected int width;
+    private long lastTime = System.nanoTime(); // Initialisez avec le temps actuel
+    private float deltaTime = 0f;
+    private float hoverProgress = 0f;
+
+
+    protected float smoothnessX = 1, offsetX = 0;
 
     /** Button height in pixels */
     protected int height;
@@ -75,34 +89,79 @@ public class GuiButton extends Gui
     /**
      * Draws this button to the screen.
      */
+    private static int surfaceBatch;
+    private static final java.util.Map<Class<?>,Boolean> styledClasses=new java.util.HashMap<>();
+    boolean styledSurface(){return styledClasses.computeIfAbsent(getClass(),type->{try{return type.getMethod("drawButton",Minecraft.class,int.class,int.class).getDeclaringClass()==GuiButton.class;}catch(NoSuchMethodException ex){return false;}});}
+    static void beginSurfaces(java.util.List<GuiButton> buttons){
+        surfaceBatch++;
+        if(surfaceBatch>1||!UiEffects.effectsSupported())return;
+        boolean any=false;for(GuiButton button:buttons)any|=button.visible&&button.styledSurface();if(!any)return;
+        // Snapshot and one mask union before any of these buttons' glow, fill or sharp contents.
+        if(!UiEffects.material()&&(UiEffects.blurEnabled()||UiEffects.glass())){
+            if(UiEffects.scene()!=null&&UiEffects.scene().clean>0&&UiEffects.scene().blurred){for(GuiButton b:buttons)if(b.visible&&b.styledSurface())UiEffects.drawBlurredRect(b.xPosition,b.yPosition,b.width,b.height,5,Color.WHITE,4,1);}
+            else{
+            me.youngjibbit.utils.render.Blur.startBlur();
+            try{for(GuiButton b:buttons)if(b.visible&&b.styledSurface())UIUtils.drawRound(b.xPosition,b.yPosition,b.width,b.height,5,Color.WHITE);}
+            finally{me.youngjibbit.utils.render.Blur.endBlur(4,1);}
+            }
+        }
+        me.youngjibbit.utils.render.GuiShaderBloom.beginBatch();
+        try{for(GuiButton b:buttons)if(b.visible&&b.enabled&&b.styledSurface())UiEffects.drawGlow(b.xPosition,b.yPosition,b.width,b.height,5,Theme.getDefaultTheme().getPrimaryGradientRGB(),.35f,2,2);}
+        finally{me.youngjibbit.utils.render.GuiShaderBloom.flushBatch(2,2);}
+    }
+    static void endSurfaces(){surfaceBatch=Math.max(0,surfaceBatch-1);}
     public void drawButton(Minecraft mc, int mouseX, int mouseY)
     {
         if (this.visible)
         {
-            FontRenderer fontrenderer = mc.fontRendererObj;
             mc.getTextureManager().bindTexture(buttonTextures);
             GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
             this.hovered = mouseX >= this.xPosition && mouseY >= this.yPosition && mouseX < this.xPosition + this.width && mouseY < this.yPosition + this.height;
-            int i = this.getHoverState(this.hovered);
             GlStateManager.enableBlend();
             GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
             GlStateManager.blendFunc(770, 771);
-            this.drawTexturedModalRect(this.xPosition, this.yPosition, 0, 46 + i * 20, this.width / 2, this.height);
-            this.drawTexturedModalRect(this.xPosition + this.width / 2, this.yPosition, 200 - this.width / 2, 46 + i * 20, this.width / 2, this.height);
-            this.mouseDragged(mc, mouseX, mouseY);
-            int j = 14737632;
 
-            if (!this.enabled)
-            {
-                j = 10526880;
-            }
-            else if (this.hovered)
-            {
-                j = 16777120;
+
+            //this.drawTexturedModalRect(this.xPosition, this.yPosition, 0, 46 + i * 20, this.width / 2, this.height);
+            //this.drawTexturedModalRect(this.xPosition + this.width / 2, this.yPosition, 200 - this.width / 2, 46 + i * 20, this.width / 2, this.height);
+
+            updateHoverProgress();
+
+            Theme theme = Theme.resolve(Theme.getDefaultTheme());
+            int pulse = theme.getPulseGradientRGB(System.currentTimeMillis(), 2400.0f, false);
+            if(surfaceBatch==0){
+                UiEffects.drawBlurredRect(this.xPosition,this.yPosition,this.width,this.height,5,new Color(0,0,0,135),4,1);
+                if(enabled)UiEffects.drawGlow(this.xPosition,this.yPosition,this.width,this.height,5,pulse,.25f+hoverProgress*.55f,2,2);
             }
 
-            this.drawCenteredString(fontrenderer, this.displayString, this.xPosition + this.width / 2, this.yPosition + (this.height - 8) / 2, j);
+            int fillAlpha = (int) (105 + hoverProgress * 65);
+            int outlineAlpha = (int) (75 + hoverProgress * 105);
+            if(!UiEffects.glass()||UiEffects.material())UIUtils.drawRound(this.xPosition, this.yPosition, this.width, this.height, 5, true, new Color(0, 0, 0, fillAlpha));
+            UIUtils.drawRoundOutline(this.xPosition, this.yPosition, this.width, this.height, 5, 0.8f,
+                    new Color(0, 0, 0, 1),
+                    UiEffects.accent(theme.getPrimaryGradientRGB(), outlineAlpha / 255.0f));
+
+            this.mouseDragged(mc,mouseX,mouseY);
+            TTFFontRenderer buttonFont = Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 20");
+            float textX = this.xPosition + (this.width - buttonFont.getWidth(this.displayString)) / 2.0f;
+            float textY = this.yPosition + (this.height - buttonFont.getHeight(this.displayString)) / 2.0f + 1.0f;
+            int textColor = this.enabled
+                    ? Theme.interpolateRGB(Color.WHITE.getRGB(), theme.getPrimaryGradientRGB(), hoverProgress * 0.35f)
+                    : new Color(150, 150, 150, 190).getRGB();
+            buttonFont.drawString(this.displayString, textX, textY, textColor);
+            //this.drawCenteredString(fontrenderer, this.displayString, this.xPosition + this.width / 2, (this.yPosition + (this.height - 8) / 2) - 1, j);
         }
+    }
+
+    private void updateHoverProgress() {
+        long now = System.nanoTime();
+        deltaTime = Math.min(0.05f, (now - lastTime) / 1_000_000_000.0f);
+        lastTime = now;
+
+        float target = hovered && enabled ? 1.0f : 0.0f;
+        float speed = 12.0f;
+        hoverProgress += (target - hoverProgress) * UiEffects.response(deltaTime,speed);
+        hoverProgress = MathHelper.clamp_float(hoverProgress, 0.0f, 1.0f);
     }
 
     /**
