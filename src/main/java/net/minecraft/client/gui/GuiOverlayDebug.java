@@ -5,6 +5,7 @@ import com.google.common.collect.Lists;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map.Entry;
+import java.util.function.IntFunction;
 import net.minecraft.block.Block;
 import net.minecraft.block.properties.IProperty;
 import net.minecraft.block.state.IBlockState;
@@ -31,12 +32,42 @@ import net.optifine.reflect.Reflector;
 import net.optifine.util.NativeMemory;
 import org.lwjgl.opengl.Display;
 import org.lwjgl.opengl.GL11;
+import org.lwjgl.opengl.GLContext;
 
 public class GuiOverlayDebug extends Gui
 {
     private final Minecraft mc;
     private final FontRenderer fontRenderer;
     private String debugOF = null;
+    private final GlStringsCache glStrings = new GlStringsCache();
+    private static final IntFunction<String> GL_STRING_QUERY = GL11::glGetString;
+
+    /** Only driver strings are stable for a GL context; display size and runtime data are not. */
+    static final class GlStringsCache
+    {
+        private Object context;
+        private String[] strings;
+
+        String[] get(Object currentContext, IntFunction<String> query)
+        {
+            if (this.strings == null || this.context != currentContext)
+            {
+                String[] currentStrings = new String[] {
+                    query.apply(GL11.GL_VENDOR), query.apply(GL11.GL_RENDERER), query.apply(GL11.GL_VERSION)
+                };
+                // A failed GL query must not freeze a transient null result for this context.
+                if (currentStrings[0] == null || currentStrings[1] == null || currentStrings[2] == null)
+                {
+                    return currentStrings;
+                }
+
+                this.context = currentContext;
+                this.strings = currentStrings;
+            }
+
+            return this.strings;
+        }
+    }
 
     public GuiOverlayDebug(Minecraft mc)
     {
@@ -240,11 +271,13 @@ public class GuiOverlayDebug extends Gui
 
     protected List<String> getDebugInfoRight()
     {
+        // LWJGL supplies a distinct capabilities object for each current context, including recreation.
+        String[] driverStrings = this.glStrings.get(GLContext.getCapabilities(), GL_STRING_QUERY);
         long i = Runtime.getRuntime().maxMemory();
         long j = Runtime.getRuntime().totalMemory();
         long k = Runtime.getRuntime().freeMemory();
         long l = j - k;
-        List<String> list = Lists.newArrayList(new String[] {String.format("Java: %s %dbit", new Object[]{System.getProperty("java.version"), Integer.valueOf(this.mc.isJava64bit() ? 64 : 32)}), String.format("Mem: % 2d%% %03d/%03dMB", new Object[]{Long.valueOf(l * 100L / i), Long.valueOf(bytesToMb(l)), Long.valueOf(bytesToMb(i))}), String.format("Allocated: % 2d%% %03dMB", new Object[]{Long.valueOf(j * 100L / i), Long.valueOf(bytesToMb(j))}), "", String.format("CPU: %s", new Object[]{OpenGlHelper.func_183029_j()}), "", String.format("Display: %dx%d (%s)", new Object[]{Integer.valueOf(Display.getWidth()), Integer.valueOf(Display.getHeight()), GL11.glGetString(GL11.GL_VENDOR)}), GL11.glGetString(GL11.GL_RENDERER), GL11.glGetString(GL11.GL_VERSION)});
+        List<String> list = Lists.newArrayList(new String[] {String.format("Java: %s %dbit", new Object[]{System.getProperty("java.version"), Integer.valueOf(this.mc.isJava64bit() ? 64 : 32)}), String.format("Mem: % 2d%% %03d/%03dMB", new Object[]{Long.valueOf(l * 100L / i), Long.valueOf(bytesToMb(l)), Long.valueOf(bytesToMb(i))}), String.format("Allocated: % 2d%% %03dMB", new Object[]{Long.valueOf(j * 100L / i), Long.valueOf(bytesToMb(j))}), "", String.format("CPU: %s", new Object[]{OpenGlHelper.func_183029_j()}), "", String.format("Display: %dx%d (%s)", new Object[]{Integer.valueOf(Display.getWidth()), Integer.valueOf(Display.getHeight()), driverStrings[0]}), driverStrings[1], driverStrings[2]});
         long i1 = NativeMemory.getBufferAllocated();
         long j1 = NativeMemory.getBufferMaximum();
         String s = "Native: " + bytesToMb(i1) + "/" + bytesToMb(j1) + "MB";

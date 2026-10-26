@@ -14,11 +14,12 @@ public class PacketThreadUtil
     {
         if (!p_180031_2_.isCallingFromMinecraftThread())
         {
+            if (me.youngjibbit.core.network.PacketApplication.enqueue(p_180031_0_, p_180031_1_, p_180031_2_))
+                throw ThreadQuickExitException.field_179886_a;
             p_180031_2_.addScheduledTask(new Runnable()
             {
                 public void run()
                 {
-                    PacketThreadUtil.clientPreProcessPacket(p_180031_0_);
                     p_180031_0_.processPacket(p_180031_1_);
                 }
             });

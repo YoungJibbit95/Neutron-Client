@@ -1,0 +1,9 @@
+package me.youngjibbit.utils.render;
+import org.junit.Test;
+import static org.junit.Assert.*;
+public class HudDragTest {
+ @Test public void aGestureHasOnlyOneOwnerEvenAfterDisable(){Object first=new Object(),second=new Object();HudDrag.context(true,false);assertTrue(HudDrag.capture(first,true,true,true,true));assertFalse(HudDrag.capture(second,true,true,true,true));HudDrag.cancel(first);assertFalse(HudDrag.capture(second,true,true,true,true));HudDrag.context(true,false);assertTrue(HudDrag.capture(second,true,true,true,true));HudDrag.context(false,true);assertFalse(HudDrag.capture(first,true,true,true,true));HudDrag.context(true,false);}
+ @Test public void chatEntryWithHeldMouseAndMissedPressCannotCapture(){Object hud=new Object();HudDrag.context(false,true);HudDrag.context(true,true);assertFalse(HudDrag.capture(hud,true,true,true,true));HudDrag.context(true,false);assertFalse(HudDrag.capture(hud,true,true,true,false));assertFalse(HudDrag.capture(hud,true,true,false,true));HudDrag.context(true,false);}
+ @Test public void hitsFollowConcaveAndRoundedContour(){ArrayListSurface.Shape shape=new ArrayListSurface.Shape(10,new float[]{20,40,60},new float[]{40,60,80},new float[]{100,70,45},4);assertTrue(shape.contains(20,30));assertTrue(shape.contains(60,50));assertFalse(shape.contains(85,50));assertFalse(shape.contains(10,20));assertFalse(shape.contains(9,30));assertTrue(shape.translated(30,40).contains(50,70));assertFalse(shape.translated(30,40).contains(20,30));}
+ @Test public void rightAnchoredBandsUseTheSameRoundedHitContour(){ArrayListSurface.Shape shape=new ArrayListSurface.Shape(new float[]{70,40,10},new float[]{20,40,60},new float[]{40,60,80},new float[]{110,110,110},4);assertFalse(shape.contains(50,30));assertTrue(shape.contains(80,30));assertTrue(shape.contains(50,50));assertTrue(shape.contains(20,70));assertFalse(shape.contains(20,50));assertFalse(shape.contains(70,20));}
+}

@@ -1,6 +1,9 @@
 package net.minecraft.client.gui;
 
 import java.io.IOException;
+
+import me.youngjibbit.Pulsar;
+import me.youngjibbit.gui.MenuShader;
 import net.minecraft.client.audio.PositionedSoundRecord;
 import net.minecraft.client.audio.SoundCategory;
 import net.minecraft.client.audio.SoundEventAccessorComposite;
@@ -234,7 +237,8 @@ public class GuiOptions extends GuiScreen implements GuiYesNoCallback
      */
     public void drawScreen(int mouseX, int mouseY, float partialTicks)
     {
-        this.drawDefaultBackground();
+        //this.drawDefaultBackground();
+        MenuShader.mm5(Pulsar.INSTANCE.getStartTimeLong());
         this.drawCenteredString(this.fontRendererObj, this.field_146442_a, this.width / 2, 15, 16777215);
         super.drawScreen(mouseX, mouseY, partialTicks);
     }

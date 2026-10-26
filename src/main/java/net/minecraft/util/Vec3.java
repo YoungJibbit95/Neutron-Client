@@ -1,5 +1,7 @@
 package net.minecraft.util;
 
+import net.minecraft.entity.player.EntityPlayer;
+
 public class Vec3
 {
     /** X coordinate of Vec3D */
@@ -103,6 +105,13 @@ public class Vec3
         return (double)MathHelper.sqrt_double(d0 * d0 + d1 * d1 + d2 * d2);
     }
 
+    public double distanceTo(final EntityPlayer vec) {
+        return distanceTo(new Vec3(vec.posX, vec.posY, vec.posZ));
+    }
+
+    public double squareDistanceTo(final EntityPlayer vec) {
+        return squareDistanceTo(new Vec3(vec.posX, vec.posY, vec.posZ));
+    }
     /**
      * The square of the Euclidean distance between this and the specified vector.
      */

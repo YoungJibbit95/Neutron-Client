@@ -33,11 +33,14 @@ public class ServerData
     private String serverIcon;
     private boolean field_181042_l;
 
+    private boolean connected;
+
     public ServerData(String p_i46420_1_, String p_i46420_2_, boolean p_i46420_3_)
     {
         this.serverName = p_i46420_1_;
         this.serverIP = p_i46420_2_;
         this.field_181042_l = p_i46420_3_;
+        this.connected = true;
     }
 
     /**
@@ -134,6 +137,11 @@ public class ServerData
         this.field_181042_l = serverDataIn.field_181042_l;
     }
 
+    public boolean isConnected()
+    {
+        return connected;
+    }
+
     public static enum ServerResourceMode
     {
         ENABLED("enabled"),
@@ -141,6 +149,7 @@ public class ServerData
         PROMPT("prompt");
 
         private final IChatComponent motd;
+        private boolean connected;
 
         private ServerResourceMode(String p_i1053_3_)
         {
@@ -150,6 +159,11 @@ public class ServerData
         public IChatComponent getMotd()
         {
             return this.motd;
+        }
+
+
+        public boolean setConnected(boolean connected) {
+            return this.connected = connected;
         }
     }
 }

@@ -11,7 +11,10 @@ import java.util.List;
 import java.util.Random;
 import java.util.concurrent.Callable;
 
+import me.youngjibbit.Pulsar;
+import me.youngjibbit.event.render.Event2D;
 import me.youngjibbit.gui.MainMenu;
+import me.youngjibbit.module.impl.render.Nametags;
 import net.minecraft.block.Block;
 import net.minecraft.block.BlockBed;
 import net.minecraft.block.material.Material;
@@ -324,7 +327,7 @@ public class EntityRenderer implements IResourceManagerReloadListener
         }
     }
 
-    private void loadShader(ResourceLocation resourceLocationIn)
+    public void loadShader(ResourceLocation resourceLocationIn)
     {
         if (OpenGlHelper.isFramebufferEnabled())
         {
@@ -1387,6 +1390,7 @@ public class EntityRenderer implements IResourceManagerReloadListener
 
                 try
                 {
+                    me.youngjibbit.utils.render.UiEffects.beginFrame();
                     if (Reflector.ForgeHooksClient_drawScreen.exists())
                     {
                         Reflector.callVoid(Reflector.ForgeHooksClient_drawScreen, new Object[] {this.mc.currentScreen, Integer.valueOf(k1), Integer.valueOf(l1), Float.valueOf(p_181560_1_)});
@@ -1426,6 +1430,8 @@ public class EntityRenderer implements IResourceManagerReloadListener
             }
         }
 
+        // One notification owner after world HUD and the current screen, before frame completion.
+        if(!this.mc.skipRenderWorld)me.youngjibbit.notifications.NotificationManager.render();
         this.frameFinish();
         this.waitForServerThread();
         Lagometer.updateLagometer();
@@ -1542,7 +1548,7 @@ public class EntityRenderer implements IResourceManagerReloadListener
         this.mc.mcProfiler.endSection();
     }
 
-    private void renderWorldPass(int pass, float partialTicks, long finishTimeNano)
+    public void renderWorldPass(int pass, float partialTicks, long finishTimeNano)
     {
         boolean flag = Config.isShaders();
 
@@ -1600,6 +1606,13 @@ public class EntityRenderer implements IResourceManagerReloadListener
         else
         {
             icamera.setPosition(d0, d1, d2);
+        }
+
+        boolean nametagsEnabled = Pulsar.INSTANCE.getMm() != null
+                && Pulsar.INSTANCE.getMm().getModule(Nametags.class) != null
+                && Pulsar.INSTANCE.getMm().getModule(Nametags.class).isToggled();
+        if (nametagsEnabled) {
+
         }
 
         if ((Config.isSkyEnabled() || Config.isSunMoonEnabled() || Config.isStarsEnabled()) && !Shaders.isShadowPass)
@@ -1893,6 +1906,14 @@ public class EntityRenderer implements IResourceManagerReloadListener
             Reflector.callVoid(Reflector.ForgeHooksClient_dispatchRenderLast, new Object[] {renderglobal, Float.valueOf(partialTicks)});
         }
 
+        // World camera and depth after translucent terrain, before final hand/depth
+        // clear and shader composite/end. OptiFine hand0 has restored its matrices,
+        // but may have contributed depth: this is not a pure terrain-depth hook.
+        if (!Shaders.isShadowPass)
+        {
+            this.renderWorldOverlays(pass, partialTicks);
+        }
+
         this.mc.mcProfiler.endStartSection("hand");
 
         if (this.renderHand && !Shaders.isShadowPass)
@@ -1921,6 +1942,11 @@ public class EntityRenderer implements IResourceManagerReloadListener
         {
             Shaders.endRender();
         }
+    }
+
+    /** World camera after translucent terrain, before final hand; once per visible eye. */
+    protected void renderWorldOverlays(int pass, float partialTicks)
+    {
     }
 
     private void renderCloudsCheck(RenderGlobal renderGlobalIn, float partialTicks, int pass)

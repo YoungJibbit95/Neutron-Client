@@ -50,4 +50,8 @@ public class RenderSkeleton extends RenderBiped<EntitySkeleton>
     {
         return entity.getSkeletonType() == 1 ? witherSkeletonTextures : skeletonTextures;
     }
+
+    public static ResourceLocation getEntityTexture() {
+        return skeletonTextures;
+    }
 }

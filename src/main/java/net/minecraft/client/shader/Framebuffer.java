@@ -81,6 +81,7 @@ public class Framebuffer
             {
                 OpenGlHelper.glBindFramebuffer(OpenGlHelper.GL_FRAMEBUFFER, 0);
                 OpenGlHelper.glDeleteFramebuffers(this.framebufferObject);
+                if (me.youngjibbit.utils.render.RenderDiagnostics.enabled) me.youngjibbit.utils.render.RenderDiagnostics.framebufferDeletes++;
                 this.framebufferObject = -1;
             }
         }
@@ -100,6 +101,7 @@ public class Framebuffer
         else
         {
             this.framebufferObject = OpenGlHelper.glGenFramebuffers();
+            if (me.youngjibbit.utils.render.RenderDiagnostics.enabled) me.youngjibbit.utils.render.RenderDiagnostics.framebufferCreates++;
             this.framebufferTexture = TextureUtil.glGenTextures();
 
             if (this.useDepth)

@@ -1,7 +1,14 @@
 package net.minecraft.client.entity;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.command.CommandManager;
+import me.youngjibbit.event.motion.EventMotion;
+import me.youngjibbit.core.bootstrap.RuntimeServices;
+import me.youngjibbit.core.combat.RotationManager;
+import me.youngjibbit.event.motion.SlowdownEvent;
+import me.youngjibbit.event.packet.LivingEvent;
 import me.youngjibbit.event.update.EventUpdate;
+import me.zero.alpine.event.EventPhase;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.audio.MovingSoundMinecartRiding;
 import net.minecraft.client.audio.PositionedSoundRecord;
@@ -44,75 +51,56 @@ import net.minecraft.potion.Potion;
 import net.minecraft.stats.StatBase;
 import net.minecraft.stats.StatFileWriter;
 import net.minecraft.tileentity.TileEntitySign;
-import net.minecraft.util.BlockPos;
-import net.minecraft.util.DamageSource;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.EnumParticleTypes;
-import net.minecraft.util.IChatComponent;
-import net.minecraft.util.MovementInput;
-import net.minecraft.util.ResourceLocation;
+import net.minecraft.util.*;
 import net.minecraft.world.IInteractionObject;
 import net.minecraft.world.World;
 
+
 public class EntityPlayerSP extends AbstractClientPlayer
 {
+    private Vec3 acceptedMovementPosition;
+
+    /** Observe accepted movement, including replays emitted by packet listeners. */
+    public void observeAcceptedPosition(double x, double y, double z) {
+        this.acceptedMovementPosition = new Vec3(x, y, z);
+    }
+
+    public Vec3 getLastReportedPosition() {
+        return this.acceptedMovementPosition != null ? this.acceptedMovementPosition
+                : new Vec3(this.lastReportedPosX, this.lastReportedPosY, this.lastReportedPosZ);
+    }
+
+    /** The position a normal movement packet for this plan will actually report.
+     * Sub-threshold local displacement must not become a fictitious server raycast origin. */
+    public Vec3 getPlannedMovementPosition(double x, double y, double z) {
+        return ridingEntity == null && shouldReportPosition(x, y, z)
+                ? new Vec3(x, y, z) : getLastReportedPosition();
+    }
+
+    private boolean shouldReportPosition(double x, double y, double z) {
+        double dx=x-lastReportedPosX, dy=y-lastReportedPosY, dz=z-lastReportedPosZ;
+        return dx*dx+dy*dy+dz*dz > 9.0E-4D || positionUpdateTicks >= 20;
+    }
+
     public final NetHandlerPlayClient sendQueue;
     private final StatFileWriter statWriter;
-
-    /**
-     * The last X position which was transmitted to the server, used to determine when the X position changes and needs
-     * to be re-trasmitted
-     */
+    private GuiScreen serverInv;
+    public int ticksSinceLastSwing;
+    private Vec3 spawnPos;
+    public int rotIncrement;
     private double lastReportedPosX;
-
-    /**
-     * The last Y position which was transmitted to the server, used to determine when the Y position changes and needs
-     * to be re-transmitted
-     */
     private double lastReportedPosY;
-
-    /**
-     * The last Z position which was transmitted to the server, used to determine when the Z position changes and needs
-     * to be re-transmitted
-     */
     private double lastReportedPosZ;
-
-    /**
-     * The last yaw value which was transmitted to the server, used to determine when the yaw changes and needs to be
-     * re-transmitted
-     */
     private float lastReportedYaw;
-
-    /**
-     * The last pitch value which was transmitted to the server, used to determine when the pitch changes and needs to
-     * be re-transmitted
-     */
     private float lastReportedPitch;
-
-    /** the last sneaking state sent to the server */
     private boolean serverSneakState;
-
-    /** the last sprinting state sent to the server */
     private boolean serverSprintState;
-
-    /**
-     * Reset to 0 every time position is sent to the server, used to send periodic updates every 20 ticks even when the
-     * player is not moving.
-     */
     private int positionUpdateTicks;
     private boolean hasValidHealth;
     private String clientBrand;
     public MovementInput movementInput;
     protected Minecraft mc;
-
-    /**
-     * Used to tell if the player pressed forward twice. If this is at 0 and it's pressed (And they are allowed to
-     * sprint, aka enough food on the ground etc) it sets this to 7. If it's pressed and it's greater than 0 enable
-     * sprinting.
-     */
     protected int sprintToggleTimer;
-
-    /** Ticks left before sprinting is disabled. */
     public int sprintingTicksLeft;
     public float renderArmYaw;
     public float renderArmPitch;
@@ -120,12 +108,21 @@ public class EntityPlayerSP extends AbstractClientPlayer
     public float prevRenderArmPitch;
     private int horseJumpPowerCounter;
     private float horseJumpPower;
-
-    /** The amount of time an entity has been in a Portal */
     public float timeInPortal;
-
-    /** The amount of time an entity has been in a Portal the previous tick */
     public float prevTimeInPortal;
+    private boolean prevOnGround;
+    private boolean shouldGetSpawnPos = false;
+    public int reSprint;
+    private boolean startServerSprintState;
+    private int counter;
+    private float forward = 0.0f;
+    private float strafe = 0.0f;
+    private Vec3 severPosition = new Vec3(0.0, 0.0, 0.0);
+    private Vec3 lastServerPosition = new Vec3(0.0, 0.0, 0.0);
+
+    public float serverYaw, prevServerYaw, serverPitch, prevServerPitch;
+
+
 
     public EntityPlayerSP(Minecraft mcIn, World worldIn, NetHandlerPlayClient netHandler, StatFileWriter statFile)
     {
@@ -171,21 +168,35 @@ public class EntityPlayerSP extends AbstractClientPlayer
     {
         if (this.worldObj.isBlockLoaded(new BlockPos(this.posX, 0.0D, this.posZ)))
         {
-            //EDITED CLIENT EVENT
-            Pulsar.BUS.post(new EventUpdate());
-
-            super.onUpdate();
-
-            if (this.isRiding())
-            {
-                this.sendQueue.addToSendQueue(new C03PacketPlayer.C05PacketPlayerLook(this.rotationYaw, this.rotationPitch, this.onGround));
-                this.sendQueue.addToSendQueue(new C0CPacketInput(this.moveStrafing, this.moveForward, this.movementInput.jump, this.movementInput.sneak));
-            }
-            else
-            {
-                this.onUpdateWalkingPlayer();
-            }
+            me.youngjibbit.module.impl.exploit.Tickbase.runPlayerStep(this, this::runLocalPlayerStep);
         }
+    }
+
+    private boolean runLocalPlayerStep() {
+        EventUpdate eventUpdate = new EventUpdate();
+        Pulsar.BUS.post(eventUpdate);
+
+        if (eventUpdate.isCancelled())
+        {
+            return false;
+        }
+
+        this.prevServerYaw = this.serverYaw;
+        this.prevServerPitch = this.serverPitch;
+
+        super.onUpdate();
+
+        if (this.isRiding())
+        {
+            this.sendQueue.addToSendQueue(new C03PacketPlayer.C05PacketPlayerLook(this.rotationYaw, this.rotationPitch, this.onGround));
+            this.sendQueue.addToSendQueue(new C0CPacketInput(this.moveStrafing, this.moveForward, this.movementInput.jump, this.movementInput.sneak));
+        }
+        else
+        {
+            this.onUpdateWalkingPlayer();
+        }
+
+        return true;
     }
 
     /**
@@ -193,90 +204,141 @@ public class EntityPlayerSP extends AbstractClientPlayer
      */
     public void onUpdateWalkingPlayer()
     {
-        boolean flag = this.isSprinting();
-
-        if (flag != this.serverSprintState)
-        {
-            if (flag)
-            {
-                this.sendQueue.addToSendQueue(new C0BPacketEntityAction(this, C0BPacketEntityAction.Action.START_SPRINTING));
-            }
-            else
-            {
-                this.sendQueue.addToSendQueue(new C0BPacketEntityAction(this, C0BPacketEntityAction.Action.STOP_SPRINTING));
-            }
-
-            this.serverSprintState = flag;
+        final Minecraft client = this.mc;
+        final World world = this.worldObj;
+        final NetHandlerPlayClient connection = this.sendQueue;
+        final me.youngjibbit.core.network.PacketPipeline packets = connection.getNetworkManager().getClientPackets();
+        final long contextVersion = packets == null ? -1 : packets.getContextVersion();
+        if (!walkingContextValid(client, world, connection, packets, contextVersion)) return;
+        EventMotion motionEvent = null;
+        RotationManager rotations = null;
+        long motionSequence = -1;
+        if (this.isCurrentViewEntity()) {
+            motionEvent = new EventMotion(this.posX, this.getEntityBoundingBox().minY, this.posZ, this.rotationYaw, this.rotationPitch, this.onGround);
+            rotations = RuntimeServices.rotation();
+            rotations.bindConnection(this.sendQueue.getNetworkManager().getClientPackets());
+            rotations.beginMotion(this, this.worldObj, this.rotationYaw, this.rotationPitch);
+            motionSequence = rotations.getMotionSequence();
+            motionEvent.setEventPhase(EventPhase.PRE);
+            Pulsar.BUS.post(motionEvent);
+        }
+        if (!walkingContextValid(client, world, connection, packets, contextVersion)) {
+            if (rotations != null && rotations.getMotionSequence() == motionSequence) rotations.reset();
+            return;
         }
 
-        boolean flag1 = this.isSneaking();
+        // PRE movement owners finalize sprint before its action packet, even if motion is cancelled.
+        final boolean flag = this.isSprinting();
+
+        if (flag != serverSprintState)
+        {
+            C0BPacketEntityAction sprintAction = new C0BPacketEntityAction(this, flag
+                    ? C0BPacketEntityAction.Action.START_SPRINTING : C0BPacketEntityAction.Action.STOP_SPRINTING);
+            if (connection.addToSendQueueGuarded(sprintAction,
+                    () -> walkingContextValid(client, world, connection, packets, contextVersion) && this.isSprinting() == flag) == sprintAction)
+                serverSprintState = flag;
+        }
+
+        final boolean flag1 = this.isSneaking();
 
         if (flag1 != this.serverSneakState)
         {
-            if (flag1)
-            {
-                this.sendQueue.addToSendQueue(new C0BPacketEntityAction(this, C0BPacketEntityAction.Action.START_SNEAKING));
-            }
-            else
-            {
-                this.sendQueue.addToSendQueue(new C0BPacketEntityAction(this, C0BPacketEntityAction.Action.STOP_SNEAKING));
-            }
-
-            this.serverSneakState = flag1;
+            C0BPacketEntityAction sneakAction = new C0BPacketEntityAction(this, flag1
+                    ? C0BPacketEntityAction.Action.START_SNEAKING : C0BPacketEntityAction.Action.STOP_SNEAKING);
+            if (connection.addToSendQueueGuarded(sneakAction,
+                    () -> walkingContextValid(client, world, connection, packets, contextVersion) && this.isSneaking() == flag1) == sneakAction)
+                this.serverSneakState = flag1;
+        }
+        if (!walkingContextValid(client, world, connection, packets, contextVersion)) {
+            if (rotations != null && rotations.getMotionSequence() == motionSequence) rotations.reset();
+            return;
         }
 
-        if (this.isCurrentViewEntity())
+        if (motionEvent != null)
         {
-            double d0 = this.posX - this.lastReportedPosX;
-            double d1 = this.getEntityBoundingBox().minY - this.lastReportedPosY;
-            double d2 = this.posZ - this.lastReportedPosZ;
-            double d3 = (double)(this.rotationYaw - this.lastReportedYaw);
-            double d4 = (double)(this.rotationPitch - this.lastReportedPitch);
-            boolean flag2 = d0 * d0 + d1 * d1 + d2 * d2 > 9.0E-4D || this.positionUpdateTicks >= 20;
+            if (motionEvent.isCancelled())
+            {
+                rotations.finishMotion(this.rotationYaw, this.rotationPitch, false);
+                return;
+            }
+            rotations.resolve(motionEvent);
+
+            double posX = motionEvent.getX(), posY = motionEvent.getY(), posZ = motionEvent.getZ();
+            float rotationYaw = motionEvent.getYaw(), rotationPitch = motionEvent.getPitch();
+            boolean onGround = motionEvent.isOnGround();
+
+            double d3 = rotationYaw - this.lastReportedYaw;
+            double d4 = rotationPitch - this.lastReportedPitch;
+            boolean flag2 = shouldReportPosition(posX, posY, posZ);
             boolean flag3 = d3 != 0.0D || d4 != 0.0D;
 
+            C03PacketPlayer movementPacket;
             if (this.ridingEntity == null)
             {
                 if (flag2 && flag3)
                 {
-                    this.sendQueue.addToSendQueue(new C03PacketPlayer.C06PacketPlayerPosLook(this.posX, this.getEntityBoundingBox().minY, this.posZ, this.rotationYaw, this.rotationPitch, this.onGround));
-                }
-                else if (flag2)
+                    movementPacket = new C03PacketPlayer.C06PacketPlayerPosLook(posX, posY, posZ, rotationYaw, rotationPitch, onGround);
+                } else if (flag2)
                 {
-                    this.sendQueue.addToSendQueue(new C03PacketPlayer.C04PacketPlayerPosition(this.posX, this.getEntityBoundingBox().minY, this.posZ, this.onGround));
-                }
-                else if (flag3)
+                    movementPacket = new C03PacketPlayer.C04PacketPlayerPosition(posX, posY, posZ, onGround);
+                } else if (flag3)
                 {
-                    this.sendQueue.addToSendQueue(new C03PacketPlayer.C05PacketPlayerLook(this.rotationYaw, this.rotationPitch, this.onGround));
-                }
-                else
+                    movementPacket = new C03PacketPlayer.C05PacketPlayerLook(rotationYaw, rotationPitch, onGround);
+                } else
                 {
-                    this.sendQueue.addToSendQueue(new C03PacketPlayer(this.onGround));
+                    movementPacket = new C03PacketPlayer(onGround);
                 }
-            }
-            else
+            } else
             {
-                this.sendQueue.addToSendQueue(new C03PacketPlayer.C06PacketPlayerPosLook(this.motionX, -999.0D, this.motionZ, this.rotationYaw, this.rotationPitch, this.onGround));
+                movementPacket = new C03PacketPlayer.C06PacketPlayerPosLook(this.motionX, -999.0D, this.motionZ, rotationYaw, rotationPitch, onGround);
                 flag2 = false;
             }
 
+            net.minecraft.network.Packet<?> acceptedPacket = this.sendQueue.addToSendQueueTracked(movementPacket);
+            boolean accepted = acceptedPacket instanceof C03PacketPlayer && this.sendQueue.getNetworkManager().isChannelOpen();
+            C03PacketPlayer sent = accepted ? (C03PacketPlayer) acceptedPacket : null;
+            if (accepted) {
+                rotationYaw = rotations.hasEffectiveRotation() ? rotations.getEffectiveYaw() : this.lastReportedYaw;
+                rotationPitch = rotations.hasEffectiveRotation() ? rotations.getEffectivePitch() : this.lastReportedPitch;
+            }
+            rotations.finishMotion(rotationYaw, rotationPitch, accepted);
+
             ++this.positionUpdateTicks;
 
-            if (flag2)
+            if (flag2 && accepted && sent.isMoving())
             {
-                this.lastReportedPosX = this.posX;
-                this.lastReportedPosY = this.getEntityBoundingBox().minY;
-                this.lastReportedPosZ = this.posZ;
+                this.lastReportedPosX = sent.getPositionX();
+                this.lastReportedPosY = sent.getPositionY();
+                this.lastReportedPosZ = sent.getPositionZ();
                 this.positionUpdateTicks = 0;
             }
 
-            if (flag3)
+            if (accepted)
             {
-                this.lastReportedYaw = this.rotationYaw;
-                this.lastReportedPitch = this.rotationPitch;
+                this.lastReportedYaw = rotationYaw;
+                this.lastReportedPitch = rotationPitch;
             }
+
+            if (accepted) {
+                // Keep confirmed wire angles separate. The renderer owns cosmetic head/body angles.
+                this.serverYaw = rotationYaw;
+                this.serverPitch = rotationPitch;
+            }
+
+            EventMotion postMotionEvent = new EventMotion(posX, posY, posZ, rotationYaw, rotationPitch, onGround);
+            postMotionEvent.setAccepted(accepted);
+            postMotionEvent.setEventPhase(EventPhase.POST);
+            Pulsar.BUS.post(postMotionEvent);
         }
     }
+
+    private boolean walkingContextValid(Minecraft client, World world, NetHandlerPlayClient connection,
+                                        me.youngjibbit.core.network.PacketPipeline packets, long contextVersion) {
+        return client != null && this.mc == client && client.thePlayer == this && client.theWorld == world
+                && this.worldObj == world && this.sendQueue == connection && packets != null && packets.isActive()
+                && connection.getNetworkManager().getClientPackets() == packets && packets.getContextVersion() == contextVersion;
+    }
+
 
     /**
      * Called when player presses the drop item key
@@ -302,6 +364,8 @@ public class EntityPlayerSP extends AbstractClientPlayer
      */
     public void sendChatMessage(String message)
     {
+        if(message.startsWith(CommandManager.COMMAND_PREFIX) && Pulsar.INSTANCE.getCm().handleCommand(message))
+            return;
         this.sendQueue.addToSendQueue(new C01PacketChatMessage(message));
     }
 
@@ -312,6 +376,10 @@ public class EntityPlayerSP extends AbstractClientPlayer
     {
         super.swingItem();
         this.sendQueue.addToSendQueue(new C0APacketAnimation());
+    }
+
+    public void swingItemNoPacket() {
+        super.swingItem();
     }
 
     public void respawnPlayer()
@@ -726,6 +794,8 @@ public class EntityPlayerSP extends AbstractClientPlayer
      */
     public void onLivingUpdate()
     {
+        Pulsar.INSTANCE.BUS.post(new LivingEvent());
+
         if (this.sprintingTicksLeft > 0)
         {
             --this.sprintingTicksLeft;
@@ -796,12 +866,21 @@ public class EntityPlayerSP extends AbstractClientPlayer
         float f = 0.8F;
         boolean flag2 = this.movementInput.moveForward >= f;
         this.movementInput.updatePlayerMoveState();
+        me.youngjibbit.module.impl.world.Scaffold.applyDownwardsInput(this.movementInput);
+        boolean noslowAllowSprint = false;
 
-        if (this.isUsingItem() && !this.isRiding())
-        {
-            this.movementInput.moveStrafe *= 0.2F;
-            this.movementInput.moveForward *= 0.2F;
-            this.sprintToggleTimer = 0;
+        if (this.isUsingItem() && !this.isRiding()) {
+            SlowdownEvent event = new SlowdownEvent(0.2F, 0.2F, false);
+            Pulsar.BUS.post(event);
+            MovementInput var10000 = this.movementInput;
+            var10000.moveStrafe *= event.getStrafe();
+            var10000 = this.movementInput;
+            var10000.moveForward *= event.getForward();
+            if (event.isAllowedSprinting()) {
+                noslowAllowSprint = true;
+            } else {
+                this.sprintToggleTimer = 0;
+            }
         }
 
         this.pushOutOfBlocks(this.posX - (double)this.width * 0.35D, this.getEntityBoundingBox().minY + 0.5D, this.posZ + (double)this.width * 0.35D);
@@ -810,7 +889,7 @@ public class EntityPlayerSP extends AbstractClientPlayer
         this.pushOutOfBlocks(this.posX + (double)this.width * 0.35D, this.getEntityBoundingBox().minY + 0.5D, this.posZ + (double)this.width * 0.35D);
         boolean flag3 = (float)this.getFoodStats().getFoodLevel() > 6.0F || this.capabilities.allowFlying;
 
-        if (this.onGround && !flag1 && !flag2 && this.movementInput.moveForward >= f && !this.isSprinting() && flag3 && !this.isUsingItem() && !this.isPotionActive(Potion.blindness))
+        if (this.onGround && !flag1 && !flag2 && this.movementInput.moveForward >= f && !this.isSprinting() && flag3 && (!this.isUsingItem() || noslowAllowSprint) && !this.isPotionActive(Potion.blindness))
         {
             if (this.sprintToggleTimer <= 0 && !this.mc.gameSettings.keyBindSprint.isKeyDown())
             {
@@ -822,7 +901,7 @@ public class EntityPlayerSP extends AbstractClientPlayer
             }
         }
 
-        if (!this.isSprinting() && this.movementInput.moveForward >= f && flag3 && !this.isUsingItem() && !this.isPotionActive(Potion.blindness) && this.mc.gameSettings.keyBindSprint.isKeyDown())
+        if (!this.isSprinting() && this.movementInput.moveForward >= f && flag3 && (!this.isUsingItem() || noslowAllowSprint) && !this.isPotionActive(Potion.blindness) && this.mc.gameSettings.keyBindSprint.isKeyDown())
         {
             this.setSprinting(true);
         }
@@ -919,4 +998,131 @@ public class EntityPlayerSP extends AbstractClientPlayer
             this.sendPlayerAbilities();
         }
     }
+    @Override
+    public MovingObjectPosition customRayTrace(double blockReachDistance, float partialTicks, float yaw, float pitch) {
+        Vec3 vec3 = this.getPositionEyes(partialTicks);
+        Vec3 vec31 = this.customGetLook(partialTicks, yaw, pitch);
+        Vec3 vec32 = vec3.addVector(vec31.xCoord * blockReachDistance, vec31.yCoord * blockReachDistance, vec31.zCoord * blockReachDistance);
+        return this.worldObj.rayTraceBlocks(vec3, vec32, false, false, true);
+    }
+
+    public MovingObjectPosition customRayTrace(double blockReachDistance, float partialTicks, float yaw, float pitch, boolean pitchPredict) {
+        Vec3 vec3 = this.getPositionEyes(partialTicks);
+        Vec3 vec31 = this.customGetLook(partialTicks, yaw, pitch, pitchPredict);
+        Vec3 vec32 = vec3.addVector(vec31.xCoord * blockReachDistance, vec31.yCoord * blockReachDistance, vec31.zCoord * blockReachDistance);
+        return this.worldObj.rayTraceBlocks(vec3, vec32, false, false, true);
+    }
+
+    public MovingObjectPosition customRayTrace(double blockReachDistance, float partialTicks, float yaw, float pitch, float lastYaw, float lastPitch) {
+        Vec3 vec3 = this.getPositionEyes(partialTicks);
+        Vec3 vec31 = this.customGetLook(partialTicks, yaw, pitch, lastYaw, lastPitch);
+        Vec3 vec32 = vec3.addVector(vec31.xCoord * blockReachDistance, vec31.yCoord * blockReachDistance, vec31.zCoord * blockReachDistance);
+        return this.worldObj.rayTraceBlocks(vec3, vec32, false, false, true);
+    }
+
+    public MovingObjectPosition customRayTrace(double blockReachDistance, float partialTicks, float yaw, float pitch, double[] xyz, double[] lastXYZ) {
+        Vec3 vec3 = this.getCustomPositionEyes(partialTicks, xyz, lastXYZ);
+        Vec3 vec31 = this.customGetLook(partialTicks, yaw, pitch);
+        Vec3 vec32 = vec3.addVector(vec31.xCoord * blockReachDistance, vec31.yCoord * blockReachDistance, vec31.zCoord * blockReachDistance);
+        return this.worldObj.rayTraceBlocks(vec3, vec32, false, false, true);
+    }
+
+    private Vec3 customGetLook(float partialTicks, float yaw, float pitch) {
+        if (partialTicks != 1.0f && partialTicks != 2.0f) {
+            float f = this.prevRotationPitch + (this.rotationPitch - this.prevRotationPitch) * partialTicks;
+            float f1 = this.prevRotationYaw + (this.rotationYaw - this.prevRotationYaw) * partialTicks;
+            return this.getVectorForRotation(f, f1);
+        }
+        return this.getVectorForRotation(pitch, yaw);
+    }
+
+    private Vec3 customGetLook(float partialTicks, float yaw, float pitch, boolean pitchPredict) {
+        if (partialTicks == 1.0f) {
+            return this.getVectorForRotation(pitch, yaw);
+        }
+        float f = pitchPredict ? this.prevRotationPitch + (this.rotationPitch - this.prevRotationPitch) * partialTicks : pitch;
+        float f1 = pitchPredict ? this.prevRotationYaw + (this.rotationYaw - this.prevRotationYaw) * partialTicks : yaw;
+        return this.getVectorForRotation(f, f1);
+    }
+
+    private Vec3 customGetLook(float partialTicks, float yaw, float pitch, float lastYaw, float lastPitch) {
+        if (partialTicks == 1.0f) {
+            return this.getVectorForRotation(pitch, yaw);
+        }
+        float f = lastPitch + (pitch - lastPitch) * partialTicks;
+        float f1 = lastYaw + (yaw - lastYaw) * partialTicks;
+        return this.getVectorForRotation(f, f1);
+    }
+
+    public Vec3 getCustomPositionEyes(float partialTicks, double[] xyz, double[] lastXYZ) {
+        if (partialTicks == 1.0f) {
+            return new Vec3(xyz[0], xyz[1] + (double)this.getEyeHeight(), xyz[2]);
+        }
+        double d0 = lastXYZ[0] + (xyz[0] - lastXYZ[0]) * (double)partialTicks;
+        double d1 = lastXYZ[1] + (xyz[1] - lastXYZ[1]) * (double)partialTicks + (double)this.getEyeHeight();
+        double d2 = lastXYZ[2] + (xyz[2] - lastXYZ[2]) * (double)partialTicks;
+        return new Vec3(d0, d1, d2);
+    }
+
+    public float getXZDistanceToEntity(Entity entityIn) {
+        float f = (float)(this.posX - entityIn.posX);
+        float f2 = (float)(this.posZ - entityIn.posZ);
+        return MathHelper.sqrt_float(f * f + f2 * f2);
+    }
+
+    public void resetCooldown() {
+        this.ticksSinceLastSwing = 0;
+    }
+
+    public GuiScreen getServerInv() {
+        return this.serverInv;
+    }
+
+    public void setServerInv(GuiScreen serverInv) {
+        this.serverInv = serverInv;
+    }
+
+    public Vec3 getSpawnPos() {
+        return this.spawnPos;
+    }
+
+    public boolean isServerSprintState() {
+        return this.serverSprintState;
+    }
+
+    public void setServerSprintState(boolean serverSprintState) {
+        this.serverSprintState = serverSprintState;
+    }
+
+    public Vec3 getLastServerPosition() {
+        return this.lastServerPosition;
+    }
+
+    public void setLastServerPosition(Vec3 lastServerPosition) {
+        this.lastServerPosition = lastServerPosition;
+    }
+
+    public Vec3 getSeverPosition() {
+        return this.severPosition;
+    }
+
+    public void setSeverPosition(Vec3 severPosition) {
+        this.severPosition = severPosition;
+    }
+
+    public double getX()
+    {
+        return posX;
+    }
+
+    public double getY()
+    {
+        return posY;
+    }
+
+    public double getZ()
+    {
+        return posZ;
+    }
+
 }

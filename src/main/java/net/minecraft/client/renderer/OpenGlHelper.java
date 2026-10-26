@@ -349,7 +349,7 @@ public class OpenGlHelper
         }
         catch (Throwable var5)
         {
-            ;
+            org.apache.logging.log4j.LogManager.getLogger().warn("CPU information unavailable; rendering will continue", var5);
         }
     }
 

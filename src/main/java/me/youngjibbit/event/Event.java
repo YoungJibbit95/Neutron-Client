@@ -2,41 +2,55 @@ package me.youngjibbit.event;
 
 import lombok.Getter;
 import lombok.Setter;
-import me.zero.alpine.event.CancellableEvent;
 import me.zero.alpine.event.EventPhase;
 
 @Getter
-@Setter
-public abstract class Event extends CancellableEvent
-{
-    private EventPhase eventPhase;
+public abstract class Event {
+
+    private boolean cancelled;
+    private EventPhase eventPhase = EventPhase.PRE;
+    @Setter
     private EventFlow eventFlow;
-    public boolean isPre()
-    {
-        if (eventPhase == null) return false;
-        return eventPhase == EventPhase.PRE;
-    }
-    public boolean isON()
-    {
-        if (eventPhase == null) return false;
-        return eventPhase == EventPhase.ON;
+
+    public boolean isCanceled() {
+        return this.cancelled;
     }
 
-    public boolean isPost()
-    {
-        if (eventPhase == null) return false;
-        return eventPhase == EventPhase.POST;
+    public boolean isCancelled() {
+        return this.cancelled;
     }
 
-    public boolean isInbound(){
-        if(eventFlow == null) return false;
-        return eventFlow.equals(EventFlow.INBOUND);
+    public void cancel() {
+        this.cancelled = true;
     }
 
-    public boolean isOutbound(){
-        if(eventFlow == null) return false;
-        return eventFlow.equals(EventFlow.OUTBOUND);
+    public void setCancelled(boolean cancelled) {
+        this.cancelled = cancelled;
     }
 
+    public void setEventPhase(EventPhase eventPhase) {
+        if (eventPhase != null) {
+            this.eventPhase = eventPhase;
+        }
+    }
 
+    public boolean isPre() {
+        return eventPhase != null && eventPhase == EventPhase.PRE;
+    }
+
+    public boolean isON() {
+        return eventPhase != null && eventPhase == EventPhase.ON;
+    }
+
+    public boolean isPost() {
+        return eventPhase != null && eventPhase == EventPhase.POST;
+    }
+
+    public boolean isInbound() {
+        return eventFlow != null && eventFlow == EventFlow.INBOUND;
+    }
+
+    public boolean isOutbound() {
+        return eventFlow != null && eventFlow == EventFlow.OUTBOUND;
+    }
 }

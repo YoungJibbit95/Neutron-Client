@@ -1,5 +1,7 @@
 package net.minecraft.client.multiplayer;
 
+import me.youngjibbit.Pulsar;
+import me.youngjibbit.event.player.AttackEvent;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
@@ -8,6 +10,7 @@ import net.minecraft.client.audio.PositionedSoundRecord;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.network.NetHandlerPlayClient;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.passive.EntityHorse;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.item.ItemBlock;
@@ -378,20 +381,40 @@ public class PlayerControllerMP
     /**
      * Syncs the current player item with the server
      */
-    private void syncCurrentPlayItem()
-    {
-        int i = this.mc.thePlayer.inventory.currentItem;
+    public void syncCurrentPlayItem() {
+        syncCurrentPlayItemChecked();
+    }
 
-        if (i != this.currentPlayerItem)
-        {
-            this.currentPlayerItem = i;
-            this.netClientHandler.addToSendQueue(new C09PacketHeldItemChange(this.currentPlayerItem));
+    /** Update the cache only for a slot packet actually accepted by outbound listeners. */
+    public boolean syncCurrentPlayItemChecked() {
+        EntityPlayerSP player = this.mc.thePlayer;
+        if (player == null) return false;
+        int slot = player.inventory.currentItem;
+        if (slot != this.currentPlayerItem) {
+            net.minecraft.network.Packet<?> sent = this.netClientHandler.addToSendQueueTracked(new C09PacketHeldItemChange(slot));
+            if (!(sent instanceof C09PacketHeldItemChange) || !this.netClientHandler.getNetworkManager().isChannelOpen()) return false;
         }
+        return this.mc.thePlayer == player && this.currentPlayerItem == slot && player.inventory.currentItem == slot
+                && this.netClientHandler.getNetworkManager().isChannelOpen();
+    }
+
+    /** Called at transport acceptance, before POST listeners can send another slot change. */
+    public void observeOutboundSlot(NetHandlerPlayClient transport, int slot) {
+        if (this.netClientHandler == transport) this.currentPlayerItem = slot >= 0 && slot < 9 ? slot : -1;
     }
 
     public boolean onPlayerRightClick(EntityPlayerSP player, WorldClient worldIn, ItemStack heldStack, BlockPos hitPos, EnumFacing side, Vec3 hitVec)
     {
-        this.syncCurrentPlayItem();
+        return onPlayerRightClick(player, worldIn, heldStack, hitPos, side, hitVec, null);
+    }
+
+    /** Scaffold keeps its normal click path, with a final guard after slot/packet listeners. */
+    public boolean onPlayerRightClick(EntityPlayerSP player, WorldClient worldIn, ItemStack heldStack,
+                                     BlockPos hitPos, EnumFacing side, Vec3 hitVec,
+                                     java.util.function.BooleanSupplier validPlacement)
+    {
+        if (validPlacement == null) this.syncCurrentPlayItem();
+        else if (!this.syncCurrentPlayItemChecked() || !validPlacement.getAsBoolean()) return false;
         float f = (float)(hitVec.xCoord - (double)hitPos.getX());
         float f1 = (float)(hitVec.yCoord - (double)hitPos.getY());
         float f2 = (float)(hitVec.zCoord - (double)hitPos.getZ());
@@ -423,7 +446,17 @@ public class PlayerControllerMP
                 }
             }
 
-            this.netClientHandler.addToSendQueue(new C08PacketPlayerBlockPlacement(hitPos, side.getIndex(), player.inventory.getCurrentItem(), f, f1, f2));
+            C08PacketPlayerBlockPlacement placement = new C08PacketPlayerBlockPlacement(hitPos, side.getIndex(), player.inventory.getCurrentItem(), f, f1, f2);
+            if (validPlacement == null) this.netClientHandler.addToSendQueue(placement);
+            else {
+                if (!validPlacement.getAsBoolean() || player.inventory.getCurrentItem() != heldStack) return false;
+                net.minecraft.network.Packet<?> sent = this.netClientHandler.addToSendQueueTracked(placement,
+                        outgoing -> outgoing == placement && validPlacement.getAsBoolean()
+                                && player.inventory.getCurrentItem() == heldStack
+                                && this.currentPlayerItem == player.inventory.currentItem);
+                if (sent != placement || !this.netClientHandler.getNetworkManager().isChannelOpen()
+                        || !validPlacement.getAsBoolean() || this.currentPlayerItem != player.inventory.currentItem) return false;
+            }
 
             if (!flag && this.currentGameType != WorldSettings.GameType.SPECTATOR)
             {
@@ -494,15 +527,47 @@ public class PlayerControllerMP
     /**
      * Attacks an entity
      */
-    public void attackEntity(EntityPlayer playerIn, Entity targetEntity)
-    {
-        this.syncCurrentPlayItem();
-        this.netClientHandler.addToSendQueue(new C02PacketUseEntity(targetEntity, C02PacketUseEntity.Action.ATTACK));
+    public void attackEntity(EntityPlayer playerIn, Entity targetEntity) {
+        tryAttackEntity(playerIn, targetEntity, () -> true);
+    }
 
-        if (this.currentGameType != WorldSettings.GameType.SPECTATOR)
-        {
-            playerIn.attackTargetEntityWithCurrentItem(targetEntity);
+    public boolean tryAttackEntity(EntityPlayer playerIn, Entity targetEntity, java.util.function.BooleanSupplier validHit) {
+        me.youngjibbit.core.combat.AttackScheduler scheduler = me.youngjibbit.core.bootstrap.RuntimeServices.attackScheduler();
+        me.youngjibbit.module.Module aura = Pulsar.INSTANCE.getMm() == null ? null
+                : Pulsar.INSTANCE.getMm().getModule(me.youngjibbit.module.impl.combat.Aura.class);
+        if (!scheduler.allowControllerAttack(aura != null && aura.isToggled())) return false;
+        boolean cancelled = false;
+        if (targetEntity instanceof EntityLivingBase) {
+            AttackEvent attackEvent = new AttackEvent((EntityLivingBase) targetEntity);
+            Pulsar.BUS.post(attackEvent);
+            cancelled = attackEvent.isCancelled();
         }
+        final World scene = playerIn.worldObj;
+        java.util.function.BooleanSupplier currentHit = () -> this.mc.thePlayer == playerIn && this.mc.theWorld == scene
+                && !playerIn.isDead && scene != null && targetEntity != null && targetEntity.worldObj == scene && !targetEntity.isDead
+                && scene.getEntityByID(targetEntity.getEntityId()) == targetEntity && validHit.getAsBoolean();
+        if (!cancelled && currentHit.getAsBoolean()) {
+            this.syncCurrentPlayItem();
+            net.minecraft.network.Packet<?> accepted = this.netClientHandler.addToSendQueueTracked(
+                    new C02PacketUseEntity(targetEntity, C02PacketUseEntity.Action.ATTACK), outgoing ->
+                            outgoing instanceof C02PacketUseEntity
+                                    && ((C02PacketUseEntity) outgoing).getAction() == C02PacketUseEntity.Action.ATTACK
+                                    && ((C02PacketUseEntity) outgoing).getEntityFromWorld(playerIn.worldObj) == targetEntity
+                                    && currentHit.getAsBoolean());
+            if (!(accepted instanceof C02PacketUseEntity)
+                    || ((C02PacketUseEntity) accepted).getAction() != C02PacketUseEntity.Action.ATTACK
+                    || ((C02PacketUseEntity) accepted).getEntityFromWorld(playerIn.worldObj) != targetEntity
+                    || !currentHit.getAsBoolean()) return false;
+            scheduler.recordControllerAttack();
+
+            if (this.currentGameType != WorldSettings.GameType.SPECTATOR) {
+                playerIn.attackTargetEntityWithCurrentItem(targetEntity);
+            }
+            if (targetEntity instanceof EntityLivingBase)
+                Pulsar.BUS.post(new me.youngjibbit.event.player.AttackResultEvent((EntityLivingBase) targetEntity));
+            return true;
+        }
+        return false;
     }
 
     /**
@@ -532,6 +597,28 @@ public class PlayerControllerMP
         ItemStack itemstack = playerIn.openContainer.slotClick(slotId, mouseButtonClicked, mode, playerIn);
         this.netClientHandler.addToSendQueue(new C0EPacketClickWindow(windowId, slotId, mouseButtonClicked, mode, itemstack, short1));
         return itemstack;
+    }
+
+    /**
+     * Predict a guarded click, then validate again after packet PRE listeners before transport.
+     * Null means no click was accepted; the caller owns any still-present local prediction.
+     * Existing vanilla windowClick intentionally retains its original behavior.
+     */
+    public C0EPacketClickWindow windowClickGuarded(int windowId, int slotId, int button, int mode,
+                                                  EntityPlayer player, java.util.function.BooleanSupplier beforePrediction,
+                                                  java.util.function.BooleanSupplier afterPrediction) {
+        final net.minecraft.inventory.Container container = player == null ? null : player.openContainer;
+        final Object world = this.mc.theWorld;
+        if (player != this.mc.thePlayer || container == null || container.windowId != windowId ||
+                this.mc.playerController != this || !beforePrediction.getAsBoolean()) return null;
+        final short action = container.getNextTransactionID(player.inventory);
+        final ItemStack clicked = container.slotClick(slotId, button, mode, player);
+        if (!afterPrediction.getAsBoolean()) return null;
+        final C0EPacketClickWindow packet = new C0EPacketClickWindow(windowId, slotId, button, mode, clicked, action);
+        net.minecraft.network.Packet<?> sent = this.netClientHandler.addToSendQueueGuarded(packet,
+                () -> this.mc.thePlayer == player && this.mc.theWorld == world && this.mc.playerController == this &&
+                        player.openContainer == container && container.windowId == windowId && afterPrediction.getAsBoolean());
+        return sent == packet ? packet : null;
     }
 
     /**

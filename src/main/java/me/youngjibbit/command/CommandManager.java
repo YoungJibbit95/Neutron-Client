@@ -4,7 +4,6 @@ import lombok.Getter;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.exception.CommandException;
 import me.youngjibbit.utils.ChatUtil;
-import net.minecraft.util.EnumChatFormatting;
 import org.reflections.Reflections;
 
 import java.util.*;
@@ -13,85 +12,87 @@ import java.util.*;
 public final class CommandManager
 {
     public static final String COMMAND_PREFIX = Pulsar.INSTANCE.getCommandPrefix();
-
     private Map<String, Command> commands;
 
     public CommandManager()
     {
-        init();
-        try
-        {
-            register();
-        } catch (CommandException e)
-        {
-            e.printStackTrace();
-        }
+        this.init();
     }
 
     private void init()
     {
-        this.commands = new HashMap<>();
-        try
-        {
-
+        this.commands = new LinkedHashMap<>();
+        try {
+            this.register();
         } catch (CommandException e)
         {
-            throw new CommandException("Failed to register Commands!");
+            throw new CommandException("Failed to register commands!");
         }
     }
 
     public boolean handleCommand(final String message)
     {
-        if (message.isEmpty()) return false;
+        if (message == null || message.trim().isEmpty() || !message.startsWith(COMMAND_PREFIX)) {
+            return false;
+        }
 
-        final String[] args = message.substring(1).split("");
-
-        if (message.equalsIgnoreCase(COMMAND_PREFIX))
+        final String payload = message.substring(COMMAND_PREFIX.length()).trim();
+        if (payload.isEmpty())
         {
             ChatUtil.addChatMessage(String
-                    .format("Type %shelp for a list of commands and usage. \n Type %s <command> to see information about a specfic command\n", COMMAND_PREFIX, COMMAND_PREFIX), true);
+                            .format("Type %shelp to get a list of commands.", COMMAND_PREFIX)
+                    , true);
             return true;
         }
 
-        try
-        {
+        final String[] args = payload.split("\\s+");
+        try {
             this.getCommand(args[0]).orElseThrow(() ->
-                    new CommandException(String
-                            .format("ERROR:\n Command \"%s\" not found. \n Use %help to see all Commands!", args[0], COMMAND_PREFIX)))
+                            new CommandException(String
+                                    .format("Command \"%s\" not found. Use %shelp.", args[0], COMMAND_PREFIX)))
                     .execute(Arrays.copyOfRange(args, 1, args.length));
-
-        } catch (CommandException ignored) {}
+        } catch (CommandException exception) {
+            // CommandException already reports to chat.
+        } catch (Exception exception) {
+            ChatUtil.addChatMessage("Command failed: " + exception.getMessage(), true);
+            exception.printStackTrace();
+        }
         return true;
     }
 
-
-    private void register() throws CommandException {
+    private void register() throws CommandException
+    {
         final Reflections reflections = new Reflections("me.youngjibbit.command.impl");
-        final Set<Class<? extends Command>> classes = reflections.getSubTypesOf(Command.class);
-
-        for (Class<? extends Command> command : classes) {
+        final List<Class<? extends Command>> classes = new ArrayList<>(reflections.getSubTypesOf(Command.class));
+        classes.sort(Comparator.comparing(Class::getName));
+        for (Class<? extends Command> command : classes)
+        {
             try {
                 final Command comm = command.getDeclaredConstructor().newInstance();
-                this.commands.put(comm.getName(), comm);
-            } catch (InstantiationException | IllegalAccessException | NoSuchMethodException | SecurityException | java.lang.reflect.InvocationTargetException e) {
-                System.err.println("Failed to initialize command: " + command.getName());
+                this.commands.put(normalize(comm.getName()), comm);
+            } catch (Exception e)
+            {
+                System.err.println("couldn't initialize command: " + command.getName() + "!");
             }
         }
     }
 
-    public Optional<Command> getCommand(final String commandName) {
-        // First, attempt to get the command directly by name
-        Command command = this.commands.get(commandName);
-        if (command != null) {
+    public Optional<Command> getCommand(String commandName)
+    {
+        final String normalized = normalize(commandName);
+        final Command command = this.commands.get(normalized);
+        if (command != null)
+        {
             return Optional.of(command);
-        } else {
-            // If the command is not found directly, try to find it by alias
-            return Optional.ofNullable(this.commands.values()
-                    .stream()
-                    .filter(cmd -> cmd.isAlias(commandName))
-                    .findFirst()
-                    .orElseThrow(() ->
-                            new CommandException("Command not found: " + commandName)));
         }
+
+        return this.commands.values()
+                .stream()
+                .filter(cmd -> cmd.isAlias(normalized))
+                .findFirst();
+    }
+
+    private String normalize(String input) {
+        return input == null ? "" : input.toLowerCase(Locale.ROOT).trim();
     }
 }

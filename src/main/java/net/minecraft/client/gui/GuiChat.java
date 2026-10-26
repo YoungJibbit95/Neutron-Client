@@ -1,8 +1,15 @@
 package net.minecraft.client.gui;
 
 import com.google.common.collect.Lists;
+
+import java.awt.*;
 import java.io.IOException;
 import java.util.List;
+
+import me.youngjibbit.utils.animations.Animation;
+import me.youngjibbit.utils.animations.Direction;
+import me.youngjibbit.utils.animations.impl.DecelerateAnimation;
+import me.youngjibbit.utils.render.UIUtils;
 import net.minecraft.network.play.client.C14PacketTabComplete;
 import net.minecraft.util.BlockPos;
 import net.minecraft.util.ChatComponentText;
@@ -18,6 +25,7 @@ import org.lwjgl.input.Mouse;
 public class GuiChat extends GuiScreen
 {
     private static final Logger logger = LogManager.getLogger();
+    private final me.youngjibbit.utils.render.ArrayListSurface inputSurface=new me.youngjibbit.utils.render.ArrayListSurface();
     private String historyBuffer = "";
 
     /**
@@ -32,6 +40,7 @@ public class GuiChat extends GuiScreen
 
     /** Chat entry field */
     protected GuiTextField inputField;
+    public static Animation openingAnimation = new DecelerateAnimation(175, 1, Direction.BACKWARDS);
 
     /**
      * is the text that appears when you press the chat key and the input box appears pre-filled
@@ -68,6 +77,7 @@ public class GuiChat extends GuiScreen
      */
     public void onGuiClosed()
     {
+       inputSurface.close();openingAnimation.setDirection(Direction.BACKWARDS);
         Keyboard.enableRepeatEvents(false);
         this.mc.ingameGUI.getChatGUI().resetScroll();
     }
@@ -305,8 +315,7 @@ public class GuiChat extends GuiScreen
      */
     public void drawScreen(int mouseX, int mouseY, float partialTicks)
     {
-        drawRect(2, this.height - 14, this.width - 2, this.height - 2, Integer.MIN_VALUE);
-        this.inputField.drawTextBox();
+        inputSurface.panel(2,height-14,width-4,12,5,me.youngjibbit.utils.Theme.getDefaultTheme(),true,true,true,5,110/255f,.6f,()->inputField.drawTextBox());
         IChatComponent ichatcomponent = this.mc.ingameGUI.getChatGUI().getChatComponent(Mouse.getX(), Mouse.getY());
 
         if (ichatcomponent != null && ichatcomponent.getChatStyle().getChatHoverEvent() != null)

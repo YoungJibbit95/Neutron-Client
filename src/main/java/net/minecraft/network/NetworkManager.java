@@ -33,6 +33,9 @@ import java.util.Queue;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import javax.crypto.SecretKey;
 
+import me.youngjibbit.Pulsar;
+import me.youngjibbit.core.network.PacketPipeline;
+import me.zero.alpine.event.EventPhase;
 import me.youngjibbit.event.EventFlow;
 import me.youngjibbit.event.packet.EventPacket;
 import net.minecraft.util.ChatComponentText;
@@ -80,17 +83,25 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet>
         }
     };
     private final EnumPacketDirection direction;
-    private final Queue<NetworkManager.InboundHandlerTuplePacketListener> outboundPacketsQueue = Queues.<NetworkManager.InboundHandlerTuplePacketListener>newConcurrentLinkedQueue();
+    public final Queue<InboundHandlerTuplePacketListener> outboundPacketsQueue = Queues
+            .<InboundHandlerTuplePacketListener>newConcurrentLinkedQueue();
+    //private final Queue<NetworkManager.InboundHandlerTuplePacketListener> outboundPacketsQueue = Queues.<NetworkManager.InboundHandlerTuplePacketListener>newConcurrentLinkedQueue();
     private final ReentrantReadWriteLock field_181680_j = new ReentrantReadWriteLock();
 
     /** The active channel */
-    private Channel channel;
+    private volatile Channel channel;
+
+    /** A closed connection must never be mistaken for one that has not connected yet. */
+    private volatile boolean transportClosed;
 
     /** The address of the remote party */
     private SocketAddress socketAddress;
 
     /** The INetHandler instance responsible for processing received packets */
-    private INetHandler packetListener;
+    private volatile INetHandler packetListener;
+    private volatile PacketPipeline clientPackets;
+    private me.youngjibbit.core.network.PlaySessionLifecycle playSession;
+    private java.util.function.Consumer<Packet<?>> acceptedClientPacket;
 
     /** A String indicating why the network has shutdown. */
     private IChatComponent terminationReason;
@@ -107,6 +118,11 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet>
         super.channelActive(p_channelActive_1_);
         this.channel = p_channelActive_1_.channel();
         this.socketAddress = this.channel.remoteAddress();
+
+        if (transportClosed) {
+            this.channel.close();
+            return;
+        }
 
         try
         {
@@ -149,25 +165,57 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet>
         this.closeChannel(chatcomponenttranslation);
     }
 
-    protected void channelRead0(ChannelHandlerContext handlerContext, Packet packet) throws Exception
-    {
-        if (this.channel.isOpen())
-        {
-            try
-            {
-                final EventPacket event = new EventPacket(packet);
-
-                event.setEventFlow(EventFlow.INBOUND);
-
-                if(event.isCancelled()) return;
-
-                packet.processPacket(this.packetListener);
+    /** Installs the play-only handoff. Login/status/server transports keep vanilla semantics. */
+    public void configureClientPackets(net.minecraft.util.IThreadListener thread) {
+        java.util.function.Consumer<Packet<?>> observer=acceptedClientPacket;
+        if(observer==null)observer=packet -> {
+            if (packetListener instanceof net.minecraft.client.network.NetHandlerPlayClient)
+                ((net.minecraft.client.network.NetHandlerPlayClient)packetListener).observeAcceptedOutbound(packet);
+            else if(packet instanceof net.minecraft.network.play.client.C03PacketPlayer) {
+                net.minecraft.network.play.client.C03PacketPlayer movement=(net.minecraft.network.play.client.C03PacketPlayer)packet;
+                if(movement.getRotating())me.youngjibbit.core.bootstrap.RuntimeServices.rotation().observeOutboundRotation(movement.getYaw(),movement.getPitch());
             }
-            catch (ThreadQuickExitException var4)
-            {
-                ;
-            }
+        };
+        configureClientPackets(thread,observer);
+    }
+    public void configureClientPackets(net.minecraft.util.IThreadListener thread,java.util.function.Consumer<Packet<?>> observer) {
+        if (clientPackets != null) clientPackets.close();
+        acceptedClientPacket=observer;
+        if(playSession==null && thread!=null)playSession=new me.youngjibbit.core.network.PlaySessionLifecycle(this,thread);
+        clientPackets = new PacketPipeline(thread, this::isChannelOpen, observer,
+                error -> closeChannel(new ChatComponentText("Client packet processing failed: " + error.getClass().getSimpleName())),
+                new me.youngjibbit.core.network.PacketDelays(), packet -> {
+                    if(packet instanceof net.minecraft.network.play.server.S01PacketJoinGame && playSession!=null)playSession.confirmStarted();
+                });
+        final PacketPipeline installed = clientPackets;
+        Runnable bind = () -> {
+            if (clientPackets == installed && installed.isActive())
+                me.youngjibbit.core.bootstrap.RuntimeServices.rotation().bindConnection(installed);
+        };
+        if (thread.isCallingFromMinecraftThread()) bind.run(); else thread.addScheduledTask(bind);
+    }
+
+    public PacketPipeline getClientPackets() { return clientPackets; }
+    public me.youngjibbit.core.network.PlaySessionLifecycle getPlaySession() {return playSession;}
+
+    public void deliverClientChat(net.minecraft.network.play.server.S02PacketChat packet,Runnable application) {
+        if(playSession==null)application.run();else playSession.deliverChat(packet,application);
+    }
+
+    protected void channelRead0(ChannelHandlerContext handlerContext, Packet packet) throws Exception {
+        receivePacket(packet, false);
+    }
+
+    public void receivePacket(Packet packet, boolean silent) {
+        if (!isChannelOpen()) return;
+        PacketPipeline pipeline = clientPackets;
+        INetHandler handler = packetListener;
+        if (pipeline != null) {
+            pipeline.inbound(packet, handler, silent, () -> clientPackets == pipeline && packetListener == handler);
+            return;
         }
+        try { packet.processPacket(packetListener); }
+        catch (ThreadQuickExitException scheduled) { }
     }
 
     /**
@@ -181,48 +229,70 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet>
         this.packetListener = handler;
     }
 
-    public void sendPacket(Packet packetIn)
-    {
-        if (this.isChannelOpen())
-        {
-            this.flushOutboundQueue();
-            this.dispatchPacket(packetIn, (GenericFutureListener <? extends Future <? super Void >> [])null);
-        }
-        else
-        {
-            this.field_181680_j.writeLock().lock();
+    public void receivePacketSilent(final Packet packet) { receivePacket(packet, true); }
 
-            try
-            {
-                this.outboundPacketsQueue.add(new NetworkManager.InboundHandlerTuplePacketListener(packetIn, (GenericFutureListener[])null));
+    public void sendPacket(Packet packetIn) { sendPacketTracked(packetIn, false, null); }
+    public void sendPacketSilent(Packet packetIn) { sendPacketTracked(packetIn, true, null); }
+
+    public Packet<?> sendPacketTracked(Packet packet, boolean silent) { return sendPacketTracked(packet, silent, null); }
+
+    public Packet<?> sendPacketGuarded(Packet packet, java.util.function.BooleanSupplier validAction) {
+        return sendPacketGuarded(packet, false, selected -> selected == packet && validAction.getAsBoolean());
+    }
+
+    public Packet<?> sendPacketGuarded(Packet packet, java.util.function.Predicate<Packet<?>> validAction) {
+        return sendPacketGuarded(packet, false, validAction);
+    }
+
+    public Packet<?> sendPacketGuarded(Packet packet, boolean silent, java.util.function.Predicate<Packet<?>> validAction) {
+        PacketPipeline pipeline = clientPackets;
+        if (pipeline != null) return pipeline.outboundSelected(packet, silent, selected -> sendTransport((Packet) selected, null), validAction);
+        if (!validAction.test(packet) || !isChannelOpen()) return null;
+        return sendTransport(packet, null) ? packet : null;
+    }
+
+    private Packet<?> sendPacketTracked(Packet packet, boolean silent,
+            GenericFutureListener<? extends Future<? super Void>>[] listeners) {
+        if (clientPackets != null) return clientPackets.outbound(packet, silent, selected -> sendTransport((Packet) selected, listeners));
+        return sendTransport(packet, listeners) ? packet : null;
+    }
+
+    public void sendPacket(Packet packetIn, GenericFutureListener<? extends Future<? super Void>> listener,
+                           GenericFutureListener<? extends Future<? super Void>>... listeners) {
+        sendPacketTracked(packetIn, false, (GenericFutureListener[]) ArrayUtils.add(listeners, 0, listener));
+    }
+
+    private boolean sendTransport(Packet packet, GenericFutureListener<? extends Future<? super Void>>[] listeners) {
+        if (isChannelOpen()) {
+            flushOutboundQueue();
+            if (!isChannelOpen()) return rejectClosedTransport();
+            dispatchPacket(packet, listeners);
+            return true;
+        } else {
+            field_181680_j.writeLock().lock();
+            try {
+                if (clientPackets != null) return rejectClosedTransport();
+                // Integrated-server player removal still sends chunk unloads after disconnect.
+                // Only a genuinely pending first connection may retain packets here.
+                if (transportClosed || (channel != null && !channel.isOpen())) return false;
+                if (outboundPacketsQueue.size() >= 1024) throw new IllegalStateException("Connection send queue exceeded limit");
+                InboundHandlerTuplePacketListener pending = new InboundHandlerTuplePacketListener(packet, listeners);
+                outboundPacketsQueue.add(pending);
+                // closeChannel may clear the concurrent queue between the check and the add.
+                if (transportClosed) {
+                    outboundPacketsQueue.remove(pending);
+                    return false;
+                }
+                return true;
             }
-            finally
-            {
-                this.field_181680_j.writeLock().unlock();
-            }
+            finally { field_181680_j.writeLock().unlock(); }
         }
     }
 
-    public void sendPacket(Packet packetIn, GenericFutureListener <? extends Future <? super Void >> listener, GenericFutureListener <? extends Future <? super Void >> ... listeners)
-    {
-        if (this.isChannelOpen())
-        {
-            this.flushOutboundQueue();
-            this.dispatchPacket(packetIn, (GenericFutureListener[])ArrayUtils.add(listeners, 0, listener));
-        }
-        else
-        {
-            this.field_181680_j.writeLock().lock();
-
-            try
-            {
-                this.outboundPacketsQueue.add(new NetworkManager.InboundHandlerTuplePacketListener(packetIn, (GenericFutureListener[])ArrayUtils.add(listeners, 0, listener)));
-            }
-            finally
-            {
-                this.field_181680_j.writeLock().unlock();
-            }
-        }
+    private boolean rejectClosedTransport() {
+        // The play pipeline must not publish POST/accepted state for a failed transport.
+        if (clientPackets != null) throw new IllegalStateException("Play transport closed before acceptance");
+        return false;
     }
 
     /**
@@ -285,15 +355,16 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet>
      */
     private void flushOutboundQueue()
     {
-        if (this.channel != null && this.channel.isOpen())
+        if (isChannelOpen())
         {
             this.field_181680_j.readLock().lock();
 
             try
             {
-                while (!this.outboundPacketsQueue.isEmpty())
+                while (isChannelOpen())
                 {
                     NetworkManager.InboundHandlerTuplePacketListener networkmanager$inboundhandlertuplepacketlistener = (NetworkManager.InboundHandlerTuplePacketListener)this.outboundPacketsQueue.poll();
+                    if (networkmanager$inboundhandlertuplepacketlistener == null) break;
                     this.dispatchPacket(networkmanager$inboundhandlertuplepacketlistener.packet, networkmanager$inboundhandlertuplepacketlistener.futureListeners);
                 }
             }
@@ -332,11 +403,15 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet>
      */
     public void closeChannel(IChatComponent message)
     {
-        if (this.channel.isOpen())
+        transportClosed = true;
+        if (this.terminationReason == null) this.terminationReason = message;
+        if (clientPackets != null) clientPackets.close();
+        this.outboundPacketsQueue.clear();
+        if (this.channel != null && this.channel.isOpen())
         {
             this.channel.close().awaitUninterruptibly();
-            this.terminationReason = message;
         }
+        if(playSession!=null)playSession.requestEnd();
     }
 
     /**
@@ -421,7 +496,7 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet>
      */
     public boolean isChannelOpen()
     {
-        return this.channel != null && this.channel.isOpen();
+        return !transportClosed && this.channel != null && this.channel.isOpen();
     }
 
     public boolean hasNoChannel()
@@ -493,6 +568,7 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet>
     {
         if (this.channel != null && !this.channel.isOpen())
         {
+            if(playSession!=null)playSession.requestEnd();
             if (!this.disconnected)
             {
                 this.disconnected = true;
@@ -513,15 +589,22 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet>
         }
     }
 
-    static class InboundHandlerTuplePacketListener
-    {
+    public static class InboundHandlerTuplePacketListener {
         private final Packet packet;
-        private final GenericFutureListener <? extends Future <? super Void >> [] futureListeners;
+        private final GenericFutureListener<? extends Future<? super Void>>[] futureListeners;
 
-        public InboundHandlerTuplePacketListener(Packet inPacket, GenericFutureListener <? extends Future <? super Void >> ... inFutureListeners)
-        {
-            this.packet = inPacket;
-            this.futureListeners = inFutureListeners;
+        public Packet getPacket() {
+            return packet;
+        }
+
+        public GenericFutureListener<? extends Future<? super Void>>[] getFutureListeners() {
+            return futureListeners;
+        }
+
+        public InboundHandlerTuplePacketListener(Packet inPacket,
+                                                 GenericFutureListener<? extends Future<? super Void>>... inFutureListeners) {
+            packet = inPacket;
+            futureListeners = inFutureListeners;
         }
     }
 }

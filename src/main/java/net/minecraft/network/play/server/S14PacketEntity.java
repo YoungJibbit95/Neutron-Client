@@ -76,6 +76,21 @@ public class S14PacketEntity implements Packet<INetHandlerPlayClient>
         return this.posZ;
     }
 
+    public byte getPosX()
+    {
+        return this.posX;
+    }
+
+    public byte getPosY()
+    {
+        return this.posY;
+    }
+
+    public byte getPosZ()
+    {
+        return this.posZ;
+    }
+
     public byte func_149066_f()
     {
         return this.yaw;
@@ -203,5 +218,9 @@ public class S14PacketEntity implements Packet<INetHandlerPlayClient>
             buf.writeByte(this.pitch);
             buf.writeBoolean(this.onGround);
         }
+    }
+
+    public int getEntityId() {
+        return entityId;
     }
 }

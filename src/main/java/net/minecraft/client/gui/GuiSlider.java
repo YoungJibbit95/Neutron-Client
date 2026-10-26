@@ -1,8 +1,11 @@
 package net.minecraft.client.gui;
 
+import me.youngjibbit.utils.render.UIUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.resources.I18n;
+
+import java.awt.*;
 
 public class GuiSlider extends GuiButton
 {

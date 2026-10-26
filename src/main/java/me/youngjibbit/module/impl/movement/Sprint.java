@@ -2,9 +2,9 @@ package me.youngjibbit.module.impl.movement;
 
 import me.youngjibbit.event.update.EventUpdate;
 import me.youngjibbit.module.ModuleInfo;
+import me.youngjibbit.utils.player.MoveUtil;
 import me.zero.alpine.listener.Listener;
 import me.zero.alpine.listener.Subscribe;
-import net.minecraft.client.entity.EntityPlayerSP;
 import org.lwjgl.input.Keyboard;
 
 import me.youngjibbit.module.Category;
@@ -36,6 +36,7 @@ public final class Sprint extends Module
     @Subscribe
     private final Listener<EventUpdate> onUpdate = new Listener<>(e -> {
         if (mc.thePlayer.isCollidedHorizontally) return;
+        if(!MoveUtil.hasMovementInput(mc.thePlayer)) return;
         if (mc.thePlayer.moveForward < 0) return;
         if (mc.thePlayer.isUsingItem()) return;
         if (mc.thePlayer.isSneaking()) return;

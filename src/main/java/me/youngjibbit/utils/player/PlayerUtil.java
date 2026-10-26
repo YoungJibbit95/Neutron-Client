@@ -1,0 +1,354 @@
+package me.youngjibbit.utils.player;
+
+import me.youngjibbit.core.combat.CombatTargetTracker;
+import me.youngjibbit.utils.Eierlecken;
+import me.youngjibbit.utils.rotations.RUtil;
+import net.minecraft.block.Block;
+import net.minecraft.block.BlockAir;
+import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.client.settings.KeyBinding;
+import net.minecraft.enchantment.Enchantment;
+import net.minecraft.enchantment.EnchantmentHelper;
+import net.minecraft.entity.Entity;
+import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.event.ClickEvent;
+import net.minecraft.init.Blocks;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemAxe;
+import net.minecraft.item.ItemPickaxe;
+import net.minecraft.item.ItemStack;
+import net.minecraft.item.ItemSword;
+import net.minecraft.util.BlockPos;
+import net.minecraft.util.ChatComponentText;
+import net.minecraft.util.MathHelper;
+import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Range;
+import org.lwjgl.input.Mouse;
+
+public class PlayerUtil implements Eierlecken
+{
+
+    public static void send(final Object message, final Object... objects) {
+        if (inGame()) {
+            final String format = String.format(message.toString(), objects);
+            mc.thePlayer.addChatMessage(new ChatComponentText("" + format));
+        }
+    }
+
+    public static boolean inGame() {
+        return mc.thePlayer != null && mc.theWorld != null;
+    }
+
+    public static boolean tryingToCombo() {
+        return Mouse.isButtonDown(0) && Mouse.isButtonDown(1);
+    }
+
+    public static boolean lookingAtPlayer(EntityPlayer v, EntityPlayer e, double m) {
+        double deltaX = e.posX - v.posX;
+        double deltaY = e.posY - v.posY + v.getEyeHeight();
+        double deltaZ = e.posZ - v.posZ;
+        double distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY + deltaZ * deltaZ);
+        return distance < m;
+    }
+
+    public static boolean inFov(float fov, @NotNull BlockPos blockPos) {
+        return inFov(fov, blockPos.getX(), blockPos.getZ());
+    }
+
+    public static EntityPlayer getTarget(EntityLivingBase target, double distance) {
+        if (mc.theWorld == null) {
+            return null;
+        }
+
+        if (target instanceof EntityPlayer && mc.thePlayer.getDistanceToEntity(target) <= distance) {
+            return (EntityPlayer) target;
+        }
+
+        EntityLivingBase trackedTarget = CombatTargetTracker.getPrimaryTarget(350L);
+        if (trackedTarget instanceof EntityPlayer && trackedTarget.isEntityAlive() && mc.thePlayer.getDistanceToEntity(trackedTarget) <= distance) {
+            return (EntityPlayer) trackedTarget;
+        }
+
+        for (EntityPlayer entity : mc.theWorld.playerEntities) {
+            if (isInTeam(entity))
+                continue;
+
+
+            float tempDistance = mc.thePlayer.getDistanceToEntity(entity);
+            if (entity != mc.thePlayer && tempDistance <= distance) {
+                target = entity;
+                distance = tempDistance;
+            }
+        }
+        return (EntityPlayer) target;
+    }
+
+    public static boolean isInTeam(Entity entity) {
+        if (mc.thePlayer.getDisplayName() != null && entity.getDisplayName() != null) {
+            String targetName = entity.getDisplayName().getFormattedText().replace("§r", "");
+            String clientName = mc.thePlayer.getDisplayName().getFormattedText().replace("§r", "");
+            return targetName.startsWith("§" + clientName.charAt(1));
+        }
+        return false;
+    }
+
+
+    public static boolean inFov(float fov, @NotNull Entity entity) {
+        if (entity instanceof EntityLivingBase) {
+            EntityLivingBase livingEntity = (EntityLivingBase) entity;
+            // Use the eye height of the EntityLivingBase to make sure we are considering the correct vertical positioning
+            return inFov(fov, livingEntity.posX, livingEntity.posZ);
+        } else {
+            return inFov(fov, entity.posX, entity.posZ);
+        }
+    }
+
+    public static boolean inFov(float fov, @NotNull Entity self, @NotNull Entity target) {
+        return inFov(self.rotationYaw, fov, target.posX, target.posZ);
+    }
+
+    public static boolean inFov(float fov, final double n2, final double n3) {
+        fov *= 0.5F;
+        final double fovToPoint = getFov(n2, n3);
+        if (fovToPoint > 0.0) {
+            return fovToPoint < fov;
+        } else return fovToPoint > -fov;
+    }
+
+    public static boolean inFov(float yaw, float fov, final double n2, final double n3) {
+        fov *= 0.5F;
+        final double fovToPoint = getFov(yaw, n2, n3);
+        if (fovToPoint > 0.0) {
+            return fovToPoint < fov;
+        } else return fovToPoint > -fov;
+    }
+
+    public static double fovFromEntity(Entity en) {
+        return ((double) (mc.thePlayer.rotationYaw - fovToEntity(en)) % 360.0D + 540.0D) % 360.0D - 180.0D;
+    }
+
+    public static double PitchFromEntity(Entity en, float f) {
+        return (double) (mc.thePlayer.rotationPitch - pitchToEntity(en, f));
+    }
+
+    public static float pitchToEntity(Entity ent, float f) {
+        double x = mc.thePlayer.getDistanceToEntity(ent);
+        double y = mc.thePlayer.posY - (ent.posY + f);
+        double pitch = (((Math.atan2(x, y) * 180.0D) / Math.PI));
+        return (float) (90 - pitch);
+    }
+
+    public static void aim(Entity en, float ps) {
+        if (en != null) {
+            float[] t = getRotation(en);
+            if (t != null) {
+                float y = t[0];
+                float p = t[1] + 4.0F + ps;
+                mc.thePlayer.rotationYaw = y;
+                mc.thePlayer.rotationPitch = p;
+            }
+
+        }
+    }
+
+    public static boolean jumpDown() {
+        return mc.gameSettings.keyBindJump.isKeyDown();
+    }
+
+    public static float[] getRotation(Entity q) {
+        if (q == null) {
+            return null;
+        } else {
+            double diffX = q.posX - mc.thePlayer.posX;
+            double diffY;
+            if (q instanceof EntityLivingBase) {
+                EntityLivingBase en = (EntityLivingBase) q;
+                diffY = en.posY + (double) en.getEyeHeight() * 0.9D - (mc.thePlayer.posY + (double) mc.thePlayer.getEyeHeight());
+            } else {
+                diffY = (q.getEntityBoundingBox().minY + q.getEntityBoundingBox().maxY) / 2.0D - (mc.thePlayer.posY + (double) mc.thePlayer.getEyeHeight());
+            }
+
+            double diffZ = q.posZ - mc.thePlayer.posZ;
+            double dist = MathHelper.sqrt_double(diffX * diffX + diffZ * diffZ);
+            float yaw = (float) (Math.atan2(diffZ, diffX) * 180.0D / 3.141592653589793D) - 90.0F;
+            float pitch = (float) (-(Math.atan2(diffY, dist) * 180.0D / 3.141592653589793D));
+            return new float[]{mc.thePlayer.rotationYaw + MathHelper.wrapAngleTo180_float(yaw - mc.thePlayer.rotationYaw), mc.thePlayer.rotationPitch + MathHelper.wrapAngleTo180_float(pitch - mc.thePlayer.rotationPitch)};
+        }
+    }
+
+    public static boolean onEdge() {
+        return onEdge(mc.thePlayer);
+    }
+
+    public static boolean onEdge(Entity entity) {
+        return mc.theWorld.getCollidingBoundingBoxes(entity, entity.getEntityBoundingBox().offset(entity.motionX / 3.0D, -1.0D, entity.motionZ / 3.0D)).isEmpty();
+    }
+
+    public static double n(Entity en) {
+        return ((double) (mc.thePlayer.rotationYaw - getYaw(en)) % 360.0D + 540.0D) % 360.0D - 180.0D;
+    }
+
+    public static float getYaw(Entity ent) {
+        double x = ent.posX - mc.thePlayer.posX;
+        double z = ent.posZ - mc.thePlayer.posZ;
+        double yaw = Math.atan2(x, z) * 57.29577951308232;
+        return (float) (yaw * -1.0D);
+    }
+
+    public static float fovToEntity(Entity ent) {
+        double x = ent.posX - mc.thePlayer.posX;
+        double z = ent.posZ - mc.thePlayer.posZ;
+        double yaw = Math.atan2(x, z) * 57.2957795D;
+        return (float) (yaw * -1.0D);
+    }
+
+    public static boolean fov(Entity entity, float fov) {
+        fov = (float) ((double) fov * 0.5D);
+        double v = ((double) (mc.thePlayer.rotationYaw - fovToEntity(entity)) % 360.0D + 540.0D) % 360.0D - 180.0D;
+        return v > 0.0D && v < (double) fov || (double) (-fov) < v && v < 0.0D;
+    }
+
+    public static boolean playerOverAir() {
+        return mc.theWorld.isAirBlock(new BlockPos(MathHelper.floor_double(mc.thePlayer.posX),
+                MathHelper.floor_double(mc.thePlayer.posY - 1.0D), MathHelper.floor_double(mc.thePlayer.posZ)));
+    }
+
+    public static boolean isBlockUnder(int offset) {
+        for (int i = (int) (mc.thePlayer.posY - offset); i > 0; i--) {
+            BlockPos pos = new BlockPos(mc.thePlayer.posX, i, mc.thePlayer.posZ);
+            if (!(mc.theWorld.getBlockState(pos).getBlock() instanceof BlockAir))
+                return true;
+        }
+        return false;
+    }
+
+    public static boolean isHoldingWeapon() {
+        if (mc.thePlayer.getCurrentEquippedItem() == null) {
+            return false;
+        } else {
+            Item item = mc.thePlayer.getCurrentEquippedItem().getItem();
+            return item instanceof ItemSword || item instanceof ItemAxe;
+        }
+    }
+
+    public static ItemStack getBestSword() {
+        int size = mc.thePlayer.inventoryContainer.getInventory().size();
+        ItemStack lastSword = null;
+        for (int i = 0; i < size; i++) {
+            ItemStack stack = mc.thePlayer.inventoryContainer.getInventory().get(i);
+            if (stack != null && stack.getItem() instanceof ItemSword)
+                if (lastSword == null) {
+                    lastSword = stack;
+                } else if (isBetterSword(stack, lastSword)) {
+                    lastSword = stack;
+                }
+        }
+        return lastSword;
+    }
+
+    public static double getFov(final double posX, final double posZ) {
+        return getFov(mc.thePlayer.rotationYaw, posX, posZ);
+    }
+
+    public static double getFov(final float yaw, final double posX, final double posZ) {
+        double angle = (yaw - angle(posX, posZ)) % 360.0;
+        return MathHelper.wrapAngleTo180_double(angle);
+    }
+
+    public static float angle(final double n, final double n2) {
+        return (float) (Math.atan2(n - mc.thePlayer.posX, n2 - mc.thePlayer.posZ) * 57.295780181884766 * -1.0);
+    }
+
+    public static ItemStack getBestAxe() {
+        int size = mc.thePlayer.inventoryContainer.getInventory().size();
+        ItemStack lastAxe = null;
+        for (int i = 0; i < size; i++) {
+            ItemStack stack = mc.thePlayer.inventoryContainer.getInventory().get(i);
+            if (stack != null && stack.getItem() instanceof ItemAxe)
+                if (lastAxe == null) {
+                    lastAxe = stack;
+                } else if (isBetterTool(stack, lastAxe, Blocks.planks)) {
+                    lastAxe = stack;
+                }
+        }
+        return lastAxe;
+    }
+
+    public static ItemStack getBestPickaxe() {
+        int size = mc.thePlayer.inventoryContainer.getInventory().size();
+        ItemStack lastPickaxe = null;
+        for (int i = 0; i < size; i++) {
+            ItemStack stack = mc.thePlayer.inventoryContainer.getInventory().get(i);
+            if (stack != null && stack.getItem() instanceof ItemPickaxe)
+                if (lastPickaxe == null) {
+                    lastPickaxe = stack;
+                } else if (isBetterTool(stack, lastPickaxe, Blocks.stone)) {
+                    lastPickaxe = stack;
+                }
+        }
+        return lastPickaxe;
+    }
+
+    public static boolean isBetterTool(ItemStack better, ItemStack than, Block versus) {
+        return (getToolDigEfficiency(better, versus) > getToolDigEfficiency(than, versus));
+    }
+
+    public static boolean isBetterSword(ItemStack better, ItemStack than) {
+        return (getSwordDamage((ItemSword) better.getItem(), better) > getSwordDamage((ItemSword) than.getItem(),
+                than));
+    }
+
+    public static float getSwordDamage(ItemSword sword, ItemStack stack) {
+        float base = sword.getMaxDamage();
+        return base + EnchantmentHelper.getEnchantmentLevel(Enchantment.sharpness.effectId, stack) * 1.25F;
+    }
+
+    public static float getToolDigEfficiency(ItemStack stack, Block block) {
+        float f = stack.getStrVsBlock(block);
+        if (f > 1.0F) {
+            int i = EnchantmentHelper.getEnchantmentLevel(Enchantment.efficiency.effectId, stack);
+            if (i > 0)
+                f += (i * i + 1);
+        }
+        return f;
+    }
+
+    public static void sendClick(final int button, final boolean state) {
+        final int keyBind = button == 0 ? mc.gameSettings.keyBindAttack.getKeyCode() : mc.gameSettings.keyBindUseItem.getKeyCode();
+
+        KeyBinding.setKeyBindState(keyBind, state);
+
+        if (state) {
+            KeyBinding.onTick(keyBind);
+        }
+    }
+
+    public static double PitchFromEntity(EntityPlayer en, float f) {
+        return (double) (mc.thePlayer.rotationPitch - pitchToEntity(en, f));
+    }
+    public static double fovFromEntity(EntityPlayer en) {
+        return ((((double) (mc.thePlayer.rotationYaw - fovToEntity(en)) % 360.0D) + 540.0D) % 360.0D) - 180.0D;
+    }
+
+    public static float fovFromEntityf(EntityPlayer en) {
+        return (float) (((((float) (mc.thePlayer.rotationYaw - fovToEntity(en)) % 360.0D) + 540.0D) % 360.0D) - 180.0D);
+    }
+
+    public static float fovToEntity(EntityPlayer ent) {
+        double x = ent.posX - mc.thePlayer.posX;
+        double z = ent.posZ - mc.thePlayer.posZ;
+        double yaw = Math.atan2(x, z) * 57.2957795D;
+        return (float) (yaw * -1.0D);
+    }
+    public static float pitchToEntity(EntityPlayer ent, float f) {
+        double x = mc.thePlayer.getDistanceToEntity(ent);
+        double y = mc.thePlayer.posY - (ent.posY + f);
+        double pitch = (((Math.atan2(x, y) * 180.0D) / 3.141592653589793D));
+        return (float) (90 - pitch);
+    }
+
+    public static boolean inLiquid() {
+        return mc.thePlayer.isInWater() || mc.thePlayer.isInLava();
+    }
+}

@@ -9,9 +9,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+
+import lombok.EqualsAndHashCode;
+import me.youngjibbit.Pulsar;
+import me.youngjibbit.event.player.JumpFixEvent;
+import me.youngjibbit.module.impl.render.Animations;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.enchantment.EnchantmentHelper;
 import net.minecraft.entity.ai.attributes.AttributeModifier;
 import net.minecraft.entity.ai.attributes.BaseAttributeMap;
@@ -67,6 +73,9 @@ public abstract class EntityLivingBase extends Entity
     public int swingProgressInt;
     public int arrowHitTimer;
 
+    public int getHurtTime() {
+        return hurtTime;
+    }
     /**
      * The amount of time remaining this entity should act 'hurt'. (Visual appearance of red tint)
      */
@@ -106,6 +115,8 @@ public abstract class EntityLivingBase extends Entity
     /** Entity head rotation yaw at previous tick */
     public float prevRotationYawHead;
 
+    public float rotationPitchHead;
+    public float prevRotationPitchHead;
     /**
      * A factor used to determine how far this entity will move each tick if it is jumping or falling.
      */
@@ -183,7 +194,7 @@ public abstract class EntityLivingBase extends Entity
     private float landMovementFactor;
 
     /** Number of ticks since last jump */
-    private int jumpTicks;
+    public int jumpTicks;
     private float absorptionAmount;
 
     /**
@@ -205,6 +216,7 @@ public abstract class EntityLivingBase extends Entity
         this.field_70769_ao = (float)Math.random() * 12398.0F;
         this.rotationYaw = (float)(Math.random() * Math.PI * 2.0D);
         this.rotationYawHead = this.rotationYaw;
+        this.rotationPitchHead = this.rotationPitch;
         this.stepHeight = 0.6F;
     }
 
@@ -379,6 +391,7 @@ public abstract class EntityLivingBase extends Entity
         this.prevMovedDistance = this.movedDistance;
         this.prevRenderYawOffset = this.renderYawOffset;
         this.prevRotationYawHead = this.rotationYawHead;
+        this.prevRotationPitchHead = this.rotationPitchHead;
         this.prevRotationYaw = this.rotationYaw;
         this.prevRotationPitch = this.rotationPitch;
         this.worldObj.theProfiler.endSection();
@@ -1325,14 +1338,25 @@ public abstract class EntityLivingBase extends Entity
      * Returns an integer indicating the end point of the swing animation, used by {@link #swingProgress} to provide a
      * progress indicator. Takes dig speed enchantments into account.
      */
-    private int getArmSwingAnimationEnd()
-    {
-        return this.isPotionActive(Potion.digSpeed) ? 6 - (1 + this.getActivePotionEffect(Potion.digSpeed).getAmplifier()) * 1 : (this.isPotionActive(Potion.digSlowdown) ? 6 + (1 + this.getActivePotionEffect(Potion.digSlowdown).getAmplifier()) * 2 : 6);
-    }
 
     /**
      * Swings the item the player is holding.
      */
+
+    private int getArmSwingAnimationEnd() {
+        int slowdownMultiplier = 1;
+        if (Pulsar.INSTANCE.getMm() != null && Pulsar.INSTANCE.getMm().getModule(Animations.class) instanceof Animations) {
+            Animations animations = (Animations) Pulsar.INSTANCE.getMm().getModule(Animations.class);
+            if (animations.isToggled()) {
+                slowdownMultiplier = animations.getSlowdownSetting().getValue().intValue();
+            }
+        }
+
+        return slowdownMultiplier * (this.isPotionActive(Potion.digSpeed)
+                ? 6 - (1 + this.getActivePotionEffect(Potion.digSpeed).getAmplifier())
+                : (this.isPotionActive(Potion.digSlowdown) ? 6 + (1 + this.getActivePotionEffect(Potion.digSlowdown).getAmplifier()) * 2 : 6));
+    }
+
     public void swingItem()
     {
         if (!this.isSwingInProgress || this.swingProgressInt >= this.getArmSwingAnimationEnd() / 2 || this.swingProgressInt < 0)
@@ -1558,20 +1582,25 @@ public abstract class EntityLivingBase extends Entity
     /**
      * Causes this entity to do an upwards motion (jumping).
      */
-    protected void jump()
-    {
-        this.motionY = (double)this.getJumpUpwardsMotion();
+    protected void jump() {
+        this.motionY = (double) this.getJumpUpwardsMotion();
 
-        if (this.isPotionActive(Potion.jump))
-        {
-            this.motionY += (double)((float)(this.getActivePotionEffect(Potion.jump).getAmplifier() + 1) * 0.1F);
+        if (this.isPotionActive(Potion.jump)) {
+            this.motionY += (double) ((float) (this.getActivePotionEffect(Potion.jump).getAmplifier() + 1) * 0.1F);
         }
 
-        if (this.isSprinting())
-        {
-            float f = this.rotationYaw * 0.017453292F;
-            this.motionX -= (double)(MathHelper.sin(f) * 0.2F);
-            this.motionZ += (double)(MathHelper.cos(f) * 0.2F);
+        if (this.isSprinting()) {
+            JumpFixEvent jumpFixEvent = new JumpFixEvent(this.rotationYaw);
+
+            if (this instanceof EntityPlayerSP && net.minecraft.client.Minecraft.getMinecraft()!=null
+                    && this==net.minecraft.client.Minecraft.getMinecraft().thePlayer) {
+                Pulsar.INSTANCE.BUS.post(jumpFixEvent);
+                me.youngjibbit.core.combat.RotationCorrections.jump(jumpFixEvent);
+            }
+
+            float f = jumpFixEvent.getYaw() * 0.017453292F;
+            this.motionX -= (double) (MathHelper.sin(f) * 0.2F);
+            this.motionZ += (double) (MathHelper.cos(f) * 0.2F);
         }
 
         this.isAirBorne = true;
@@ -2162,6 +2191,10 @@ public abstract class EntityLivingBase extends Entity
     /**
      * interpolated look vector
      */
+    public boolean canPosBeSeen(final Vec3 vec3) {
+        return this.worldObj.rayTraceBlocks(new Vec3(this.posX, this.posY + this.getEyeHeight(), this.posZ), vec3) == null;
+    }
+
     public Vec3 getLook(float partialTicks)
     {
         if (partialTicks == 1.0F)
@@ -2291,5 +2324,10 @@ public abstract class EntityLivingBase extends Entity
     protected void markPotionsDirty()
     {
         this.potionsNeedUpdate = true;
+    }
+
+    public String getName()
+    {
+        return getName();
     }
 }

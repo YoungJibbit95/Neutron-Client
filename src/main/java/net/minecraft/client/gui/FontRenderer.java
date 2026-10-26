@@ -8,7 +8,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Locale;
 import java.util.Properties;
 import java.util.Random;
 import net.minecraft.client.Minecraft;
@@ -379,7 +378,7 @@ public class FontRenderer implements IResourceManagerReloadListener
     /**
      * Draws the specified string.
      */
-    public int drawString(String text, int x, int y, int color)
+    public int drawString(String text, float x, float y, int color)
     {
         return this.drawString(text, (float)x, (float)y, color, false);
     }
@@ -459,7 +458,8 @@ public class FontRenderer implements IResourceManagerReloadListener
 
             if (c0 == 167 && i + 1 < p_78255_1_.length())
             {
-                int l = "0123456789abcdefklmnor".indexOf(p_78255_1_.toLowerCase(Locale.ENGLISH).charAt(i + 1));
+                // Normalize only the code: whole-string case folding can expand Unicode text and shift this index.
+                int l = "0123456789abcdefklmnor".indexOf(Character.toLowerCase(p_78255_1_.charAt(i + 1)));
 
                 if (l < 16)
                 {

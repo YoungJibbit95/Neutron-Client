@@ -10,7 +10,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface ModuleInfo
 {
+    String id() default "";
     String name();
     String description() default "";
     Category category();
+    ArrayPriority priority() default ArrayPriority.MEDIUM;
 }

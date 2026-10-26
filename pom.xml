@@ -5,18 +5,66 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>me.pulsar</groupId>
-    <artifactId>Pulsar</artifactId>
-    <version>1.8.9</version>
-    <description>All Rights Reserved. Pulsar Development 2024.</description>
+    <artifactId>Neutron</artifactId>
+    <version>dev</version>
+    <description>All Rights Reserved. Neutron Development 2025.</description>
 
     <properties>
-        <maven.compiler.source>8</maven.compiler.source>
-        <maven.compiler.target>8</maven.compiler.target>
+        <maven.compiler.source>1.8</maven.compiler.source>
+        <maven.compiler.target>1.8</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
     <build>
         <plugins>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.5.5</version>
+                <configuration>
+                    <workingDirectory>${project.build.directory}</workingDirectory>
+                    <systemPropertyVariables>
+                        <user.home>${project.build.directory}/test-home</user.home>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.8.1</version>
+                <configuration>
+                    <source>${maven.compiler.source}</source>
+                    <target>${maven.compiler.target}</target>
+                </configuration>
+            </plugin>
+
+            <!-- Assembly Plugin for packaging -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-assembly-plugin</artifactId>
+                <version>3.3.0</version>
+                <configuration>
+                    <descriptorRefs>
+                        <descriptorRef>jar-with-dependencies</descriptorRef>
+                    </descriptorRefs>
+                    <archive>
+                        <manifest>
+                            <mainClass>net.minecraft.launchwrapper.Launch</mainClass>
+                        </manifest>
+                    </archive>
+                </configuration>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>single</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -34,35 +82,19 @@
                     <finalName>Pulsar b1.0</finalName>
                     <minimizeJar>true</minimizeJar>
                     <createDependencyReducedPom>false</createDependencyReducedPom>
+                    <!-- JNI callbacks and Log4j plugins are loaded reflectively. Keep
+                         their implementations even when static minimization misses them. -->
+                    <filters>
+                        <filter>
+                            <artifact>net.java.dev.jna:*</artifact>
+                            <includes><include>**/*</include></includes>
+                        </filter>
+                        <filter>
+                            <artifact>org.apache.logging.log4j:*</artifact>
+                            <includes><include>**/*</include></includes>
+                        </filter>
+                    </filters>
                 </configuration>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-compiler-plugin</artifactId>
-                <executions>
-                    <execution>
-                        <id>default-compile</id>
-                        <phase>none</phase>
-                    </execution>
-                    <execution>
-                        <id>default-testCompile</id>
-                        <phase>none</phase>
-                    </execution>
-                    <execution>
-                        <id>compile</id>
-                        <phase>compile</phase>
-                        <goals>
-                            <goal>compile</goal>
-                        </goals>
-                    </execution>
-                    <execution>
-                        <id>testCompile</id>
-                        <phase>test-compile</phase>
-                        <goals>
-                            <goal>testCompile</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>
@@ -100,9 +132,30 @@
     <dependencies>
 
         <dependency>
+            <groupId>junit</groupId>
+            <artifactId>junit</artifactId>
+            <version>4.13.2</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- ImGui for LWJGL -->
+
+        <dependency>
             <groupId>fr.litarvan</groupId>
             <artifactId>openauth</artifactId>
             <version>1.1.6</version>
+        </dependency>
+
+        <dependency>
+            <groupId>Javax.vecmath</groupId>
+            <artifactId>vecmath</artifactId>
+            <version>1.5.2</version>
+        </dependency>
+
+        <dependency>
+            <groupId>com.squareup.okhttp3</groupId>
+            <artifactId>okhttp</artifactId>
+            <version>4.10.0</version> <!-- Or the latest version -->
         </dependency>
 
         <dependency>
@@ -118,6 +171,12 @@
         </dependency>
 
         <dependency>
+            <groupId>org.jetbrains</groupId>
+            <artifactId>annotations</artifactId>
+            <version>24.1.0</version>
+        </dependency>
+
+        <dependency>
             <groupId>com.mashape.unirest</groupId>
             <artifactId>unirest-java</artifactId>
             <version>1.4.9</version>
@@ -128,26 +187,6 @@
             <artifactId>reflections</artifactId>
             <version>0.10.2</version>
         </dependency>
-
-        <dependency>
-            <artifactId>discord-rpc</artifactId>
-            <groupId>com.github.Vatuu</groupId>
-            <version>1.6.2</version>
-        </dependency>
-
-        <dependency>
-            <groupId>com.google.code.findbugs</groupId>
-            <artifactId>jsr305</artifactId>
-            <version>3.0.2</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.reflections</groupId>
-            <artifactId>reflections</artifactId>
-            <version>0.10.2</version>
-        </dependency>
-
-
 
         <dependency>
             <groupId>org.projectlombok</groupId>
@@ -207,13 +246,13 @@
         <dependency>
             <groupId>net.java.dev.jna</groupId>
             <artifactId>jna</artifactId>
-            <version>3.4.0</version>
+            <version>5.13.0</version>
         </dependency>
 
         <dependency>
             <groupId>net.java.dev.jna</groupId>
-            <artifactId>platform</artifactId>
-            <version>3.4.0</version>
+            <artifactId>jna-platform</artifactId>
+            <version>5.13.0</version>
         </dependency>
 
         <dependency>
@@ -243,6 +282,13 @@
         <dependency>
             <artifactId>log4j-core</artifactId>
             <groupId>org.apache.logging.log4j</groupId>
+            <version>2.17.1</version>
+        </dependency>
+
+        <!-- Route SLF4J 1.7 consumers to the existing Log4j backend. -->
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j-impl</artifactId>
             <version>2.17.1</version>
         </dependency>
 

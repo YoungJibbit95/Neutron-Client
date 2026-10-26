@@ -1,8 +1,9 @@
 package me.youngjibbit.command;
 
+import me.youngjibbit.Pulsar;
+import me.youngjibbit.exception.CommandException;
 import net.minecraft.client.Minecraft;
 import lombok.Getter;
-import net.minecraft.command.CommandException;
 import org.apache.commons.lang3.Validate;
 
 import java.util.Arrays;
@@ -11,7 +12,7 @@ import java.util.List;
 @Getter
 public abstract class Command
 {
-    protected static final Minecraft mc = Minecraft.getMinecraft();
+    protected static final Minecraft mc = Pulsar.INSTANCE.getMc();
     private final String name;
     private final String description;
     private final String usage;
@@ -19,12 +20,12 @@ public abstract class Command
 
     public Command()
     {
-        final CommandInfo info = this.getClass().getAnnotation(CommandInfo.class);
-        Validate.notNull(info, "CONFUSED ANNOTATION EXCEPTION");
-        this.name = info.name();
-        this.description = info.description();
-        this.usage = info.usage();
-        this.aliases = Arrays.asList(info.aliases());
+        final CommandInfo commandInfo = this.getClass().getAnnotation(CommandInfo.class);
+        Validate.notNull(commandInfo, "CONFUSED ANNOTATION EXCEPTION");
+        this.name = commandInfo.name();
+        this.description = commandInfo.description();
+        this.usage = commandInfo.usage();
+        this.aliases = Arrays.asList(commandInfo.aliases());
     }
 
     public boolean isAlias(final String str)
