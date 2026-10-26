@@ -1,3 +1,11 @@
-# Project exclude paths
+# Build and IDE state
 /target/
 /.idea/
+/.vscode/
+*.iml
+
+# Local game profiles and generated data
+/test_run/
+/run-local/
+/logs/
+/crash-reports/
