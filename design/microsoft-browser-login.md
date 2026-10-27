@@ -25,9 +25,11 @@ The only requested scope is `xboxlive.signin`. This implementation deliberately 
 
 The callback checks method, exact path, Host, state, duplicate parameters and code/error exclusivity. Invalid callbacks do not consume a valid attempt. Responses contain fixed text with `no-store`/`no-referrer`. Provider response bodies and callback parameters are not displayed or logged. Known Xbox profile/family restrictions receive fixed guidance; Minecraft rejection does not claim that registration approval has been verified.
 
+OAuth failures use fixed recovery guidance: an expired or rejected code asks the user to start again; a rejected client registration or scope points to application setup; a temporary service failure asks the user to retry. Only `access_denied` is described as declined. Microsoft token and Xbox authorization error bodies are read up to 4 KiB and discarded; malformed, oversized and unknown responses use fixed fallback text. Without a configured client ID, sign-in stops with setup guidance before opening a browser or making a network request.
+
 ## Sources and approval limits
 
-Primary Microsoft documentation checked on 2026-10-26:
+Primary Microsoft documentation checked on 2026-10-26; the authorization-code, redirect and Xbox references were rechecked on 2026-10-27:
 
 - [Authorization code flow and PKCE](https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth2-auth-code-flow): authorization parameters, state, verifier redemption and public-client flow.
 - [Desktop app configuration](https://learn.microsoft.com/en-us/entra/identity-platform/scenario-desktop-app-configuration): desktop platform and system-browser/public-client registration. Its workforce example is not a requirement to use a workforce-only audience; this client uses personal accounts.
@@ -50,5 +52,7 @@ mvn -o -q '-Dtest=MicrosoftBrowserAuthTest,MicrosoftBrowserUiBindingTest,LoginCo
 ```
 
 The tests use disposable local HTTP endpoints and a substitute browser opener. They exercise the real loopback server, HTTP bodies, PKCE verification, state rejection, token chain, provider failures, callback cleanup, cancellation during exchange, client-thread installation and token-free new persistence. They do not open Microsoft pages, authenticate a personal account, prove app approval or validate a live server join.
+
+The follow-up check reproduced two misleading error paths before the fix: a temporary authorization failure appeared as user denial, and expired-code/registration failures had no recovery guidance. The regression tests also cover missing client configuration and malformed, oversized and unknown token errors. The browser callback page confirms receipt of the response; the client reports success only after the Xbox, Minecraft token and Java-profile requests complete.
 
 After registration/approval, the owner can manually select Microsoft browser sign-in, consent in the system browser, return to the client and inspect the account name. Repeat with denial, closing the screen, and selecting a different saved profile. Keep the previous session until the entire chain succeeds. Live authentication remains a separate manual check.
