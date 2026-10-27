@@ -110,4 +110,12 @@ public class MoveFixControllerTest {
         assertEquals(.12*Math.cos(radians)-.47*Math.sin(radians),result.strafe,2e-8);
         assertEquals(.12*Math.sin(radians)+.47*Math.cos(radians),result.forward,2e-8);
     }
+
+    @Test public void finiteYawSubtractionCannotOverflowBeforeWrapping() {
+        for (MoveFixController.Mode mode : new MoveFixController.Mode[]{MoveFixController.Mode.PRECISE,MoveFixController.Mode.SIMPLE}) {
+            MoveFixController.Input result=MoveFixController.correct(.3f,.6f,Float.MAX_VALUE,-Float.MAX_VALUE,mode);
+            assertTrue(Float.isFinite(result.strafe));assertTrue(Float.isFinite(result.forward));
+            assertEquals(Math.hypot(.3f,.6f),Math.hypot(result.strafe,result.forward),1e-7);
+        }
+    }
 }

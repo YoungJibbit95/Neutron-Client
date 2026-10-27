@@ -67,4 +67,21 @@ public class RotationCorrectionsTest {
         assertEquals(80,manager.getEffectivePitch(),0);assertTrue(manager.matchesEffective(179,80));
         assertEquals("scaffold",manager.getConfirmedOwner());assertTrue(manager.isMotionAccepted());
     }
+
+    @Test public void invalidObservedRotationReleasesOwnershipAndCannotPoisonNextStep() {
+        for (float[] invalid : new float[][]{{Float.NaN,0},{Float.POSITIVE_INFINITY,0},{20,91},{20,Float.NaN}}) {
+            RotationManager manager=new RotationManager();accept(manager,"aura",40,10);
+            manager.observeOutboundRotation(invalid[0],invalid[1]);
+            assertNull(manager.getConfirmedOwner());assertFalse(manager.canUseRotation(false));
+            // Walking completion must see the invalid observation, not an older finite fallback.
+            assertTrue(manager.hasEffectiveRotation());
+            manager.finishMotion(manager.getEffectiveYaw(),manager.getEffectivePitch(),true);
+            assertFalse(manager.isMotionAccepted());assertNull(manager.getConfirmedOwner());
+            manager.beginMotion(12,3);
+            float[] next=manager.step("aura",12,3,50,10,180,90,.5f);
+            assertTrue(Float.isFinite(next[0]));assertTrue(Float.isFinite(next[1]));
+            manager.request("aura",20,next[0],next[1]);manager.finishMotion(next[0],next[1],true);
+            assertEquals("aura",manager.getConfirmedOwner());
+        }
+    }
 }
