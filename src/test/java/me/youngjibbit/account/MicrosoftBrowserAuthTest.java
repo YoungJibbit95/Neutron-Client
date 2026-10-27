@@ -179,6 +179,47 @@ public class MicrosoftBrowserAuthTest {
             assertClosed(services.authorization.get());
         }
     }
+    @Test public void expiredCodeAndRegistrationFailuresGiveFixedRecoveryGuidance() throws Exception {
+        for(String error:Arrays.asList("invalid_grant","invalid_client","unauthorized_client","invalid_scope"))try(Services services=new Services()) {
+            services.failStage="/token";services.failStatus=400;
+            services.errorBody="{\"error\":\""+error+"\",\"error_description\":\"raw-secret-code-and-verifier\"}";
+            try{services.auth().login(()->true);fail();}catch(LoginCoordinator.LoginUnavailableException expected){
+                String message=expected.getUserMessage();assertFalse(message.contains("raw-secret"));
+                assertTrue(message,error.equals("invalid_grant")?message.contains("try again"):message.contains("registration"));
+            }
+            assertEquals(Collections.singletonList("/token"),services.calls);assertClosed(services.authorization.get());
+        }
+    }
+    @Test public void malformedOversizedAndUnknownMicrosoftErrorsUseRedactedFallback() throws Exception {
+        for(String body:Arrays.asList("raw-secret-not-json","{\"error\":\"raw-secret-unknown\"}",
+                "{\"error\":\"invalid_client\",\"description\":\""+String.join("",Collections.nCopies(5000,"s"))+"\"}"))try(Services services=new Services()) {
+            services.failStage="/token";services.failStatus=400;services.errorBody=body;
+            try{services.auth().login(()->true);fail();}catch(LoginCoordinator.LoginUnavailableException expected){
+                assertEquals("Microsoft sign-in could not be completed. Please try again; the current session was retained.",expected.getUserMessage());
+            }
+            assertEquals(Collections.singletonList("/token"),services.calls);assertClosed(services.authorization.get());
+        }
+    }
+    @Test public void temporaryAuthorizationFailureIsNotReportedAsUserDenial() throws Exception {
+        try(Services services=new Services()) {
+            MicrosoftBrowserAuth auth=services.auth(uri->callback(uri,null,"temporarily_unavailable",null),2000);
+            try{auth.login(()->true);fail();}catch(LoginCoordinator.LoginUnavailableException expected){
+                assertTrue(expected.getUserMessage().contains("try again"));assertFalse(expected.getUserMessage().contains("declined"));
+            }
+            assertTrue(services.calls.isEmpty());assertClosed(services.authorization.get());
+        }
+    }
+    @Test public void missingClientIdStopsBeforeBrowserOrNetworkWithSetupGuidance() throws Exception {
+        try(Services services=new Services()) {
+            AtomicBoolean opened=new AtomicBoolean();
+            String base="http://127.0.0.1:"+services.server.getAddress().getPort();
+            MicrosoftBrowserAuth auth=new MicrosoftBrowserAuth("",new MicrosoftBrowserAuth.Endpoints(base+"/authorize",base+"/token",base+"/xbox",base+"/xsts",base+"/minecraft",base+"/profile"),uri->opened.set(true),2000);
+            try{auth.login(()->true);fail();}catch(LoginCoordinator.LoginUnavailableException expected){
+                assertEquals(MicrosoftBrowserAuth.SETUP,expected.getUserMessage());
+            }
+            assertFalse(opened.get());assertTrue(services.calls.isEmpty());
+        }
+    }
     @Test public void coordinatorAppliesOnMainThreadAndPersistsOnlyProfileMetadataWhileKeepingLegacyRecords() throws Exception {
         try(Services services=new Services()) {
             File directory=temporary.newFolder();AccountManager manager=new AccountManager(directory);

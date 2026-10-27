@@ -132,19 +132,15 @@ public final class MicrosoftBrowserAuth {
             }
             int status=connection.getResponseCode();
             if (status<200 || status>=300) {
+                if (stage.equals("Microsoft")) {
+                    JsonElement error=errorResponse(connection).get("error");
+                    throw oauthFailure(error!=null && error.isJsonPrimitive() && error.getAsJsonPrimitive().isString()
+                            ? error.getAsString() : "");
+                }
                 if (stage.equals("Xbox authorization")) {
                     long error=0;
-                    try(InputStream in=connection.getErrorStream()) {
-                        if(in!=null) {
-                            ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] bytes=new byte[1024];int count;
-                            while((count=in.read(bytes))!=-1) {
-                                if(out.size()+count>4096)throw new IOException("Error response too large");
-                                out.write(bytes,0,count);
-                            }
-                            if(out.size()>0)error=new JsonParser().parse(new String(out.toByteArray(),StandardCharsets.UTF_8))
-                                    .getAsJsonObject().get("XErr").getAsLong();
-                        }
-                    } catch(IOException | RuntimeException ignored) { }
+                    try { error=errorResponse(connection).get("XErr").getAsLong(); }
+                    catch(RuntimeException ignored) { }
                     if(error==2148916238L || error==2148916229L)
                         throw unavailable("Xbox family or child-account restrictions prevented sign-in. A parent or organizer must review the Microsoft family and Xbox privacy settings; the current session was retained.");
                     if(error==2148916233L)
@@ -165,6 +161,26 @@ public final class MicrosoftBrowserAuth {
                 return new JsonParser().parse(new String(out.toByteArray(),StandardCharsets.UTF_8)).getAsJsonObject();
             }
         } finally { connection.disconnect(); }
+    }
+    private static JsonObject errorResponse(HttpURLConnection connection) {
+        try(InputStream in=connection.getErrorStream();ByteArrayOutputStream out=new ByteArrayOutputStream()) {
+            if(in==null)return new JsonObject();
+            byte[] bytes=new byte[1024];int count;
+            while((count=in.read(bytes))!=-1) {
+                if(out.size()+count>4096)return new JsonObject();
+                out.write(bytes,0,count);
+            }
+            return new JsonParser().parse(new String(out.toByteArray(),StandardCharsets.UTF_8)).getAsJsonObject();
+        } catch(IOException | RuntimeException ignored) { return new JsonObject(); }
+    }
+    private static LoginCoordinator.LoginUnavailableException oauthFailure(String error) {
+        if(error.equals("access_denied"))
+            return unavailable("Microsoft sign-in was declined. The current session was retained.");
+        if(error.equals("invalid_grant"))
+            return unavailable("Microsoft sign-in code expired or was rejected. Please try again; the current session was retained.");
+        if(error.equals("invalid_client") || error.equals("unauthorized_client") || error.equals("invalid_scope"))
+            return unavailable("Microsoft app registration rejected sign-in. Check the client ID, desktop redirect and Xbox scope; the current session was retained.");
+        return unavailable("Microsoft sign-in could not be completed. Please try again; the current session was retained.");
     }
     static Map<String,String> params(String... values) {
         Map<String,String> map=new LinkedHashMap<>(); for(int i=0;i<values.length;i+=2)map.put(values[i],values[i+1]); return map;
@@ -229,7 +245,7 @@ public final class MicrosoftBrowserAuth {
                 if (!MessageDigest.isEqual(state.getBytes(StandardCharsets.US_ASCII),
                         values.getOrDefault("state","").getBytes(StandardCharsets.US_ASCII))) throw new IOException("Invalid state");
                 if (values.containsKey("code")==values.containsKey("error"))throw new IOException("Invalid callback");
-                if (values.containsKey("error")) code.completeExceptionally(unavailable("Microsoft sign-in was declined. The current session was retained."));
+                if (values.containsKey("error")) code.completeExceptionally(oauthFailure(values.get("error")));
                 else if(values.get("code").isEmpty())throw new IOException("Missing code");
                 else code.complete(values.get("code"));
                 status=200; message="Sign-in response received. You can close this tab and return to Pulsar.";
