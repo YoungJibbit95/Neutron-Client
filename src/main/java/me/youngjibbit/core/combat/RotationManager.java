@@ -55,8 +55,11 @@ public final class RotationManager {
     }
 
     public void beginMotion(float cameraYaw, float cameraPitch) {
-        baseYaw = hasEffective ? effectiveYaw : cameraYaw;
-        basePitch = hasEffective ? effectivePitch : cameraPitch;
+        // Keep the observed packet values for finishMotion's rejection, but never smooth from them.
+        boolean usableBase = hasEffective && Float.isFinite(effectiveYaw) && Float.isFinite(effectivePitch)
+                && effectivePitch >= -90 && effectivePitch <= 90;
+        baseYaw = usableBase ? effectiveYaw : cameraYaw;
+        basePitch = usableBase ? effectivePitch : cameraPitch;
         collecting = true;
         previousAccepted = accepted;
         accepted = false;

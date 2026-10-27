@@ -30,7 +30,8 @@ public final class MoveFixController {
                 || !Float.isFinite(inputYaw) || !Float.isFinite(effectiveYaw)) return new Input(strafe, forward);
         double magnitude = Math.hypot(strafe, forward);
         if (magnitude == 0) return new Input(0, 0);
-        double delta = Math.toRadians(wrap(inputYaw - effectiveYaw));
+        // Reduce before subtracting: two finite yaw values can overflow a float difference.
+        double delta = Math.toRadians(wrap(wrap(inputYaw) - wrap(effectiveYaw)));
         double s = strafe * Math.cos(delta) - forward * Math.sin(delta);
         double f = strafe * Math.sin(delta) + forward * Math.cos(delta);
         if (mode == Mode.PRECISE) return new Input((float) s, (float) f);
