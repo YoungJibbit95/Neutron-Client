@@ -1,0 +1,40 @@
+name: Neutron · GitHub traffic badges
+
+on:
+  workflow_dispatch:
+  schedule:
+    # UTC; scheduled workflows run from the repository default branch.
+    - cron: '23 04 * * *'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: neutron-traffic-badges
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout default branch
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+
+      - name: Update verified 14-day traffic badges
+        env:
+          NEUTRON_TRAFFIC_TOKEN: ${{ secrets.NEUTRON_TRAFFIC_TOKEN }}
+        run: python3 .github/scripts/update_traffic_badges.py
+
+      - name: Commit refreshed badges when changed
+        run: |
+          git add assets/readme/metrics/views-14d.svg assets/readme/metrics/clones-14d.svg
+          if git diff --cached --quiet; then
+            echo "Traffic badge files unchanged."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "docs(metrics): refresh 14-day repo traffic badges"
+          git push
