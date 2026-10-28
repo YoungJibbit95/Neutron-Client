@@ -1,0 +1,49 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1360 365" role="img" aria-labelledby="title desc">
+<title id="title">Neutron Client</title><desc id="desc">Neutron is a modular Minecraft 1.8.9 client. Dark glass UI with magenta and orange PinkLemonade accents.</desc>
+<defs>
+<linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="30%"><stop offset="0" stop-color="#FF00EA"/><stop offset=".56" stop-color="#FE2597"/><stop offset="1" stop-color="#FF6200"/></linearGradient>
+<radialGradient id="glow1"><stop stop-color="#D500C6" stop-opacity=".35"/><stop offset="1" stop-color="#D500C6" stop-opacity="0"/></radialGradient>
+<radialGradient id="glow2"><stop stop-color="#F85D09" stop-opacity=".21"/><stop offset="1" stop-color="#F85D09" stop-opacity="0"/></radialGradient>
+<linearGradient id="glass" x1="0" y1="0" x2="0" y2="1"><stop stop-color="#232232" stop-opacity=".95"/><stop offset="1" stop-color="#0E0E18" stop-opacity=".97"/></linearGradient>
+<filter id="soft"><feGaussianBlur stdDeviation="18"/></filter>
+<pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse"><path d="M44 0H0V44" fill="none" stroke="#CDACDE" stroke-opacity=".085" stroke-width="1"/></pattern>
+<filter id="shadow"><feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#000" flood-opacity=".55"/></filter>
+</defs>
+<rect x="1" y="1" width="1358" height="363" rx="22" fill="#080911" stroke="#363047" stroke-width="2"/>
+<rect x="1" y="1" width="1358" height="363" rx="22" fill="url(#grid)"/>
+<ellipse cx="230" cy="130" rx="350" ry="280" fill="url(#glow1)"/><ellipse cx="1150" cy="130" rx="340" ry="300" fill="url(#glow2)"/>
+<path d="M0 323C310 268 412 381 729 293S1110 280 1360 190" stroke="url(#accent)" stroke-opacity=".36" stroke-width="2" fill="none"/>
+<g transform="translate(64 69)">
+<rect x="0" y="0" width="133" height="133" rx="28" fill="#191323" stroke="#AA4C95" stroke-opacity=".5" stroke-width="1.5"/>
+<path d="M34 103V30H51L85 79V30H100V103H84L49 52V103Z" fill="url(#accent)"/>
+<path d="M27 111H108" stroke="url(#accent)" stroke-width="2" stroke-linecap="round" opacity=".9"/>
+<circle cx="111" cy="20" r="4" fill="#FF7317"/>
+</g>
+<g font-family="Inter,Segoe UI,Arial,sans-serif">
+<text x="230" y="115" fill="#BAB6C7" font-size="15" letter-spacing="5" font-weight="700">MINECRAFT / JAVA EDITION / 1.8.9</text>
+<text x="220" y="194" fill="url(#accent)" font-size="89" font-weight="900" letter-spacing="7">NEUTRON</text>
+<text x="227" y="230" fill="#F7F2FB" font-size="24" font-weight="500">Build your experience.</text>
+<text x="227" y="258" fill="#AAA9BD" font-size="17">42 mapped modules  <tspan fill="#FF9ABD">/</tspan>  8 categories  <tspan fill="#FF9ABD">/</tspan>  Built around you</text>
+<rect x="229" y="283" width="119" height="27" rx="13.5" fill="#2C1436" stroke="#C64CB2" stroke-opacity=".55"/>
+<circle cx="243" cy="296.5" r="4" fill="#F938D3"/><text x="254" y="302" fill="#FFD8F5" font-size="12" font-weight="700" letter-spacing="1">DEV 2.2</text>
+<rect x="359" y="283" width="144" height="27" rx="13.5" fill="#2B1D1C" stroke="#DC7439" stroke-opacity=".55"/>
+<text x="376" y="302" fill="#FFBE9A" font-size="12" font-weight="700" letter-spacing="1">JAVA 8 / LWJGL 2</text>
+</g>
+<g transform="translate(972 54)" filter="url(#shadow)" font-family="Inter,Segoe UI,Arial,sans-serif">
+<g transform="rotate(4 141 137)"><rect x="-4" y="-5" width="294" height="269" rx="18" fill="url(#glass)" stroke="#AD5989" stroke-opacity=".38"/>
+<path d="M-4 31H290" stroke="#9D6A95" stroke-opacity=".26"/>
+<circle cx="17" cy="14" r="4" fill="#FC638F"/><circle cx="32" cy="14" r="4" fill="#E8A751"/><circle cx="47" cy="14" r="4" fill="#67D6BE"/>
+<text x="65" y="20" font-size="11" letter-spacing="2" fill="#D7C9D8">NEUTRON // PANEL</text>
+<rect x="11" y="45" width="88" height="203" rx="9" fill="#0C0D16" stroke="#403244"/>
+<rect x="17" y="54" width="76" height="25" rx="6" fill="#561647"/>
+<rect x="18" y="58" width="4" height="17" rx="2" fill="url(#accent)"/>
+<g font-size="11" fill="#EAC4E2"><text x="28" y="71">COMBAT</text><text x="28" y="103">GHOST</text><text x="28" y="135">MOVEMENT</text><text x="28" y="167">RENDER</text><text x="28" y="199">CLIENT</text><text x="28" y="231">WORLD</text></g>
+<rect x="109" y="47" width="169" height="25" rx="7" fill="#13141F" stroke="#443142"/>
+<text x="119" y="64" font-size="10" fill="#817C93">Search modules...</text>
+<g><rect x="109" y="81" width="169" height="47" rx="9" fill="#1B1A2A" stroke="#52405A"/>
+<text x="119" y="100" fill="#F6F1F9" font-size="13" font-weight="600">Aura</text><rect x="237" y="93" width="30" height="14" rx="7" fill="url(#accent)"/><circle cx="260" cy="100" r="5" fill="#fff"/>
+<rect x="109" y="136" width="169" height="47" rx="9" fill="#1B1A2A" stroke="#52405A"/><text x="119" y="155" fill="#F6F1F9" font-size="13" font-weight="600">Scaffold</text><rect x="237" y="148" width="30" height="14" rx="7" fill="url(#accent)"/><circle cx="260" cy="155" r="5" fill="#fff"/>
+<rect x="109" y="191" width="169" height="47" rx="9" fill="#1B1A2A" stroke="#52405A"/><text x="119" y="210" fill="#F6F1F9" font-size="13" font-weight="600">Theme</text>
+<rect x="120" y="219" width="147" height="5" rx="2.5" fill="#5D405C"/><rect x="120" y="219" width="96" height="5" rx="2.5" fill="url(#accent)"/><circle cx="216" cy="221.5" r="6" fill="#FF70B6" stroke="#F8F0FA" stroke-width="1.5"/></g>
+</g></g>
+</svg>
