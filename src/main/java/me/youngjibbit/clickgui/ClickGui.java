@@ -48,14 +48,35 @@ public class ClickGui extends GuiScreen {
     private float targetScrollOffset, maxScroll, selectionOffset;
     private long lastFrame = System.nanoTime();
     private ClipRect viewport = new ClipRect(0, 0, 0, 0);
+    private final me.youngjibbit.gui.UiSpring[] chromeMotion=new me.youngjibbit.gui.UiSpring[CATEGORIES.length+2];
+    private int visualChrome=-1;
+    private Component visualControl;
 
     public ClickGui() {
+        for(int i=0;i<chromeMotion.length;i++)chromeMotion[i]=new me.youngjibbit.gui.UiSpring();
         setupModules();
+    }
+
+    private ClipRect chromeBounds(int id){return id==0?searchBounds():id==1?themeBounds():new ClipRect(x+5,y+HEADER+4+(id-2)*categoryStep(),SIDEBAR-10,categoryStep()-4);}
+    private void resetMotion(){visualControl=null;visualChrome=-1;for(me.youngjibbit.gui.UiSpring state:chromeMotion)state.reset();for(List<ClickModule> rows:moduleCache.values())for(ClickModule row:rows){row.getPresentation().reset();for(Component.Sub<?> value:row.presentationValues())value.getPresentation().reset();}}
+    protected void advanceMotion(float dt,int mx,int my){
+        boolean available=!dragging&&!resizing&&binding==null;
+        for(int i=0;i<chromeMotion.length;i++)chromeMotion[i].step(dt,available&&chromeBounds(i).contains(mx,my),i==0&&searchFocus,i==visualChrome,available,me.youngjibbit.module.impl.client.ClientSettings.current());
+        for(List<ClickModule> rows:moduleCache.values())for(ClickModule row:rows){
+            boolean present=available&&modules.contains(row);
+            boolean visible=present&&!viewport.intersect(row.presentationBounds()).isEmpty();
+            row.advanceMotion(dt,mx,my,focus==row,visualControl==row,visible);
+            for(Component.Sub<?> value:row.presentationValues()){
+                boolean shown=present&&row.isOpen()&&((Value<?>)value.getValue()).isVisible()&&value.getClip()!=null&&!value.getClip().intersect(value.presentationBounds()).isEmpty();
+                value.advanceMotion(dt,mx,my,focus==value,visualControl==value,shown);
+            }
+        }
     }
 
     @Override
     public void initGui() {
         super.initGui();
+        resetMotion();
         dragging = resizing = false;
         cancelInputs();
         releaseControls();
@@ -86,8 +107,9 @@ public class ClickGui extends GuiScreen {
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks) {
         super.drawScreen(mouseX, mouseY, partialTicks);
-        float delta = Math.min(0.05f, (System.nanoTime() - lastFrame) / 1.0e9f);
-        lastFrame = System.nanoTime();
+        long now=System.nanoTime();
+        float delta = Math.max(0,Math.min(0.05f, (now - lastFrame) / 1.0e9f));
+        lastFrame = now;
         if (dragging) {
             x = mouseX - grabX;
             y = mouseY - grabY;
@@ -99,6 +121,7 @@ public class ClickGui extends GuiScreen {
         float step = categoryStep();
         selectionOffset += (selectedCategory.ordinal() * step - selectionOffset) * me.youngjibbit.utils.render.UiEffects.response(delta,20);
         layoutModules(delta);
+        advanceMotion(delta,mouseX,mouseY);
 
         Theme theme = Theme.resolve(Theme.getDefaultTheme());
         themedSurface.panel(x,y,width,height,5,theme,true,true,true,8,.72f,1,()->{
@@ -118,6 +141,7 @@ public class ClickGui extends GuiScreen {
                     theme.getSecondaryGradientRGB());
             ClipRect searchBox=searchBounds();
             GuiStyle.panel(searchBox.x,searchBox.y,searchBox.width,searchBox.height,3,searchFocus?1:0,new Color(22,22,24));
+            GuiStyle.feedback(searchBox,chromeMotion[0]);
             try(GuiClip ignored=GuiClip.push(new ClipRect(searchBox.x+8,searchBox.y,searchBox.width-28,searchBox.height))){
                 String shown=search.isEmpty()&&!searchFocus?width<380?"Search...":"Search modules...":search+(searchFocus?"_":"");
                 while(shown.length()>1&&font().getWidth(shown)>searchBox.width-32)shown=shown.substring(1);
@@ -125,6 +149,7 @@ public class ClickGui extends GuiScreen {
             }
             if(!search.isEmpty()||searchFocus)font().drawString("x",searchBox.x+searchBox.width-14,textY(font(),"x",searchBox),0xffb8bec8);
             ClipRect themes=themeBounds();GuiStyle.panel(themes.x,themes.y,themes.width,themes.height,3,0,new Color(22,22,24));
+            GuiStyle.feedback(themes,chromeMotion[1]);
             font().drawString("Themes",themes.x+(themes.width-font().getWidth("Themes"))/2,textY(font(),"Themes",themes),theme.isCustom()?theme.getTextColor().getRGB():0xffd4d9e3);
             float selectedY = y + HEADER + 4 + selectionOffset;
             GuiStyle.panel(x + 5, selectedY, SIDEBAR - 10, step - 4, 5, 1, new Color(11, 11, 12));
@@ -133,6 +158,7 @@ public class ClickGui extends GuiScreen {
             String[] icons = {"c", "f", "d", "d", "e", "t", "f", "a"};
             for (int i = 0; i < CATEGORIES.length; i++) {
                 float rowY = y + HEADER + 4 + i * step;
+                GuiStyle.feedback(chromeBounds(i+2),chromeMotion[i+2]);
                 String font = i == 2 || i == 4 || i == 6 ? "icon1 21" : "icon 21";
                 Pulsar.INSTANCE.getFontManager().getFont(font).drawString(icons[i], x + 9, rowY + (step-4-10)/2, i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffb6bdca);
                 Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString(
@@ -223,6 +249,8 @@ public class ClickGui extends GuiScreen {
 
     @Override
     protected void mouseClicked(int mouseX, int mouseY, int button) throws IOException {
+        visualControl=null;visualChrome=-1;
+        if(button==0&&binding==null&&!dragging&&!resizing){for(int i=0;i<chromeMotion.length;i++)if(chromeBounds(i).contains(mouseX,mouseY)){visualChrome=i;break;}if(visualChrome<0)visualControl=componentAt(mouseX,mouseY);}
         if(binding!=null)return;
         if(button==0&&themeBounds().contains(mouseX,mouseY)){openThemeEditor();return;}
         ClipRect searchBox=searchBounds();
@@ -267,6 +295,7 @@ public class ClickGui extends GuiScreen {
 
     @Override
     protected void mouseReleased(int mouseX, int mouseY, int state) {
+        visualControl=null;visualChrome=-1;
         dragging = resizing = false;
         releaseControls();
         super.mouseReleased(mouseX, mouseY, state);
@@ -280,6 +309,7 @@ public class ClickGui extends GuiScreen {
 
     @Override
     public void onGuiClosed() {
+        resetMotion();
         headingEffects.close();themedSurface.close();cancelInputs();hoverTarget=null;
         dragging = resizing = false;
         releaseControls();
@@ -287,6 +317,7 @@ public class ClickGui extends GuiScreen {
     }
 
     @Override protected void keyTyped(char typedChar,int keyCode)throws IOException{
+        visualControl=null;visualChrome=-1;
         if(binding!=null){
             if(keyCode==Keyboard.KEY_ESCAPE){binding=null;return;}
             if(keyCode==Keyboard.KEY_NONE)return;

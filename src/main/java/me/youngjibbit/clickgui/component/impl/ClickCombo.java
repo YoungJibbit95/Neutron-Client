@@ -29,6 +29,7 @@ public class ClickCombo extends Component.Sub<ComboValue> {
 
     private float fieldX() { return ClickControlStyle.right(x, width) - fieldWidth(); }
     private float fieldWidth() { return ClickControlStyle.fieldWidth(width); }
+    @Override public ClipRect presentationBounds(){return new ClipRect(fieldX(),y+3,fieldWidth(),height-5);}
     private ClipRect optionsClip() {
         ClipRect bounds = new ClipRect(x + 10, y + height, width - 20, value.getOptions().length * 24 * progress);
         return clip == null ? bounds : clip.intersect(bounds);
@@ -39,6 +40,7 @@ public class ClickCombo extends Component.Sub<ComboValue> {
         Theme theme = Theme.resolve(Theme.getDefaultTheme());
         ClickControlStyle.label(me.youngjibbit.utils.render.UiEffects.settingLabel(value), x + 12, y + 6, fieldX() - x - 20, theme.isCustom()?theme.getTextColor().getRGB():Color.WHITE.getRGB());
         GuiStyle.panel(fieldX(), y + 3, fieldWidth(), height - 5, 4, open || isMouseOver(mouseX, mouseY) ? 0.7f : 0.12f, new Color(29, 31, 36));
+        drawFeedback();
         try (GuiClip ignored = GuiClip.push(new ClipRect(fieldX() + 3, y + 4, fieldWidth() - 6, height - 7))) {
             Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 18").drawString(ClickControlStyle.fit(ClickControlStyle.font(), label(value.getValue()), fieldWidth() - 23),
                     fieldX() + 7, y + 6, theme.isCustom()?theme.getTextColor().getRGB():0xffe4e4e8);

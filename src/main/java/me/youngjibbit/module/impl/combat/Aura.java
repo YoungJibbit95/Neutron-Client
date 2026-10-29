@@ -1,6 +1,8 @@
 package me.youngjibbit.module.impl.combat;
 
 import me.youngjibbit.core.bootstrap.RuntimeServices;
+import me.youngjibbit.core.contract.AutomationEligibility.ModuleAction;
+import me.youngjibbit.core.observation.AutomatedActionAdmission;
 import me.youngjibbit.core.combat.AutoblockController;
 import me.youngjibbit.core.combat.CombatTargetTracker;
 import me.youngjibbit.core.combat.RotationManager;
@@ -180,6 +182,7 @@ public class Aura extends Module {
         }
 
         if (event.isPost()) {
+            if (!AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)) return;
             RotationManager rotationManager = RuntimeServices.rotation();
             float yaw = rotationManager.getEffectiveYaw(), pitch = rotationManager.getEffectivePitch();
             EntityLivingBase selected = target;
@@ -213,9 +216,10 @@ public class Aura extends Module {
                 return;
             }
             boolean blockOwns = rotations.getValue() ? rotationManager.isOwner(ROTATION_SOURCE) : !rotationManager.isOwner("scaffold");
+            if (!AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)) return;
             autoblockController.update(autoblock.getValue() && attacking && blockOwns && rotationManager.isMotionAccepted() && PlayerUtil.isHoldingWeapon(),
                     mapAutoblock(autoblockMode.getValue()), false, true);
-        } else {
+        } else if (AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)) {
             autoblockController.update(autoblock.getValue() && attacking && PlayerUtil.isHoldingWeapon(),
                     mapAutoblock(autoblockMode.getValue()), true, false);
         }
@@ -227,7 +231,8 @@ public class Aura extends Module {
 
     private boolean validHit(EntityLivingBase entity, float yaw, float pitch) {
         RotationManager manager = RuntimeServices.rotation();
-        return usable() && worldContext == mc.theWorld && playerContext == mc.thePlayer
+        return AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)
+                && usable() && worldContext == mc.theWorld && playerContext == mc.thePlayer
                 && !mc.thePlayer.isUsingItem()
                 && manager.matchesEffective(yaw, pitch)
                 && (rotations.getValue() ? manager.isOwner(ROTATION_SOURCE) : !manager.isOwner("scaffold"))

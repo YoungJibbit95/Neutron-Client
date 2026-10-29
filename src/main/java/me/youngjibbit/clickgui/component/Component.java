@@ -12,6 +12,13 @@ public abstract class Component implements MC
 {
     protected float x, y, width, height;
     protected ClipRect clip;
+    private final me.youngjibbit.gui.UiSpring presentation=new me.youngjibbit.gui.UiSpring();
+
+    public ClipRect presentationBounds(){return new ClipRect(x,y,width,height);}
+    public void advanceMotion(float dt,int mx,int my,boolean focused,boolean pressed,boolean visible){
+        presentation.step(dt,visible&&acceptsMouse(mx,my)&&presentationBounds().contains(mx,my),focused,pressed,visible,me.youngjibbit.module.impl.client.ClientSettings.current());
+    }
+    protected void drawFeedback(){me.youngjibbit.clickgui.utils.GuiStyle.feedback(presentationBounds(),presentation);}
 
     public Component(float x, float y, float width, float height) {
         this.x = x;

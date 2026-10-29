@@ -6,6 +6,7 @@ import me.youngjibbit.core.combat.RaycastService;
 import me.youngjibbit.core.combat.RotationManager;
 import me.youngjibbit.core.combat.TargetingService;
 import me.youngjibbit.core.world.ScaffoldPlacementService;
+import me.youngjibbit.core.observation.RuntimeObservation;
 
 /**
  * Canonical runtime service accessor for modules.
@@ -25,6 +26,12 @@ public final class RuntimeServices {
 
     public static ClientRuntime runtime() {
         return Pulsar.INSTANCE.getRuntime();
+    }
+
+    /** Observation starts with the canonical runtime; there is no parallel fallback observer. */
+    public static RuntimeObservation observation() {
+        ClientRuntime runtime = runtime();
+        return runtime == null ? null : runtime.getObservation();
     }
 
     public static TargetingService targeting() {

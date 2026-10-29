@@ -52,11 +52,16 @@ public class iOS extends GuiScreen
     int[] outlineColors = getStaticOutlineGradientColors(currentTheme);
     private boolean closing = false;
     private float renderedScale=1;
+    private final me.youngjibbit.gui.UiSpring[] categoryMotion=new me.youngjibbit.gui.UiSpring[CATEGORIES.length];
+    private long lastFrame=System.nanoTime();
+    private int visualCategory=-1;
+    private boolean categoryReady;
 
     private final PanelUtils panelUtils = new PanelUtils();
 
     public iOS()
     {
+        for(int i=0;i<categoryMotion.length;i++)categoryMotion[i]=new me.youngjibbit.gui.UiSpring();
         this.particles = new ArrayList<>();
         generateParticles(70);
         this.width = 350;
@@ -69,6 +74,7 @@ public class iOS extends GuiScreen
 
     /** Ends interrupted gestures without changing selected settings or categories. */
     private void cancelInputs() {
+        categoryReady=false;visualCategory=-1;for(me.youngjibbit.gui.UiSpring state:categoryMotion)state.reset();lastFrame=System.nanoTime();
         dragging = false;
         lastX = lastY = 0;
         MODULES.forEach(iOSModule::cancelInputs);
@@ -87,19 +93,15 @@ public class iOS extends GuiScreen
     @Override
     public void drawScreen(int mouseX, int mouseY, float partialTicks)
     {
+        long now=System.nanoTime();float dt=Math.max(0,Math.min(.1f,(now-lastFrame)/1e9f));lastFrame=now;
         super.drawScreen(mouseX, mouseY, partialTicks);
         GuiShaderBloom.beginBatch();
         MenuShader.mm2(Pulsar.INSTANCE.getStartTimeLong());
         currentTheme = Theme.resolve(Theme.getDefaultTheme());
         outlineColors = getStaticOutlineGradientColors(currentTheme);
 
-        int[] outlineColors = getStaticOutlineGradientColors(currentTheme);
-        int color01 = outlineColors[0];
-        int color02 = outlineColors[1];
-        long cT = (long)(UiEffects.time()*1000);
-        float cycleDuration = 3000.0f;
-        int interpolatedColor1 = interpolateTwoColorsSmoothly(color01, color02, cT, cycleDuration);
         float animProgress = UiEffects.motion()?animationEngine.getAnimationValue():1; // 0 to 1
+        categoryReady=!UiEffects.motion()||animProgress>=.98f;
         float fit=Math.min(1,Math.min((super.width-16)/width,(super.height-16)/height));
         renderedScale=Math.max(0.001f,animProgress*fit);
         x=Math.max(8+width*fit/2,Math.min(x+width/2,super.width-8-width*fit/2))-width/2;
@@ -108,6 +110,7 @@ public class iOS extends GuiScreen
         float centerX = x + width / 2f;
         float centerY = y + height / 2f;
         int localMouseX=(int)(centerX+(mouseX-centerX)/renderedScale),localMouseY=(int)(centerY+(mouseY-centerY)/renderedScale);
+        advanceMotion(dt,localMouseX,localMouseY);
 
 
         for (StarParticle particle : particles)
@@ -136,7 +139,7 @@ public class iOS extends GuiScreen
         RenderUtil.drawCircle((int) (x + 20), (int) (y + 10), 2.8f, Color.yellow.getRGB());
         RenderUtil.drawCircle((int) (x + 30), (int) (y + 10), 2.8f, Color.green.getRGB());
 
-        UIUtils.drawRoundOutline(x, y, this.width, this.height - 1, 8, 0.65f, new Color(0,0,0,1), UiEffects.accent(interpolatedColor1, 0.68f));
+        UIUtils.drawRoundOutline(x, y, this.width, this.height - 1, 8, 0.65f, new Color(0,0,0,1), UiEffects.accent(UiEffects.gradientAt(currentTheme,UiEffects.Channel.BORDER,x,y), 0.68f));
         Category cat = selectedCategory;
         Pulsar.INSTANCE.getFontManager()
                 .getFont("SFProText-Bold 20")
@@ -145,12 +148,12 @@ public class iOS extends GuiScreen
                         (int) (x + 120),
                         y+ 4, Color.white.getRGB());
 
-        Pulsar.INSTANCE.getFontManager()
+        me.youngjibbit.utils.render.TextEffects.direct(currentTheme,()->Pulsar.INSTANCE.getFontManager()
                 .getFont("icon1 19")
                 .drawString(
                         "l",
                         (int) (x + 105),
-                        y+ 6, UiEffects.alpha(interpolatedColor1, 0.95f));
+                y+ 6, UiEffects.alpha(0xffffffff, 0.95f)));
 
         drawGlowingDot();
 
@@ -169,6 +172,8 @@ public class iOS extends GuiScreen
         for (Category category : CATEGORIES)
         {
             float categoryY = y + 20 + i;
+            // Already inside the opening/fit transform; no input geometry or scale changes.
+            me.youngjibbit.clickgui.utils.GuiStyle.feedback(new ClipRect(x+4,y+25+i,86,17),categoryMotion[category.ordinal()]);
 
             Pulsar.INSTANCE.getFontManager()
                     .getFont("KhmerOureang 19")
@@ -204,6 +209,11 @@ public class iOS extends GuiScreen
         GL11.glPopMatrix();
         });
         GL11.glPopMatrix();
+    }
+
+    protected void advanceMotion(float dt,int localX,int localY){
+        boolean ready=categoryReady;
+        for(int i=0;i<categoryMotion.length;i++)categoryMotion[i].step(dt,new ClipRect(x+4,y+25+i*17,86,17).contains(localX,localY),false,visualCategory==i,ready&&!dragging,me.youngjibbit.module.impl.client.ClientSettings.current());
     }
 
 
@@ -321,6 +331,7 @@ public class iOS extends GuiScreen
         int i = 0;
         for (Category category : CATEGORIES) {
             if (mouseButton==0 && MouseUtil.isMouseOver(mouseX, mouseY, x + 4, y + 25 + i, 86, 17)) {
+                visualCategory=category.ordinal();
                 this.selectedCategory = category;
                 MODULES.clear();
                 this.setupModules();
@@ -337,6 +348,7 @@ public class iOS extends GuiScreen
     @Override
     protected void mouseReleased(int mouseX, int mouseY, int state)
     {
+        visualCategory=-1;
         super.mouseReleased(mouseX, mouseY, state);
         this.dragging = false;
         MODULES.forEach(iOSModule::mouseReleased);
@@ -346,6 +358,7 @@ public class iOS extends GuiScreen
     protected void keyTyped(char typedChar, int keyCode)
             throws IOException
     {
+        visualCategory=-1;
         if (keyCode == Keyboard.KEY_ESCAPE)
         {
             Pulsar.INSTANCE.getMm()

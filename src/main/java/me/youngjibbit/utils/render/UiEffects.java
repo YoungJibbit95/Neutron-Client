@@ -12,6 +12,7 @@ public final class UiEffects {
     public enum Channel { TEXT, BORDER, GLOW }
     private static LongSupplier clock=System::nanoTime;
     private static long previous=-1;
+    private static boolean clockStarted;
     private static double elapsed;
     private static final double[] phases=new double[3];
     private static boolean lastSync=true;
@@ -20,13 +21,21 @@ public final class UiEffects {
     public static void invalidate(){cached=null;}
     public static Options options(){ClientSettings c=ClientSettings.current();if(cached==null||cachedOwner!=c){cachedOwner=c;cached=new Options(c);}return cached;}
     public static void beginFrame(){
-        Options o=options();long now=clock.getAsLong();double dt=previous<0?0:Math.max(0,(now-previous)/1e9);previous=now;
+        Options o=options();long now=clock.getAsLong();double dt=0;
+        if(!clockStarted){previous=now;clockStarted=true;}
+        else if(now>=previous){dt=Math.max(0,Math.min(.1,(now-previous)/1e9));previous=now;}
         if(lastSync!=o.sync){phases[1]=phases[2]=phases[0];lastSync=o.sync;}
-        if(o.motion&&!o.reduced){elapsed+=dt;Theme theme=Theme.getDefaultTheme();for(Channel c:Channel.values()){int i=c.ordinal();Gradient g=gradient(theme,c);if(g.mode==2)phases[i]=(phases[i]+dt*g.speed)%1;}}
+        if(o.motion&&!o.reduced&&o.ambient){elapsed+=dt;Theme theme=Theme.getDefaultTheme();for(Channel c:Channel.values()){int i=c.ordinal();Gradient g=gradient(theme,c);if(g.mode>=2)phases[i]=(phases[i]+dt*g.speed)%1;}}
     }
-    static void timeSource(LongSupplier source){clock=source;previous=-1;elapsed=0;java.util.Arrays.fill(phases,0);}
+    static void timeSource(LongSupplier source){clock=source;previous=-1;clockStarted=false;elapsed=0;java.util.Arrays.fill(phases,0);lastSync=true;}
     public static float time(){return (float)elapsed;}
     public static boolean motion(){Options o=options();return o.motion&&!o.reduced;}
+    public enum SemanticRole { INFO, WARNING, ERROR, SUCCESS }
+    /** Explicit UI roles only; critical errors keep their ink even when decoration follows the theme. */
+    public static int semanticColor(SemanticRole role,int decorative,boolean priority){
+        int color=role==SemanticRole.ERROR?0xffff667f:role==SemanticRole.WARNING?0xffffc969:role==SemanticRole.SUCCESS?0xff65e0ad:0xff71caff;
+        return priority||role==SemanticRole.ERROR?color:Theme.interpolateRGB(color,decorative|0xff000000,.35f);
+    }
     public static float response(float dt,float rate){return motion()?1-(float)Math.exp(-Math.max(0,dt)*rate):1;}
     public static float radius(float requested,float w,float h){
         float limit=Math.max(0,Math.min(w,h)/2);if(requested<=0)return 0;
@@ -49,6 +58,7 @@ public final class UiEffects {
         if(motion.equals("Theme"))speed=theme.getAnimationSpeed();
         int axis=direction.equals("Theme")?(theme.isVertical()?2:1):direction.equals("Vertical")?2:direction.equals("Horizontal")?1:direction.equals("Up")?-2:-1;
         int mode=motion.equals("Solid")?0:motion.equals("Animated")||motion.equals("Theme")&&theme.isAnimated()?2:1;
+        if(mode==2&&c!=null)mode+=c.gradientMethod.getSelectedIndex();
         float phase=(float)phases[i];
         // A Local custom theme can animate even when the selected Global preset is static.
         if(motion.equals("Theme")&&theme!=Theme.getDefaultTheme())phase=(float)((elapsed*speed)%1);
@@ -77,15 +87,23 @@ public final class UiEffects {
     public static final class Gradient {
         public final int axis,mode;public final float phase,speed;
         Gradient(int axis,int mode,float phase,float speed){this.axis=axis;this.mode=mode;this.phase=phase;this.speed=speed;}
-        public float position(float x,float y,float w,float h){float t=Math.abs(axis)==2?y/Math.max(1,h):x/Math.max(1,w);if(axis<0)t=1-t;return mode==0?0:mode==2?.5f-.5f*(float)Math.cos(2*Math.PI*(t-phase)):Math.max(0,Math.min(1,t));}
+        public float position(float x,float y,float w,float h){
+            float t=Math.abs(axis)==2?y/Math.max(1,h):x/Math.max(1,w);if(axis<0)t=1-t;
+            if(mode==0)return 0;
+            if(mode==2)return .5f-.5f*(float)Math.cos(2*Math.PI*(t-phase));
+            if(mode==3){float travel=.5f-.5f*(float)Math.cos(2*Math.PI*phase);return .5f-.5f*(float)Math.cos(2*Math.PI*(t-travel));}
+            if(mode==4)return .5f+(Math.max(0,Math.min(1,t))-.5f)*(float)Math.cos(2*Math.PI*phase);
+            return Math.max(0,Math.min(1,t));
+        }
     }
     public static final class Options {
         public final boolean configured,blur,kawase,glow,glass,motion,reduced,gradients,sync,border,glassClear;
+        public final boolean ambient;
         public final int substance;
         public final float surfaceOpacity,gradientFillStrength,borderOpacity;
         public final float roundness,blurStrength,glowIntensity,glowRadius,refraction,tint,edge;
         public final int quality;
-        Options(ClientSettings c){glassClear=c!=null&&c.glassAppearance.getValue().equals("Clear");substance=c==null?-1:style(c.surface.getValue());surfaceOpacity=c==null?1:c.surfaceOpacity.getValue().floatValue();gradientFillStrength=c==null?.28f:c.gradientFillStrength.getValue().floatValue();border=c==null||c.border.getValue();borderOpacity=c==null?.8f:c.borderOpacity.getValue().floatValue();configured=c!=null;blur=c==null||c.blur.getValue();kawase=c!=null&&c.blurMethod.getValue().equals("Kawase");glow=c==null||c.glow.getValue();glass=c!=null&&c.surface.getValue().equals("Liquid Glass");motion=c==null||c.animations.getValue();reduced=c!=null&&c.reducedMotion.getValue();gradients=c==null||c.gradients.getValue();sync=c==null||c.synchronize.getValue();roundness=c==null?5:c.roundness.getValue().floatValue();blurStrength=c==null?5:c.blurStrength.getValue().floatValue();glowIntensity=c==null?1:c.glowIntensity.getValue().floatValue();glowRadius=c==null?9:c.glowRadius.getValue().floatValue();quality=c==null?2:c.blurQuality.getValue().intValue();refraction=c==null?.35f:c.glassRefraction.getValue().floatValue();tint=c==null?.18f:c.glassTint.getValue().floatValue();edge=c==null?.3f:c.glassLight.getValue().floatValue();}
+        Options(ClientSettings c){ambient=c==null||c.ambientMotion.getValue();glassClear=c!=null&&c.glassAppearance.getValue().equals("Clear");substance=c==null?-1:style(c.surface.getValue());surfaceOpacity=c==null?1:c.surfaceOpacity.getValue().floatValue();gradientFillStrength=c==null?.28f:c.gradientFillStrength.getValue().floatValue();border=c==null||c.border.getValue();borderOpacity=c==null?.8f:c.borderOpacity.getValue().floatValue();configured=c!=null;blur=c==null||c.blur.getValue();kawase=c!=null&&c.blurMethod.getValue().equals("Kawase");glow=c==null||c.glow.getValue();glass=c!=null&&c.surface.getValue().equals("Liquid Glass");motion=c==null||c.animations.getValue();reduced=c!=null&&c.reducedMotion.getValue();gradients=c==null||c.gradients.getValue();sync=c==null||c.synchronize.getValue();roundness=c==null?5:c.roundness.getValue().floatValue();blurStrength=c==null?5:c.blurStrength.getValue().floatValue();glowIntensity=c==null?1:c.glowIntensity.getValue().floatValue();glowRadius=c==null?9:c.glowRadius.getValue().floatValue();quality=c==null?2:c.blurQuality.getValue().intValue();refraction=c==null?.35f:c.glassRefraction.getValue().floatValue();tint=c==null?.18f:c.glassTint.getValue().floatValue();edge=c==null?.3f:c.glassLight.getValue().floatValue();}
     }
 
     /** The existing Surface Style ID keeps its legacy value for config compatibility. */

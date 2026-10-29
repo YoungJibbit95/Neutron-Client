@@ -39,6 +39,10 @@ public class ClientSettings extends Module {
     public final SliderValue textSpeed=speed("Text Speed"),borderSpeed=speed("Border Speed"),glowSpeed=speed("Glow Speed");
     public final CheckBoxValue animations=new CheckBoxValue("UI Animations",this,true);
     public final CheckBoxValue reducedMotion=new CheckBoxValue("Reduced Motion",this,false);
+    public final ComboValue motionIntensity=new ComboValue("UI Motion Intensity",this,new String[]{"Calm","Balanced","Expressive"},1);
+    public final ComboValue gradientMethod=new ComboValue("Gradient Method",this,new String[]{"Flow","Ping-Pong","Pulse"},0);
+    public final CheckBoxValue ambientMotion=new CheckBoxValue("Ambient Motion",this,true);
+    public final CheckBoxValue semanticColorPriority=new CheckBoxValue("Semantic Color Priority",this,true);
     public final CheckBoxValue notifications=new CheckBoxValue("Notifications",this,true);
     public final ComboValue notificationDesign=new ComboValue("Notification Design",this,new String[]{"Dark","Outline","Liquid Glass","Global"},3);
     public final ComboValue notificationPosition=new ComboValue("Notification Position",this,new String[]{"Bottom Right","Top Right","Bottom Left","Top Left"},0);
@@ -47,6 +51,8 @@ public class ClientSettings extends Module {
     public final SliderValue notificationVisible=new SliderValue("Visible Notifications",this,3.0,1,5,true);
     public final SliderValue notificationQueue=new SliderValue("Queued Notifications",this,32.0,4,64,true);
     public final CheckBoxValue info=new CheckBoxValue("Info Notifications",this,true),success=new CheckBoxValue("Success Notifications",this,true),warnings=new CheckBoxValue("Warning Notifications",this,true),errors=new CheckBoxValue("Error Notifications",this,true);
+    // Append registration, preserving every existing Value index. Group display is adjacent to Design.
+    public final ComboValue notificationTheme=new ComboValue("Notification Theme",this,new String[]{"Follow Global","Obsidian","Aurora","Neon Edge","Minimal"},0);
 
     private ComboValue direction(String name){return new ComboValue(name,this,new String[]{"Theme","Vertical","Horizontal","Up","Left"},0);}
     private ComboValue motion(String name){return new ComboValue(name,this,new String[]{"Theme","Static","Animated","Solid"},0);}
@@ -57,8 +63,8 @@ public class ClientSettings extends Module {
         groups.put("Appearance",Arrays.asList(roundness,surface,surfaceOpacity,gradientFillStrength,border,borderColor,borderOpacity));
         groups.put("Blur / Liquid Glass",Arrays.asList(blur,blurMethod,blurStrength,blurQuality,glassAppearance,glassRefraction,glassTint,glassLight));
         groups.put("Glow",Arrays.asList(glow,glowIntensity,glowRadius));
-        groups.put("Gradients / Motion",Arrays.asList(gradients,synchronize,direction,gradientMotion,gradientSpeed,textDirection,textMotion,textSpeed,borderDirection,borderMotion,borderSpeed,glowDirection,glowMotion,glowSpeed,animations,reducedMotion));
-        groups.put("Notifications",Arrays.asList(notifications,notificationDesign,notificationPosition,notificationDuration,notificationWidth,notificationVisible,notificationQueue,info,success,warnings,errors));
+        groups.put("Gradients / Motion",Arrays.asList(gradients,synchronize,direction,gradientMotion,gradientMethod,gradientSpeed,textDirection,textMotion,textSpeed,borderDirection,borderMotion,borderSpeed,glowDirection,glowMotion,glowSpeed,animations,reducedMotion,motionIntensity,ambientMotion,semanticColorPriority));
+        groups.put("Notifications",Arrays.asList(notifications,notificationDesign,notificationTheme,notificationPosition,notificationDuration,notificationWidth,notificationVisible,notificationQueue,info,success,warnings,errors));
         return groups;
     }
     public ClientSettings(){
@@ -70,6 +76,12 @@ public class ClientSettings extends Module {
         borderSpeed.setVisibility(m->!synchronize.getValue()&&borderMotion.getValue().equals("Animated"));
         glowSpeed.setVisibility(m->!synchronize.getValue()&&glowMotion.getValue().equals("Animated"));
         blurQuality.setVisibility(m->blurMethod.getValue().equals("Kawase"));
+    }
+    @Override public void beginConfigUpdate(){
+        super.beginConfigUpdate();
+        // Only the new appearance key has this migration default. Imported keys still win,
+        // and callbacks/persistence retain the existing config batch owner.
+        notificationTheme.reset();
     }
     @Override public void onValueChange(){me.youngjibbit.utils.render.UiEffects.invalidate();}
     @Override public void onEnable(){

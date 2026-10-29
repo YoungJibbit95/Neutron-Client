@@ -7,6 +7,14 @@ import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.MathHelper;
 import net.minecraft.util.Vec3;
 import me.youngjibbit.event.motion.EventMotion;
+import me.youngjibbit.core.bootstrap.RuntimeServices;
+import me.youngjibbit.core.contract.SceneContext;
+import me.youngjibbit.core.observation.RuntimeObservation;
+import me.youngjibbit.core.network.PacketPipeline;
+import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.client.network.NetHandlerPlayClient;
+import net.minecraft.network.Packet;
+import net.minecraft.network.play.client.C03PacketPlayer;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -17,6 +25,7 @@ import java.util.concurrent.ThreadLocalRandom;
 import java.lang.ref.WeakReference;
 import java.util.function.LongSupplier;
 import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
 
 public final class RotationManager {
 
@@ -42,6 +51,9 @@ public final class RotationManager {
     public boolean isConnection(Object current) { return connection.get()==current; }
     public void invalidateConnection(Object current) { if (isConnection(current)) { reset(); connection.clear(); } }
     private Request winner;
+    private Request resolvedRequest;
+    private Object resolvedFrame;
+    private ResolvedC03SendTicket resolvedTicket;
     private WeakReference<Object> motionPlayer = new WeakReference<>(null);
     private WeakReference<Object> motionWorld = new WeakReference<>(null);
 
@@ -64,6 +76,9 @@ public final class RotationManager {
         previousAccepted = accepted;
         accepted = false;
         winner = null;
+        resolvedRequest = null;
+        resolvedFrame = null;
+        resolvedTicket = null;
         sequence++;
     }
 
@@ -83,6 +98,9 @@ public final class RotationManager {
     }
 
     public void resolve(EventMotion event) {
+        resolvedRequest = null;
+        resolvedFrame = null;
+        resolvedTicket = null;
         if (winner==null) return;
         if (winner.visible) {
             String confirmed=getConfirmedOwner();
@@ -97,9 +115,112 @@ public final class RotationManager {
             winner.yaw=mc.thePlayer.rotationYaw;winner.pitch=mc.thePlayer.rotationPitch;
         }
         event.setRotations(winner.yaw,winner.pitch);
+        if ("scaffold".equals(winner.source)) {
+            resolvedRequest = winner;
+            resolvedFrame = new Object();
+            // Bind the resolve lifetime now; a later getter cannot rebind it to another tick/scene.
+            resolvedTicket = new ResolvedC03SendTicket(resolvedRequest, resolvedFrame, Float.NaN, Float.NaN);
+        }
+    }
+
+    /** Capture immediately after resolve, before constructing this frame's C03.
+     * null is neutral (no resolved Scaffold source); an invalid sourced frame gets a denying ticket.
+     */
+    public ResolvedC03SendTicket captureResolvedC03SendTicket(float wireYaw, float wirePitch) {
+        ResolvedC03SendTicket captured = resolvedTicket;
+        return captured == null ? null : new ResolvedC03SendTicket(captured, wireYaw, wirePitch);
+    }
+
+    /** Immutable evidence for one resolved frame, not an accepted owner or a release lease. */
+    public final class ResolvedC03SendTicket {
+        private final Request request;
+        private final Object frame;
+        private final long motionSequence, outerTick;
+        private final float yaw, pitch, wireYaw, wirePitch;
+        private final RuntimeObservation observation;
+        private final SceneContext scene;
+        private final WeakReference<Object> player, world;
+        private final WeakReference<NetHandlerPlayClient> handler;
+        private final WeakReference<PacketPipeline> packets;
+
+        private ResolvedC03SendTicket(ResolvedC03SendTicket captured, float wireYaw, float wirePitch) {
+            request = captured.request; frame = captured.frame; motionSequence = captured.motionSequence;
+            outerTick = captured.outerTick; yaw = captured.yaw; pitch = captured.pitch;
+            observation = captured.observation; scene = captured.scene;
+            player = captured.player; world = captured.world; handler = captured.handler; packets = captured.packets;
+            this.wireYaw = wireYaw; this.wirePitch = wirePitch;
+        }
+
+        private ResolvedC03SendTicket(Request request, Object frame, float wireYaw, float wirePitch) {
+            this.request = request;
+            this.frame = frame;
+            motionSequence = sequence;
+            yaw = request.yaw; pitch = request.pitch;
+            this.wireYaw = wireYaw; this.wirePitch = wirePitch;
+            Object currentPlayer = motionPlayer.get();
+            player = new WeakReference<>(currentPlayer);
+            world = new WeakReference<>(motionWorld.get());
+            NetHandlerPlayClient currentHandler = currentPlayer instanceof EntityPlayerSP
+                    ? ((EntityPlayerSP)currentPlayer).sendQueue : null;
+            handler = new WeakReference<>(currentHandler);
+            packets = new WeakReference<>(currentHandler == null ? null : currentHandler.getNetworkManager().getClientPackets());
+            observation = RuntimeServices.observation();
+            outerTick = observation == null ? -1 : observation.getActiveOuterTickId();
+            scene = observation == null ? null : observation.captureScene();
+        }
+
+        private boolean sameFrame() {
+            return collecting && sequence == motionSequence && resolvedFrame == frame
+                    && resolvedRequest == request && winner == request && RuntimeServices.rotation() == RotationManager.this;
+        }
+
+        private boolean sameObjects() {
+            Object p = player.get(), w = world.get();
+            NetHandlerPlayClient h = handler.get();
+            PacketPipeline pipe = packets.get();
+            return p instanceof EntityPlayerSP && w != null && h != null && pipe != null
+                    && mc == Minecraft.getMinecraft() && mc.thePlayer == p && mc.theWorld == w
+                    && motionPlayer.get() == p && motionWorld.get() == w && connection.get() == pipe
+                    && ((EntityPlayerSP)p).worldObj == w && ((EntityPlayerSP)p).sendQueue == h
+                    && h.getNetworkManager().getClientPackets() == pipe && pipe.isActive()
+                    && mc.getRenderViewEntity() == p;
+        }
+
+        private boolean current() {
+            if (!sameFrame() || !sameObjects() || observation == null || observation != RuntimeServices.observation()
+                    || outerTick < 0 || observation.getActiveOuterTickId() != outerTick
+                    || scene == null || !scene.isValid() || scene.isSuspended()) return false;
+            // Sampling maintains existing observer identity/generation bookkeeping, never action quota.
+            SceneContext fresh = observation.captureScene();
+            return fresh.isValid() && !fresh.isSuspended() && scene.sameSceneAs(fresh)
+                    && sameFrame() && sameObjects() && observation == RuntimeServices.observation()
+                    && observation.getActiveOuterTickId() == outerTick;
+        }
+
+        /** Seal packet facts before PRE; selected must preserve this envelope and the resolved pose. */
+        public Predicate<Packet<?>> guard(C03PacketPlayer original) {
+            final Class<?> type = original.getClass();
+            final boolean moving = original.isMoving(), rotating = original.getRotating(), ground = original.isOnGround();
+            final double x = original.getPositionX(), y = original.getPositionY(), z = original.getPositionZ();
+            return selected -> {
+                if (selected == null || selected.getClass() != type || !current()) return false;
+                C03PacketPlayer actual = (C03PacketPlayer)selected;
+                float actualYaw = actual.getRotating() ? actual.getYaw() : wireYaw;
+                float actualPitch = actual.getRotating() ? actual.getPitch() : wirePitch;
+                return actual.isMoving() == moving && actual.getRotating() == rotating && actual.isOnGround() == ground
+                        && (!moving || Double.compare(actual.getPositionX(), x) == 0
+                            && Double.compare(actual.getPositionY(), y) == 0 && Double.compare(actual.getPositionZ(), z) == 0)
+                        && Float.isFinite(actualYaw) && Float.isFinite(actualPitch) && actualPitch >= -90 && actualPitch <= 90
+                        && Math.abs(MathHelper.wrapAngleTo180_float(yaw - actualYaw)) < .001f
+                        && Math.abs(pitch - actualPitch) < .001f;
+            };
+        }
     }
 
     public void finishMotion(float yaw, float pitch, boolean packetAccepted) {
+        resolvedRequest = null;
+        resolvedFrame = null;
+        resolvedTicket = null;
         collecting = false;
         accepted = packetAccepted && Float.isFinite(yaw) && Float.isFinite(pitch) && pitch >= -90 && pitch <= 90;
         if (!accepted) return;
@@ -119,7 +240,7 @@ public final class RotationManager {
     public boolean isOwner(String source) { return hasEffective && source.equals(owner); }
     /** During PRE, only the last accepted owner is usable; a pending winner grants no correction. */
     public String getConfirmedOwner() {
-        return canUseRotation(collecting) ? owner : null;
+        return canUseRotation(owner, collecting) ? owner : null;
     }
     public String getConfirmedOwner(Object player, Object world) {
         return motionPlayer.get() == player && motionWorld.get() == world ? getConfirmedOwner() : null;
@@ -131,6 +252,13 @@ public final class RotationManager {
     public boolean canUseRotation(boolean pre) {
         return hasEffective && (pre ? previousAccepted : accepted)
                 && Float.isFinite(effectiveYaw) && Float.isFinite(effectivePitch);
+    }
+    /** True only when this source owns a locally accepted rotation for the queried phase.
+     * PRE is available while collecting; finishMotion replaces that basis with the POST result.
+     */
+    public boolean canUseRotation(String source, boolean pre) {
+        return pre == collecting && source != null && !source.trim().isEmpty()
+                && source.equals(owner) && canUseRotation(pre);
     }
     public boolean isMotionAccepted() { return accepted; }
     public long getMotionSequence() { return sequence; }
@@ -301,6 +429,11 @@ public final class RotationManager {
         states.remove(source);
         if (source.equals(owner)) owner = null;
         if (winner != null && source.equals(winner.source)) winner = null;
+        if (resolvedRequest != null && source.equals(resolvedRequest.source)) {
+            resolvedRequest = null;
+            resolvedFrame = null;
+            resolvedTicket = null;
+        }
     }
 
     public void reset() {
@@ -308,6 +441,9 @@ public final class RotationManager {
         states.clear();
         owner = null;
         winner = null;
+        resolvedRequest = null;
+        resolvedFrame = null;
+        resolvedTicket = null;
         accepted = false;
         hasEffective = false;
         previousAccepted = false;
