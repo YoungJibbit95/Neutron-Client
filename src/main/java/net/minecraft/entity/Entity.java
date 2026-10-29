@@ -1124,6 +1124,8 @@ public abstract class Entity implements ICommandSender
      * Used in both water and by flying objects
      */
     public void moveFlying(float strafe, float forward, float friction) {
+        // Diagnostic-only snapshot: the movement event and MoveFix may modify these inputs.
+        final float originalStrafe = strafe, originalForward = forward, originalYaw = this.rotationYaw;
         PlayerMoveUpdateEvent playerMovementEvent = new PlayerMoveUpdateEvent(strafe, forward, friction, this.rotationYaw, this.rotationPitch);
         if (this instanceof EntityPlayerSP) {
             Pulsar.INSTANCE.BUS.post(playerMovementEvent);
@@ -1132,6 +1134,11 @@ public abstract class Entity implements ICommandSender
         if (this instanceof EntityPlayerSP && net.minecraft.client.Minecraft.getMinecraft()!=null
                 && this==net.minecraft.client.Minecraft.getMinecraft().thePlayer) {
             me.youngjibbit.core.combat.RotationCorrections.movement(playerMovementEvent);
+            // Read only: observe final event inputs immediately before vanilla acceleration.
+            me.youngjibbit.module.impl.client.CombatDiagnostics.observeMoveFlying((EntityPlayerSP) this,
+                    originalStrafe, originalForward, originalYaw,
+                    playerMovementEvent.getStrafe(), playerMovementEvent.getForward(),
+                    playerMovementEvent.getYaw(), playerMovementEvent.getFriction());
         }
 
         strafe = playerMovementEvent.getStrafe();
