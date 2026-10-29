@@ -91,11 +91,18 @@ public class SpeedMovementBasisChecks {
                     f.aura.getModeSetting("movefix").setValue(mode.label);
                     f.scaffold.getModeSetting("movefix").setValue(mode.label);
                     f.player.moveForward = .2f; f.player.moveStrafing = .2f;
+                    f.player.motionX = f.player.motionZ = 0;
                     f.player.onGround = true; f.accept(owner, 73);
                     f.player.moveFlying(.2f, .2f, .1f);
+                    if (mode == MoveFixController.Mode.LEGACY_ROUNDED)
+                        assertEquals(118, Math.toDegrees(Math.atan2(-f.player.motionX, f.player.motionZ)), .01);
                     run(new Speed(), "Bmc");
-                    double expected = mode == MoveFixController.Mode.ROTATION_BOUND ? 28
-                            : mode == MoveFixController.Mode.SIMPLE ? 118 : 135;
+                    // Strict keeps the diagonal keys at yaw 73 (73 - 45).
+                    // Rounded keeps moveFlying's snapped strafe -1/forward 1 direction.
+                    double expected = mode == MoveFixController.Mode.ROTATION_BOUND
+                            || mode == MoveFixController.Mode.LEGACY_STRICT ? 28
+                            : mode == MoveFixController.Mode.SIMPLE ? 118
+                            : mode == MoveFixController.Mode.LEGACY_ROUNDED ? 118 : 135;
                     direction(f, expected);
                     assertEquals(.2f, f.player.moveForward, 0);
                     assertEquals(.2f, f.player.moveStrafing, 0);
