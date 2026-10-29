@@ -1,11 +1,15 @@
 package me.youngjibbit.core.combat;
 
-/** Movement basis only; never requests rotations or changes camera/packet angles.
- * SIMPLE/PRECISE preserve camera-space intent. ROTATION_BOUND keeps the original inputs
- * and uses the confirmed module yaw at the consumer, including the sprint-jump impulse. */
+import net.minecraft.util.MathHelper;
+
+/** Pure input correction; never changes velocity, packets, camera or body rotations.
+ * SIMPLE/PRECISE retain their existing camera-space contracts.
+ * LEGACY_ROUNDED maps normal 1.8.9 keyboard inputs into rounded module-yaw inputs.
+ * ROTATION_BOUND and LEGACY_STRICT use original keys relative to module yaw. */
 public final class MoveFixController {
     public enum Mode {
-        OFF("Aus"), SIMPLE("Einfach"), PRECISE("Präzise"), ROTATION_BOUND("Rotationsgebunden");
+        OFF("Aus"), SIMPLE("Einfach"), PRECISE("Präzise"), ROTATION_BOUND("Rotationsgebunden"),
+        LEGACY_STRICT("Legacy Strict"), LEGACY_ROUNDED("Legacy Rounded");
         public final String label;
         Mode(String label) { this.label = label; }
         public static Mode fromSetting(String value) {
@@ -26,12 +30,16 @@ public final class MoveFixController {
     private MoveFixController() { }
 
     public static Input correct(float strafe, float forward, float inputYaw, float effectiveYaw, Mode mode) {
-        if (mode == Mode.OFF || mode == Mode.ROTATION_BOUND || !Float.isFinite(strafe) || !Float.isFinite(forward)
+        if (mode == Mode.OFF || mode == Mode.ROTATION_BOUND || mode == Mode.LEGACY_STRICT
+                || !Float.isFinite(strafe) || !Float.isFinite(forward)
                 || !Float.isFinite(inputYaw) || !Float.isFinite(effectiveYaw)) return new Input(strafe, forward);
+        if (strafe == 0 && forward == 0) return new Input(0, 0);
+        // Wrap before subtraction to avoid overflowing opposite extreme finite float yaws.
+        float yawDifference = wrap(wrap(inputYaw) - wrap(effectiveYaw));
+        if (mode == Mode.LEGACY_ROUNDED) return legacyRounded(strafe, forward, yawDifference);
+
         double magnitude = Math.hypot(strafe, forward);
-        if (magnitude == 0) return new Input(0, 0);
-        // Reduce before subtracting: two finite yaw values can overflow a float difference.
-        double delta = Math.toRadians(wrap(wrap(inputYaw) - wrap(effectiveYaw)));
+        double delta = Math.toRadians(yawDifference);
         double s = strafe * Math.cos(delta) - forward * Math.sin(delta);
         double f = strafe * Math.sin(delta) + forward * Math.cos(delta);
         if (mode == Mode.PRECISE) return new Input((float) s, (float) f);
@@ -42,14 +50,32 @@ public final class MoveFixController {
             double score = (s * candidate[0] + f * candidate[1]) / Math.hypot(candidate[0], candidate[1]);
             if (score > best + 1.0e-9) { best = score; direction = candidate; }
         }
-        // Retain even sub-unit sneak/item input strength. Vanilla applies its one speed cap later.
+        // Keep the pre-existing SIMPLE semantics; this is not the rounded-key contract.
         double scale = magnitude / Math.hypot(direction[0], direction[1]);
         return new Input((float) (direction[0] * scale), (float) (direction[1] * scale));
     }
 
-    /** Vanilla's sprint impulse is camera-forward, even with diagonal keys. Keep that basis. */
+    /** LiquidBounce Legacy non-strict-style correction after vanilla's 0.98 and uniform
+     * sneak/item slowdowns. Reconstruct discrete key signs, rotate/round, restore input
+     * strength, and let moveFlying apply its single vanilla diagonal speed cap.
+     * Unsupported (>1) axes are left unchanged rather than fabricating key states. */
+    private static Input legacyRounded(float strafe, float forward, float yawDifference) {
+        if (Math.abs(strafe) > 1f || Math.abs(forward) > 1f) return new Input(strafe, forward);
+        float radians = (float) Math.toRadians(yawDifference);
+        float cosine = MathHelper.cos(radians);
+        float sine = MathHelper.sin(radians);
+        float keyForward = Math.signum(forward), keyStrafe = Math.signum(strafe);
+        // Kotlin round uses ties-to-even, as does Math.rint.
+        int roundedForward = (int) Math.rint(keyForward * cosine + keyStrafe * sine);
+        int roundedStrafe = (int) Math.rint(keyStrafe * cosine - keyForward * sine);
+        float strength = forward != 0f ? Math.abs(forward) : Math.abs(strafe);
+        return new Input(roundedStrafe * strength, roundedForward * strength);
+    }
+
+    /** Chooses a yaw basis for the existing jump consumer; does not simulate jump impulses. */
     public static float jumpYaw(float cameraYaw, float effectiveYaw, Mode mode) {
-        if (mode == Mode.ROTATION_BOUND) return effectiveYaw;
+        if (mode == Mode.ROTATION_BOUND || mode == Mode.LEGACY_STRICT || mode == Mode.LEGACY_ROUNDED)
+            return effectiveYaw;
         if (mode != Mode.SIMPLE) return cameraYaw;
         Input input = correct(0, 1, cameraYaw, effectiveYaw, mode);
         return effectiveYaw - (float) Math.toDegrees(Math.atan2(input.strafe, input.forward));
