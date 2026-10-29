@@ -231,4 +231,28 @@ public class CombatDiagnosticsIntegrationTest {
         }
     }
 
+    @Test public void appliedS08ObservationMeasuresActualDisplacementNotReceiptPrediction() throws Exception {
+        try (RotationBehaviorHookTest.Fixture f = new RotationBehaviorHookTest.Fixture()) {
+            CombatDiagnostics diagnostics = diagnostics();
+            diagnostics.setToggled(true);
+            try {
+                f.player.posX = 100.5;
+                f.player.posY = 65;
+                f.player.posZ = -18;
+                f.player.rotationYaw = 45;
+                f.player.rotationPitch = 5;
+                CombatDiagnostics.observeAppliedS08(f.player, 100, 64, -20, 30, 0);
+                String line = trace(diagnostics).recent(1).get(0);
+                assertTrue(line, line.startsWith("S08_APPLIED_NOT_A_FLAG"));
+                assertTrue(line, line.contains("s08Phase=APPLIED"));
+                assertTrue(line, line.contains("appliedPre=100.0000/64.0000/-20.0000"));
+                assertTrue(line, line.contains("appliedPost=100.5000/65.0000/-18.0000"));
+                assertTrue(line, line.contains("appliedOffset=0.5000/1.0000/2.0000"));
+                assertTrue(line, line.contains("appliedRotationDelta=15.00/5.00"));
+                assertEquals(100.5, f.player.posX, 0);
+                assertNull(f.channel.readOutbound());
+            } finally { diagnostics.setToggled(false); }
+        }
+    }
+
 }
