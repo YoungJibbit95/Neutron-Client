@@ -61,14 +61,17 @@ public final class RotationCorrections {
      * The direction already includes the writer's key/diagonal policy. Event-local MoveFix
      * inputs must not be passed here: moveFlying corrects its own event exactly once.
      */
-    public static float directMotionYaw(float cameraYaw, float cameraDirectionYaw) {
+    public static float directMotionYaw(float cameraYaw, float cameraDirectionYaw, float strafe, float forward) {
         Selection selected = current();
         if (selected == null || selected.movement == MoveFixController.Mode.OFF
                 || selected.movement == MoveFixController.Mode.PRECISE) return cameraDirectionYaw;
-        if (selected.movement == MoveFixController.Mode.ROTATION_BOUND)
+        if (selected.movement == MoveFixController.Mode.ROTATION_BOUND
+                || selected.movement == MoveFixController.Mode.LEGACY_STRICT)
             return selected.yaw + (cameraDirectionYaw - cameraYaw);
-        MoveFixController.Input input = MoveFixController.correct(0, 1, cameraDirectionYaw,
-                selected.yaw, selected.movement);
+        // Rounded key reconstruction needs the original axes, including diagonal keys.
+        MoveFixController.Input input = selected.movement == MoveFixController.Mode.LEGACY_ROUNDED
+                ? MoveFixController.correct(strafe, forward, cameraYaw, selected.yaw, selected.movement)
+                : MoveFixController.correct(0, 1, cameraDirectionYaw, selected.yaw, selected.movement);
         return selected.yaw - (float) Math.toDegrees(Math.atan2(input.strafe, input.forward));
     }
 

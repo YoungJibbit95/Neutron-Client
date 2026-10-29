@@ -4,13 +4,13 @@ import com.google.gson.JsonElement;
 import me.youngjibbit.core.combat.MoveFixController;
 import me.youngjibbit.module.Module;
 
-/** Stable config choices: Aus uses camera yaw; Einfach/Präzise preserve camera direction
- * by inverse input correction; Rotationsgebunden follows the confirmed module yaw.
- * Only Aura's former boolean has a legacy mapping; existing choices retain their meaning. */
+/** Stable config labels: existing choices retain their meaning.
+ * Legacy Strict uses the module yaw; Legacy Rounded snaps to discrete key inputs.
+ * Only Aura's former boolean has a compatibility mapping to Einfach/Aus. */
 public final class MoveFixValue extends ComboValue {
     private final boolean legacyBoolean;
     public MoveFixValue(Module parent, boolean legacyBoolean) {
-        super("Movefix", parent, new String[]{"Aus", "Einfach", "Präzise", "Rotationsgebunden"}, 0);
+        super("Movefix", parent, new String[]{"Aus", "Einfach", "Präzise", "Rotationsgebunden", "Legacy Strict", "Legacy Rounded"}, 0);
         this.legacyBoolean = legacyBoolean;
     }
     public String decodeConfig(JsonElement json) {

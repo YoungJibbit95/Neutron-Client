@@ -33,7 +33,8 @@ public final class MoveUtil {
      */
     public static double confirmedDirectionRadians(EntityPlayerSP player) {
         float cameraDirection = directionYaw(player.rotationYaw, player.moveForward, player.moveStrafing);
-        return Math.toRadians(RotationCorrections.directMotionYaw(player.rotationYaw, cameraDirection));
+        return Math.toRadians(RotationCorrections.directMotionYaw(player.rotationYaw, cameraDirection,
+                player.moveStrafing, player.moveForward));
     }
 
     /** Assigns horizontal velocity, in blocks per tick, without changing vertical motion or rotation. */

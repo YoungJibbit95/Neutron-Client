@@ -79,11 +79,77 @@ public class MoveFixControllerTest {
         RotationCorrections.applyMovement(null,cancelled); assertTrue(cancelled.isCancelled());
     }
 
+
+    /** LiquidBounce Legacy non-strict input reconstruction, independent of the production code. */
+    private float[] legacyReference(float strafe, float forward, float camera, float module) {
+        float degrees = MoveFixController.wrap(MoveFixController.wrap(camera) - MoveFixController.wrap(module));
+        float radians = (float) Math.toRadians(degrees);
+        float rawForward = (float) (Math.ceil(Math.abs(forward / .98f)) * Math.signum(forward));
+        float rawStrafe = (float) (Math.ceil(Math.abs(strafe / .98f)) * Math.signum(strafe));
+        float c = MathHelper.cos(radians), sn = MathHelper.sin(radians);
+        float roundedForward = (float) Math.rint(rawForward * c + rawStrafe * sn);
+        float roundedStrafe = (float) Math.rint(rawStrafe * c - rawForward * sn);
+        float strength = forward != 0 ? Math.abs(forward) : Math.abs(strafe);
+        return new float[]{roundedStrafe * strength, roundedForward * strength};
+    }
+
+    @Test public void legacyRoundedMatchesReferenceAndOnlyProducesVanillaKeyStates() {
+        for (float camera : ANGLES) for (float target : ANGLES) for (float[] keys : KEYS)
+            for (float strength : new float[]{.98f,.294f,.196f,.0588f}) {
+                float strafe=keys[0]*strength, forward=keys[1]*strength;
+                float[] expected=legacyReference(strafe,forward,camera,target);
+                MoveFixController.Input result=MoveFixController.correct(strafe,forward,camera,target,
+                        MoveFixController.Mode.LEGACY_ROUNDED);
+                assertEquals(expected[0],result.strafe,1e-6);
+                assertEquals(expected[1],result.forward,1e-6);
+                assertEquals(Math.rint(result.strafe/strength),result.strafe/strength,1e-6);
+                assertEquals(Math.rint(result.forward/strength),result.forward/strength,1e-6);
+                assertTrue(Math.abs(result.strafe)<=strength+1e-6);
+                assertTrue(Math.abs(result.forward)<=strength+1e-6);
+            }
+        // With rounded keys a W input can become W+A at the module yaw.
+        // The vanilla diagonal cap must be applied afterwards (not the old SIMPLE length cap).
+        MoveFixController.Input diagonal=MoveFixController.correct(0,.98f,0,35,MoveFixController.Mode.LEGACY_ROUNDED);
+        assertEquals(.98f,diagonal.strafe,0);
+        assertEquals(.98f,diagonal.forward,0);
+        double[] motion=acceleration(diagonal.strafe,diagonal.forward,35,.1f);
+        assertEquals(.1,Math.hypot(motion[0],motion[1]),2e-5);
+    }
+
+    @Test public void legacyStrictUsesOriginalKeysAtTheSelectedYaw() {
+        for(float[] keys:KEYS)for(float strength:new float[]{.98f,.294f,.196f,.0588f}) {
+            MoveFixController.Input result=MoveFixController.correct(keys[0]*strength,keys[1]*strength,
+                    12,105,MoveFixController.Mode.LEGACY_STRICT);
+            assertEquals(keys[0]*strength,result.strafe,0);
+            assertEquals(keys[1]*strength,result.forward,0);
+        }
+        PlayerMoveUpdateEvent event=new PlayerMoveUpdateEvent(.294f,.294f,.013f,12,7);
+        RotationCorrections.applyMovement(selection(MoveFixController.Mode.LEGACY_STRICT,105),event);
+        assertEquals(105,event.getYaw(),0);
+        assertEquals(.294f,event.getStrafe(),0);
+        assertEquals(.294f,event.getForward(),0);
+        assertEquals(.013f,event.getFriction(),0);
+    }
+
+    @Test public void legacyRoundedHandlesExtremeYawAndUnsupportedAxes() {
+        MoveFixController.Input result=MoveFixController.correct(.3f,.6f,Float.MAX_VALUE,
+                -Float.MAX_VALUE,MoveFixController.Mode.LEGACY_ROUNDED);
+        assertTrue(Float.isFinite(result.strafe));
+        assertTrue(Float.isFinite(result.forward));
+        assertTrue(Math.abs(result.strafe)<=.600001f);
+        assertTrue(Math.abs(result.forward)<=.600001f);
+        MoveFixController.Input unsupported=MoveFixController.correct(1.5f,.3f,0,90,
+                MoveFixController.Mode.LEGACY_ROUNDED);
+        assertEquals(1.5f,unsupported.strafe,0);
+        assertEquals(.3f,unsupported.forward,0);
+    }
+
     @Test public void sprintJumpRetainsVanillaImpulseStrengthAndUsesTheSelectedMovementBasis() {
         for(float camera:ANGLES) for(float target:ANGLES) for(MoveFixController.Mode mode:MoveFixController.Mode.values()) {
             JumpFixEvent event=new JumpFixEvent(camera);
             RotationCorrections.applyJump(selection(mode,target),event);
-            if(mode==MoveFixController.Mode.ROTATION_BOUND) assertEquals(target,event.getYaw(),0);
+            if(mode==MoveFixController.Mode.ROTATION_BOUND || mode==MoveFixController.Mode.LEGACY_STRICT
+                    || mode==MoveFixController.Mode.LEGACY_ROUNDED) assertEquals(target,event.getYaw(),0);
             else if(mode!=MoveFixController.Mode.SIMPLE) assertEquals(camera,event.getYaw(),0);
             else {
                 MoveFixController.Input forward=MoveFixController.correct(0,1,camera,target,mode);
@@ -97,7 +163,8 @@ public class MoveFixControllerTest {
             double lookupBound=.2*Math.sqrt(2)*(2*Math.PI/65536)+1e-7;
             assertEquals(.2,Math.hypot(x,z),lookupBound);
             if(mode!=MoveFixController.Mode.SIMPLE) {
-                float basis = mode==MoveFixController.Mode.ROTATION_BOUND ? target : camera;
+                float basis = mode==MoveFixController.Mode.ROTATION_BOUND || mode==MoveFixController.Mode.LEGACY_STRICT
+                        || mode==MoveFixController.Mode.LEGACY_ROUNDED ? target : camera;
                 assertEquals(-MathHelper.sin(basis*.017453292F)*.2F,x,0);
                 assertEquals(MathHelper.cos(basis*.017453292F)*.2F,z,0);
             }
