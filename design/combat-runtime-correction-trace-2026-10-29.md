@@ -83,5 +83,53 @@ The full Maven suite and a real GUI/network test should also be checked. If
 fix only the observer; **never** change their gameplay math/packet semantics
 to make a diagnostic test pass.
 
-This patch was authored via GitHub without local Windows Maven or live game
-access. It must remain a draft PR until Codex verifies it.
+## Integration verification in the primary checkout
+
+PR #11 was merged first (`85c5efa5389bc827131015d57083920d21cc0387`).
+PR #12 was then merged with that main in `F:\Puslar Backup - Copy`; its
+diff still contains only the seven intended diagnostics, hook, test and document files.
+
+Temurin 8u482 and Maven 3.9.15, with process-local `JAVA_HOME`:
+
+- PR #11 focused baseline: 66 tests passed.
+- Integrated PR #12 focused suite, including `RotationTrajectoryTest`: 77 passed.
+- Full suite with native graphics/chat/world-overlay checks enabled:
+  **713 tests, 0 failures, 0 errors, 0 skipped; BUILD SUCCESS**.
+- Added real-consumer coverage compares diagnostics OFF/ON with identical motion
+  for all six configured MoveFix modes and four input combinations. No second
+  movement correction or changed acceleration is introduced.
+- A test invokes the real `handlePlayerPosLook` with mixed relative/absolute axes,
+  verifies unchanged position, rotation and velocity semantics with diagnostics
+  OFF/ON, checks the single C06 ACK payload, and observes that ACK in the outbound
+  queue before optional diagnostic console output executes.
+
+An initial focused run overlapped an IntelliJ build writing the same class output;
+its isolated Speed JVM failed to find `GuiIngame`. The non-overlapping focused
+rerun and full suite above both pass. No gameplay change was made to mask that
+build-output conflict. Keep Maven compilation and IntelliJ Make serial.
+
+Local verification logs are retained under
+`F:\Pulsar-Recovery\analysis\diagnostics-pr11-pr12-20261029`.
+Real multiplayer/server-check correlation remains untested; local handler and
+native graphics tests do not establish Intave or Polar compatibility.
+
+## Interactive smoke test
+
+The existing IntelliJ configuration **Neutron Client (Java 8)** launched the
+client as `NeutronTest` from the existing `test_run`. A separate creative,
+superflat world was generated in `test_run/saves/New World-`; the existing
+`New World` was not opened. No client, assets or existing world was copied.
+
+Observed in the running game: the diagnostics HUD and raw/final input summary
+render, F8 adds a timestamped marker, F9 removes the HUD, and spawn corrections
+produce separate S08 receipt/application entries. The existing watermark,
+array list and session HUD overlap some diagnostic lines when enabled together;
+this is a remaining readability limitation, not a GL crash. Client-category
+registration is covered by the registry test; ClickGUI category selection was
+not visually verified in this session. Nonzero movement input, S12/knockback
+values and lifecycle details have automated consumer/event coverage; a controlled
+multiplayer reproduction is still required for server conclusions.
+
+Small pre-smoke settings copies are retained with the local evidence. No existing
+profile, account or world files are committed or removed. The new test world
+remains local as an explicit runtime-test artifact.

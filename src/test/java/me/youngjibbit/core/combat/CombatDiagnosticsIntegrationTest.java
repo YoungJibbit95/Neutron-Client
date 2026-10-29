@@ -14,6 +14,10 @@ import me.youngjibbit.module.ModuleManager;
 import me.youngjibbit.module.impl.client.CombatDiagnostics;
 import net.minecraft.network.play.server.S08PacketPlayerPosLook;
 import net.minecraft.network.play.server.S12PacketEntityVelocity;
+import net.minecraft.network.play.client.C03PacketPlayer;
+import net.minecraft.client.Minecraft;
+import net.minecraft.client.network.NetHandlerPlayClient;
+import net.minecraft.client.renderer.RenderGlobal;
 import me.zero.alpine.event.EventPhase;
 import me.zero.alpine.listener.Listener;
 import me.zero.alpine.listener.Subscribe;
@@ -23,6 +27,8 @@ import org.lwjgl.input.Keyboard;
 import org.reflections.Reflections;
 
 import java.lang.reflect.Field;
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -266,4 +272,128 @@ public class CombatDiagnosticsIntegrationTest {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    private Map<Class<? extends Module>, Module> registry() throws Exception {
+        Field field = ModuleManager.class.getDeclaredField("modulesByClass");
+        field.setAccessible(true);
+        return (Map<Class<? extends Module>, Module>) field.get(Pulsar.INSTANCE.getMm());
+    }
+
+    private static void setField(Class<?> owner, String name, Object instance, Object value) throws Exception {
+        Field field = owner.getDeclaredField(name);
+        field.setAccessible(true);
+        field.set(instance, value);
+    }
+
+    @Test public void diagnosticsEnabledAndDisabledHaveIdenticalMovementForEveryMoveFixMode() throws Exception {
+        try (RotationBehaviorHookTest.Fixture f = new RotationBehaviorHookTest.Fixture()) {
+            CombatDiagnostics diagnostics = diagnostics();
+            Map<Class<? extends Module>, Module> modules = registry();
+            Module prior = modules.put(CombatDiagnostics.class, diagnostics);
+            try {
+                for (String mode : new String[]{"Aus", "Einfach", "Präzise", "Rotationsgebunden",
+                        "Legacy Strict", "Legacy Rounded"}) {
+                    f.aura.getModeSetting("movefix").setValue(mode);
+                    for (float[] input : new float[][]{{0, 1}, {.2f, .2f}, {-1, 1}, {0, 0}}) {
+                        diagnostics.setToggled(false);
+                        f.player.rotationYaw = 180;
+                        f.accept("aura", 73);
+                        f.player.motionX = .1; f.player.motionY = .2; f.player.motionZ = .3;
+                        f.player.moveFlying(input[0], input[1], .1f);
+                        double x = f.player.motionX, y = f.player.motionY, z = f.player.motionZ;
+                        assertEquals(0, trace(diagnostics).size());
+
+                        diagnostics.setToggled(true);
+                        f.player.motionX = .1; f.player.motionY = .2; f.player.motionZ = .3;
+                        f.player.moveFlying(input[0], input[1], .1f);
+                        assertEquals(mode, x, f.player.motionX, 0);
+                        assertEquals(mode, y, f.player.motionY, 0);
+                        assertEquals(mode, z, f.player.motionZ, 0);
+                        assertEquals(180, f.player.rotationYaw, 0);
+                        Pulsar.BUS.post(new EventKey(Keyboard.KEY_F8));
+                        assertTrue(trace(diagnostics).recent(1).get(0).contains("moveApplied="));
+                    }
+                }
+                Pulsar.BUS.post(new WorldEvent.Unload(f.world));
+                Pulsar.BUS.post(new EventKey(Keyboard.KEY_F8));
+                assertTrue(trace(diagnostics).recent(1).get(0).contains("moveSample=none"));
+                assertNull(f.channel.readOutbound());
+            } finally {
+                diagnostics.setToggled(false);
+                if (prior == null) modules.remove(CombatDiagnostics.class);
+                else modules.put(CombatDiagnostics.class, prior);
+            }
+        }
+    }
+
+    @Test public void realS08HandlerKeepsMixedAxisPhysicsAndQueuesAckBeforeDiagnosticOutput() throws Exception {
+        try (RotationBehaviorHookTest.Fixture f = new RotationBehaviorHookTest.Fixture()) {
+            CombatDiagnostics diagnostics = diagnostics();
+            diagnostics.getBooleanSetting("Console Attack Log").setValue(true);
+            Map<Class<? extends Module>, Module> modules = registry();
+            Module prior = modules.put(CombatDiagnostics.class, diagnostics);
+            Field config = net.minecraft.src.Config.class.getDeclaredField("minecraft");
+            config.setAccessible(true);
+            Object previousConfig = config.get(null);
+            PrintStream previousOutput = System.out;
+            final boolean[] outputAfterAck = {false};
+            try (PrintStream diagnosticOutput = new PrintStream(new ByteArrayOutputStream()) {
+                @Override public void println(String line) {
+                    if (line.contains("S08_APPLIED_NOT_A_FLAG")) {
+                        assertEquals("ACK must already be queued before optional output", 1,
+                                f.channel.outboundMessages().size());
+                        outputAfterAck[0] = true;
+                    }
+                }
+            }) {
+                setField(Minecraft.class, "mcThread", f.mc, Thread.currentThread());
+                setField(NetHandlerPlayClient.class, "gameController", f.player.sendQueue, f.mc);
+                setField(NetHandlerPlayClient.class, "doneLoadingTerrain", f.player.sendQueue, true);
+                f.mc.renderGlobal = RotationBehaviorHookTest.bare(RenderGlobal.class);
+                config.set(null, f.mc);
+                System.setOut(diagnosticOutput);
+                for (boolean enabled : new boolean[]{false, true}) {
+                    diagnostics.setToggled(enabled);
+                    f.player.setPositionAndRotation(100, 64, -20, 30, -10);
+                    f.player.motionX = .12; f.player.motionY = .45; f.player.motionZ = -.78;
+                    S08PacketPlayerPosLook packet = new S08PacketPlayerPosLook(.5, 70, -2, 10, 5,
+                            EnumSet.of(S08PacketPlayerPosLook.EnumFlags.X,
+                                    S08PacketPlayerPosLook.EnumFlags.Z, S08PacketPlayerPosLook.EnumFlags.Y_ROT));
+                    f.player.sendQueue.handlePlayerPosLook(packet);
+                    assertEquals(100.5, f.player.posX, 0);
+                    assertEquals(70, f.player.posY, 0);
+                    assertEquals(-22, f.player.posZ, 0);
+                    assertEquals(40, f.player.rotationYaw, 0);
+                    assertEquals(5, f.player.rotationPitch, 0);
+                    assertEquals(.12, f.player.motionX, 0);
+                    assertEquals(0, f.player.motionY, 0);
+                    assertEquals(-.78, f.player.motionZ, 0);
+                    Object outbound = f.channel.readOutbound();
+                    assertTrue(outbound instanceof C03PacketPlayer.C06PacketPlayerPosLook);
+                    C03PacketPlayer ack = (C03PacketPlayer) outbound;
+                    assertEquals(100.5, ack.getPositionX(), 0);
+                    assertEquals(70, ack.getPositionY(), 0);
+                    assertEquals(-22, ack.getPositionZ(), 0);
+                    assertEquals(40, ack.getYaw(), 0);
+                    assertEquals(5, ack.getPitch(), 0);
+                    assertFalse(ack.isOnGround());
+                    assertNull("Diagnostics must not emit another packet", f.channel.readOutbound());
+                    assertEquals(enabled ? 1 : 0, trace(diagnostics).size());
+                    if (enabled) {
+                        assertTrue(outputAfterAck[0]);
+                        assertTrue(trace(diagnostics).recent(1).get(0)
+                                .contains("appliedOffset=0.5000/6.0000/-2.0000"));
+                    } else assertFalse(outputAfterAck[0]);
+                    assertEquals(.5, packet.getX(), 0);
+                    assertEquals(10, packet.getYaw(), 0);
+                }
+            } finally {
+                System.setOut(previousOutput);
+                config.set(null, previousConfig);
+                diagnostics.setToggled(false);
+                if (prior == null) modules.remove(CombatDiagnostics.class);
+                else modules.put(CombatDiagnostics.class, prior);
+            }
+        }
+    }
 }
