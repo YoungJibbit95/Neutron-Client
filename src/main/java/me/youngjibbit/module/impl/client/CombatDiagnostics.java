@@ -28,6 +28,7 @@ import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.network.play.server.S08PacketPlayerPosLook;
 import net.minecraft.network.play.server.S12PacketEntityVelocity;
 import net.minecraft.util.MathHelper;
@@ -86,16 +87,36 @@ public final class CombatDiagnostics extends Module {
      * Read-only observation at the actual moveFlying consumer, AFTER bus listeners and MoveFix
      * have selected their final inputs. No event is posted and no movement is changed.
      */
+    private static CombatDiagnostics active() {
+        if (Pulsar.INSTANCE == null || Pulsar.INSTANCE.getMm() == null) return null;
+        CombatDiagnostics diagnostics =
+                (CombatDiagnostics) Pulsar.INSTANCE.getMm().getModule(CombatDiagnostics.class);
+        return diagnostics != null && diagnostics.isToggled() && diagnostics.inWorld() ? diagnostics : null;
+    }
+
     public static void observeMoveFlying(EntityPlayerSP player,
                                           float rawStrafe, float rawForward, float rawYaw,
                                           float finalStrafe, float finalForward, float finalYaw, float friction) {
-        if (Pulsar.INSTANCE == null || Pulsar.INSTANCE.getMm() == null) return;
-        ModuleManager modules = Pulsar.INSTANCE.getMm();
-        CombatDiagnostics diagnostics = (CombatDiagnostics) modules.getModule(CombatDiagnostics.class);
-        if (diagnostics == null || !diagnostics.isToggled() || !diagnostics.inWorld()
-                || diagnostics.mc.thePlayer != player) return;
+        CombatDiagnostics diagnostics = active();
+        if (diagnostics == null || diagnostics.mc.thePlayer != player) return;
         diagnostics.lastMovement = new MovementSample(player.ticksExisted, System.currentTimeMillis(),
                 rawStrafe, rawForward, rawYaw, finalStrafe, finalForward, finalYaw, friction);
+    }
+
+    /** Actual main-thread S08 application, not a packet-receipt estimate and not a flag. */
+    public static void observeAppliedS08(EntityPlayer player, double beforeX, double beforeY, double beforeZ,
+                                         float beforeYaw, float beforePitch) {
+        CombatDiagnostics diagnostics = active();
+        if (diagnostics == null || diagnostics.mc.thePlayer != player) return;
+        double dx = player.posX - beforeX, dy = player.posY - beforeY, dz = player.posZ - beforeZ;
+        String details = String.format(Locale.ROOT,
+                "s08Phase=APPLIED appliedPre=%.4f/%.4f/%.4f appliedPost=%.4f/%.4f/%.4f"
+                        + " appliedOffset=%.4f/%.4f/%.4f appliedDistance=%.4f appliedRotationDelta=%.2f/%.2f",
+                beforeX, beforeY, beforeZ, player.posX, player.posY, player.posZ,
+                dx, dy, dz, Math.sqrt(dx * dx + dy * dy + dz * dz),
+                MathHelper.wrapAngleTo180_float(player.rotationYaw - beforeYaw),
+                player.rotationPitch - beforePitch);
+        diagnostics.capture("S08_APPLIED_NOT_A_FLAG", null, details);
     }
 
     public CombatDiagnostics() {
