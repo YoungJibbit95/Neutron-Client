@@ -63,7 +63,7 @@ public class LegacyScaffoldTest {
                     f.scaffold.onEnable();int placements=0;
                     try {
                         for(int tick=0;tick<18 && !scene.blocks.containsKey(new BlockPos(0,63,0));tick++) {
-                            scene.motionTime.addAndGet(50_000_000L);f.runtime.getScaffoldPlacementService().beginTick();f.player.onUpdateWalkingPlayer();
+                            scene.motionTime.addAndGet(50_000_000L);f.runtime.getScaffoldPlacementService().beginTick();ScaffoldClientFlowTest.ordinaryWalking(f);
                             Object sent;while((sent=f.channel.readOutbound())!=null)if(sent instanceof C08PacketPlayerBlockPlacement)placements++;
                         }
                         assertTrue(mode+"/"+timing+"/"+round,scene.blocks.containsKey(new BlockPos(0,63,0)));assertEquals(1,placements);assertEquals(63,f.player.inventory.mainInventory[3].stackSize);
@@ -73,13 +73,17 @@ public class LegacyScaffoldTest {
                 }
             }
         }
-        @Test public void settingChangesInvalidateAPendingPlanAndItsRotationOwnership() throws Exception {
+        @Test public void settingChangesInvalidateThePlanButOnlyRotationsOffReleasesOwnership() throws Exception {
             {
                     RotationBehaviorHookTest.Fixture f=client;
                 ScaffoldClientFlowTest.Scene scene=ScaffoldClientFlowTest.prepare(f,.5,.48);f.scaffold.onEnable();
                 try {
-                    f.runtime.getScaffoldPlacementService().beginTick();f.player.onUpdateWalkingPlayer();assertNotNull(current(f));
-                    f.scaffold.getBooleanSetting("Round Rots").setValue(true);assertNull(current(f));assertNull(f.runtime.getRotationManager().getConfirmedOwner());
+                    f.runtime.getScaffoldPlacementService().beginTick();ScaffoldClientFlowTest.ordinaryWalking(f);assertNotNull(current(f));
+                    f.scaffold.getBooleanSetting("Round Rots").setValue(true);assertNull(current(f));
+                    // SCF-1a: changing a placement setting ends its plan, not its accepted source.
+                    assertEquals("scaffold",f.runtime.getRotationManager().getConfirmedOwner());
+                    f.scaffold.getBooleanSetting("Rotations").setValue(false);assertNull(f.runtime.getRotationManager().getConfirmedOwner());
+                    f.scaffold.getBooleanSetting("Rotations").setValue(true);
                     assertFalse(scene.blocks.containsKey(new BlockPos(0,63,0)));
                 } finally {f.scaffold.onDisable();}
             }

@@ -2326,8 +2326,9 @@ public abstract class EntityLivingBase extends Entity
         this.potionsNeedUpdate = true;
     }
 
+    @Override
     public String getName()
     {
-        return getName();
+        return this.getCommandSenderName();
     }
 }

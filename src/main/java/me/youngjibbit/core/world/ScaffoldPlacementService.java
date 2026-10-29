@@ -208,9 +208,20 @@ public final class ScaffoldPlacementService {
     /** Consumes at most one controller attempt per motion cycle, including locally rejected clicks. */
     public boolean place(PlacementTarget target, RotationManager rotations, boolean pre, long sequence, long delay,
                          boolean silentSwitch, boolean swing, boolean silentSwing) {
+        return placeWithAuthority(target, rotations, pre, sequence, delay, silentSwitch, swing, silentSwing,
+                null, () -> true, () -> true);
+    }
+
+    /** Production authority is additive: null source retains the accepted camera/legacy path.
+     * actionValid includes admission; sceneValid also protects cleanup after callback boundaries. */
+    public boolean placeWithAuthority(PlacementTarget target, RotationManager rotations, boolean pre, long sequence, long delay,
+                                     boolean silentSwitch, boolean swing, boolean silentSwing, String requiredRotationSource,
+                                     BooleanSupplier actionValid, BooleanSupplier sceneValid) {
         lastRejection=Rejection.NONE;
         if (target == null) return reject(Rejection.NO_TARGET);
+        if (!actionValid.getAsBoolean()) return reject(Rejection.CONTEXT);
         if (sequence != rotations.getMotionSequence()) return reject(Rejection.STALE_PLAN);
+        if (requiredRotationSource != null && !rotations.canUseRotation(requiredRotationSource, pre)) return reject(Rejection.ROTATION);
         if (sequence == lastSequence || tick == lastAttemptTick) return reject(Rejection.BUDGET);
         if (clock.getAsLong() - lastAttempt < Math.max(0, delay)) return reject(Rejection.DELAY);
         if (!isValid(target)) return reject(Rejection.CHANGED);
@@ -222,7 +233,8 @@ public final class ScaffoldPlacementService {
         try {
             if (switched) access.selectSlot(target.getSlot());
             if (!access.syncSlot()) return reject(Rejection.SLOT);
-            BooleanSupplier gate = () -> (sequence == rotations.getMotionSequence()
+            BooleanSupplier gate = () -> (actionValid.getAsBoolean() && sequence == rotations.getMotionSequence()
+                    && usableRotation(rotations, pre, requiredRotationSource)
                     && valid(target, target.getSlot()) && effectiveHit(target, rotations, pre) != null)
                     || reject(Rejection.LATE_CHANGE);
             if (!gate.getAsBoolean()) return false;
@@ -230,17 +242,22 @@ public final class ScaffoldPlacementService {
             lastAttemptTick = tick;
             lastAttempt = clock.getAsLong();
             MovingObjectPosition hit = effectiveHit(target, rotations, pre);
+            if (hit == null) return reject(Rejection.LATE_CHANGE);
             placed = access.click(target, hit.hitVec, gate);
-            if (placed && swing && sameContext(target)) access.swing(silentSwing);
+            if (placed && swing && sameContext(target) && actionValid.getAsBoolean()) access.swing(silentSwing);
             if (!placed && lastRejection==Rejection.NONE) reject(Rejection.CONTROLLER);
             return placed; // Local controller result only; the server may still reject the placement.
         } finally {
             // A listener/manual selection wins. Never send a slot restore into a replacement world/player.
-            if (sameIdentity(target)) {
+            if (sameIdentity(target) && sceneValid.getAsBoolean()) {
                 if (switched && (silentSwitch || !placed) && access.selectedSlot() == target.getSlot()) access.selectSlot(previous);
                 access.syncSlot();
             }
         }
+    }
+
+    private boolean usableRotation(RotationManager rotations, boolean pre, String requiredSource) {
+        return requiredSource == null ? rotations.canUseRotation(pre) : rotations.canUseRotation(requiredSource, pre);
     }
 
     private static final class MinecraftAccess implements Access {

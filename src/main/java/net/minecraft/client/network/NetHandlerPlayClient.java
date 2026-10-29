@@ -8,6 +8,8 @@ import io.netty.buffer.Unpooled;
 import java.io.File;
 import java.io.IOException;
 import java.util.Collection;
+import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -251,6 +253,11 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
      */
     private boolean doneLoadingTerrain;
     private final Map<UUID, NetworkPlayerInfo> playerInfoMap = Maps.<UUID, NetworkPlayerInfo>newHashMap();
+    private static final int MAX_PENDING_PLAYER_SPAWNS = 128;
+    private final Map<Integer, S0CPacketSpawnPlayer> pendingPlayerSpawns = Maps.newLinkedHashMap();
+    private WorldClient pendingSpawnWorld;
+    private me.youngjibbit.core.network.PacketPipeline pendingSpawnPipeline;
+    private long pendingSpawnEpoch = Long.MIN_VALUE;
     public int currentServerMaxPlayers = 20;
     private boolean field_147308_k = false;
 
@@ -274,6 +281,7 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
      */
     public void cleanup()
     {
+        this.clearPendingPlayerSpawns();
         this.clientWorldController = null;
     }
 
@@ -284,6 +292,7 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
     public void handleJoinGame(S01PacketJoinGame packetIn)
     {
         PacketThreadUtil.checkThreadAndEnqueue(packetIn, this, this.gameController);
+        this.clearPendingPlayerSpawns();
         this.gameController.playerController = new PlayerControllerMP(this.gameController, this);
         this.clientWorldController = new WorldClient(this, new WorldSettings(0L, packetIn.getGameType(), false, packetIn.isHardcoreMode(), packetIn.getWorldType()), packetIn.getDimension(), packetIn.getDifficulty(), this.gameController.mcProfiler);
         this.gameController.gameSettings.difficulty = packetIn.getDifficulty();
@@ -553,12 +562,29 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
     public void handleSpawnPlayer(S0CPacketSpawnPlayer packetIn)
     {
         PacketThreadUtil.checkThreadAndEnqueue(packetIn, this, this.gameController);
+        this.syncPendingPlayerSpawns();
+        if (this.clientWorldController == null || packetIn.getPlayer() == null) return;
+        this.pendingPlayerSpawns.remove(packetIn.getEntityID());
+        NetworkPlayerInfo playerInfo = this.getPlayerInfo(packetIn.getPlayer());
+        if (playerInfo == null)
+        {
+            // Some servers send the spawn before ADD_PLAYER. Wait for the real profile;
+            // a fabricated profile would lose the player's name and skin properties.
+            if (this.pendingPlayerSpawns.size() >= MAX_PENDING_PLAYER_SPAWNS)
+            {
+                Iterator<Integer> oldest = this.pendingPlayerSpawns.keySet().iterator();
+                oldest.next();
+                oldest.remove();
+            }
+            this.pendingPlayerSpawns.put(packetIn.getEntityID(), packetIn);
+            return;
+        }
         double d0 = (double)packetIn.getX() / 32.0D;
         double d1 = (double)packetIn.getY() / 32.0D;
         double d2 = (double)packetIn.getZ() / 32.0D;
         float f = (float)(packetIn.getYaw() * 360) / 256.0F;
         float f1 = (float)(packetIn.getPitch() * 360) / 256.0F;
-        EntityOtherPlayerMP entityotherplayermp = new EntityOtherPlayerMP(this.gameController.theWorld, this.getPlayerInfo(packetIn.getPlayer()).getGameProfile());
+        EntityOtherPlayerMP entityotherplayermp = new EntityOtherPlayerMP(this.clientWorldController, playerInfo.getGameProfile());
         entityotherplayermp.prevPosX = entityotherplayermp.lastTickPosX = (double)(entityotherplayermp.serverPosX = packetIn.getX());
         entityotherplayermp.prevPosY = entityotherplayermp.lastTickPosY = (double)(entityotherplayermp.serverPosY = packetIn.getY());
         entityotherplayermp.prevPosZ = entityotherplayermp.lastTickPosZ = (double)(entityotherplayermp.serverPosZ = packetIn.getZ());
@@ -580,6 +606,58 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
         if (list != null)
         {
             entityotherplayermp.getDataWatcher().updateWatchedObjectsFromList(list);
+        }
+    }
+
+    private void clearPendingPlayerSpawns()
+    {
+        this.pendingPlayerSpawns.clear();
+        this.pendingSpawnWorld = null;
+        this.pendingSpawnPipeline = null;
+        this.pendingSpawnEpoch = Long.MIN_VALUE;
+    }
+
+    /** Pending spawns are valid only in the world and packet generation that received them. */
+    private void syncPendingPlayerSpawns()
+    {
+        me.youngjibbit.core.network.PacketPipeline pipeline = this.netManager.getClientPackets();
+        long epoch = pipeline == null ? -1L : pipeline.getContextVersion();
+        if (this.pendingSpawnWorld != this.clientWorldController || this.pendingSpawnPipeline != pipeline
+                || this.pendingSpawnEpoch != epoch)
+        {
+            this.pendingPlayerSpawns.clear();
+            this.pendingSpawnWorld = this.clientWorldController;
+            this.pendingSpawnPipeline = pipeline;
+            this.pendingSpawnEpoch = epoch;
+        }
+    }
+
+    private void spawnPlayersAwaitingProfile(UUID playerId)
+    {
+        this.syncPendingPlayerSpawns();
+        WorldClient world = this.pendingSpawnWorld;
+        me.youngjibbit.core.network.PacketPipeline pipeline = this.pendingSpawnPipeline;
+        long epoch = this.pendingSpawnEpoch;
+        List<S0CPacketSpawnPlayer> ready = new ArrayList<>();
+        Iterator<S0CPacketSpawnPlayer> pending = this.pendingPlayerSpawns.values().iterator();
+        while (pending.hasNext())
+        {
+            S0CPacketSpawnPlayer packet = pending.next();
+            if (playerId.equals(packet.getPlayer()))
+            {
+                ready.add(packet);
+                pending.remove();
+            }
+        }
+        for (S0CPacketSpawnPlayer packet : ready)
+        {
+            this.syncPendingPlayerSpawns();
+            if (this.pendingSpawnWorld != world || this.pendingSpawnPipeline != pipeline
+                    || this.pendingSpawnEpoch != epoch) break;
+            // Another spawn may already have reused this entity ID while the profile was missing.
+            if (this.clientWorldController != null
+                    && this.clientWorldController.getEntityByID(packet.getEntityID()) == null)
+                this.handleSpawnPlayer(packet);
         }
     }
 
@@ -677,9 +755,11 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
     public void handleDestroyEntities(S13PacketDestroyEntities packetIn)
     {
         PacketThreadUtil.checkThreadAndEnqueue(packetIn, this, this.gameController);
+        this.syncPendingPlayerSpawns();
 
         for (int i = 0; i < packetIn.getEntityIDs().length; ++i)
         {
+            this.pendingPlayerSpawns.remove(packetIn.getEntityIDs()[i]);
             this.clientWorldController.removeEntityFromWorld(packetIn.getEntityIDs()[i]);
         }
     }
@@ -821,6 +901,7 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
      */
     public void onDisconnect(IChatComponent reason)
     {
+        this.clearPendingPlayerSpawns();
         this.gameController.loadWorld((WorldClient)null);
 
         if (this.guiScreenServer != null)
@@ -1136,6 +1217,7 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
     public void handleRespawn(S07PacketRespawn packetIn)
     {
         PacketThreadUtil.checkThreadAndEnqueue(packetIn, this, this.gameController);
+        this.clearPendingPlayerSpawns();
 
         if (packetIn.getDimensionID() != this.gameController.thePlayer.dimension)
         {
@@ -1698,12 +1780,15 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
     public void handlePlayerListItem(S38PacketPlayerListItem packetIn)
     {
         PacketThreadUtil.checkThreadAndEnqueue(packetIn, this, this.gameController);
+        this.syncPendingPlayerSpawns();
 
         for (S38PacketPlayerListItem.AddPlayerData s38packetplayerlistitem$addplayerdata : packetIn.func_179767_a())
         {
             if (packetIn.func_179768_b() == S38PacketPlayerListItem.Action.REMOVE_PLAYER)
             {
                 this.playerInfoMap.remove(s38packetplayerlistitem$addplayerdata.getProfile().getId());
+                this.pendingPlayerSpawns.values().removeIf(spawn ->
+                        spawn.getPlayer().equals(s38packetplayerlistitem$addplayerdata.getProfile().getId()));
             }
             else
             {
@@ -1722,6 +1807,7 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
                         case ADD_PLAYER:
                             networkplayerinfo.setGameType(s38packetplayerlistitem$addplayerdata.getGameMode());
                             networkplayerinfo.setResponseTime(s38packetplayerlistitem$addplayerdata.getPing());
+                            this.spawnPlayersAwaitingProfile(networkplayerinfo.getGameProfile().getId());
                             break;
 
                         case UPDATE_GAME_MODE:

@@ -20,6 +20,7 @@ public class ClickCheckBox extends Component.Sub<CheckBoxValue> {
     }
 
     private float toggleX() { return ClickControlStyle.right(x, width) - 25; }
+    @Override public me.youngjibbit.clickgui.utils.ClipRect presentationBounds(){return new me.youngjibbit.clickgui.utils.ClipRect(toggleX(),y+5,25,14);}
 
     @Override
     public void drawScreen(int mouseX, int mouseY) {
@@ -33,6 +34,7 @@ public class ClickCheckBox extends Component.Sub<CheckBoxValue> {
                 new Color(Theme.interpolateRGB(new Color(210, 214, 222).getRGB(), (theme.isCustom()?theme.getTextColor().getRGB():Color.WHITE.getRGB()), progress), true));
         ClickControlStyle.label(me.youngjibbit.utils.render.UiEffects.settingLabel(value), x + 12, y + 6, toggleX() - x - 20, theme.isCustom() ? theme.getTextColor().getRGB() : 0xffe4e4e8);
         if (hit(mouseX, mouseY, toggleX() - 3, y + 2, 31, 20)) UIUtils.drawRound(toggleX() + 9 + 11 * progress, y + 10, 3, 3, 1.5f, new Color(255,255,255,150));
+        drawFeedback();
     }
 
     @Override

@@ -262,6 +262,8 @@ public class EntityPlayerSP extends AbstractClientPlayer
                 return;
             }
             rotations.resolve(motionEvent);
+            final RotationManager.ResolvedC03SendTicket sendTicket =
+                    rotations.captureResolvedC03SendTicket(this.lastReportedYaw, this.lastReportedPitch);
 
             double posX = motionEvent.getX(), posY = motionEvent.getY(), posZ = motionEvent.getZ();
             float rotationYaw = motionEvent.getYaw(), rotationPitch = motionEvent.getPitch();
@@ -294,7 +296,17 @@ public class EntityPlayerSP extends AbstractClientPlayer
                 flag2 = false;
             }
 
-            net.minecraft.network.Packet<?> acceptedPacket = this.sendQueue.addToSendQueueTracked(movementPacket);
+            net.minecraft.network.Packet<?> acceptedPacket;
+            try {
+                acceptedPacket = sendTicket == null ? this.sendQueue.addToSendQueueTracked(movementPacket)
+                        : connection.addToSendQueueTracked(movementPacket, sendTicket.guard(movementPacket));
+            } catch (RuntimeException | Error error) {
+                if (sendTicket != null && rotations.getMotionSequence() == motionSequence && RuntimeServices.rotation() == rotations)
+                    rotations.finishMotion(rotationYaw, rotationPitch, false);
+                throw error;
+            }
+            // A nested walking frame owns its own finish/report/POST, even if this older packet was denied.
+            if (sendTicket != null && (rotations.getMotionSequence() != motionSequence || RuntimeServices.rotation() != rotations)) return;
             boolean accepted = acceptedPacket instanceof C03PacketPlayer && this.sendQueue.getNetworkManager().isChannelOpen();
             C03PacketPlayer sent = accepted ? (C03PacketPlayer) acceptedPacket : null;
             if (accepted) {

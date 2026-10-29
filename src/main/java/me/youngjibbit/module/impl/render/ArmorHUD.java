@@ -124,11 +124,17 @@ public class ArmorHUD extends Module {
             }finally{mc.getRenderItem().zLevel=oldZ;}
         }
     }));}
-    // Durability is semantic (remaining ratio), while its phase follows shared UI motion.
+    // Equipment information is a ratio, independent of decorative motion and direction.
     static int durabilityColor(Theme theme,float remaining){
-        UiEffects.Gradient gradient=UiEffects.gradient(theme,UiEffects.Channel.BORDER);
-        float t=UiEffects.options().gradients?gradient.position(1-remaining,1-remaining,1,1):0;
-        return Theme.interpolateRGB(theme.getPrimaryGradientRGB(),theme.getSecondaryGradientRGB(),t);
+        remaining=Float.isFinite(remaining)?Math.max(0,Math.min(1,remaining)):0;
+        int palette=Theme.interpolateRGB(theme.getPrimaryGradientRGB(),theme.getSecondaryGradientRGB(),1-remaining);
+        me.youngjibbit.module.impl.client.ClientSettings settings=me.youngjibbit.module.impl.client.ClientSettings.current();
+        boolean priority=settings==null||settings.semanticColorPriority.getValue();
+        int low=UiEffects.semanticColor(UiEffects.SemanticRole.ERROR,palette,priority);
+        int middle=UiEffects.semanticColor(UiEffects.SemanticRole.WARNING,palette,priority);
+        int high=UiEffects.semanticColor(UiEffects.SemanticRole.SUCCESS,palette,priority);
+        int color=remaining<=.5f?Theme.interpolateRGB(low,middle,remaining*2):Theme.interpolateRGB(middle,high,(remaining-.5f)*2);
+        return (palette&0xff000000)|(color&0x00ffffff);
     }
     static final class Cell {final ItemStack item;final String label;float x,y,w;boolean mini;Cell(ItemStack item,String label){this.item=item;this.label=label;}}
     static final class Frame {float x,y,width,height,scale;boolean horizontal,background,blur,glow,bar;Theme theme;final TTFFontRenderer font;final TTFFontRenderer emptyFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 12");final java.util.List<Cell> cells=new ArrayList<>();Frame(TTFFontRenderer font){this.font=font;}}

@@ -9,3 +9,8 @@
 /run-local/
 /logs/
 /crash-reports/
+
+# Existing local diagnostic logs
+*.log
+hs_err_pid*.log
+replay_pid*.log

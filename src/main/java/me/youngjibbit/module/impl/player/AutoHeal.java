@@ -1,5 +1,8 @@
 package me.youngjibbit.module.impl.player;
 
+import me.youngjibbit.core.bootstrap.RuntimeServices;
+import me.youngjibbit.core.contract.SceneContext;
+import me.youngjibbit.core.observation.RuntimeObservation;
 import me.youngjibbit.event.packet.TickEvent;
 import me.youngjibbit.event.world.WorldEvent;
 import me.youngjibbit.module.Category;
@@ -50,13 +53,34 @@ public class AutoHeal extends Module {
         bindContext();
         if (transfer.blocked()) { info = transfer.status(); return; }
         info = "";
-        if (mc.thePlayer == null || mc.theWorld == null || mc.playerController == null || using ||
+        if (!e.isPre() || mc.thePlayer == null || mc.theWorld == null || mc.playerController == null || using ||
                 !mc.inGameHasFocus || !mc.thePlayer.isEntityAlive() || mc.thePlayer.isSpectator() || mc.thePlayer.isUsingItem() || mc.thePlayer.inventory.getItemStack() != null || mc.currentScreen != null ||
                 mc.thePlayer.getHealth() > minHealth.getValue().floatValue() || System.nanoTime() < nextUseNanos) return;
         boolean potion = "Potions".equals(currentMode.getValue());
-        if (potion ? shouldUsePotion() : shouldUseSoup()) useHealingItem(potion);
-        else if (inventoryTransfers.getValue()) transfer.begin(stack -> isHealingItem(stack, potion));
+        if (potion ? shouldUsePotion() : shouldUseSoup()) {
+            if (mayStartTickAction()) useHealingItem(potion);
+        } else if (inventoryTransfers.getValue() && mayStartTickAction())
+            transfer.begin(stack -> isHealingItem(stack, potion));
     });
+
+    /** Start-only prerequisite; pending cleanup and later packet guards do not require this tick. */
+    private static boolean mayStartTickAction() {
+        RuntimeObservation observation = RuntimeServices.observation();
+        if (observation == null) return false;
+        long tick = observation.getActiveOuterTickId();
+        // TickEvent precedes the player decision. Neither a live body nor its history grants entry.
+        if (tick < 0 || observation.getCurrentStep() != null
+                || !observation.getLastSteps().isEmpty() || observation.getLastWithheld() != null) return false;
+        SceneContext before = observation.captureScene();
+        SceneContext fresh = observation.captureScene();
+        // Sampling can reenter lifecycle code: recheck canonical identity and lifetime afterwards.
+        return RuntimeServices.observation() == observation && observation.getActiveOuterTickId() == tick
+                && observation.getCurrentStep() == null && observation.getLastSteps().isEmpty()
+                && observation.getLastWithheld() == null
+                && before.isValid() && before.getAvailability() == SceneContext.Availability.ACTIVE
+                && fresh.isValid() && fresh.getAvailability() == SceneContext.Availability.ACTIVE
+                && before.sameSceneAs(fresh);
+    }
 
     private boolean isHealingItem(ItemStack stack, boolean potion) {
         if (stack == null || stack.stackSize <= 0) return false;

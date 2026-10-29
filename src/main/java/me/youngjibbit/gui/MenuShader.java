@@ -20,7 +20,7 @@ public class MenuShader implements Eierlecken
 {
     private static final ShaderUtil[] backgrounds=new ShaderUtil[6];
     private static Framebuffer fb;
-    private static ShaderUtil shader(int mode){if(backgrounds[mode-1]==null)backgrounds[mode-1]=new ShaderUtil("Flauxy/Shaders/menuBackground"+mode+".frag","Tenacity/shaders/vertex.vsh");return backgrounds[mode-1];}
+    private static ShaderUtil shader(int mode){if(backgrounds[mode-1]==null)backgrounds[mode-1]=new ShaderUtil("Flauxy/Shaders/menuBackground"+mode+".frag","Tenacity/Shaders/vertex.vsh");return backgrounds[mode-1];}
     private static int texture(){if(fb==null)try(me.youngjibbit.utils.render.RenderState state=new me.youngjibbit.utils.render.RenderState()){fb=new Framebuffer(1,1,false);}return fb.framebufferTexture;}
     public static void releaseResources(){for(int i=0;i<backgrounds.length;i++)if(backgrounds[i]!=null){backgrounds[i].close();backgrounds[i]=null;}if(fb!=null)try(me.youngjibbit.utils.render.RenderState state=new me.youngjibbit.utils.render.RenderState()){fb.deleteFramebuffer();fb=null;}}
 

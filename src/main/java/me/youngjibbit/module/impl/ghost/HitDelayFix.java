@@ -1,5 +1,7 @@
 package me.youngjibbit.module.impl.ghost;
 
+import me.youngjibbit.core.contract.AutomationEligibility.ModuleAction;
+import me.youngjibbit.core.observation.AutomatedActionAdmission;
 import me.youngjibbit.event.update.EventUpdate;
 import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
@@ -28,6 +30,7 @@ public class HitDelayFix extends Module
             }
 
             // Use the same input/controller path instead of emitting a second raw attack.
+            if (!AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)) return;
             Wrapper.mc.clickMouse();
         });
 
