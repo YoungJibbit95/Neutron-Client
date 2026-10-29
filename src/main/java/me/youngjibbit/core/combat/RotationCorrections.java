@@ -65,7 +65,8 @@ public final class RotationCorrections {
         Selection selected = current();
         if (selected == null || selected.movement == MoveFixController.Mode.OFF
                 || selected.movement == MoveFixController.Mode.PRECISE) return cameraDirectionYaw;
-        if (selected.movement == MoveFixController.Mode.ROTATION_BOUND)
+        if (selected.movement == MoveFixController.Mode.ROTATION_BOUND
+                || selected.movement == MoveFixController.Mode.LEGACY_STRICT)
             return selected.yaw + (cameraDirectionYaw - cameraYaw);
         MoveFixController.Input input = MoveFixController.correct(0, 1, cameraDirectionYaw,
                 selected.yaw, selected.movement);
