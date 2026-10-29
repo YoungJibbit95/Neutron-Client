@@ -199,12 +199,16 @@ Nie FPS-Zahlen erfinden oder Tests als bestanden behaupten, die nicht liefen.
 - [x] Source-Sichtung wichtiger Render-, HUD-, Event-, World-, Combat- und Config-Pfade.
 - [x] Unverhandelbaren Feature-/Visual-Parity-Vertrag festgelegt.
 - [x] Performance-Arbeit in separatem Branch isoliert.
-- [ ] P1-A ESP-Projektionsabfragen optimiert und validiert.
-- [ ] P1-B Velocity-Potion-Check optimiert und validiert.
-- [ ] P1-C GlowESP-Gewichte wiederverwendet und validiert.
+- [x] P1-A ESP-Projektionsabfragen im Arbeitsbranch umgestellt (**Native-Validierung offen**).
+- [x] P1-B Velocity-Potion-Check im Arbeitsbranch auf sequenzielle Iteration umgestellt (**Ingame-Validierung offen**).
+- [x] P1-C GlowESP-Gewichtsbuffer und Radius-Cache im Arbeitsbranch ergänzt (**GL-Validierung offen**).
+- [x] GitHub-Source-Checks: drei angepasste Klassen erneut gelesen; relevante Invarianten bestätigt.
+- [x] Isolierter Java-8-targeted Paritätscheck: 58.368 bit-identische Float-Einträge für Glow-Gewichte und 64 gleiche Potion-Predicate-Resultate. **Kein** Produktions-Build/GL-Test.
 - [ ] `mvn clean test` auf exakt diesem Branch erfolgreich.
 - [ ] Native-GL-/Visual-Smoke erfolgreich.
 - [ ] Erster Multiplayer-Playtest und Baseline-/Delta-Messung.
 - [ ] Gemessene Entscheidung über P2/FrameGraph und UI-Recode-Integration.
+
+**Validierungsstand dieses Branches (2026-10-29):** Statische Source-Checks und ein isolierter Java-8-targeted Berechnungsvergleich wurden ausgeführt. Ein vollständiger Maven-Build war in der vorhandenen Umgebung nicht möglich (keine Maven-Installation und kein Netz-Zugriff auf den Repo-Clone). Native GL- und Ingame-FPS-Tests stehen noch aus. Keine gemessene FPS-Steigerung behaupten.
 
 **Release-Status bis zu diesen Gates:** Kandidat, **nicht** als getestete FPS-Verbesserung oder fertiger Release deklarieren.
