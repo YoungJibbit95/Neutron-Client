@@ -85,6 +85,9 @@ public class GlowESP extends Module
     private int currentIterations;
 
     private final List<Framebuffer> framebufferList = new ArrayList<>();
+    // Keep all 256 uploaded floats (including zero padding) identical to the previous path.
+    private final FloatBuffer gaussianWeights = BufferUtils.createFloatBuffer(256);
+    private float cachedGaussianRadius = Float.NaN;
 
     Theme currentTheme = applyTheme();
     int[] outlineColors = getStaticOutlineGradientColors(currentTheme);
@@ -371,13 +374,19 @@ public class GlowESP extends Module
         glowShader.setUniformf("exposure", (float) (exposure.getValue().floatValue() * fadeIn.getOutput().floatValue()));
         glowShader.setUniformi("avoidTexture", 1);
 
-        final FloatBuffer buffer = BufferUtils.createFloatBuffer(256);
-        for (int i = 1; i <= radius.getValue().floatValue(); i++) {
-            buffer.put(MathUtils.calculateGaussianValue(i, radius.getValue().floatValue() / 2));
+        float currentRadius = radius.getValue().floatValue();
+        if (Float.compare(cachedGaussianRadius, currentRadius) != 0) {
+            gaussianWeights.clear();
+            // The old freshly allocated direct buffer held zeroes after the active weights.
+            for (int i = 0; i < gaussianWeights.capacity(); i++) gaussianWeights.put(0f);
+            gaussianWeights.rewind();
+            for (int i = 1; i <= currentRadius; i++) {
+                gaussianWeights.put(MathUtils.calculateGaussianValue(i, currentRadius / 2));
+            }
+            cachedGaussianRadius = currentRadius;
         }
-        buffer.rewind();
-
-        glUniform1(glowShader.getUniform("weights"), buffer);
+        gaussianWeights.rewind();
+        glUniform1(glowShader.getUniform("weights"), gaussianWeights);
     }
 
 
