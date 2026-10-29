@@ -773,6 +773,9 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
     {
         PacketThreadUtil.checkThreadAndEnqueue(packetIn, this, this.gameController);
         EntityPlayer entityplayer = this.gameController.thePlayer;
+        // Read-only baseline for diagnosis; no S08 values or vanilla application are changed.
+        final double beforeS08X = entityplayer.posX, beforeS08Y = entityplayer.posY, beforeS08Z = entityplayer.posZ;
+        final float beforeS08Yaw = entityplayer.rotationYaw, beforeS08Pitch = entityplayer.rotationPitch;
         double d0 = packetIn.getX();
         double d1 = packetIn.getY();
         double d2 = packetIn.getZ();
@@ -818,6 +821,9 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
 
         entityplayer.setPositionAndRotation(d0, d1, d2, f, f1);
         this.addToSendQueue(new C03PacketPlayer.C06PacketPlayerPosLook(entityplayer.posX, entityplayer.getEntityBoundingBox().minY, entityplayer.posZ, entityplayer.rotationYaw, entityplayer.rotationPitch, false));
+        // Observe only after queuing the vanilla acknowledgement; debug output cannot delay it.
+        me.youngjibbit.module.impl.client.CombatDiagnostics.observeAppliedS08(
+                entityplayer, beforeS08X, beforeS08Y, beforeS08Z, beforeS08Yaw, beforeS08Pitch);
 
         if (!this.doneLoadingTerrain)
         {

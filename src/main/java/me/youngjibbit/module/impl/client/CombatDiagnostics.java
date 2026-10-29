@@ -1,11 +1,14 @@
 package me.youngjibbit.module.impl.client;
 
+import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.bootstrap.RuntimeServices;
+import me.youngjibbit.core.combat.CombatCorrectionPreview;
 import me.youngjibbit.core.combat.CombatDiagnosticTrace;
 import me.youngjibbit.core.combat.CombatTargetTracker;
 import me.youngjibbit.core.combat.RotationManager;
 import me.youngjibbit.event.input.EventKey;
 import me.youngjibbit.event.motion.EventMotion;
+import me.youngjibbit.event.motion.KnockbackEvent;
 import me.youngjibbit.event.packet.PacketReceiveEvent;
 import me.youngjibbit.event.player.AttackEvent;
 import me.youngjibbit.event.player.AttackResultEvent;
@@ -14,15 +17,20 @@ import me.youngjibbit.event.world.WorldEvent;
 import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.ModuleInfo;
+import me.youngjibbit.module.ModuleManager;
+import me.youngjibbit.module.impl.combat.Aura;
 import me.youngjibbit.utils.render.RenderState;
 import me.youngjibbit.value.impl.CheckBoxValue;
 import me.zero.alpine.event.EventPriority;
 import me.zero.alpine.listener.Listener;
 import me.zero.alpine.listener.Subscribe;
+import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.entity.EntityLivingBase;
+import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.network.play.server.S08PacketPlayerPosLook;
+import net.minecraft.network.play.server.S12PacketEntityVelocity;
 import net.minecraft.util.MathHelper;
 import org.lwjgl.input.Keyboard;
 
@@ -40,6 +48,76 @@ public final class CombatDiagnostics extends Module {
     private final CheckBoxValue consoleLog = new CheckBoxValue("Console Attack Log", this, false);
     private long postSequence = Long.MIN_VALUE, eventId;
     private float postCameraYaw, postCameraPitch;
+    private MovementSample lastMovement;
+
+    /** Immutable last observed moveFlying input. Does not influence acceleration or packets. */
+    private static final class MovementSample {
+        final int tick;
+        final long timestampMs;
+        final float rawStrafe, rawForward, rawYaw;
+        final float finalStrafe, finalForward, finalYaw, friction;
+
+        MovementSample(int tick, long timestampMs, float rawStrafe, float rawForward, float rawYaw,
+                       float finalStrafe, float finalForward, float finalYaw, float friction) {
+            this.tick = tick;
+            this.timestampMs = timestampMs;
+            this.rawStrafe = rawStrafe;
+            this.rawForward = rawForward;
+            this.rawYaw = rawYaw;
+            this.finalStrafe = finalStrafe;
+            this.finalForward = finalForward;
+            this.finalYaw = finalYaw;
+            this.friction = friction;
+        }
+
+        String describe(int currentTick, long currentMs) {
+            return String.format(Locale.ROOT,
+                    "moveAgeTicks=%d moveAgeMs=%d moveRaw=%.3f/%.3f@%.2f moveApplied=%.3f/%.3f@%.2f moveFriction=%.4f",
+                    currentTick - tick, currentMs - timestampMs,
+                    rawStrafe, rawForward, rawYaw, finalStrafe, finalForward, finalYaw, friction);
+        }
+
+        String compact() {
+            return String.format(Locale.ROOT, "input S/F %.2f/%.2f -> %.2f/%.2f  yaw %.1f -> %.1f",
+                    rawStrafe, rawForward, finalStrafe, finalForward, rawYaw, finalYaw);
+        }
+    }
+
+    /**
+     * Read-only observation at the actual moveFlying consumer, AFTER bus listeners and MoveFix
+     * have selected their final inputs. No event is posted and no movement is changed.
+     */
+    private static CombatDiagnostics active() {
+        if (Pulsar.INSTANCE == null || Pulsar.INSTANCE.getMm() == null) return null;
+        CombatDiagnostics diagnostics =
+                (CombatDiagnostics) Pulsar.INSTANCE.getMm().getModule(CombatDiagnostics.class);
+        return diagnostics != null && diagnostics.isToggled() && diagnostics.inWorld() ? diagnostics : null;
+    }
+
+    public static void observeMoveFlying(EntityPlayerSP player,
+                                          float rawStrafe, float rawForward, float rawYaw,
+                                          float finalStrafe, float finalForward, float finalYaw, float friction) {
+        CombatDiagnostics diagnostics = active();
+        if (diagnostics == null || diagnostics.mc.thePlayer != player) return;
+        diagnostics.lastMovement = new MovementSample(player.ticksExisted, System.currentTimeMillis(),
+                rawStrafe, rawForward, rawYaw, finalStrafe, finalForward, finalYaw, friction);
+    }
+
+    /** Actual main-thread S08 application, not a packet-receipt estimate and not a flag. */
+    public static void observeAppliedS08(EntityPlayer player, double beforeX, double beforeY, double beforeZ,
+                                         float beforeYaw, float beforePitch) {
+        CombatDiagnostics diagnostics = active();
+        if (diagnostics == null || diagnostics.mc.thePlayer != player) return;
+        double dx = player.posX - beforeX, dy = player.posY - beforeY, dz = player.posZ - beforeZ;
+        String details = String.format(Locale.ROOT,
+                "s08Phase=APPLIED appliedPre=%.4f/%.4f/%.4f appliedPost=%.4f/%.4f/%.4f"
+                        + " appliedOffset=%.4f/%.4f/%.4f appliedDistance=%.4f appliedRotationDelta=%.2f/%.2f",
+                beforeX, beforeY, beforeZ, player.posX, player.posY, player.posZ,
+                dx, dy, dz, Math.sqrt(dx * dx + dy * dy + dz * dz),
+                MathHelper.wrapAngleTo180_float(player.rotationYaw - beforeYaw),
+                player.rotationPitch - beforePitch);
+        diagnostics.capture("S08_APPLIED_NOT_A_FLAG", null, details);
+    }
 
     public CombatDiagnostics() {
         setKey(Keyboard.KEY_F9);
@@ -59,6 +137,7 @@ public final class CombatDiagnostics extends Module {
         history.clear();
         postSequence = Long.MIN_VALUE;
         eventId = 0;
+        lastMovement = null;
     }
 
     @Subscribe private final Listener<WorldEvent> world = new Listener<>(event -> clearTrace());
@@ -87,8 +166,32 @@ public final class CombatDiagnostics extends Module {
             capture("ATTACK_LOCAL_ACCEPTED", event.getTargetEntity()));
 
     @Subscribe private final Listener<PacketReceiveEvent> inbound = new Listener<>(event -> {
-        if (event.getPacket() instanceof S08PacketPlayerPosLook)
-            capture("S08_RECEIVED_NOT_A_FLAG", null);
+        if (!isToggled() || !inWorld()) return;
+        if (event.getPacket() instanceof S08PacketPlayerPosLook) {
+            S08PacketPlayerPosLook packet = (S08PacketPlayerPosLook) event.getPacket();
+            // PacketReceiveEvent happens before any optional delay/application.
+            CombatCorrectionPreview preview = CombatCorrectionPreview.atReceipt(packet,
+                    mc.thePlayer.posX, mc.thePlayer.posY, mc.thePlayer.posZ,
+                    mc.thePlayer.rotationYaw, mc.thePlayer.rotationPitch);
+            String details = String.format(Locale.ROOT,
+                    "s08Phase=RECEIPT_NOT_APPLIED flags=%s s08RawPos=%.4f/%.4f/%.4f s08RawRot=%.2f/%.2f"
+                            + " s08Projected=%.4f/%.4f/%.4f projectedRot=%.2f/%.2f recvOffset=%.4f/%.4f/%.4f recvDistance=%.4f",
+                    preview.flags, packet.getX(), packet.getY(), packet.getZ(), packet.getYaw(), packet.getPitch(),
+                    preview.targetX, preview.targetY, preview.targetZ, preview.targetYaw, preview.targetPitch,
+                    preview.deltaX, preview.deltaY, preview.deltaZ, preview.distance);
+            capture("S08_RECEIVED_NOT_A_FLAG", null, details);
+        } else if (event.getPacket() instanceof S12PacketEntityVelocity) {
+            S12PacketEntityVelocity packet = (S12PacketEntityVelocity) event.getPacket();
+            if (packet.getEntityID() != mc.thePlayer.getEntityId()) return;
+            capture("S12_SELF_VELOCITY_RECEIVED", null, String.format(Locale.ROOT,
+                    "s12Phase=RECEIPT_NOT_APPLIED incomingVelocity=%.5f/%.5f/%.5f",
+                    packet.getMotionX() / 8000.0, packet.getMotionY() / 8000.0, packet.getMotionZ() / 8000.0));
+        }
+    });
+
+    @Subscribe private final Listener<KnockbackEvent> knockback = new Listener<>(event -> {
+        if (event.isPost()) capture("KB_SELF_APPLIED_POST", null, String.format(Locale.ROOT,
+                "appliedKnockback=%.5f/%.5f/%.5f", event.getX(), event.getY(), event.getZ()));
     });
 
     /** Manual marker for correlating a server-console flag with a local timestamp. */
@@ -107,6 +210,10 @@ public final class CombatDiagnostics extends Module {
     }
 
     private void capture(String type, EntityLivingBase eventTarget) {
+        capture(type, eventTarget, "");
+    }
+
+    private void capture(String type, EntityLivingBase eventTarget, String details) {
         if (!isToggled() || !inWorld()) return;
 
         RotationManager rotations = RuntimeServices.rotation();
@@ -141,12 +248,22 @@ public final class CombatDiagnostics extends Module {
             errorPitch = targetPitch - wirePitch;
         }
 
+        ModuleManager modules = Pulsar.INSTANCE == null ? null : Pulsar.INSTANCE.getMm();
+        Aura aura = modules == null ? null : (Aura) modules.getModule(Aura.class);
+        String auraConfigured = aura == null || !aura.isToggled() ? "disabled" : aura.moveFixMode().label;
+        long timestampMs = System.currentTimeMillis();
+        String movement = lastMovement == null ? "moveSample=none" :
+                lastMovement.describe(mc.thePlayer.ticksExisted, timestampMs);
         String message = String.format(Locale.ROOT,
-                "%s event=%d tick=%d epochMs=%d owner=%s track=%s seq=%d camera=%.2f/%.2f cameraSource=%s playerPose=%.2f/%.2f wireKnown=%s localWire=%.2f/%.2f motionAccepted=%s delta=%.2f/%.2f targetId=%d centerErr=%.2f/%.2f",
-                type, ++eventId, mc.thePlayer.ticksExisted, System.currentTimeMillis(), owner, trackedBy,
+                "%s event=%d tick=%d epochMs=%d owner=%s track=%s seq=%d camera=%.2f/%.2f cameraSource=%s playerPose=%.2f/%.2f wireKnown=%s localWire=%.2f/%.2f motionAccepted=%s delta=%.2f/%.2f targetId=%d centerErr=%.2f/%.2f"
+                        + " auraConfiguredMoveFix=%s onGround=%s sprint=%s motionXYZ=%.5f/%.5f/%.5f %s %s",
+                type, ++eventId, mc.thePlayer.ticksExisted, timestampMs, owner, trackedBy,
                 rotations.getMotionSequence(), cameraYaw, cameraPitch, postCamera ? "motionPost" : "player",
                 playerYaw, playerPitch, wireKnown, wireYaw, wirePitch, rotations.isMotionAccepted(),
-                yawDifference, pitchDifference, targetId, errorYaw, errorPitch);
+                yawDifference, pitchDifference, targetId, errorYaw, errorPitch,
+                auraConfigured, mc.thePlayer.onGround, mc.thePlayer.isSprinting(),
+                mc.thePlayer.motionX, mc.thePlayer.motionY, mc.thePlayer.motionZ,
+                movement, details);
         history.append(message);
 
         // Console logs only sparse actions/markers/corrections, never every movement packet.
@@ -160,7 +277,7 @@ public final class CombatDiagnostics extends Module {
             ScaledResolution resolution = event.getSr() != null ? event.getSr() : new ScaledResolution(mc);
             int width = Math.max(20, Math.min(690, resolution.getScaledWidth() - 10));
             List<String> items = history.recent(7);
-            int left = 5, top = 6, height = 42 + items.size() * 11;
+            int left = 5, top = 6, height = 53 + items.size() * 11;
             Gui.drawRect(left, top, left + width, top + height, 0xCC101824);
             mc.fontRendererObj.drawStringWithShadow("CombatDiagnostics [CLIENT ONLY]  F9 toggle  F8 mark",
                     left + 4, top + 4, 0xFFFFCC66);
@@ -177,7 +294,10 @@ public final class CombatDiagnostics extends Module {
                     wireKnown ? rotations.getEffectivePitch() : Float.NaN);
             mc.fontRendererObj.drawStringWithShadow(mc.fontRendererObj.trimStringToWidth(status, width - 9),
                     left + 4, top + 26, 0xFFE3E8F0);
-            int y = top + 38;
+            String recentMovement = lastMovement == null ? "No moveFlying input observed" : lastMovement.compact();
+            mc.fontRendererObj.drawStringWithShadow(mc.fontRendererObj.trimStringToWidth(recentMovement, width - 9),
+                    left + 4, top + 37, 0xFFACD6FF);
+            int y = top + 49;
             for (String line : items) {
                 int color = line.startsWith("ATTACK") ? 0xFFFFD18A
                         : line.startsWith("F8") || line.startsWith("S08") ? 0xFFFF9B9B
