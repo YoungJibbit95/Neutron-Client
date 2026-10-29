@@ -237,9 +237,13 @@ public class Velocity extends Module
     }
 
     private boolean noAction() {
-        return mc.thePlayer.getActivePotionEffects().parallelStream()
-                .anyMatch(effect -> notWhileSpeed.getValue() && effect.getPotionID() == Potion.moveSpeed.getId()
-                        || notWhileJumpBoost.getValue() && effect.getPotionID() == Potion.jump.getId());
+        for (net.minecraft.potion.PotionEffect effect : mc.thePlayer.getActivePotionEffects()) {
+            if ((notWhileSpeed.getValue() && effect.getPotionID() == Potion.moveSpeed.getId())
+                    || (notWhileJumpBoost.getValue() && effect.getPotionID() == Potion.jump.getId())) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isValidMotion(double motion, double min, double max) {
