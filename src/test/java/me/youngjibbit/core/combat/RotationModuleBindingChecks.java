@@ -312,7 +312,7 @@ public class RotationModuleBindingChecks {
             s.f.player.sprint=false;
         }
     }
-    @Test public void invalidScaffoldSupportReleasesMovementBeforeAnotherMotionStep() throws Exception {
+    @Test public void invalidScaffoldSupportKeepsAcceptedMovementUntilDisable() throws Exception {
         RotationBehaviorHookTest.Fixture f=shared;
         f.player.usingItem=false;f.mc.inGameHasFocus=true;f.mc.currentScreen=null;
         f.player.rotationYaw=f.player.rotationPitch=0;
@@ -323,11 +323,16 @@ public class RotationModuleBindingChecks {
         f.scaffold.getNumberSetting("Pitch Speed").setValue(1D);
         f.scaffold.onEnable();
         try {
-            f.player.onUpdateWalkingPlayer();
+            ScaffoldClientFlowTest.ordinaryWalking(f);
             assertEquals("scaffold",f.runtime.getRotationManager().getConfirmedOwner());
+            float heldYaw=f.runtime.getRotationManager().getEffectiveYaw();
             scene.setBlockState(new net.minecraft.util.BlockPos(-1,63,0),net.minecraft.init.Blocks.air.getDefaultState(),3);
             Pulsar.BUS.post(new me.youngjibbit.event.packet.TickEvent());
-            assertNull("Lost support must release the accepted placement rotation before movement",f.runtime.getRotationManager().getConfirmedOwner());
+            assertEquals("Plan loss retains the active accepted source","scaffold",f.runtime.getRotationManager().getConfirmedOwner());
+            f.player.motionX=f.player.motionZ=0;f.player.moveFlying(0,1,.1f);
+            assertEquals(-.1*Math.sin(Math.toRadians(heldYaw)),f.player.motionX,3e-5);
+            assertEquals(.1*Math.cos(Math.toRadians(heldYaw)),f.player.motionZ,3e-5);
+            f.scaffold.onDisable();assertNull(f.runtime.getRotationManager().getConfirmedOwner());
             f.player.motionX=f.player.motionZ=0;f.player.moveFlying(0,1,.1f);
             assertEquals(0,f.player.motionX,3e-5);assertEquals(.1,f.player.motionZ,3e-5);
             assertEquals(64,f.player.inventory.mainInventory[3].stackSize);
@@ -346,7 +351,7 @@ public class RotationModuleBindingChecks {
             f.scaffold.onEnable();int placements=0;float firstYaw=0,firstPitch=0,hitY=0,hitZ=0;
             try {
                 for(int tick=0;tick<24 && !scene.getBlockState(new net.minecraft.util.BlockPos(0,63,0)).getBlock().isFullBlock();tick++) {
-                    scene.motionTime.addAndGet(50_000_000L);f.runtime.getScaffoldPlacementService().beginTick();f.player.onUpdateWalkingPlayer();
+                    scene.motionTime.addAndGet(50_000_000L);f.runtime.getScaffoldPlacementService().beginTick();ScaffoldClientFlowTest.ordinaryWalking(f);
                     if(tick==0) { firstYaw=f.runtime.getRotationManager().getEffectiveYaw();firstPitch=f.runtime.getRotationManager().getEffectivePitch(); }
                     Object outgoing;while((outgoing=f.channel.readOutbound())!=null) if(outgoing instanceof net.minecraft.network.play.client.C08PacketPlayerBlockPlacement) {
                         net.minecraft.network.play.client.C08PacketPlayerBlockPlacement packet=(net.minecraft.network.play.client.C08PacketPlayerBlockPlacement)outgoing;
@@ -364,7 +369,7 @@ public class RotationModuleBindingChecks {
                     f.player.posX=1.5;f.player.setEntityBoundingBox(new AxisAlignedBB(1.2,64,.2,1.8,65.8,.8));
                     boolean second=false;
                     for(int tick=0;tick<24 && !second;tick++) {
-                        scene.motionTime.addAndGet(50_000_000L);f.runtime.getScaffoldPlacementService().beginTick();f.player.onUpdateWalkingPlayer();
+                        scene.motionTime.addAndGet(50_000_000L);f.runtime.getScaffoldPlacementService().beginTick();ScaffoldClientFlowTest.ordinaryWalking(f);
                         Object sent;while((sent=f.channel.readOutbound())!=null) if(sent instanceof net.minecraft.network.play.client.C08PacketPlayerBlockPlacement) {
                             net.minecraft.network.play.client.C08PacketPlayerBlockPlacement packet=(net.minecraft.network.play.client.C08PacketPlayerBlockPlacement)sent;
                             assertTrue("successive plan must acquire a fresh bounded point",Math.abs(hitY-packet.getPlacedBlockOffsetY())+Math.abs(hitZ-packet.getPlacedBlockOffsetZ())>1e-5);

@@ -26,12 +26,13 @@ public class SettingsMenu extends GuiScreen {
     private float x,y,w,h,scroll,targetScroll;
     private String input="",status="";
     private boolean replace,previousRepeat;
-    private final float[] hover=new float[6];
+    private final me.youngjibbit.gui.UiSpring[] actionMotion=new me.youngjibbit.gui.UiSpring[6];
     private int pressed=-1;
     private long lastFrame=System.nanoTime();
     public SettingsMenu(){this(null);}
-    public SettingsMenu(GuiScreen parent){this.parent=parent;}
-    @Override public void initGui(){if(Keyboard.isCreated()){previousRepeat=Keyboard.areRepeatEventsEnabled();Keyboard.enableRepeatEvents(true);}layout();}
+    public SettingsMenu(GuiScreen parent){this.parent=parent;for(int i=0;i<actionMotion.length;i++)actionMotion[i]=new me.youngjibbit.gui.UiSpring();}
+    private void resetMotion(){pressed=-1;for(me.youngjibbit.gui.UiSpring state:actionMotion)state.reset();lastFrame=System.nanoTime();}
+    @Override public void initGui(){resetMotion();if(Keyboard.isCreated()){previousRepeat=Keyboard.areRepeatEventsEnabled();Keyboard.enableRepeatEvents(true);}layout();}
     private Map<String,List<Value<?>>> groups(){
         ClientSettings c=ClientSettings.current();Map<String,List<Value<?>>> g=c==null?new LinkedHashMap<>():new LinkedHashMap<>(c.groups());
         HUD hud=HUD.current();if(hud!=null){List<Value<?>> values=new ArrayList<>(hud.getValues());g.put("HUD behavior",values);}return g;
@@ -49,7 +50,8 @@ public class SettingsMenu extends GuiScreen {
     private TTFFontRenderer font(){return Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 18");}
     private void text(String value,float x,float y,int color){font().drawString(value,x,y,color);}
     private String fit(String text,float width){if(font().getWidth(text)<=width)return text;while(text.length()>0&&font().getWidth(text+"...")>width)text=text.substring(0,text.length()-1);return text.isEmpty()?"":text+"...";}
-    private void button(int id,String title,int mx,int my){ClipRect b=actionBounds(id);float accent=pressed==id?1:Math.max(hover[id],focus==rows().size()+id?.75f:.15f);GuiStyle.panel(b.x,b.y,b.width,b.height,4,accent,new Color(24,27,35));text(fit(title,b.width-10),b.x+5,b.y+6,0xffe8edf6);}
+    private void button(int id,String title,int mx,int my){ClipRect b=actionBounds(id);me.youngjibbit.gui.UiSpring state=actionMotion[id];float accent=state.pressed()?1:Math.max(Math.max(0,Math.min(1,state.amount())),state.focused()?.75f:.15f);GuiStyle.panel(b.x,b.y,b.width,b.height,4,accent,new Color(24,27,35));GuiStyle.feedback(b,state);text(fit(title,b.width-10),b.x+5,b.y+6,0xffe8edf6);}
+    protected void advanceMotion(float dt,int mx,int my){ClientSettings c=ClientSettings.current();int size=rows().size();for(int i=0;i<6;i++)actionMotion[i].step(dt,actionBounds(i).contains(mx,my),focus==size+i,pressed==i,true,c);}
     private String description(){String name=names().isEmpty()?"":names().get(group);switch(name){
         case "Appearance":return "Clear: tint only. Gradient: theme fill. Blur: soft scene. Glass: refracted scene. Border/Glow are independent.";
         case "Blur / Liquid Glass":return "Gaussian/Kawase: scene blur. Regular glass: frosted/adaptive. Clear glass: transparent lens.";
@@ -59,9 +61,9 @@ public class SettingsMenu extends GuiScreen {
         default:return "Notification design overrides surface style. No input capture during gameplay.";
     }}
     @Override public void drawScreen(int mx,int my,float partialTicks){
-        UiEffects.beginFrame();layout();float dt=Math.min(.1f,(System.nanoTime()-lastFrame)/1e9f);lastFrame=System.nanoTime();scroll+=(targetScroll-scroll)*UiEffects.response(dt,18);
+        UiEffects.beginFrame();layout();long now=System.nanoTime();float dt=Math.max(0,Math.min(.1f,(now-lastFrame)/1e9f));lastFrame=now;scroll+=(targetScroll-scroll)*UiEffects.response(dt,18);
         if(drag>=0&&drag<rows().size())updateSlider(drag,mx);
-        for(int i=0;i<6;i++)hover[i]+=((actionBounds(i).contains(mx,my)?1:0)-hover[i])*UiEffects.response(dt,18);
+        advanceMotion(dt,mx,my);
         try(RenderState frameState=new RenderState()){frameState.screenSpace();
         drawDefaultBackground();Theme theme=Theme.getDefaultTheme();
         surface.panel(x,y,w,h,7,theme,true,true,true,5,.9f,.8f,()->{
@@ -118,6 +120,7 @@ public class SettingsMenu extends GuiScreen {
     private void ensureFocus(){if(focus>=rows().size())return;ClipRect r=rowBounds(focus),v=view();if(r.y<v.y)scroll=targetScroll=Math.max(0,scroll+r.y-v.y);else if(r.y+r.height>v.y+v.height)scroll=targetScroll=scroll+r.y+r.height-v.y-v.height;layout();}
     protected boolean shift(){return Keyboard.isCreated()&&isShiftKeyDown();}protected boolean ctrl(){return Keyboard.isCreated()&&isCtrlKeyDown();}
     @Override protected void keyTyped(char c,int key)throws IOException{
+        pressed=-1; // presentation only; the existing keyboard and mouse-down actions retain ownership
         if(editing>=0){if(key==Keyboard.KEY_ESCAPE){editing=-1;status="";return;}if(key==Keyboard.KEY_RETURN||key==Keyboard.KEY_NUMPADENTER){commitInput();return;}if(key==Keyboard.KEY_A&&ctrl()){replace=true;return;}if(key==Keyboard.KEY_BACK){input=replace?"":input.substring(0,Math.max(0,input.length()-1));replace=false;}else if(c>=32&&c!=127&&(replace||input.length()<32)){input=replace?String.valueOf(c):input+c;replace=false;}return;}
         if(key==Keyboard.KEY_ESCAPE){activate(5);return;}
         if(key==Keyboard.KEY_R&&ctrl()){ClientSettings settings=ClientSettings.current();if(settings!=null)for(Value<?> v:settings.getValues())v.reset();HUD hud=HUD.current();if(hud!=null)for(Value<?> v:hud.getValues())v.reset();status="Client settings restored";layout();return;}
@@ -132,6 +135,6 @@ public class SettingsMenu extends GuiScreen {
         if(key==Keyboard.KEY_RETURN||key==Keyboard.KEY_NUMPADENTER||key==Keyboard.KEY_SPACE)activateValue(focus,1);
         if(key==Keyboard.KEY_F6)activate(1);
     }
-    @Override public void onGuiClosed(){editing=drag=-1;surface.close();preview.close();if(Keyboard.isCreated())Keyboard.enableRepeatEvents(previousRepeat);}
+    @Override public void onGuiClosed(){resetMotion();editing=drag=-1;surface.close();preview.close();if(Keyboard.isCreated())Keyboard.enableRepeatEvents(previousRepeat);}
     @Override public boolean doesGuiPauseGame(){return false;}
 }

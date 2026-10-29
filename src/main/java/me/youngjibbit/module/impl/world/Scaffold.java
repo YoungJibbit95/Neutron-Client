@@ -1,6 +1,11 @@
 package me.youngjibbit.module.impl.world;
 
 import me.youngjibbit.core.bootstrap.RuntimeServices;
+import me.youngjibbit.core.contract.AutomationEligibility.ModuleAction;
+import me.youngjibbit.core.observation.AutomatedActionAdmission;
+import me.youngjibbit.core.observation.RuntimeObservation;
+import me.youngjibbit.core.contract.SceneContext;
+import me.youngjibbit.core.network.PacketPipeline;
 import me.youngjibbit.core.world.PlacementContext;
 import me.youngjibbit.core.world.PlacementTarget;
 import me.youngjibbit.core.world.ScaffoldRotationPlan;
@@ -25,6 +30,7 @@ import me.zero.alpine.listener.Listener;
 import me.zero.alpine.listener.Subscribe;
 import net.minecraft.util.Vec3;
 import net.minecraft.util.MovementInput;
+import net.minecraft.client.Minecraft;
 import org.lwjgl.input.Keyboard;
 
 @ModuleInfo(
@@ -69,6 +75,15 @@ public class Scaffold extends Module {
     private long frameSequence = -1;
     private boolean framePre;
     private Object contextPlayer, contextWorld;
+    private Object contextConnection;
+    private Object contextTimer;
+    private PacketPipeline contextPackets;
+    private long contextEpoch = -1;
+    private RotationManager contextRotation;
+    private SceneContext contextScene;
+    private long contextMotionSequence = -1;
+    private boolean hasHoldBasis;
+    private float holdYaw, holdPitch;
     private static Scaffold active;
 
     /** Relinquish control if another writer changes the timer; never restore over that writer. */
@@ -95,7 +110,11 @@ public class Scaffold extends Module {
         roundRots.setVisibility(module->rotations.getValue());
     }
     @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String name) { return super.getValueByName(name!=null && name.replace("_","").replace(" ","").equalsIgnoreCase("SameY")?"keep_y":name); }
-    @Override public void onValueChange() { releasePlacement(); }
+    @Override public void onValueChange() {
+        releasePlacement();
+        // Module's callback has no changed-value argument; revalidate the actual owner conditions.
+        if (!isToggled() || !rotations.getValue() || !sameScene()) endRotation();
+    }
 
     @Override
     public void onEnable() {
@@ -112,46 +131,141 @@ public class Scaffold extends Module {
         super.onDisable();
     }
 
+    private boolean liveContext() {
+        Minecraft client = Minecraft.getMinecraft();
+        return client != null && client.thePlayer != null && client.theWorld != null && client.playerController != null
+                && client.thePlayer.worldObj == client.theWorld && client.thePlayer.sendQueue != null
+                && client.thePlayer.sendQueue.getNetworkManager() != null
+                && client.thePlayer.sendQueue.getNetworkManager().getClientPackets() != null
+                && client.thePlayer.sendQueue.getNetworkManager().getClientPackets().isActive()
+                && client.thePlayer.isEntityAlive() && !client.thePlayer.isDead && !client.thePlayer.isSpectator()
+                && !client.thePlayer.isRiding();
+    }
+
     private boolean validContext() {
-        return mc != null && mc.thePlayer != null && mc.theWorld != null && mc.playerController != null
-                && mc.thePlayer.isEntityAlive() && !mc.thePlayer.isDead && !mc.thePlayer.isSpectator()
-                && !mc.thePlayer.isRiding() && mc.currentScreen == null && mc.inGameHasFocus;
+        Minecraft client = Minecraft.getMinecraft();
+        return liveContext() && client.currentScreen == null && client.inGameHasFocus && !client.isGamePaused();
+    }
+
+    private boolean sameObjects() {
+        Minecraft client = Minecraft.getMinecraft();
+        return client != null && contextPlayer != null && client.thePlayer == contextPlayer && client.theWorld == contextWorld
+                && client.thePlayer.sendQueue != null && client.thePlayer.sendQueue.getNetworkManager() == contextConnection
+                && client.thePlayer.sendQueue.getNetworkManager().getClientPackets() == contextPackets
+                && contextPackets != null
+                && RuntimeServices.rotation() == contextRotation;
+    }
+
+    private boolean sameIdentities() {
+        return sameObjects() && contextPackets.getContextVersion() == contextEpoch;
+    }
+
+    private boolean sameScene() {
+        if (!sameIdentities()) return false;
+        RuntimeObservation observation = RuntimeServices.observation();
+        return contextScene == null || observation != null && observation.isCurrent(contextScene);
     }
 
     private void captureContext() {
+        Minecraft mc = Minecraft.getMinecraft();
         contextPlayer = mc == null ? null : mc.thePlayer;
         contextWorld = mc == null ? null : mc.theWorld;
+        contextConnection = mc == null || mc.thePlayer == null || mc.thePlayer.sendQueue == null
+                ? null : mc.thePlayer.sendQueue.getNetworkManager();
+        contextPackets = contextConnection == null ? null : mc.thePlayer.sendQueue.getNetworkManager().getClientPackets();
+        contextEpoch = contextPackets == null ? -1 : contextPackets.getContextVersion();
+        contextRotation = RuntimeServices.rotation();
+        contextTimer = mc == null ? null : mc.timer;
+        contextMotionSequence = contextRotation.getMotionSequence();
+        RuntimeObservation observation = RuntimeServices.observation();
+        SceneContext scene = observation == null ? null : observation.captureScene();
+        // Pre-bootstrap rotation planning has no fallback observer and grants no placement admission.
+        contextScene = scene != null && scene.isValid() ? scene : null;
         if (mc != null && mc.thePlayer != null) keepYCoord = Math.floor(mc.thePlayer.posY - 1);
     }
 
-    private void releasePlacement() {
-        RuntimeServices.rotation().reset("scaffold");
+    private void releaseRotation() {
+        RotationManager rotation = contextRotation;
+        // Never release a replacement manager or a newly bound foreign scene during a callback.
+        if (rotation == null) rotation = RuntimeServices.rotation();
+        else if (contextPackets != null && (!rotation.isConnection(contextPackets)
+                || !sameScene() && !("scaffold".equals(rotation.getConfirmedOwner(contextPlayer, contextWorld, contextPackets))
+                && (rotation.getMotionSequence() == contextMotionSequence || rotation.canUseRotation("scaffold", true))))) return;
+        rotation.reset("scaffold");
         RotationCorrections.reset("scaffold");
+    }
+
+    private void endRotation() {
+        hasHoldBasis = false;
+        releaseRotation();
+    }
+
+    private void rememberAcceptedRotation() {
+        if (rotations.getValue() && sameScene() && contextRotation.isConnection(contextPackets)
+                && "scaffold".equals(contextRotation.getConfirmedOwner(contextPlayer, contextWorld, contextPackets))) {
+            holdYaw = contextRotation.getEffectiveYaw();
+            holdPitch = contextRotation.getEffectivePitch();
+            hasHoldBasis = true;
+        }
+    }
+
+    private void suspendPlacement() {
+        rememberAcceptedRotation();
+        releasePlacement();
+        releaseRotation(); // Keep only the scene-bound wish; resume needs a new C03 acceptance.
+    }
+
+    private void releasePlacement() {
         currentTarget = frameTarget = null;
         frameSequence = -1;
         downwardsState = false;
         towerController.reset();
-        if (mc != null && mc.timer != null) mc.timer.timerSpeed = timerControl.release(mc.timer.timerSpeed);
+        Minecraft client = Minecraft.getMinecraft();
+        // Epoch invalidation precedes WorldEvent.Unload while these old objects still exist.
+        // Release our value on that exact timer; a replacement scene/object or foreign value wins.
+        if (client != null && client.timer != null && client.timer == contextTimer && sameObjects())
+            client.timer.timerSpeed = timerControl.release(client.timer.timerSpeed);
+        else timerControl.release(0); // Discard our bookkeeping without writing into another scene.
     }
 
     private void clearState() {
+        endRotation();
         releasePlacement();
         RuntimeServices.scaffoldPlacement().reset();
         contextPlayer = contextWorld = null;
+        contextConnection = contextPackets = null;
+        contextRotation = null;
+        contextTimer = null;
+        contextScene = null;
+        contextEpoch = -1;
+        contextMotionSequence = -1;
         keepYCoord = 0;
     }
 
     @Subscribe
     public final Listener<EventMotion> onMotionEvent = new Listener<>(event -> {
-        if (!validContext()) { diagnose(me.youngjibbit.core.world.ScaffoldPlacementService.Rejection.CONTEXT);clearState(); return; }
-        if (contextPlayer != mc.thePlayer || contextWorld != mc.theWorld) { clearState(); captureContext(); }
+        Minecraft mc = Minecraft.getMinecraft();
+        if (!isToggled()) return;
+        if (!liveContext()) { diagnose(me.youngjibbit.core.world.ScaffoldPlacementService.Rejection.CONTEXT);clearState(); return; }
+        if (contextPlayer == null || !sameScene()) {
+            clearState(); captureContext();
+            if (!event.isPre()) return;
+        }
+        if (contextScene == null && RuntimeServices.observation() != null) {
+            SceneContext scene = RuntimeServices.observation().captureScene();
+            if (scene.isValid()) contextScene = scene;
+        }
+        contextMotionSequence = contextRotation.getMotionSequence();
+        rememberAcceptedRotation();
+        if (!validContext()) { suspendPlacement(); return; }
+        final long motionSequence = contextMotionSequence;
         if (event.isPre()) {
             downwardsState = downwards.getValue() && mc.gameSettings.keyBindSneak.isKeyDown();
             if (mc.thePlayer.onGround) keepYCoord = Math.floor(mc.thePlayer.posY - 1);
             PlacementContext context = new PlacementContext(downwardsState, keepY.getValue(), keepYCoord);
             if (!RuntimeServices.scaffoldPlacement().stillNeeded(currentTarget, context))
                 currentTarget = findTarget(context,event);
-            if (currentTarget == null) { diagnose(RuntimeServices.scaffoldPlacement().getLastRejection());releasePlacement(); return; }
+            if (currentTarget == null) { diagnose(RuntimeServices.scaffoldPlacement().getLastRejection());releasePlacement(); requestAcceptedHold(); return; }
 
             // A valid placement plan owns this decision before Auto Jump consumes sprint's impulse.
             if (!sprint.getValue()) mc.thePlayer.setSprinting(false);
@@ -160,7 +274,7 @@ public class Scaffold extends Module {
             // Tower may move the local player. Finalize the plan before issuing a rotation or attempting placement.
             if (!RuntimeServices.scaffoldPlacement().stillNeeded(currentTarget, context))
                 currentTarget = findTarget(context,event);
-            if (currentTarget == null) { diagnose(RuntimeServices.scaffoldPlacement().getLastRejection());releasePlacement(); return; }
+            if (currentTarget == null) { diagnose(RuntimeServices.scaffoldPlacement().getLastRejection());releasePlacement(); requestAcceptedHold(); return; }
             if (mc.timer != null) mc.timer.timerSpeed = timerControl.apply(mc.timer.timerSpeed,
                     Math.max(.2f, Math.min(3, timerSpeed.getValue().floatValue())));
 
@@ -168,20 +282,25 @@ public class Scaffold extends Module {
             currentTarget=RuntimeServices.scaffoldPlacement().randomize(currentTarget,RuntimeServices.rotation(),profile);
             Vec3 plannedEyes=mc.thePlayer.getPlannedMovementPosition(event.getX(),event.getY(),event.getZ()).addVector(0,mc.thePlayer.getEyeHeight(),0);
             currentTarget=RuntimeServices.scaffoldPlacement().align(currentTarget,rotationMode.getValue(),roundRots.getValue(),plannedEyes);
-            if(currentTarget==null){diagnose(me.youngjibbit.core.world.ScaffoldPlacementService.Rejection.NO_FACE);releasePlacement();return;}
+            if(currentTarget==null){diagnose(me.youngjibbit.core.world.ScaffoldPlacementService.Rejection.NO_FACE);releasePlacement();requestAcceptedHold();return;}
             frameTarget = currentTarget;
             frameSequence = RuntimeServices.rotation().getMotionSequence();
             framePre = "Pre".equalsIgnoreCase(placeTiming.getValue());
-            if (framePre && tryPlace(true)) { releasePlacement(); return; }
-            if (!RuntimeServices.scaffoldPlacement().isValid(frameTarget)) { releasePlacement(); return; }
+            if (framePre) {
+                boolean placed = tryPlace(true);
+                if (!continueMotion(motionSequence)) return;
+                if (placed) { releasePlacement(); requestAcceptedHold(); return; }
+            }
+            if (!RuntimeServices.scaffoldPlacement().isValid(frameTarget)) { releasePlacement(); requestAcceptedHold(); return; }
             applyRotations(event,profile);
         } else if (event.isPost()) {
             // Never search for a replacement in POST: this is exactly the PRE plan.
             if (frameTarget == null || frameSequence != RuntimeServices.rotation().getMotionSequence()) return;
             PlacementContext context = new PlacementContext(downwards.getValue() && mc.gameSettings.keyBindSneak.isKeyDown(), keepY.getValue(), keepYCoord);
             if (!RuntimeServices.scaffoldPlacement().stillNeeded(frameTarget, context)) { releasePlacement(); return; }
-            if (!framePre && tryPlace(false)) releasePlacement();
-            else if (!RuntimeServices.scaffoldPlacement().isValid(frameTarget)) releasePlacement();
+            boolean placed = !framePre && tryPlace(false);
+            if (!continueMotion(motionSequence)) return;
+            if (placed || !RuntimeServices.scaffoldPlacement().isValid(frameTarget)) releasePlacement();
         }
     });
 
@@ -190,15 +309,17 @@ public class Scaffold extends Module {
 
     @Subscribe
     public final Listener<TickEvent> onTickEvent = new Listener<>(event -> {
-        if (!validContext() || contextPlayer != mc.thePlayer || contextWorld != mc.theWorld) clearState();
+        if (!liveContext() || !sameScene()) clearState();
+        else if (!validContext()) suspendPlacement();
         else if (currentTarget != null && !RuntimeServices.scaffoldPlacement().isValid(currentTarget)) {
-            // Release the accepted movement basis before entity movement, even without another PRE.
+            // End the plan before movement; its accepted owner remains usable in this active scene.
             releasePlacement();
         }
     });
 
     /** Applied to freshly read movement input only; the physical/key-binding sneak state stays intact. */
     public static void applyDownwardsInput(MovementInput input) {
+        Minecraft mc = Minecraft.getMinecraft();
         Scaffold scaffold = active;
         if (scaffold != null && scaffold.isToggled() && scaffold.validContext()
                 && scaffold.downwards.getValue() && mc.gameSettings.keyBindSneak.isKeyDown()
@@ -214,35 +335,71 @@ public class Scaffold extends Module {
     }
 
     private void applyRotations(EventMotion event,RotationProfile profile) {
-        if (!rotations.getValue() || currentTarget == null) { RuntimeServices.rotation().reset("scaffold"); return; }
+        Minecraft mc = Minecraft.getMinecraft();
+        if (!rotations.getValue()) { endRotation(); return; }
+        if (currentTarget == null) { requestAcceptedHold(); return; }
+        if (!sameScene() || !contextRotation.isConnection(contextPackets)) return;
         Vec3 eyes = mc.thePlayer.getPlannedMovementPosition(event.getX(), event.getY(), event.getZ())
                 .addVector(0, mc.thePlayer.getEyeHeight(), 0);
         ScaffoldRotationPlan plan = ScaffoldRotationPlan.build(rotationMode.getValue(), eyes, currentTarget.getHitVec());
-        if (plan == null) { RuntimeServices.rotation().reset("scaffold"); return; }
+        if (plan == null) { requestAcceptedHold(); return; }
         float[] smoothed = RuntimeServices.rotation().calculatePlanRotations("scaffold", event.getYaw(), event.getPitch(),
                 RuntimeServices.scaffoldPlacement().rotationIdentity(currentTarget),plan.getYaw(), plan.getPitch(),eyes.distanceTo(currentTarget.getHitVec()),profile);
         RuntimeServices.rotation().request("scaffold", RotationManager.SCAFFOLD_PRIORITY, smoothed[0], smoothed[1]);
     }
+
+    private void requestAcceptedHold() {
+        rememberAcceptedRotation();
+        if (!isToggled() || !rotations.getValue() || !validContext() || !sameScene()
+                || !contextRotation.isConnection(contextPackets) || !hasHoldBasis) return;
+        // A previously accepted wish may be requested again after rejection; only finishMotion grants rights.
+        contextRotation.request("scaffold", RotationManager.SCAFFOLD_PRIORITY,
+                holdYaw, holdPitch);
+    }
+
+    private boolean continueMotion(long sequence) {
+        if (!isToggled() || contextRotation != RuntimeServices.rotation()
+                || contextRotation.getMotionSequence() != sequence) return false;
+        if (!liveContext() || !sameScene()) { clearState(); return false; }
+        if (!validContext()) { suspendPlacement(); return false; }
+        return true;
+    }
     private PlacementTarget findTarget(PlacementContext context,EventMotion event) {
+        Minecraft mc = Minecraft.getMinecraft();
         boolean rounded=roundRots.getValue() || "Godbridge".equals(rotationMode.getValue());
         Vec3 eyes=rounded?mc.thePlayer.getPlannedMovementPosition(event.getX(),event.getY(),event.getZ()).addVector(0,mc.thePlayer.getEyeHeight(),0):null;
         return RuntimeServices.scaffoldPlacement().findTarget(context,rotationMode.getValue(),roundRots.getValue(),eyes);
     }
 
     private boolean tryPlace(boolean pre) {
+        if (!AutomatedActionAdmission.mayAttempt(ModuleAction.PLACEMENT)) return false;
+        RuntimeObservation observation = RuntimeServices.observation();
+        SceneContext scene = observation.captureScene();
+        RotationManager rotation = RuntimeServices.rotation();
+        PlacementTarget target = frameTarget;
+        long sequence = frameSequence;
+        boolean rotationRequired = rotations.getValue();
+        java.util.function.BooleanSupplier sceneValid = () -> observation == RuntimeServices.observation()
+                && observation.isCurrent(scene) && rotation == RuntimeServices.rotation();
+        java.util.function.BooleanSupplier actionValid = () -> sceneValid.getAsBoolean() && isToggled()
+                && validContext() && rotations.getValue() == rotationRequired
+                && frameTarget == target && frameSequence == sequence
+                && AutomatedActionAdmission.mayAttempt(ModuleAction.PLACEMENT);
         if(roundRots.getValue() || "Godbridge".equals(rotationMode.getValue())) {
             double step=roundRots.getValue()?90:45,yaw=RuntimeServices.rotation().getEffectiveYaw();
             if(Math.abs(net.minecraft.util.MathHelper.wrapAngleTo180_double(yaw-Math.rint(yaw/step)*step))>.001) {
                 diagnose(me.youngjibbit.core.world.ScaffoldPlacementService.Rejection.ROTATION);return false;
             }
         }
-        boolean placed = RuntimeServices.scaffoldPlacement().place(frameTarget, RuntimeServices.rotation(), pre, frameSequence,
-                placeDelay.getValue().longValue(), itemSpoof.getValue(), swing.getValue(), "Silent".equalsIgnoreCase(swingMode.getValue()));
+        boolean placed = RuntimeServices.scaffoldPlacement().placeWithAuthority(target, rotation, pre, sequence,
+                placeDelay.getValue().longValue(), itemSpoof.getValue(), swing.getValue(), "Silent".equalsIgnoreCase(swingMode.getValue()),
+                rotationRequired ? "scaffold" : null, actionValid, sceneValid);
         if (!placed) diagnose(RuntimeServices.scaffoldPlacement().getLastRejection());
         return placed;
     }
 
     private void diagnose(me.youngjibbit.core.world.ScaffoldPlacementService.Rejection reason) {
+        Minecraft mc = Minecraft.getMinecraft();
         if (!placementDiagnostics.getValue() || reason==me.youngjibbit.core.world.ScaffoldPlacementService.Rejection.NONE
                 || mc==null || mc.thePlayer==null) return;
         long now=diagnosticClock.getAsLong();
@@ -251,11 +408,13 @@ public class Scaffold extends Module {
         mc.thePlayer.addChatMessage(new net.minecraft.util.ChatComponentText("[Scaffold] "+reason.message));
     }
 
-    public boolean correctionEnabled() { return isToggled() && validContext() && rotations.getValue(); }
+    public boolean correctionEnabled() { return isToggled() && validContext() && rotations.getValue()
+            && (contextPlayer == null || sameScene()); }
     public MoveFixController.Mode moveFixMode() { return MoveFixController.Mode.fromSetting(movefix.getValue()); }
     public BodyRotationController.Mode bodyRotationMode() { return BodyRotationController.Mode.fromSetting(bodyRotation.getValue()); }
 
     private boolean isMoving() {
+        Minecraft mc = Minecraft.getMinecraft();
         return mc.thePlayer != null
                 && (mc.thePlayer.movementInput.moveForward != 0.0F || mc.thePlayer.movementInput.moveStrafe != 0.0F);
     }

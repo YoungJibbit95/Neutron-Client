@@ -53,6 +53,13 @@ public class ScaffoldClientFlowTest {
         }
     }
     static void set(Class<?> type,Object object,String name,Object value) throws Exception { Field f=type.getDeclaredField(name);f.setAccessible(true);f.set(object,value); }
+    /** Match the production body boundary when a fixture calls the walking hook directly. */
+    public static void ordinaryWalking(RotationBehaviorHookTest.Fixture f) {
+        me.youngjibbit.core.observation.RuntimeObservation observation=f.runtime.getObservation();
+        observation.beginOuterTick();
+        try { observation.observePlayerStep(f.player,()->{f.player.onUpdateWalkingPlayer();return true;},step->step.getAsBoolean()); }
+        finally { observation.endOuterTick(); }
+    }
     public static Scene prepare(RotationBehaviorHookTest.Fixture f,double localX,double wireX) throws Exception {
         Bootstrap.register();
         Scene scene=RotationBehaviorHookTest.bare(Scene.class);scene.blocks=new LinkedHashMap<>();scene.border=new WorldBorder();scene.motionTime=new java.util.concurrent.atomic.AtomicLong();
@@ -82,7 +89,8 @@ public class ScaffoldClientFlowTest {
                 f.scaffold.onEnable();int placements=0;
                 try {
                     for(int tick=0;tick<12 && !scene.blocks.containsKey(new BlockPos(0,63,0));tick++) {
-                        scene.motionTime.addAndGet(50_000_000L);f.runtime.getScaffoldPlacementService().beginTick();f.player.onUpdateWalkingPlayer();
+                        scene.motionTime.addAndGet(50_000_000L);f.runtime.getScaffoldPlacementService().beginTick();
+                        ordinaryWalking(f);
                         Object sent;while((sent=f.channel.readOutbound())!=null)if(sent instanceof C08PacketPlayerBlockPlacement)placements++;
                     }
                     assertTrue(mode+"/"+timing+": local displacement must not make the planned packet-pose raycast miss",scene.blocks.containsKey(new BlockPos(0,63,0)));

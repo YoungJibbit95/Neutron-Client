@@ -373,26 +373,6 @@ public class GuiIngame extends Gui
     Theme currentTheme = applyTheme();
     int[] outlineColors = getStaticOutlineGradientColors(currentTheme);
 
-    private static int interpolateTwoColorsSmoothly(int color1, int color2, long currentTime, float cycleDuration) {
-
-        float progress = (currentTime % (long) cycleDuration) / cycleDuration;
-        float factor = (float) (Math.sin(progress * 2 * Math.PI) * 0.5 + 0.5);
-
-        int red1 = (color1 >> 16) & 0xFF;
-        int green1 = (color1 >> 8) & 0xFF;
-        int blue1 = color1 & 0xFF;
-
-        int red2 = (color2 >> 16) & 0xFF;
-        int green2 = (color2 >> 8) & 0xFF;
-        int blue2 = color2 & 0xFF;
-
-        int red = (int) (red1 + (red2 - red1) * factor);
-        int green = (int) (green1 + (green2 - green1) * factor);
-        int blue = (int) (blue1 + (blue2 - blue1) * factor);
-
-        return (0xFF << 24) | (red << 16) | (green << 8) | blue;
-    }
-
     private int[] getStaticOutlineGradientColors(Theme currentTheme)
     {
         Theme resolvedTheme = Theme.resolve(currentTheme);
@@ -429,13 +409,6 @@ public class GuiIngame extends Gui
         outlineColors = getStaticOutlineGradientColors(currentTheme);
         ScaledResolution s = new ScaledResolution(Wrapper.mc);
 
-        int color01 = outlineColors[0];
-        int color02 = outlineColors[1];
-        long cT = System.currentTimeMillis();
-        float cycleDuration = 2000.0f;
-        float o = (cT % 3000L) / 3000.0f;
-        int interpolatedColor1 = interpolateTwoColorsSmoothly(color01, color02, cT, cycleDuration);
-        int interpolatedColor2 = interpolateTwoColorsSmoothly(color02, color01, cT, cycleDuration);
         int hotbarX = s.getScaledWidth() / 2 - 92;
         int hotbarY = s.getScaledHeight() - 26;
         int hotbarWidth = 184;
@@ -443,7 +416,9 @@ public class GuiIngame extends Gui
         int selectedSlotX = hotbarX + Wrapper.mc.thePlayer.inventory.currentItem * 20;
 
         hotbarSurface.panel(hotbarX,hotbarY,hotbarWidth,hotbarHeight,5,currentTheme,true,true,true,8,90/255f,.65f,()->{});hotbarSceneReady=true;
-        GuiShaderBloom.renderRect(selectedSlotX, hotbarY, 24, 24, 5, interpolatedColor2, 1, 1);
+        int selectedColor = me.youngjibbit.utils.render.UiEffects.gradientColor(currentTheme,
+                me.youngjibbit.utils.render.UiEffects.Channel.GLOW, selectedSlotX, hotbarY);
+        GuiShaderBloom.renderRect(selectedSlotX, hotbarY, 24, 24, 5, selectedColor, 1, 1);
         UIUtils.drawDecorationRound(selectedSlotX, hotbarY, 24, 24, 5, new Color(0,0,0,122));
 
         EntityPlayer var3 = (EntityPlayer) this.mc.thePlayer;

@@ -2,6 +2,8 @@ package me.youngjibbit.core.bootstrap;
 
 import me.youngjibbit.config.ConfigManager;
 import me.youngjibbit.core.combat.*;
+import me.youngjibbit.core.observation.MinecraftSceneSource;
+import me.youngjibbit.core.observation.RuntimeObservation;
 import me.youngjibbit.core.world.ScaffoldPlacementService;
 import me.youngjibbit.module.ModuleManager;
 
@@ -15,6 +17,8 @@ public final class ClientRuntime {
     private final RaycastService raycastService = new RaycastService();
     private final AttackScheduler attackScheduler = new AttackScheduler();
     private final ScaffoldPlacementService scaffoldPlacementService = new ScaffoldPlacementService();
+    private final RuntimeObservation observation = new RuntimeObservation(
+            () -> MinecraftSceneSource.capture(net.minecraft.client.Minecraft.getMinecraft()));
 
     public ClientRuntime(ModuleManager moduleManager, ConfigManager configManager) {
         this.moduleManager = moduleManager;
@@ -47,5 +51,9 @@ public final class ClientRuntime {
 
     public ScaffoldPlacementService getScaffoldPlacementService() {
         return scaffoldPlacementService;
+    }
+
+    public RuntimeObservation getObservation() {
+        return observation;
     }
 }

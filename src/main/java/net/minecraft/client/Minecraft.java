@@ -366,7 +366,7 @@ public class Minecraft implements IThreadListener, IPlayerUsage
         this.sessionService = (new YggdrasilAuthenticationService(gameConfig.userInfo.proxy, UUID.randomUUID().toString())).createMinecraftSessionService();
         this.session = gameConfig.userInfo.session;
         logger.info("Setting user: " + this.session.getUsername());
-        logger.info("(Session ID is " + this.session.getSessionID() + ")");
+        // getSessionID() contains the access token; authenticated sessions must never be logged.
         this.isDemo = gameConfig.gameInfo.isDemo;
         this.displayWidth = gameConfig.displayInfo.width > 0 ? gameConfig.displayInfo.width : 1;
         this.displayHeight = gameConfig.displayInfo.height > 0 ? gameConfig.displayInfo.height : 1;
@@ -1014,6 +1014,8 @@ public class Minecraft implements IThreadListener, IPlayerUsage
      */
     public void shutdownMinecraftApplet()
     {
+        if (me.youngjibbit.core.bootstrap.RuntimeServices.observation() != null)
+            me.youngjibbit.core.bootstrap.RuntimeServices.observation().reset();
         try
         {
             this.stream.shutdownStream();
@@ -1429,6 +1431,8 @@ public class Minecraft implements IThreadListener, IPlayerUsage
      */
     public void shutdown()
     {
+        if (me.youngjibbit.core.bootstrap.RuntimeServices.observation() != null)
+            me.youngjibbit.core.bootstrap.RuntimeServices.observation().reset();
         this.running = false;
     }
 
@@ -1733,6 +1737,10 @@ public class Minecraft implements IThreadListener, IPlayerUsage
      */
     public void runTick() throws IOException
     {
+        me.youngjibbit.core.observation.RuntimeObservation observation =
+                me.youngjibbit.core.bootstrap.RuntimeServices.observation();
+        if (observation != null) observation.beginOuterTick();
+        try {
         me.youngjibbit.core.bootstrap.RuntimeServices.attackScheduler().beginTick();
         me.youngjibbit.core.bootstrap.RuntimeServices.scaffoldPlacement().beginTick();
         if (this.rightClickDelayTimer > 0)
@@ -2270,7 +2278,9 @@ public class Minecraft implements IThreadListener, IPlayerUsage
 
         this.mcProfiler.endSection();
         this.systemTime = getSystemTime();
-
+        } finally {
+            if (observation != null) observation.endOuterTick();
+        }
     }
 
     /**
@@ -2355,6 +2365,8 @@ public class Minecraft implements IThreadListener, IPlayerUsage
      * par2Str is displayed on the loading screen to the user unloads the current world first
      */
     public void loadWorld(WorldClient worldClientIn, String loadingMessage) {
+        if (me.youngjibbit.core.bootstrap.RuntimeServices.observation() != null)
+            me.youngjibbit.core.bootstrap.RuntimeServices.observation().invalidateScene();
         if (getNetHandler() != null && getNetHandler().getNetworkManager().getClientPackets() != null)
             getNetHandler().getNetworkManager().getClientPackets().worldChanged();
 

@@ -71,6 +71,8 @@ public final class NotificationManager {
                 if(surfaces[i]==null)surfaces[i]=new ArrayListSurface();
                 final float fx=x,fy=entry.y,opacity=entry.alpha;
                 Runnable content=()->{
+                    String presentation=c==null?"Follow Global":c.notificationTheme.getValue();
+                    if(!presentation.equals("Follow Global"))decorate(presentation,fx,fy,width,layout.height,opacity);
                     icon(entry.notification.type,fx+15,fy+16,opacity);
                     heading.drawString(layout.title,fx+29,fy+8,UiEffects.alpha(0xfff0f3fa,opacity));
                     for(int line=0;line<layout.lines.size();line++)body.drawString(layout.lines.get(line),fx+12,fy+29+line*layout.lineHeight,UiEffects.alpha(0xffd0d8e5,opacity));
@@ -81,6 +83,31 @@ public final class NotificationManager {
                 else surfaces[i].styledPanel(x,entry.y,width,layout.height,5,Theme.getDefaultTheme(),design.equals("Liquid Glass"),true,design.equals("Outline")?.28f:.91f,design.equals("Outline")?1:.45f,design.equals("Liquid Glass"),opacity,content);
                 offset+=layout.height+7;
             }
+        }
+    }
+    /** Additional ink inside the existing material card. No layout, lifetime, status or clock ownership. */
+    private static void decorate(String style,float x,float y,float width,float height,float opacity){
+        Theme theme=Theme.getDefaultTheme();UiEffects.Options options=UiEffects.options();
+        int first=UiEffects.gradientAt(theme,UiEffects.Channel.BORDER,x+5,y+5),second=UiEffects.gradientAt(theme,UiEffects.Channel.BORDER,x+width-5,y+height-5);
+        ClientSettings settings=ClientSettings.current();boolean accent=settings!=null&&settings.borderColor.getValue().equals("Accent");
+        int edgeFirst=accent?theme.getAccentColor().getRGB():first,edgeSecond=accent?theme.getAccentColor().getRGB():second;
+        if(style.equals("Obsidian")){
+            UIUtils.drawDecorationRound(x+4,y+4,width-8,height-8,3,UiEffects.color(0xff080a10,.22f*opacity));
+            if(options.border)UIUtils.drawDecorationRound(x+6,y+10,2,height-20,1,UiEffects.color(Theme.interpolateRGB(0xff535963,edgeFirst,.22f),.7f*options.borderOpacity*opacity));
+        }else if(style.equals("Aurora")){
+            UIUtils.drawGradientHorizontal(x+5,y+4,width-10,20,3,UiEffects.color(first,.18f*opacity),UiEffects.color(second,.18f*opacity));
+            UIUtils.drawDecorationRound(x+12,y+25,width-24,1,.5f,UiEffects.color(second,.3f*opacity));
+        }else if(style.equals("Neon Edge")){
+            if(options.border){
+                UIUtils.drawDecorationRound(x+4,y+4,width-8,2,1,UiEffects.color(edgeFirst,options.borderOpacity*opacity));
+                UIUtils.drawDecorationRound(x+4,y+4,2,18,1,UiEffects.color(edgeFirst,options.borderOpacity*opacity));
+                UIUtils.drawDecorationRound(x+width-6,y+height-22,2,18,1,UiEffects.color(edgeSecond,options.borderOpacity*opacity));
+                UIUtils.drawDecorationRound(x+width-26,y+height-6,22,2,1,UiEffects.color(edgeSecond,options.borderOpacity*opacity));
+            }
+        }else if(style.equals("Minimal")){
+            // Compact inset rhythm without altering the established card/queue/position geometry.
+            UIUtils.drawDecorationRound(x+9,y+6,width-18,height-12,2,UiEffects.color(0xff0c1018,.10f*opacity));
+            UIUtils.drawDecorationRound(x+29,y+25,Math.min(42,width-42),1,.5f,UiEffects.color(0xffb2bbc9,.28f*opacity));
         }
     }
     public static void releaseResources(){drain();timeline.clear();stackScene.close();for(int i=0;i<surfaces.length;i++)if(surfaces[i]!=null){surfaces[i].close();surfaces[i]=null;}previous=0;}
@@ -132,10 +159,15 @@ public final class NotificationManager {
         if(lines.size()>maxLines){lines=new ArrayList<>(lines.subList(0,maxLines));lines.set(maxLines-1,fit(lines.get(maxLines-1)+" …",width,font));}
         return lines;
     }
+    static int iconColor(NotificationType type){
+        UiEffects.SemanticRole role=type==NotificationType.ERROR?UiEffects.SemanticRole.ERROR:type==NotificationType.WARNING?UiEffects.SemanticRole.WARNING:type==NotificationType.SUCCESS||type==NotificationType.ENABLED?UiEffects.SemanticRole.SUCCESS:UiEffects.SemanticRole.INFO;
+        ClientSettings settings=ClientSettings.current();
+        return UiEffects.semanticColor(role,Theme.getDefaultTheme().getAccentColor().getRGB(),settings==null||settings.semanticColorPriority.getValue());
+    }
     private static void icon(NotificationType type,float x,float y,float alpha){
         try(RenderState state=new RenderState()){
             GlStateManager.disableTexture2D();glDisable(GL_TEXTURE_2D);GlStateManager.enableBlend();glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glLineWidth(1.5f);
-            int color=type==NotificationType.ERROR?0xffff667f:type==NotificationType.WARNING?0xffffc969:type==NotificationType.SUCCESS||type==NotificationType.ENABLED?0xff65e0ad:0xff71caff;
+            int color=iconColor(type);
             glColor4f((color>>16&255)/255f,(color>>8&255)/255f,(color&255)/255f,alpha);glTranslatef(x,y,0);
             if(type==NotificationType.WARNING){glBegin(GL_LINE_LOOP);glVertex2f(0,-7);glVertex2f(7,6);glVertex2f(-7,6);glEnd();glBegin(GL_LINES);glVertex2f(0,-2);glVertex2f(0,1);glVertex2f(0,3);glVertex2f(0,4);glEnd();}
             else{glBegin(GL_LINE_LOOP);for(int i=0;i<32;i++){double a=i*Math.PI/16;glVertex2f((float)Math.cos(a)*7,(float)Math.sin(a)*7);}glEnd();glBegin(GL_LINES);

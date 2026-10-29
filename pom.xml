@@ -51,7 +51,8 @@
                     </descriptorRefs>
                     <archive>
                         <manifest>
-                            <mainClass>net.minecraft.launchwrapper.Launch</mainClass>
+                            <!-- Local-only entrypoint; authentication/assets/natives remain external gates. -->
+                            <mainClass>net.minecraft.client.main.Main</mainClass>
                         </manifest>
                     </archive>
                 </configuration>
@@ -100,6 +101,16 @@
     </build>
 
     <repositories>
+        <!-- Resolve ordinary artifacts from Central before legacy fallbacks. -->
+        <repository>
+            <id>central</id>
+            <name>Maven Central</name>
+            <url>https://repo.maven.apache.org/maven2</url>
+        </repository>
+        <repository>
+            <id>minecraft</id>
+            <url>https://libraries.minecraft.net/</url>
+        </repository>
         <repository>
             <id>jitpack.io</id>
             <url>https://jitpack.io</url>
@@ -115,17 +126,8 @@
             <url>https://impactdevelopment.github.io/maven</url>
         </repository>
         <repository>
-            <id>minecraft</id>
-            <url>https://libraries.minecraft.net/</url>
-        </repository>
-        <repository>
             <id>litarvan</id>
             <url>https://litarvan.github.io/maven</url>
-        </repository>
-        <repository>
-            <id>central</id>
-            <name>Maven Central</name>
-            <url>https://repo1.maven.org/maven2</url>
         </repository>
     </repositories>
 
@@ -147,7 +149,7 @@
         </dependency>
 
         <dependency>
-            <groupId>Javax.vecmath</groupId>
+            <groupId>javax.vecmath</groupId>
             <artifactId>vecmath</artifactId>
             <version>1.5.2</version>
         </dependency>
@@ -404,4 +406,51 @@
 
     </dependencies>
 
+    <!-- Opt-in thin distribution: retain reflective/JNI dependencies without
+         changing the inherited development packaging. Launcher tooling supplies
+         an explicit, hashed classpath and platform-matched LWJGL runtime. -->
+    <profiles>
+        <profile>
+            <id>launcher-dist</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-assembly-plugin</artifactId>
+                        <executions><execution><id>default</id><phase>none</phase></execution></executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-shade-plugin</artifactId>
+                        <executions><execution><id>default</id><phase>none</phase></execution></executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <version>3.3.0</version>
+                        <configuration>
+                            <finalName>neutron-client</finalName>
+                            <archive><manifest><mainClass>me.neutron.launcher.ClientBootstrap</mainClass></manifest></archive>
+                        </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-dependency-plugin</artifactId>
+                        <version>3.6.1</version>
+                        <executions>
+                            <execution>
+                                <id>launcher-runtime</id><phase>package</phase>
+                                <goals><goal>copy-dependencies</goal></goals>
+                                <configuration>
+                                    <includeScope>runtime</includeScope>
+                                    <useRepositoryLayout>true</useRepositoryLayout>
+                                    <outputDirectory>${project.build.directory}/launcher-libraries</outputDirectory>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

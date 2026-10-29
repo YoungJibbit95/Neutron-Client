@@ -21,7 +21,11 @@ public class AutoHealInventoryTransferTest {
  }
  static List<Object> drain(RotationBehaviorHookTest.Fixture f){return AutoHealSafetyTest.drain(f);}
  static C0EPacketClickWindow click(List<Object> packets){for(Object p:packets)if(p instanceof C0EPacketClickWindow)return(C0EPacketClickWindow)p;return null;}
- static void tick(){Pulsar.BUS.post(new TickEvent());}
+ static void tick(){
+  me.youngjibbit.core.observation.RuntimeObservation observation=me.youngjibbit.core.bootstrap.RuntimeServices.observation();
+  observation.beginOuterTick();
+  try{Pulsar.BUS.post(new TickEvent());}finally{observation.endOuterTick();}
+ }
  static void resync(RotationBehaviorHookTest.Fixture f){List<ItemStack> slots=new ArrayList<>();for(net.minecraft.inventory.Slot s:f.player.inventoryContainer.inventorySlots)slots.add(s.getStack());f.channel.writeInbound(new S30PacketWindowItems(0,slots));}
  @Test public void defaultOffHotbarFirstAndAckGatesEmptyOrFullHotbarTransferWithoutDrops()throws Exception {
   Bootstrap.register();try(RotationBehaviorHookTest.Fixture f=new RotationBehaviorHookTest.Fixture()) {
@@ -71,7 +75,7 @@ public class AutoHealInventoryTransferTest {
     Field transferField=AutoHeal.class.getDeclaredField("transfer");transferField.setAccessible(true);AutoHealInventoryTransfer transfer=(AutoHealInventoryTransfer)transferField.get(heal);
     Field pendingField=AutoHealInventoryTransfer.class.getDeclaredField("pending");pendingField.setAccessible(true);Object pending=pendingField.get(transfer);Field deadline=pending.getClass().getDeclaredField("deadline");deadline.setAccessible(true);deadline.setLong(pending,System.nanoTime()-1);
     tick();assertTrue(drain(f).isEmpty());f.channel.writeInbound(new S32PacketConfirmTransaction(0,sent.getActionNumber(),true));tick();assertTrue(drain(f).isEmpty());assertTrue(heal.info.contains("resync"));
-    f.mc.theWorld=RotationBehaviorHookTest.bare(net.minecraft.client.multiplayer.WorldClient.class);tick();assertTrue(drain(f).stream().anyMatch(p->p instanceof C08PacketPlayerBlockPlacement));assertFalse(heal.info.contains("resync"));
+    f.mc.theWorld=RotationBehaviorHookTest.bare(net.minecraft.client.multiplayer.WorldClient.class);f.player.worldObj=f.mc.theWorld;tick();assertTrue(drain(f).stream().anyMatch(p->p instanceof C08PacketPlayerBlockPlacement));assertFalse(heal.info.contains("resync"));
    }finally{heal.onDisable();}
   }
  }
