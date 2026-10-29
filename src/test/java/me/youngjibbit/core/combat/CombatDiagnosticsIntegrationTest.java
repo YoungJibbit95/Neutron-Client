@@ -231,9 +231,16 @@ public class CombatDiagnosticsIntegrationTest {
         }
     }
 
+    @SuppressWarnings("unchecked")
     @Test public void appliedS08ObservationMeasuresActualDisplacementNotReceiptPrediction() throws Exception {
         try (RotationBehaviorHookTest.Fixture f = new RotationBehaviorHookTest.Fixture()) {
             CombatDiagnostics diagnostics = diagnostics();
+            // The actual NetHandler observer resolves the opt-in module through the client registry.
+            Field registry = ModuleManager.class.getDeclaredField("modulesByClass");
+            registry.setAccessible(true);
+            Map<Class<? extends Module>, Module> modules =
+                    (Map<Class<? extends Module>, Module>) registry.get(Pulsar.INSTANCE.getMm());
+            Module prior = modules.put(CombatDiagnostics.class, diagnostics);
             diagnostics.setToggled(true);
             try {
                 f.player.posX = 100.5;
@@ -251,7 +258,11 @@ public class CombatDiagnosticsIntegrationTest {
                 assertTrue(line, line.contains("appliedRotationDelta=15.00/5.00"));
                 assertEquals(100.5, f.player.posX, 0);
                 assertNull(f.channel.readOutbound());
-            } finally { diagnostics.setToggled(false); }
+            } finally {
+                diagnostics.setToggled(false);
+                if (prior == null) modules.remove(CombatDiagnostics.class);
+                else modules.put(CombatDiagnostics.class, prior);
+            }
         }
     }
 
