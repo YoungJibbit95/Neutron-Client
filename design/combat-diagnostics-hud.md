@@ -14,7 +14,8 @@ change game behavior.
    enabled separately. The HUD shows the most recent seven events.
 4. Press **F8** immediately after seeing a server-side warning to add a
    **manual timestamp marker**. F8 does not detect the server flag.
-5. The `Console Attack Log` option (on by default when the module is active)
+5. Enable the `Console Attack Log` option explicitly if console export is needed
+   (off by default). When enabled, it
    prints local attack attempts, locally accepted attacks, manual markers,
    and S08 position-correction packet receipts. It does **not** print every
    movement update to the console.
@@ -24,12 +25,20 @@ change game behavior.
 
 ## Fields and limitations
 
-- `camera`: current visible camera yaw/pitch at sampling time.
+- `camera`: player camera yaw/pitch. During synchronous motion-POST combat,
+  sampled before Aura temporarily substitutes its attack pose; outside that
+  dispatch, sampled directly. `cameraSource` distinguishes these observations.
+- `playerPose`: raw player angles at the event, which can temporarily differ
+  from the camera during Aura's local attack/knockback calculation.
 - `localWire`: most recently accepted local movement rotation stored by
-  RotationManager; not a server acknowledgement.
+  RotationManager; not a server acknowledgement. Missing or invalid observations
+  are `NaN` with `wireKnown=false`, never fabricated from camera angles.
+- `motionAccepted`: whether the current movement frame was locally accepted;
+  this is separate from retaining an older observed wire rotation.
 - `owner`: confirmed local rotation owner, or `none`.
 - `track`: module associated with the last tracked target.
-- `seq`: local motion sequence; `tick`: client tick counter.
+- `seq`: local motion sequence; `tick`: client tick counter. `event` is the
+  recording order within the current trace, even when timestamps are equal.
 - `delta`: stored local movement rotation minus camera rotation.
 - `targetId`: local entity ID, not the target's username.
 - `centerErr`: approximate error from stored movement rotation to target
@@ -41,6 +50,11 @@ change game behavior.
 - `S08_RECEIVED_NOT_A_FLAG`: server position-correction packet received;
   S08 can also be a normal teleport, so it does not establish a violation.
 
+The POST observer runs before default-priority combat listeners, and its camera
+sample expires at the end of that dispatch. It does not reorder the combat
+listeners themselves. The HUD summary keeps current owner/target/angles visible
+even when long event lines are trimmed. Rendering restores the previous GL state.
+
 The HUD stores up to 120 event strings in memory and clears on disable/world
 change. It creates no background tasks, sends no packets, and changes neither
 rotation algorithms nor Aura's attack scheduling. A screenshot alone cannot
@@ -48,11 +62,15 @@ identify a server-side violation category.
 
 ## Validation
 
-The new pure-Java trace has JUnit coverage. The full Java 8 Maven test suite,
-live HUD rendering, and multiplayer behavior **must be verified locally**
-before this draft PR is merged.
+Trace and module integration have Java-8 JUnit coverage, including reflection
+discovery, Client-category listing, F9/F8 dispatch, lifecycle cleanup, bounded
+history, unknown wire angles, and nested attack events in both listener orders.
+The new regression tests fail on the original PR module before its correction.
+They verify that diagnostic recording preserves angles/ownership and emits no
+packets. Live HUD rendering, key conflicts in personal configs, and multiplayer
+behavior still need manual verification; no Intave/Polar check is diagnosed here.
 
-Tests to run in an isolated worktree:
+Run in the existing main checkout, without creating another client copy:
 ```powershell
-mvn -o '-Dtest=CombatDiagnosticTraceTest,CombatFlowTest,RotationBehaviorHookTest,RotationModuleBindingTest,NetworkMoveFixIntegrationTest' test
+mvn -o '-Dtest=CombatDiagnosticTraceTest,CombatDiagnosticsIntegrationTest,CombatFlowTest,RotationTrajectoryTest,RotationBehaviorHookTest,RotationModuleBindingTest,NetworkMoveFixIntegrationTest' test
 ```
