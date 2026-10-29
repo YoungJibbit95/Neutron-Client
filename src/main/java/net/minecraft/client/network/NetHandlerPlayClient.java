@@ -740,9 +740,10 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
         }
 
         entityplayer.setPositionAndRotation(d0, d1, d2, f, f1);
+        this.addToSendQueue(new C03PacketPlayer.C06PacketPlayerPosLook(entityplayer.posX, entityplayer.getEntityBoundingBox().minY, entityplayer.posZ, entityplayer.rotationYaw, entityplayer.rotationPitch, false));
+        // Observe only after queuing the vanilla acknowledgement; debug output cannot delay it.
         me.youngjibbit.module.impl.client.CombatDiagnostics.observeAppliedS08(
                 entityplayer, beforeS08X, beforeS08Y, beforeS08Z, beforeS08Yaw, beforeS08Pitch);
-        this.addToSendQueue(new C03PacketPlayer.C06PacketPlayerPosLook(entityplayer.posX, entityplayer.getEntityBoundingBox().minY, entityplayer.posZ, entityplayer.rotationYaw, entityplayer.rotationPitch, false));
 
         if (!this.doneLoadingTerrain)
         {
