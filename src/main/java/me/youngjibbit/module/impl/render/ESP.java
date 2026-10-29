@@ -103,6 +103,7 @@ public class ESP extends Module
         FloatBuffer worldProjection = org.lwjgl.BufferUtils.createFloatBuffer(16);
         GL11.glGetFloat(GL11.GL_MODELVIEW_MATRIX, worldModel);
         GL11.glGetFloat(GL11.GL_PROJECTION_MATRIX, worldProjection);
+        final float guiScale = new ScaledResolution(mc).getScaleFactor();
         currentTheme=surfaces.theme(Theme.getDefaultTheme());
         surfaces.withSceneIf(mode.getValue().equals("Static")&&surfaces.usesSurface(blur.getValue()),currentTheme,()->{
         me.youngjibbit.utils.render.GuiShaderBloom.beginBatch();
@@ -123,16 +124,18 @@ public class ESP extends Module
             // Reuse the actual eye/shader camera rather than rebuilding eye zero.
             GL11.glMatrixMode(GL11.GL_PROJECTION); GL11.glLoadMatrix(worldProjection);
             GL11.glMatrixMode(GL11.GL_MODELVIEW); GL11.glLoadMatrix(worldModel);
+            // The projection state stays unchanged while the eight box corners are projected.
+            // Refresh it per entity because overlay rendering below changes the GL matrices.
+            GL11.glGetFloat(GL11.GL_MODELVIEW_MATRIX, modelview);
+            GL11.glGetFloat(GL11.GL_PROJECTION_MATRIX, projection);
+            GL11.glGetInteger(GL11.GL_VIEWPORT, viewport);
             Vector4d posVec = null;
             for (Vector3d vector : vectorList)
             {
                 FloatBuffer otherVec=this.vector;otherVec.clear();
-                GL11.glGetFloat(2982, modelview);
-                GL11.glGetFloat(2983, projection);
-                GL11.glGetInteger(2978, viewport);
                 if (GLU.gluProject((float) (vector.x - ESP.mc.getRenderManager().viewerPosX), (float) ((double) ((float) vector.y) - ESP.mc.getRenderManager().viewerPosY), (float) ((double) ((float) vector.z) - ESP.mc.getRenderManager().viewerPosZ), modelview, projection, viewport, otherVec))
                 {
-                    vector = new Vector3d(otherVec.get(0) / (float) new ScaledResolution(Minecraft.getMinecraft()).getScaleFactor(), ((float) mc.displayHeight - otherVec.get(1)) / (float) new ScaledResolution(Minecraft.getMinecraft()).getScaleFactor(), otherVec.get(2));
+                    vector = new Vector3d(otherVec.get(0) / (float) guiScale, ((float) mc.displayHeight - otherVec.get(1)) / (float) guiScale, otherVec.get(2));
                 }
                 if (!(vector.z >= 0.0) || !(vector.z < 1.0)) continue;
                 if (posVec == null)
