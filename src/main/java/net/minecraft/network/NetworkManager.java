@@ -183,7 +183,11 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet>
         acceptedClientPacket=observer;
         if(playSession==null && thread!=null)playSession=new me.youngjibbit.core.network.PlaySessionLifecycle(this,thread);
         clientPackets = new PacketPipeline(thread, this::isChannelOpen, observer,
-                error -> closeChannel(new ChatComponentText("Client packet processing failed: " + error.getClass().getSimpleName())),
+                error -> {
+                    logger.error("Client packet processing failed", error);
+                    closeChannel(new ChatComponentText("Client packet processing failed: "
+                            + error.getClass().getSimpleName() + " (see logs/latest.log)"));
+                },
                 new me.youngjibbit.core.network.PacketDelays(), packet -> {
                     if(packet instanceof net.minecraft.network.play.server.S01PacketJoinGame && playSession!=null)playSession.confirmStarted();
                 });
@@ -543,7 +547,7 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet>
 
             if (this.channel.pipeline().get("compress") instanceof NettyCompressionEncoder)
             {
-                ((NettyCompressionEncoder)this.channel.pipeline().get("decompress")).setCompressionTreshold(treshold);
+                ((NettyCompressionEncoder)this.channel.pipeline().get("compress")).setCompressionTreshold(treshold);
             }
             else
             {

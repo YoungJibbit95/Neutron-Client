@@ -27,6 +27,7 @@ public class ClickSlider extends Component.Sub<SliderValue> {
     private float valueX() { return ClickControlStyle.right(x, width) - valueWidth(); }
     private float trackX() { return fieldX(); }
     private float trackWidth() { return Math.max(1, fieldWidth() - valueWidth() - 10); }
+    @Override public me.youngjibbit.clickgui.utils.ClipRect presentationBounds(){return new me.youngjibbit.clickgui.utils.ClipRect(fieldX(),y+3,fieldWidth(),height-5);}
 
     @Override
     public void drawScreen(int mouseX, int mouseY) {
@@ -41,6 +42,7 @@ public class ClickSlider extends Component.Sub<SliderValue> {
         UIUtils.drawRound(trackX() + fill - 3, y + 8, 6, 8, 3, new Color(dragging ? theme.getPrimaryGradientRGB() : 0xffe0e4ed, true));
         ClickControlStyle.label(value.getName(), x + 12, y + 6, fieldX() - x - 20, theme.isCustom()?theme.getTextColor().getRGB():0xffe4e4e8);
         me.youngjibbit.clickgui.utils.GuiStyle.panel(valueX(), y + 3, valueWidth(), 19, 4, editing ? 1 : isMouseOver(mouseX, mouseY) ? .5f : .12f, new Color(29,31,36));
+        drawFeedback();
         try(me.youngjibbit.clickgui.utils.GuiClip ignored=me.youngjibbit.clickgui.utils.GuiClip.push(new me.youngjibbit.clickgui.utils.ClipRect(valueX()+3,y+3,valueWidth()-6,height-6))){
             String text = editing ? input + (error ? " !" : "_") : String.valueOf(value.getValue());
             me.youngjibbit.utils.font.TTFFontRenderer font = ClickControlStyle.font();

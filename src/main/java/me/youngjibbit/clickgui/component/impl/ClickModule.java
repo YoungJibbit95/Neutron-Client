@@ -80,6 +80,7 @@ public class ClickModule extends Component {
         boolean hover = isMouseOver(mouseX, mouseY);
         GuiStyle.panel(x, y, width, getHeight(), 4, toggleProgress,
                 hover ? new Color(25, 25, 26) : new Color(17, 17, 18));
+        drawFeedback();
         Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString(openProgress > 0.5f ? "h" : "i",
                 x + width - 17, y + 7, (theme.isCustom()?theme.getTextColor().getRGB():Color.WHITE.getRGB()));
         String binding=module.getKey()==0?"-":org.lwjgl.input.Keyboard.getKeyName(module.getKey());
@@ -139,6 +140,7 @@ public class ClickModule extends Component {
     public void mouseReleased() { for (Sub<?> value : values) value.mouseReleased(); }
 
     public Module getModule(){return module;}
+    public List<Sub<?>> presentationValues(){return java.util.Collections.unmodifiableList(values);}
     public boolean isOpen(){return open;}
     public void setOpen(boolean next){open=next;mouseReleased();if(!next)cancelInputs();}
     public List<Sub<?>> focusableValues(){List<Sub<?>> result=new ArrayList<>();if(open)for(Sub<?> v:values)if(visible(v))result.add(v);return result;}
