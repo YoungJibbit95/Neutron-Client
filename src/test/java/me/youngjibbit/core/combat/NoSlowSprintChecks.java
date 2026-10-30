@@ -114,6 +114,44 @@ public class NoSlowSprintChecks {
         input.sneak = false; input.forward = 0; living(); assertFalse(player.isSprinting());
         input.forward = -1; living(); assertFalse(player.isSprinting());
     }
+    @Test public void roundedMoveFixSprintIsDecidedFromActualServerYawForwardKey() {
+        // Execute the real onLivingUpdate sprint predicates; a running player
+        // holding W must stop sprinting if rounded MoveFix makes that input
+        // sideways in the confirmed module-facing yaw.
+        RotationManager rotation = fixture.runtime.getRotationManager();
+        try {
+            player.usingItem = false;
+            player.ticksExisted = 20;
+            player.rotationYaw = 180;
+            input.forward = 1;
+            input.strafe = 0;
+            fixture.aura.getModeSetting("movefix").setValue("Legacy Rounded");
+            rotation.bindConnection(fixture.network.getClientPackets());
+            rotation.beginMotion(player, fixture.world, 180, 0);
+            rotation.request("aura", RotationManager.AURA_PRIORITY, 90, 0);
+            rotation.finishMotion(90, 0, true);
+            assertEquals("aura", rotation.getConfirmedOwner(
+                    player, fixture.world, fixture.network.getClientPackets()));
+            player.sprint = true;
+            living();
+            assertFalse("W becomes pure strafe at 90 degrees; no forward sprint", player.isSprinting());
+
+            fixture.aura.getModeSetting("movefix").setValue("Legacy Strict");
+            player.sprint = true;
+            living();
+            assertTrue("Strict preserves W relative to the module yaw", player.isSprinting());
+
+            fixture.aura.getModeSetting("movefix").setValue("Legacy Rounded");
+            rotation.reset("aura");
+            player.sprint = true;
+            living();
+            assertTrue("Without a confirmed owner vanilla W sprint is unchanged", player.isSprinting());
+        } finally {
+            rotation.reset("aura");
+            fixture.aura.getModeSetting("movefix").setValue("Rotationsgebunden");
+        }
+    }
+
     @Test public void continuedSprintAndStartStopPacketsFollowFinalInput() {
         living(); player.onUpdateWalkingPlayer(); assertTrue(player.isSprinting());
         assertEquals(Collections.singletonList(C0BPacketEntityAction.Action.START_SPRINTING), actions());
