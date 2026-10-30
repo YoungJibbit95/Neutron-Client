@@ -31,6 +31,7 @@ public final class ScaffoldPlacementService {
         int selectedSlot();
         void selectSlot(int slot);
         boolean syncSlot();
+        default boolean syncSlot(BooleanSupplier valid) { return valid.getAsBoolean() && syncSlot(); }
         ItemStack stack(int slot);
         boolean usable(ItemStack stack);
         Object state(BlockPos pos);
@@ -230,13 +231,13 @@ public final class ScaffoldPlacementService {
         int previous = access.selectedSlot();
         boolean switched = previous != target.getSlot();
         boolean placed = false;
+        BooleanSupplier gate = () -> (actionValid.getAsBoolean() && sequence == rotations.getMotionSequence()
+                && usableRotation(rotations, pre, requiredRotationSource)
+                && valid(target, target.getSlot()) && effectiveHit(target, rotations, pre) != null)
+                || reject(Rejection.LATE_CHANGE);
         try {
             if (switched) access.selectSlot(target.getSlot());
-            if (!access.syncSlot()) return reject(Rejection.SLOT);
-            BooleanSupplier gate = () -> (actionValid.getAsBoolean() && sequence == rotations.getMotionSequence()
-                    && usableRotation(rotations, pre, requiredRotationSource)
-                    && valid(target, target.getSlot()) && effectiveHit(target, rotations, pre) != null)
-                    || reject(Rejection.LATE_CHANGE);
+            if (!access.syncSlot(gate)) return reject(Rejection.SLOT);
             if (!gate.getAsBoolean()) return false;
             lastSequence = sequence;
             lastAttemptTick = tick;
@@ -251,7 +252,8 @@ public final class ScaffoldPlacementService {
             // A listener/manual selection wins. Never send a slot restore into a replacement world/player.
             if (sameIdentity(target) && sceneValid.getAsBoolean()) {
                 if (switched && (silentSwitch || !placed) && access.selectedSlot() == target.getSlot()) access.selectSlot(previous);
-                access.syncSlot();
+                final int cleanupSlot = access.selectedSlot();
+                access.syncSlot(() -> sceneValid.getAsBoolean() && sameIdentity(target) && access.selectedSlot() == cleanupSlot);
             }
         }
     }
@@ -278,6 +280,7 @@ public final class ScaffoldPlacementService {
         public int selectedSlot() { return mc.thePlayer.inventory.currentItem; }
         public void selectSlot(int slot) { mc.thePlayer.inventory.currentItem = slot; }
         public boolean syncSlot() { return mc.playerController.syncCurrentPlayItemChecked(); }
+        public boolean syncSlot(BooleanSupplier valid) { return mc.playerController.syncCurrentPlayItemChecked(valid); }
         public ItemStack stack(int slot) { return mc.thePlayer.inventory.getStackInSlot(slot); }
         public boolean usable(ItemStack stack) {
             if (stack == null || stack.stackSize <= 0 || !(stack.getItem() instanceof ItemBlock)) return false;
