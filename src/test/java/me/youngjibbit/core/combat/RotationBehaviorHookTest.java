@@ -94,6 +94,22 @@ public class RotationBehaviorHookTest {
             unsafe.putObject(unsafe.staticFieldBase(moduleClient),unsafe.staticFieldOffset(moduleClient),oldModuleClient);
         }
     }
+    @Test public void confirmedRoundedOwnerChangesSprintForwardBasisButNoOwnerOrStrictDoesNot() throws Exception {
+        try (Fixture f = new Fixture()) {
+            f.player.rotationYaw = 180;
+            f.aura.getModeSetting("movefix").setValue("Legacy Rounded");
+            f.accept("aura", 90);
+            assertEquals(0, RotationCorrections.sprintForward(180, 0, 1), 0);
+            f.aura.getModeSetting("movefix").setValue("Legacy Strict");
+            assertEquals(1, RotationCorrections.sprintForward(180, 0, 1), 0);
+            f.aura.getModeSetting("movefix").setValue("Legacy Rounded");
+            f.runtime.getRotationManager().reset("aura");
+            assertEquals(1, RotationCorrections.sprintForward(180, 0, 1), 0);
+            assertEquals(180, f.player.rotationYaw, 0);
+            assertNull(f.channel.readOutbound());
+        }
+    }
+
     @Test public void northCameraWestAcceptedRotationAndWAccelerateWestAtActualConsumer() throws Exception {
         try(Fixture f=new Fixture()) {
             f.player.rotationYaw=180;f.accept("aura",90);

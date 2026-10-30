@@ -116,6 +116,29 @@ public class MoveFixControllerTest {
         assertEquals(.1,Math.hypot(motion[0],motion[1]),2e-5);
     }
 
+    @Test public void legacyRoundedSprintAdmissionUsesTheActualForwardKeyInModuleYawSpace() {
+        // A physical W can become module-yaw-only strafe, or backwards, when
+        // the server-facing aim is rotated relative to the camera.
+        RotationCorrections.Selection sideways = selection(MoveFixController.Mode.LEGACY_ROUNDED, 90);
+        assertEquals(0, RotationCorrections.correctedSprintForward(sideways, 180, 0, 1), 0);
+        RotationCorrections.Selection backwards = selection(MoveFixController.Mode.LEGACY_ROUNDED, 0);
+        assertEquals(-1, RotationCorrections.correctedSprintForward(backwards, 180, 0, 1), 0);
+        RotationCorrections.Selection forward = selection(MoveFixController.Mode.LEGACY_ROUNDED, 145);
+        assertEquals(1, RotationCorrections.correctedSprintForward(forward, 180, 0, 1), 0);
+
+        // Legacy Strict follows the original keys, not the rounded-key transform.
+        for (MoveFixController.Mode mode : MoveFixController.Mode.values()) {
+            if (mode == MoveFixController.Mode.LEGACY_ROUNDED) continue;
+            RotationCorrections.Selection original = selection(mode, 90);
+            assertEquals(mode.name(), 1,
+                    RotationCorrections.correctedSprintForward(original, 180, 0, 1), 0);
+            assertEquals(mode.name(), .3f,
+                    RotationCorrections.correctedSprintForward(original, 180, .3f, .3f), 0);
+        }
+        assertEquals(.98f, RotationCorrections.correctedSprintForward(null, 180, 0, .98f), 0);
+        assertEquals(0, RotationCorrections.correctedSprintForward(sideways, 180, 0, 0), 0);
+    }
+
     @Test public void legacyStrictUsesOriginalKeysAtTheSelectedYaw() {
         for(float[] keys:KEYS)for(float strength:new float[]{.98f,.294f,.196f,.0588f}) {
             MoveFixController.Input result=MoveFixController.correct(keys[0]*strength,keys[1]*strength,
