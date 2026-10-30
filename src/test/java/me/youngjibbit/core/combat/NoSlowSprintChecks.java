@@ -129,6 +129,47 @@ public class NoSlowSprintChecks {
         assertEquals(Collections.singletonList(C0BPacketEntityAction.Action.START_SPRINTING), actions());
         assertEquals(180, player.rotationYaw, 0);
     }
+    @Test public void actualVanillaSprintDecisionUsesRoundedServerFacingForwardInput() {
+        noSlow.onDisable();
+        player.usingItem = false;
+        player.ticksExisted = 20;
+        player.rotationYaw = 180;
+        input.forward = 1;
+        input.strafe = 0;
+        input.sneak = false;
+        RotationManager rotations = fixture.runtime.getRotationManager();
+        String previousMode = fixture.aura.getModeSetting("movefix").getValue();
+        try {
+            rotations.bindConnection(fixture.network.getClientPackets());
+            rotations.beginMotion(player, fixture.world, 180, 0);
+            rotations.request("aura", RotationManager.AURA_PRIORITY, 90, 0);
+            rotations.finishMotion(90, 0, true);
+
+            fixture.aura.getModeSetting("movefix").setValue("Legacy Rounded");
+            player.sprint = true;
+            living();
+            assertFalse("W maps to strafe-only at a 90 degree camera/server yaw difference",
+                    player.isSprinting());
+
+            fixture.aura.getModeSetting("movefix").setValue("Legacy Strict");
+            player.sprint = false;
+            living();
+            assertTrue("Strict keeps the original forward key", player.isSprinting());
+
+            rotations.beginMotion(player, fixture.world, 180, 0);
+            rotations.request("aura", RotationManager.AURA_PRIORITY, 145, 0);
+            rotations.finishMotion(145, 0, true);
+            fixture.aura.getModeSetting("movefix").setValue("Legacy Rounded");
+            player.sprint = false;
+            living();
+            assertTrue("Rounded W still has positive forward at 35 degrees",
+                    player.isSprinting());
+        } finally {
+            fixture.aura.getModeSetting("movefix").setValue(previousMode);
+            rotations.reset();
+        }
+    }
+
     @Test public void doubleTapUsesTheSamePermissionAndVanillaWorksWithoutItemUse() throws Exception {
         fixture.mc.gameSettings.keyBindSprint.pressed = false;
         living(); assertFalse(player.isSprinting()); // first press arms the double-tap window
