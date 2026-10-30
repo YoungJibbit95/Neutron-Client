@@ -876,7 +876,8 @@ public class EntityPlayerSP extends AbstractClientPlayer
         boolean flag = this.movementInput.jump;
         boolean flag1 = this.movementInput.sneak;
         float f = 0.8F;
-        boolean flag2 = this.movementInput.moveForward >= f;
+        boolean flag2 = me.youngjibbit.core.combat.RotationCorrections.sprintForward(
+                this.rotationYaw, this.movementInput.moveStrafe, this.movementInput.moveForward) >= f;
         this.movementInput.updatePlayerMoveState();
         me.youngjibbit.module.impl.world.Scaffold.applyDownwardsInput(this.movementInput);
         boolean noslowAllowSprint = false;
@@ -900,8 +901,12 @@ public class EntityPlayerSP extends AbstractClientPlayer
         this.pushOutOfBlocks(this.posX + (double)this.width * 0.35D, this.getEntityBoundingBox().minY + 0.5D, this.posZ - (double)this.width * 0.35D);
         this.pushOutOfBlocks(this.posX + (double)this.width * 0.35D, this.getEntityBoundingBox().minY + 0.5D, this.posZ + (double)this.width * 0.35D);
         boolean flag3 = (float)this.getFoodStats().getFoodLevel() > 6.0F || this.capabilities.allowFlying;
+        // Check vanilla sprint thresholds against the input basis used by moveFlying.
+        // Non-rounded modes and missing/invalid rotation ownership stay byte-for-byte equivalent.
+        float sprintForward = me.youngjibbit.core.combat.RotationCorrections.sprintForward(
+                this.rotationYaw, this.movementInput.moveStrafe, this.movementInput.moveForward);
 
-        if (this.onGround && !flag1 && !flag2 && this.movementInput.moveForward >= f && !this.isSprinting() && flag3 && (!this.isUsingItem() || noslowAllowSprint) && !this.isPotionActive(Potion.blindness))
+        if (this.onGround && !flag1 && !flag2 && sprintForward >= f && !this.isSprinting() && flag3 && (!this.isUsingItem() || noslowAllowSprint) && !this.isPotionActive(Potion.blindness))
         {
             if (this.sprintToggleTimer <= 0 && !this.mc.gameSettings.keyBindSprint.isKeyDown())
             {
@@ -913,12 +918,12 @@ public class EntityPlayerSP extends AbstractClientPlayer
             }
         }
 
-        if (!this.isSprinting() && this.movementInput.moveForward >= f && flag3 && (!this.isUsingItem() || noslowAllowSprint) && !this.isPotionActive(Potion.blindness) && this.mc.gameSettings.keyBindSprint.isKeyDown())
+        if (!this.isSprinting() && sprintForward >= f && flag3 && (!this.isUsingItem() || noslowAllowSprint) && !this.isPotionActive(Potion.blindness) && this.mc.gameSettings.keyBindSprint.isKeyDown())
         {
             this.setSprinting(true);
         }
 
-        if (this.isSprinting() && (this.movementInput.moveForward < f || this.isCollidedHorizontally || !flag3))
+        if (this.isSprinting() && (sprintForward < f || this.isCollidedHorizontally || !flag3))
         {
             this.setSprinting(false);
         }
