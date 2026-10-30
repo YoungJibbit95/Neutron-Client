@@ -87,13 +87,37 @@ public class CombatFlowTest {
         float[] retry=frame(manager,90,0,true); assertArrayEquals(rejected,retry,0);
     }
 
+    @Test public void bothAxesSnapFromTheLastAcceptedPoseAcrossOwnerChangesAndRejection() {
+        RotationManager manager = new RotationManager();
+        float previousYaw = 37.123f, previousPitch = -8.257f;
+        manager.beginMotion(150, 40);
+        manager.request("aura", 20, previousYaw, previousPitch);
+        manager.finishMotion(previousYaw, previousPitch, true);
+        float quantum = RotationSensitivity.mouseStep(.5f);
+        float wantedYaw = previousYaw + 3.2f * quantum;
+        float wantedPitch = previousPitch - 4.2f * quantum;
+        manager.beginMotion(150, 40); // Deliberately unrelated camera and new owner.
+        float[] next = manager.step("scaffold", 150, 40, wantedYaw, wantedPitch, 90, 90, .5f);
+        assertEquals(previousYaw + 3 * quantum, next[0], 1e-5f);
+        assertEquals(previousPitch - 4 * quantum, next[1], 1e-5f);
+        manager.request("scaffold", 30, next[0], next[1]);
+        manager.finishMotion(next[0], next[1], false);
+        assertEquals(previousYaw, manager.getEffectiveYaw(), 0);
+        assertEquals(previousPitch, manager.getEffectivePitch(), 0);
+        manager.beginMotion(150, 40);
+        assertArrayEquals(next,
+                manager.step("scaffold", 150, 40, wantedYaw, wantedPitch, 90, 90, .5f), 0);
+    }
+
     @Test public void sourceReleaseReseedsFromManualViewAndKeepsOtherOwners() {
         RotationManager manager=new RotationManager(); frame(manager,90,0,true); manager.reset("aura");
         // Releasing control leaves the next unmodified movement free to send the manual view.
         manager.beginMotion(-30,10);manager.finishMotion(-30,10,true);
         manager.beginMotion(-30,10);
         float[] next=manager.step("aura",-30,10,-90,10,10,10,.5f);
-        assertTrue(next[0]<-30&&next[0]>=-40.001f-RotationSensitivity.mouseStep(.5f)/2f);
+        // A 10 degree continuous step is 66.666... counts at .15 degrees/count.
+        // Nearest-grid quantization selects 67 counts, i.e. 10.05 degrees.
+        assertEquals(-40.05f,next[0],.00001f);
         manager.request("scaffold",30,80,75); EventMotion event=motion(0,0);manager.resolve(event);manager.finishMotion(80,75,true);
         manager.reset("aura"); assertTrue(manager.isOwner("scaffold"));
         manager.reset("scaffold"); assertFalse(manager.isOwner("scaffold"));
@@ -111,11 +135,11 @@ public class CombatFlowTest {
         manager.beginMotion(player,world,0,0);manager.request("scaffold",30,75,80);manager.finishMotion(75,80,true);
         manager.beginMotion(player,nextWorld,-40,0);
         float[] next=manager.step("aura",-40,0,-80,0,12,8,.5f);
-        assertTrue(next[0]>=-52.001-RotationSensitivity.mouseStep(.5f)/2f&&next[0]<-40);assertFalse(manager.isOwner("scaffold"));
+        assertTrue(next[0]>=-52.001&&next[0]<-40);assertFalse(manager.isOwner("scaffold"));
         manager.request("aura",20,next[0],next[1]);manager.finishMotion(next[0],next[1],true);
         manager.beginMotion(new Object(),nextWorld,30,0);
         next=manager.step("aura",30,0,60,0,12,8,.5f);
-        assertTrue(next[0]>30&&next[0]<=42+RotationSensitivity.mouseStep(.5f)/2f);
+        assertTrue(next[0]>30&&next[0]<=42);
     }
 
     @Test public void ownershipIsIndependentOfAuraScaffoldAndAssistListenerOrder() {

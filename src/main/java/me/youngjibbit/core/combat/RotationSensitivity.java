@@ -26,8 +26,10 @@ public final class RotationSensitivity {
                 || !Float.isFinite(mouseSensitivity)) return wanted;
         float quantum = mouseStep(mouseSensitivity);
         if (!Float.isFinite(quantum) || quantum <= 0F) return wanted;
-        double mouseCounts = Math.rint(((double) wanted - previous) / quantum);
-        if (!Double.isFinite(mouseCounts)) return wanted;
-        return (float) (previous + mouseCounts * quantum);
+        float mouseCounts = (wanted - previous) / quantum;
+        if (!Float.isFinite(mouseCounts)) return wanted;
+        // Legacy's Float.roundToInt rounds exact halves toward positive infinity,
+        // unlike rint's ties-to-even. Keep Float subtraction/division as well.
+        return previous + Math.round(mouseCounts) * quantum;
     }
 }

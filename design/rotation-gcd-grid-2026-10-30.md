@@ -40,4 +40,38 @@ no first-frame/target-switch or cancellation causes an unexpected jump,
 that pitch remains clamped, and that AimAssist camera/packet rotations
 remain consistent.
 
-**GitHub-authored draft; full local Java-8 build and playtest required before merge.**
+## Half-step correction and mathematical test expectations
+
+The pinned [Legacy RotationUtils lines 589-598](https://github.com/CCBlueX/LiquidBounce/blob/03bc91a3c34031d1ea7400ef3b67c00adf6a4c6e/src/main/java/net/ccbluex/liquidbounce/utils/rotation/RotationUtils.kt#L589-L598)
+uses Float subtraction/division followed by `roundToInt`. Kotlin's
+[documented half-step rule](https://kotlinlang.org/api/core/kotlin-stdlib/kotlin.math/round-to-int.html)
+rounds ties toward positive infinity. The original PR used double arithmetic and
+`Math.rint`, whose ties-to-even behavior differs. The added regression failed
+on the original PR: -1.5 counts produced -2 instead of -1. The correction uses
+Float counts and Java 8 `Math.round(float)`: +0.5 -> 1, -0.5 -> 0,
++1.5 -> 2, -1.5 -> -1, +2.5 -> 3, -2.5 -> -2.
+
+Tests check exact halves, their neighboring Float values, both axes anchored to
+the last accepted pose despite a different camera/new owner/rejected candidate,
+and the actual `Entity.setAngles` consumer using EntityRenderer's one-count
+mouse factor. Existing wrap, target-switch and pitch-clamp checks remain active.
+
+Exact continuous endpoints such as 93.17 degrees cannot generally be demanded
+on a .15 degree grid: the nearest point is 93.15. Endpoint expectations therefore
+allow at most half a quantum plus Float precision. A continuous 10 degree limit
+is 66.666... counts, which rounds to 67 counts or 10.05 degrees; that test now
+asserts the exact expected result instead of a loosened inequality. This pipeline
+limits the continuous proposal before quantization, so the quantized result may
+exceed that proposal by up to half a count. Unnecessary relaxations of the
+12 degree/new-scene bounds from the original PR were removed.
+
+## Local Java 8 validation
+
+After integrating merged sprint PR #13, the focused suite passed with 112 tests.
+The full suite passed with 724 tests, zero failures/errors/skips, including
+native graphics/chat/world-overlay checks (Temurin 8u482, Maven 3.9.15).
+Before correction, the new half-step regression failed in the original PR's
+six-test sensitivity suite; afterward all eight sensitivity tests pass.
+PacketPipeline, AttackScheduler, MoveFix arithmetic and CombatDiagnostics/hook
+files are unchanged. No server anticheat conclusion follows from these tests.
+See [the playtest protocol](../docs/PLAYTEST-2026-10-30.md).
