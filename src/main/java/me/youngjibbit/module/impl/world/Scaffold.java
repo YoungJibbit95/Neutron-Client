@@ -82,6 +82,7 @@ public class Scaffold extends Module {
     private RotationManager contextRotation;
     private SceneContext contextScene;
     private long contextMotionSequence = -1;
+    private long lifecycleGeneration;
     private boolean hasHoldBasis;
     private float holdYaw, holdPitch;
     private static Scaffold active;
@@ -118,6 +119,7 @@ public class Scaffold extends Module {
 
     @Override
     public void onEnable() {
+        lifecycleGeneration++;
         clearState();
         active = this;
         captureContext();
@@ -126,6 +128,7 @@ public class Scaffold extends Module {
 
     @Override
     public void onDisable() {
+        lifecycleGeneration++;
         clearState();
         if (active == this) active = null;
         super.onDisable();
@@ -259,6 +262,7 @@ public class Scaffold extends Module {
         rememberAcceptedRotation();
         if (!validContext()) { suspendPlacement(); return; }
         final long motionSequence = contextMotionSequence;
+        final long generation = lifecycleGeneration;
         if (event.isPre()) {
             downwardsState = downwards.getValue() && mc.gameSettings.keyBindSneak.isKeyDown();
             if (mc.thePlayer.onGround) keepYCoord = Math.floor(mc.thePlayer.posY - 1);
@@ -269,8 +273,13 @@ public class Scaffold extends Module {
 
             // A valid placement plan owns this decision before Auto Jump consumes sprint's impulse.
             if (!sprint.getValue()) mc.thePlayer.setSprinting(false);
-            if (autoJump.getValue() && mc.thePlayer.onGround && isMoving() && !mc.gameSettings.keyBindJump.isKeyDown()) mc.thePlayer.jump();
-            towerController.apply(event, tower.getValue(), towerMode.getValue(), mc.gameSettings.keyBindJump.isKeyDown(), isMoving(), true);
+            if (autoJump.getValue() && mc.thePlayer.onGround && isMoving() && !mc.gameSettings.keyBindJump.isKeyDown()) {
+                mc.thePlayer.jump();
+                if (!continueMotion(motionSequence, generation)) return;
+            }
+            boolean towerEnabled = tower.getValue();
+            towerController.apply(event, towerEnabled, towerMode.getValue(), mc.gameSettings.keyBindJump.isKeyDown(), isMoving(), true);
+            if (towerEnabled && !continueMotion(motionSequence, generation)) return;
             // Tower may move the local player. Finalize the plan before issuing a rotation or attempting placement.
             if (!RuntimeServices.scaffoldPlacement().stillNeeded(currentTarget, context))
                 currentTarget = findTarget(context,event);
@@ -288,7 +297,7 @@ public class Scaffold extends Module {
             framePre = "Pre".equalsIgnoreCase(placeTiming.getValue());
             if (framePre) {
                 boolean placed = tryPlace(true);
-                if (!continueMotion(motionSequence)) return;
+                if (!continueMotion(motionSequence, generation)) return;
                 if (placed) { releasePlacement(); requestAcceptedHold(); return; }
             }
             if (!RuntimeServices.scaffoldPlacement().isValid(frameTarget)) { releasePlacement(); requestAcceptedHold(); return; }
@@ -299,7 +308,7 @@ public class Scaffold extends Module {
             PlacementContext context = new PlacementContext(downwards.getValue() && mc.gameSettings.keyBindSneak.isKeyDown(), keepY.getValue(), keepYCoord);
             if (!RuntimeServices.scaffoldPlacement().stillNeeded(frameTarget, context)) { releasePlacement(); return; }
             boolean placed = !framePre && tryPlace(false);
-            if (!continueMotion(motionSequence)) return;
+            if (!continueMotion(motionSequence, generation)) return;
             if (placed || !RuntimeServices.scaffoldPlacement().isValid(frameTarget)) releasePlacement();
         }
     });
@@ -357,8 +366,8 @@ public class Scaffold extends Module {
                 holdYaw, holdPitch);
     }
 
-    private boolean continueMotion(long sequence) {
-        if (!isToggled() || contextRotation != RuntimeServices.rotation()
+    private boolean continueMotion(long sequence, long generation) {
+        if (generation != lifecycleGeneration || !isToggled() || contextRotation != RuntimeServices.rotation()
                 || contextRotation.getMotionSequence() != sequence) return false;
         if (!liveContext() || !sameScene()) { clearState(); return false; }
         if (!validContext()) { suspendPlacement(); return false; }

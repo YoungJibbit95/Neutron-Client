@@ -387,14 +387,27 @@ public class PlayerControllerMP
 
     /** Update the cache only for a slot packet actually accepted by outbound listeners. */
     public boolean syncCurrentPlayItemChecked() {
+        return syncCurrentPlayItemChecked(null);
+    }
+
+    /** Automated callers revalidate after packet PRE and any withheld movement barrier. */
+    public boolean syncCurrentPlayItemChecked(java.util.function.BooleanSupplier validSlot) {
         EntityPlayerSP player = this.mc.thePlayer;
-        if (player == null) return false;
+        if (player == null || validSlot != null && !validSlot.getAsBoolean()) return false;
         int slot = player.inventory.currentItem;
+        WorldClient world = this.mc.theWorld;
         if (slot != this.currentPlayerItem) {
-            net.minecraft.network.Packet<?> sent = this.netClientHandler.addToSendQueueTracked(new C09PacketHeldItemChange(slot));
+            C09PacketHeldItemChange selection = new C09PacketHeldItemChange(slot);
+            net.minecraft.network.Packet<?> sent = validSlot == null
+                    ? this.netClientHandler.addToSendQueueTracked(selection)
+                    : this.netClientHandler.addToSendQueueTracked(selection, outgoing -> validSlot.getAsBoolean()
+                            && this.mc.thePlayer == player && this.mc.theWorld == world && player.worldObj == world
+                            && player.sendQueue == this.netClientHandler && player.inventory.currentItem == slot
+                            && outgoing instanceof C09PacketHeldItemChange && ((C09PacketHeldItemChange)outgoing).getSlotId() == slot);
             if (!(sent instanceof C09PacketHeldItemChange) || !this.netClientHandler.getNetworkManager().isChannelOpen()) return false;
         }
-        return this.mc.thePlayer == player && this.currentPlayerItem == slot && player.inventory.currentItem == slot
+        return (validSlot == null || validSlot.getAsBoolean())
+                && this.mc.thePlayer == player && this.currentPlayerItem == slot && player.inventory.currentItem == slot
                 && this.netClientHandler.getNetworkManager().isChannelOpen();
     }
 
@@ -414,7 +427,7 @@ public class PlayerControllerMP
                                      java.util.function.BooleanSupplier validPlacement)
     {
         if (validPlacement == null) this.syncCurrentPlayItem();
-        else if (!this.syncCurrentPlayItemChecked() || !validPlacement.getAsBoolean()) return false;
+        else if (!this.syncCurrentPlayItemChecked(validPlacement) || !validPlacement.getAsBoolean()) return false;
         float f = (float)(hitVec.xCoord - (double)hitPos.getX());
         float f1 = (float)(hitVec.yCoord - (double)hitPos.getY());
         float f2 = (float)(hitVec.zCoord - (double)hitPos.getZ());
@@ -450,10 +463,16 @@ public class PlayerControllerMP
             if (validPlacement == null) this.netClientHandler.addToSendQueue(placement);
             else {
                 if (!validPlacement.getAsBoolean() || player.inventory.getCurrentItem() != heldStack) return false;
+                final ItemStack packetStack = placement.getStack() == null ? null : placement.getStack().copy();
                 net.minecraft.network.Packet<?> sent = this.netClientHandler.addToSendQueueTracked(placement,
                         outgoing -> outgoing == placement && validPlacement.getAsBoolean()
                                 && player.inventory.getCurrentItem() == heldStack
-                                && this.currentPlayerItem == player.inventory.currentItem);
+                                && this.currentPlayerItem == player.inventory.currentItem
+                                && hitPos.equals(placement.getPosition()) && placement.getPlacedBlockDirection() == side.getIndex()
+                                && Float.compare(placement.getPlacedBlockOffsetX(), f) == 0
+                                && Float.compare(placement.getPlacedBlockOffsetY(), f1) == 0
+                                && Float.compare(placement.getPlacedBlockOffsetZ(), f2) == 0
+                                && ItemStack.areItemStacksEqual(packetStack, placement.getStack()));
                 if (sent != placement || !this.netClientHandler.getNetworkManager().isChannelOpen()
                         || !validPlacement.getAsBoolean() || this.currentPlayerItem != player.inventory.currentItem) return false;
             }
