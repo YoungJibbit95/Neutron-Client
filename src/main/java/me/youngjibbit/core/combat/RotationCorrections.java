@@ -57,6 +57,27 @@ public final class RotationCorrections {
         applyMovement(current(), event);
     }
 
+    /**
+     * Sprint admission must use the SAME logical forward-key basis as the local
+     * 1.8.9 moveFlying consumer. Rounded MoveFix can map physical W into a
+     * sideways/backward module-yaw key; using the original W to retain sprint
+     * creates a contradictory sprint/action state.
+     *
+     * This is a read-only query. Sprint remains vanilla for every other mode,
+     * owner, or missing/invalid correction context.
+     */
+    public static float sprintForward(float cameraYaw, float rawStrafe, float rawForward) {
+        return correctedSprintForward(current(), cameraYaw, rawStrafe, rawForward);
+    }
+
+    static float correctedSprintForward(Selection selected, float cameraYaw,
+                                        float rawStrafe, float rawForward) {
+        if (selected == null || selected.movement != MoveFixController.Mode.LEGACY_ROUNDED)
+            return rawForward;
+        return MoveFixController.correct(rawStrafe, rawForward, cameraYaw,
+                selected.yaw, MoveFixController.Mode.LEGACY_ROUNDED).forward;
+    }
+
     /** Direction for a direct velocity writer consuming untransformed current-step inputs.
      * The direction already includes the writer's key/diagonal policy. Event-local MoveFix
      * inputs must not be passed here: moveFlying corrects its own event exactly once.
