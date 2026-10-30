@@ -164,6 +164,43 @@ public class NoSlowSprintChecks {
             living();
             assertTrue("Rounded W still has positive forward at 35 degrees",
                     player.isSprinting());
+
+            // Exercise the real sprint entry AND retention decisions for each
+            // owner/mode, including the backwards corrected-input case.
+            for (String owner : new String[]{"aura", "scaffold"}) {
+                me.youngjibbit.module.Module module = owner.equals("aura") ? fixture.aura : fixture.scaffold;
+                String savedMode = module.getModeSetting("movefix").getValue();
+                try {
+                    for (String mode : new String[]{"Aus", "Einfach", "Präzise", "Rotationsgebunden",
+                            "Legacy Strict", "Legacy Rounded"}) {
+                        module.getModeSetting("movefix").setValue(mode);
+                        for (float acceptedYaw : new float[]{180, 145, 90, 0}) {
+                            rotations.beginMotion(player, fixture.world, 180, 0);
+                            rotations.request(owner, 30, acceptedYaw, 0);
+                            rotations.finishMotion(acceptedYaw, 0, true);
+                            boolean expected = !mode.equals("Legacy Rounded") || acceptedYaw >= 145;
+                            for (boolean alreadySprinting : new boolean[]{false, true}) {
+                                player.sprint = alreadySprinting;
+                                living();
+                                assertEquals(owner + "/" + mode + "/" + acceptedYaw + "/" + alreadySprinting,
+                                        expected, player.isSprinting());
+                            }
+                            assertEquals("Physical W must stay unchanged", 1, input.moveForward, 0);
+                            assertEquals(0, input.moveStrafe, 0);
+                            assertEquals(180, player.rotationYaw, 0);
+                        }
+                    }
+                    module.getModeSetting("movefix").setValue("Legacy Rounded");
+                    rotations.reset();
+                    player.sprint = false;
+                    living();
+                    assertTrue("No confirmed owner must retain vanilla sprint entry", player.isSprinting());
+                    player.sprint = true;
+                    living();
+                    assertTrue("No confirmed owner must retain vanilla sprint retention", player.isSprinting());
+                } finally { module.getModeSetting("movefix").setValue(savedMode); }
+            }
+            assertTrue("Sprint eligibility itself must not send packets", actions().isEmpty());
         } finally {
             fixture.aura.getModeSetting("movefix").setValue(previousMode);
             rotations.reset();

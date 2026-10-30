@@ -16,6 +16,6 @@ public class NoSlowSprintTest {
                 .redirectErrorStream(true).redirectOutput(output.toFile()).start();
         if (!child.waitFor(90, TimeUnit.SECONDS)) { child.destroy(); throw new AssertionError("NoSlow checks timed out: " + output); }
         String result = new String(Files.readAllBytes(output), StandardCharsets.UTF_8);
-        System.out.print(result); assertEquals(result, 0, child.exitValue()); assertTrue(result, result.contains("OK (5 tests)"));
+        System.out.print(result); assertEquals(result, 0, child.exitValue()); assertTrue(result, result.contains("OK (6 tests)"));
     }
 }
