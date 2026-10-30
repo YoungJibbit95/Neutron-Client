@@ -350,9 +350,12 @@ public final class RotationManager {
         float yawDelta = yaw - previousYaw;
         float pitchDelta = pitch - previousPitch;
 
-        // Preserve a final sub-step instead of truncating it to zero forever.
-        yaw = previousYaw + (Math.abs(yawDelta) < gcd ? yawDelta : yawDelta - yawDelta % gcd);
-        pitch = previousPitch + (Math.abs(pitchDelta) < gcd ? pitchDelta : pitchDelta - pitchDelta % gcd);
+        // The mouse can only produce whole sensitivity increments. Snap to the
+        // nearest attainable rotation relative to the previous wire angle.
+        // Keeping a fractional final step would break that invariant even when
+        // every preceding rotation was properly quantized.
+        yaw = previousYaw + Math.round(yawDelta / gcd) * gcd;
+        pitch = previousPitch + Math.round(pitchDelta / gcd) * gcd;
         return new float[]{yaw, clamp(pitch, -90.0f, 90.0f)};
     }
 
