@@ -35,8 +35,9 @@ public class CombatFlowTest {
             float[] next=frame(manager,93.17f,34.21f,true);
             assertTrue(next[0]>=previous); assertTrue(next[0]-previous<=12.001f); previous=next[0];
         }
-        assertEquals(93.17f,manager.getEffectiveYaw(),.0001f);
-        assertEquals(34.21f,manager.getEffectivePitch(),.0001f);
+        // Target convergence is bounded by half a mouse sensitivity step.
+        assertEquals(93.17f,manager.getEffectiveYaw(),.0751f);
+        assertEquals(34.21f,manager.getEffectivePitch(),.0751f);
         assertTrue(manager.isOwner("aura"));
     }
 
@@ -48,13 +49,16 @@ public class CombatFlowTest {
         assertEquals(-181,step[0],.0001f); assertEquals(-90,step[1],0);
         step=manager.step("test",179,0,-179,0,5,5,.5f);
         for(int i=0;i<5;i++) step=manager.step("test",179,0,-179,0,5,5,.5f);
-        assertEquals(0,MathHelper.wrapAngleTo180_float(step[0]+179),.0001f);
+        assertEquals(0,MathHelper.wrapAngleTo180_float(step[0]+179),.0751f);
     }
 
-    @Test public void finalSubSensitivityStepReachesTargetInsteadOfStalling() {
+    @Test public void finalSubSensitivityStepSnapsInsteadOfInventingFractionalMouseInput() {
         RotationManager manager=new RotationManager();
         float[] next=manager.step("aura",0,0,.03f,.02f,1,1,1);
-        assertEquals(.03f,next[0],.000001f); assertEquals(.02f,next[1],.000001f);
+        assertEquals(0,next[0],.000001f); assertEquals(0,next[1],.000001f);
+        float gcd=(1f*.6f+.2f);gcd=gcd*gcd*gcd*1.2f;
+        next=manager.step("aura",0,0,.37f,-.37f,1,1,1);
+        assertEquals(gcd,next[0],.000001f);assertEquals(-gcd,next[1],.000001f);
     }
 
     @Test public void targetSwitchContinuesFromLastEffectiveStateWithoutTeleporting() {
@@ -64,7 +68,7 @@ public class CombatFlowTest {
         assertTrue(Math.abs(MathHelper.wrapAngleTo180_float(changed[0]-before))<=12.001f);
         assertTrue(changed[0]<before);
         for(int i=0;i<30;i++) frame(manager,-80,-35,true);
-        assertEquals(-80,manager.getEffectiveYaw(),.0001f); assertEquals(-35,manager.getEffectivePitch(),.0001f);
+        assertEquals(-80,manager.getEffectiveYaw(),.0751f); assertEquals(-35,manager.getEffectivePitch(),.0751f);
     }
 
     @Test public void rejectedMovementDoesNotAdvanceEffectiveStateOrGrantAttackReadiness() {
