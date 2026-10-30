@@ -21,6 +21,8 @@ public final class RuntimeObservation {
     private WeakReference<Object> world = new WeakReference<>(null);
     private WeakReference<Object> pipeline = new WeakReference<>(null);
     private long connectionGeneration, packetEpoch = -1, outerTickId = -1, revision;
+    private long suspensionRevision;
+    private boolean lastSuspended;
     private boolean initialized, lastLive, outerTickActive, stopped = true;
     private ExecutedStep currentStep;
     private List<ExecutedStep> lastSteps = Collections.emptyList();
@@ -83,6 +85,8 @@ public final class RuntimeObservation {
         if (initialized && (connection.get() != sample.connection || player.get() != sample.player
                 || world.get() != sample.world || pipeline.get() != sample.pipeline
                 || packetEpoch != sample.packetEpoch || lastLive != live)) connectionGeneration++;
+        if (sample.suspended && !lastSuspended) suspensionRevision++;
+        lastSuspended = sample.suspended;
         connection = new WeakReference<>(sample.connection);
         player = new WeakReference<>(sample.player);
         world = new WeakReference<>(sample.world);
@@ -121,6 +125,8 @@ public final class RuntimeObservation {
                 ExecutedStep.Kind kind = index == 0 ? ExecutedStep.Kind.ORDINARY : ExecutedStep.Kind.EARNED_EXTRA;
                 ExecutedStep parent = currentStep;
                 currentStep = new ExecutedStep(scene, tick, index, kind, false);
+                me.youngjibbit.core.combat.CombatDiagnosticTrace.StepToken trace =
+                        me.youngjibbit.module.impl.client.CombatDiagnostics.beginStep(this, tick, kind, index);
                 boolean completed = false;
                 try {
                     completed = simulation.getAsBoolean();
@@ -128,6 +134,8 @@ public final class RuntimeObservation {
                 } finally {
                     currentStep = outerTickActive && revision == boundary ? parent : null;
                     entered.add(new ExecutedStep(scene, tick, index, kind, !completed || revision != boundary));
+                    me.youngjibbit.module.impl.client.CombatDiagnostics.observeStepResult(
+                            trace, !completed || revision != boundary);
                 }
             });
             if (calls[0] == 0 && outerTickActive && revision == boundary)
@@ -139,6 +147,10 @@ public final class RuntimeObservation {
     }
 
     public long getOuterTickId() { return outerTickId; }
+    /** Last sampled or explicitly invalidated generation; diagnostic identity only, never admission. */
+    public long getObservedConnectionGeneration() { return connectionGeneration; }
+    /** Last observed entry into suspension; this read never samples a scene or grants admission. */
+    public long getObservedSuspensionRevision() { return suspensionRevision; }
     /** Client-thread read: current outer tick ID only during its active lifetime; otherwise -1. */
     public long getActiveOuterTickId() { return outerTickActive ? outerTickId : -1L; }
     /** While inside the body, completion is provisional; false/throw records an interrupted final value. */

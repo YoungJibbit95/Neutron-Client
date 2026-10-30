@@ -262,6 +262,8 @@ public class EntityPlayerSP extends AbstractClientPlayer
                 return;
             }
             rotations.resolve(motionEvent);
+            // Lease validation may have entered a newer walking frame before any ticket existed.
+            if (rotations.getMotionSequence() != motionSequence || RuntimeServices.rotation() != rotations) return;
             final RotationManager.ResolvedC03SendTicket sendTicket =
                     rotations.captureResolvedC03SendTicket(this.lastReportedYaw, this.lastReportedPitch);
 
@@ -318,6 +320,8 @@ public class EntityPlayerSP extends AbstractClientPlayer
                 rotationPitch = rotations.hasEffectiveRotation() ? rotations.getEffectivePitch() : this.lastReportedPitch;
             }
             rotations.finishMotion(rotationYaw, rotationPitch, accepted && currentSourceFrame);
+            // A nested lease callback owns its reporting fields and Motion POST as well as its packet.
+            if (rotations.getMotionSequence() != motionSequence || RuntimeServices.rotation() != rotations) return;
 
             ++this.positionUpdateTicks;
 
