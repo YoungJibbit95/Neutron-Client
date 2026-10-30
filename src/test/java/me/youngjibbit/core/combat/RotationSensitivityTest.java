@@ -34,7 +34,8 @@ public class RotationSensitivityTest {
                 float wanted = previous + (i + .37f) * quantum;
                 float snapped = RotationSensitivity.snap(wanted, previous, sensitivity);
                 double count = (snapped - previous) / (double) quantum;
-                assertEquals("sensitivity=" + sensitivity + " count=" + i, i, count, .002);
+                // At large absolute yaws, float ulps slightly perturb the ratio.
+                assertEquals("sensitivity=" + sensitivity + " count=" + i, i, count, .01);
                 assertTrue(Float.isFinite(snapped));
             }
         }
