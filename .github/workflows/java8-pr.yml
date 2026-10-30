@@ -1,0 +1,78 @@
+name: Java 8 PR regression
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: java8-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  java8:
+    name: Java 8 / Windows regression
+    runs-on: windows-2022
+    timeout-minutes: 25
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - name: Checkout PR merge revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Temurin 8u482
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '8.0.482+8'
+          architecture: x64
+          check-latest: false
+
+      - name: Maven 3.9.15 (verified Apache archive)
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $env:RUNNER_TEMP 'apache-maven-3.9.15-bin.zip'
+          Invoke-WebRequest 'https://archive.apache.org/dist/maven/maven-3/3.9.15/binaries/apache-maven-3.9.15-bin.zip' -OutFile $zip
+          $expected = '251c676eb88684d6dd86c666817979d256a335c31ad34ab0e1df17eeca1cd504a6c890e906a46d04e51cc7a4fb02f33a75971ef750558034e0a81c257be02267'
+          if ((Get-FileHash -LiteralPath $zip -Algorithm SHA512).Hash -ne $expected) { throw 'Maven archive checksum mismatch' }
+          Expand-Archive -LiteralPath $zip -DestinationPath $env:RUNNER_TEMP
+          "MAVEN_HOME=$(Join-Path $env:RUNNER_TEMP 'apache-maven-3.9.15')" >> $env:GITHUB_ENV
+
+      - name: Record exact revision and tools
+        run: |
+          git rev-parse HEAD
+          & "$env:JAVA_HOME/bin/java.exe" -version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & "$env:MAVEN_HOME/bin/mvn.cmd" --version
+          exit $LASTEXITCODE
+
+      - name: Full Java 8 regression (fresh Maven repository)
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $started = (Get-Date).ToString('o')
+          $repository = Join-Path $env:RUNNER_TEMP 'neutron-java8-m2'
+          & "$env:MAVEN_HOME/bin/mvn.cmd" -B -ntp '-Dstyle.color=never' "-Dmaven.repo.local=$repository" test 2>&1 |
+            Tee-Object -FilePath (Join-Path $env:RUNNER_TEMP 'java8-pr-maven.log')
+          $mavenExit = $LASTEXITCODE
+          # Hosted regression deliberately leaves the three existing opt-in GL tests disabled.
+          # They require a separately evidenced native context; no new skip is accepted here.
+          & .github/scripts/check-java8-results.ps1 -Since $started
+          if ($mavenExit -ne 0) { exit $mavenExit }
+
+      - name: Retain test evidence (no client/runtime data)
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: java8-pr-${{ github.event.pull_request.number }}-${{ github.run_attempt }}
+          path: |
+            target/surefire-reports/TEST-*.xml
+            target/surefire-reports/*.txt
+            target/ci-java8-summary.json
+            ${{ runner.temp }}/java8-pr-maven.log
+          if-no-files-found: error
+          retention-days: 14
