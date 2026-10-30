@@ -1,6 +1,9 @@
 package me.youngjibbit.core.network;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.core.combat.CombatDiagnosticTrace.PacketToken;
+import me.youngjibbit.core.combat.CombatDiagnosticTrace.Stage;
+import me.youngjibbit.module.impl.client.CombatDiagnostics;
 import me.youngjibbit.event.EventFlow;
 import me.youngjibbit.event.packet.EventPacket;
 import me.zero.alpine.event.EventPhase;
@@ -70,21 +73,43 @@ public final class PacketPipeline {
         long attemptedScene = appliedScene;
         if (!draining) drainOutbound();
         if (!isActive() || packet == null || attemptedScene != appliedScene) return null;
-        Packet<?> selected = select(packet, EventFlow.OUTBOUND, silent);
-        if (selected == null || !isActive() || attemptedScene != appliedScene) return null;
+        PacketToken trace = CombatDiagnostics.beginPacket(packet);
+        final Packet<?> selected;
+        try { selected = select(packet, EventFlow.OUTBOUND, silent); }
+        catch (RuntimeException | Error failure) {
+            CombatDiagnostics.packetStage(trace,packet,Stage.FAILED);throw failure;
+        }
+        if (selected == null) { CombatDiagnostics.packetStage(trace,packet,Stage.CANCELLED);return null; }
+        CombatDiagnostics.packetStage(trace,selected,Stage.SELECTED);
+        if (!isActive() || attemptedScene != appliedScene) { CombatDiagnostics.packetStage(trace,selected,Stage.DENIED);return null; }
         long scene = appliedScene;
         boolean[] accepted = {false};
         Runnable apply = () -> {
-            if (!isActive() || scene != appliedScene || !validAction.test(selected)) return;
-            transport.accept(selected);
+            final boolean valid;
+            try { valid = isActive() && scene == appliedScene && validAction.test(selected); }
+            catch (RuntimeException | Error failure) {
+                CombatDiagnostics.packetStage(trace,selected,Stage.FAILED);throw failure;
+            }
+            if (!valid) {
+                CombatDiagnostics.packetStage(trace,selected,Stage.DENIED);return;
+            }
+            try { transport.accept(selected); }
+            catch (RuntimeException | Error failure) {
+                CombatDiagnostics.packetStage(trace,selected,Stage.FAILED);throw failure;
+            }
             accepted[0] = true;
+            CombatDiagnostics.packetStage(trace,selected,Stage.LOCAL_ACCEPTED);
             acceptedOutbound.accept(selected);
             if (!silent) post(selected, EventFlow.OUTBOUND, EventPhase.POST);
         };
         // Actions are dependency barriers: a hit/placement must never overtake withheld movement.
-        if (correction || !(selected instanceof C03PacketPlayer)) delays.barrier(EventFlow.OUTBOUND);
-        else if (!silent && delays.defer(selected, EventFlow.OUTBOUND, apply)) return null;
-        else if (silent) delays.barrier(EventFlow.OUTBOUND);
+        if (correction || !(selected instanceof C03PacketPlayer)) {
+            CombatDiagnostics.packetStage(trace,selected,Stage.BARRIER);delays.barrier(EventFlow.OUTBOUND);
+        } else if (!silent && delays.defer(selected, EventFlow.OUTBOUND, apply)) {
+            CombatDiagnostics.packetStage(trace,selected,Stage.HELD);return null;
+        } else if (silent) {
+            CombatDiagnostics.packetStage(trace,selected,Stage.BARRIER);delays.barrier(EventFlow.OUTBOUND);
+        }
         apply.run();
         return accepted[0] ? selected : null;
     }
