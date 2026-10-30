@@ -345,14 +345,12 @@ public final class RotationManager {
     }
 
     private float[] quantize(float yaw, float pitch, float previousYaw, float previousPitch, float mouseSensitivity) {
-        float sensitivity = (mouseSensitivity * 0.6F + 0.2F);
-        float gcd = sensitivity * sensitivity * sensitivity * 1.2F;
-        float yawDelta = yaw - previousYaw;
-        float pitchDelta = pitch - previousPitch;
-
-        // Preserve a final sub-step instead of truncating it to zero forever.
-        yaw = previousYaw + (Math.abs(yawDelta) < gcd ? yawDelta : yawDelta - yawDelta % gcd);
-        pitch = previousPitch + (Math.abs(pitchDelta) < gcd ? pitchDelta : pitchDelta - pitchDelta % gcd);
+        // Snap every requested delta to an integer mouse count relative to the
+        // last actual rotation. Previously sub-GCD deltas were sent unmodified,
+        // even though no integer 1.8.9 mouse movement could generate them.
+        yaw = RotationSensitivity.snap(yaw, previousYaw, mouseSensitivity);
+        pitch = RotationSensitivity.snap(pitch, previousPitch, mouseSensitivity);
+        // Vanilla pitch clamping is the only intentional exception to the grid.
         return new float[]{yaw, clamp(pitch, -90.0f, 90.0f)};
     }
 

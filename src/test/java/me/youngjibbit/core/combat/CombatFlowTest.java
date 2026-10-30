@@ -35,8 +35,11 @@ public class CombatFlowTest {
             float[] next=frame(manager,93.17f,34.21f,true);
             assertTrue(next[0]>=previous); assertTrue(next[0]-previous<=12.001f); previous=next[0];
         }
-        assertEquals(93.17f,manager.getEffectiveYaw(),.0001f);
-        assertEquals(34.21f,manager.getEffectivePitch(),.0001f);
+        // Continuous target angles need not be representable as an integer
+        // mouse count. The nearest grid point is the correct endpoint.
+        float halfMouseStep = RotationSensitivity.mouseStep(.5f) / 2f + .001f;
+        assertEquals(93.17f,manager.getEffectiveYaw(),halfMouseStep);
+        assertEquals(34.21f,manager.getEffectivePitch(),halfMouseStep);
         assertTrue(manager.isOwner("aura"));
     }
 
@@ -48,13 +51,21 @@ public class CombatFlowTest {
         assertEquals(-181,step[0],.0001f); assertEquals(-90,step[1],0);
         step=manager.step("test",179,0,-179,0,5,5,.5f);
         for(int i=0;i<5;i++) step=manager.step("test",179,0,-179,0,5,5,.5f);
-        assertEquals(0,MathHelper.wrapAngleTo180_float(step[0]+179),.0001f);
+        assertEquals(0,MathHelper.wrapAngleTo180_float(step[0]+179),
+                RotationSensitivity.mouseStep(.5f) / 2f + .001f);
     }
 
-    @Test public void finalSubSensitivityStepReachesTargetInsteadOfStalling() {
+    @Test public void finalSubSensitivityStepIsNeverInventedOnTheWire() {
         RotationManager manager=new RotationManager();
         float[] next=manager.step("aura",0,0,.03f,.02f,1,1,1);
-        assertEquals(.03f,next[0],.000001f); assertEquals(.02f,next[1],.000001f);
+        // Sensitivity 1.0 represents ~0.6144 deg per mouse count: these two
+        // requested substeps are impossible and must not be emitted as angles.
+        assertEquals(0,next[0],0);
+        assertEquals(0,next[1],0);
+        float[] larger=manager.step("aura",0,0,.5f,.5f,1,1,1);
+        float quantum=RotationSensitivity.mouseStep(1f);
+        assertEquals(quantum,larger[0],1e-6f);
+        assertEquals(quantum,larger[1],1e-6f);
     }
 
     @Test public void targetSwitchContinuesFromLastEffectiveStateWithoutTeleporting() {
@@ -64,7 +75,9 @@ public class CombatFlowTest {
         assertTrue(Math.abs(MathHelper.wrapAngleTo180_float(changed[0]-before))<=12.001f);
         assertTrue(changed[0]<before);
         for(int i=0;i<30;i++) frame(manager,-80,-35,true);
-        assertEquals(-80,manager.getEffectiveYaw(),.0001f); assertEquals(-35,manager.getEffectivePitch(),.0001f);
+        float halfMouseStep = RotationSensitivity.mouseStep(.5f) / 2f + .001f;
+        assertEquals(-80,manager.getEffectiveYaw(),halfMouseStep);
+        assertEquals(-35,manager.getEffectivePitch(),halfMouseStep);
     }
 
     @Test public void rejectedMovementDoesNotAdvanceEffectiveStateOrGrantAttackReadiness() {
@@ -80,7 +93,7 @@ public class CombatFlowTest {
         manager.beginMotion(-30,10);manager.finishMotion(-30,10,true);
         manager.beginMotion(-30,10);
         float[] next=manager.step("aura",-30,10,-90,10,10,10,.5f);
-        assertTrue(next[0]<-30&&next[0]>=-40.001f);
+        assertTrue(next[0]<-30&&next[0]>=-40.001f-RotationSensitivity.mouseStep(.5f)/2f);
         manager.request("scaffold",30,80,75); EventMotion event=motion(0,0);manager.resolve(event);manager.finishMotion(80,75,true);
         manager.reset("aura"); assertTrue(manager.isOwner("scaffold"));
         manager.reset("scaffold"); assertFalse(manager.isOwner("scaffold"));
@@ -98,10 +111,11 @@ public class CombatFlowTest {
         manager.beginMotion(player,world,0,0);manager.request("scaffold",30,75,80);manager.finishMotion(75,80,true);
         manager.beginMotion(player,nextWorld,-40,0);
         float[] next=manager.step("aura",-40,0,-80,0,12,8,.5f);
-        assertTrue(next[0]>=-52.001&&next[0]<-40);assertFalse(manager.isOwner("scaffold"));
+        assertTrue(next[0]>=-52.001-RotationSensitivity.mouseStep(.5f)/2f&&next[0]<-40);assertFalse(manager.isOwner("scaffold"));
         manager.request("aura",20,next[0],next[1]);manager.finishMotion(next[0],next[1],true);
         manager.beginMotion(new Object(),nextWorld,30,0);
-        next=manager.step("aura",30,0,60,0,12,8,.5f);assertTrue(next[0]>30&&next[0]<=42);
+        next=manager.step("aura",30,0,60,0,12,8,.5f);
+        assertTrue(next[0]>30&&next[0]<=42+RotationSensitivity.mouseStep(.5f)/2f);
     }
 
     @Test public void ownershipIsIndependentOfAuraScaffoldAndAssistListenerOrder() {
