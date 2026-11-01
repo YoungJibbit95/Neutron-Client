@@ -223,8 +223,7 @@ public class EntityPlayerSP extends AbstractClientPlayer
             try {
                 Pulsar.BUS.post(motionEvent);
             } catch (RuntimeException | Error error) {
-                if (walkingContextValid(client, world, connection, packets, contextVersion)
-                        && RuntimeServices.rotation() == rotations && rotations.getMotionSequence() == motionSequence) {
+                if (RuntimeServices.rotation() == rotations && rotations.getMotionSequence() == motionSequence) {
                     try { rotations.finishMotion(this.rotationYaw, this.rotationPitch, false); }
                     catch (RuntimeException | Error cleanup) { if (cleanup != error) error.addSuppressed(cleanup); }
                 }
@@ -337,7 +336,7 @@ public class EntityPlayerSP extends AbstractClientPlayer
                 if (sendTicket != null && acceptedPacket instanceof C03PacketPlayer
                         && connection.getNetworkManager().isChannelOpen()) currentSourceFrame = sendTicket.isCurrent();
             } catch (RuntimeException | Error error) {
-                if (currentFrame.getAsBoolean()) {
+                if (sameMotionFrame.getAsBoolean()) {
                     try { rotations.finishMotion(rotationYaw, rotationPitch, false); }
                     catch (RuntimeException | Error cleanup) { if (cleanup != error) error.addSuppressed(cleanup); }
                 }
@@ -346,7 +345,13 @@ public class EntityPlayerSP extends AbstractClientPlayer
                 synchronousSend[0] = false;
             }
             // A nested walking frame owns its own finish/report/POST, even if this older packet was denied.
-            if (!currentFrame.getAsBoolean()) return;
+            if (!sameMotionFrame.getAsBoolean()) return;
+            if (!walkingContextValid(client, world, connection, packets, contextVersion)) {
+                // The observed transport remains factual, but this obsolete context cannot
+                // keep collecting with the previous frame's accepted source authority.
+                rotations.finishMotion(rotationYaw, rotationPitch, false);
+                return;
+            }
             boolean accepted = acceptedPacket instanceof C03PacketPlayer && connection.getNetworkManager().isChannelOpen();
             C03PacketPlayer sent = accepted ? (C03PacketPlayer) acceptedPacket : null;
             if (accepted) {
