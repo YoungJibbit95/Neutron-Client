@@ -554,39 +554,43 @@ public class PlayerControllerMP
         me.youngjibbit.core.combat.AttackScheduler scheduler = me.youngjibbit.core.bootstrap.RuntimeServices.attackScheduler();
         me.youngjibbit.module.Module aura = Pulsar.INSTANCE.getMm() == null ? null
                 : Pulsar.INSTANCE.getMm().getModule(me.youngjibbit.module.impl.combat.Aura.class);
-        if (!scheduler.allowControllerAttack(aura != null && aura.isToggled())) return false;
-        boolean cancelled = false;
-        if (targetEntity instanceof EntityLivingBase) {
-            AttackEvent attackEvent = new AttackEvent((EntityLivingBase) targetEntity);
-            Pulsar.BUS.post(attackEvent);
-            cancelled = attackEvent.isCancelled();
-        }
-        final World scene = playerIn.worldObj;
-        java.util.function.BooleanSupplier currentHit = () -> this.mc.thePlayer == playerIn && this.mc.theWorld == scene
-                && !playerIn.isDead && scene != null && targetEntity != null && targetEntity.worldObj == scene && !targetEntity.isDead
-                && scene.getEntityByID(targetEntity.getEntityId()) == targetEntity && validHit.getAsBoolean();
-        if (!cancelled && currentHit.getAsBoolean()) {
-            this.syncCurrentPlayItem();
-            net.minecraft.network.Packet<?> accepted = this.netClientHandler.addToSendQueueTracked(
-                    new C02PacketUseEntity(targetEntity, C02PacketUseEntity.Action.ATTACK), outgoing ->
-                            outgoing instanceof C02PacketUseEntity
-                                    && ((C02PacketUseEntity) outgoing).getAction() == C02PacketUseEntity.Action.ATTACK
-                                    && ((C02PacketUseEntity) outgoing).getEntityFromWorld(playerIn.worldObj) == targetEntity
-                                    && currentHit.getAsBoolean());
-            if (!(accepted instanceof C02PacketUseEntity)
-                    || ((C02PacketUseEntity) accepted).getAction() != C02PacketUseEntity.Action.ATTACK
-                    || ((C02PacketUseEntity) accepted).getEntityFromWorld(playerIn.worldObj) != targetEntity
-                    || !currentHit.getAsBoolean()) return false;
-            scheduler.recordControllerAttack();
-
-            if (this.currentGameType != WorldSettings.GameType.SPECTATOR) {
-                playerIn.attackTargetEntityWithCurrentItem(targetEntity);
+        if (!scheduler.beginControllerAttack(aura != null && aura.isToggled())) return false;
+        try {
+            boolean cancelled = false;
+            if (targetEntity instanceof EntityLivingBase) {
+                AttackEvent attackEvent = new AttackEvent((EntityLivingBase) targetEntity);
+                Pulsar.BUS.post(attackEvent);
+                cancelled = attackEvent.isCancelled();
             }
-            if (targetEntity instanceof EntityLivingBase)
-                Pulsar.BUS.post(new me.youngjibbit.event.player.AttackResultEvent((EntityLivingBase) targetEntity));
-            return true;
+            final World scene = playerIn.worldObj;
+            java.util.function.BooleanSupplier currentHit = () -> this.mc.thePlayer == playerIn && this.mc.theWorld == scene
+                    && !playerIn.isDead && scene != null && targetEntity != null && targetEntity.worldObj == scene && !targetEntity.isDead
+                    && scene.getEntityByID(targetEntity.getEntityId()) == targetEntity && validHit.getAsBoolean();
+            if (!cancelled && currentHit.getAsBoolean()) {
+                this.syncCurrentPlayItem();
+                net.minecraft.network.Packet<?> accepted = this.netClientHandler.addToSendQueueTracked(
+                        new C02PacketUseEntity(targetEntity, C02PacketUseEntity.Action.ATTACK), outgoing ->
+                                outgoing instanceof C02PacketUseEntity
+                                        && ((C02PacketUseEntity) outgoing).getAction() == C02PacketUseEntity.Action.ATTACK
+                                        && ((C02PacketUseEntity) outgoing).getEntityFromWorld(playerIn.worldObj) == targetEntity
+                                        && currentHit.getAsBoolean());
+                if (!(accepted instanceof C02PacketUseEntity)
+                        || ((C02PacketUseEntity) accepted).getAction() != C02PacketUseEntity.Action.ATTACK
+                        || ((C02PacketUseEntity) accepted).getEntityFromWorld(playerIn.worldObj) != targetEntity
+                        || !currentHit.getAsBoolean()) return false;
+                scheduler.recordControllerAttack();
+
+                if (this.currentGameType != WorldSettings.GameType.SPECTATOR) {
+                    playerIn.attackTargetEntityWithCurrentItem(targetEntity);
+                }
+                if (targetEntity instanceof EntityLivingBase)
+                    Pulsar.BUS.post(new me.youngjibbit.event.player.AttackResultEvent((EntityLivingBase) targetEntity));
+                return true;
+            }
+            return false;
+        } finally {
+            scheduler.endControllerAttack();
         }
-        return false;
     }
 
     /**
