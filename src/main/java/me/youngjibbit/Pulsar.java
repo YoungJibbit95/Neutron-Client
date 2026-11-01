@@ -73,6 +73,7 @@ public enum Pulsar implements Subscriber {
     private ClientRuntime runtime;
     private CommandManager cm;
     private ClickGui panel;
+    private me.youngjibbit.clickgui.DropdownGui dropdown;
     private iOS iOS;
     private PanelUtils panelUtils;
     private SettingsMenu cs;
@@ -114,6 +115,7 @@ public enum Pulsar implements Subscriber {
         initializeStartTime();
         cm = new CommandManager();
         panel = new ClickGui();
+        dropdown = new me.youngjibbit.clickgui.DropdownGui();
         iOS = new iOS();
         panelUtils = new PanelUtils();
         cs = new SettingsMenu();

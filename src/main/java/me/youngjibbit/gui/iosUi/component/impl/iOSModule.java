@@ -117,6 +117,7 @@ public class iOSModule extends iOSComponent
                     break;
                 case 1:
                     open = !open;
+                    if (!open) cancelInputs();
                     break;
             }
         }

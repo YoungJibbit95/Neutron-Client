@@ -433,12 +433,18 @@ public final class CombatDiagnostics extends Module {
         try (RenderState ignored = new RenderState()) {
             ScaledResolution resolution = event.getSr() != null ? event.getSr() : new ScaledResolution(mc);
             int width = Math.max(20, Math.min(690, resolution.getScaledWidth() - 10));
-            List<String> items = history.recent(7);
-            int left = 5, top = 6, height = 53 + items.size() * 11;
+            // Keep the opt-in trace below the default top-left HUDs and above the hotbar.
+            // Only the displayed history adapts; the full bounded diagnostic trace is retained.
+            int left = 5, top = resolution.getScaledHeight() / 2 + 6;
+            int availableHeight = Math.max(0, resolution.getScaledHeight() - 42 - top);
+            int historyRows = Math.min(7, Math.max(0, (availableHeight - 53) / 11));
+            List<String> items = history.recent(historyRows);
+            int height = 53 + items.size() * 11;
             Gui.drawRect(left, top, left + width, top + height, 0xCC101824);
-            mc.fontRendererObj.drawStringWithShadow("CombatDiagnostics [CLIENT ONLY]  F9 toggle  F8 mark",
+            mc.fontRendererObj.drawStringWithShadow("CombatDiagnostics [CLIENT ONLY] F9 toggle F8 mark "
+                            + items.size() + "/" + Math.min(7, history.size()),
                     left + 4, top + 4, 0xFFFFCC66);
-            mc.fontRendererObj.drawStringWithShadow("ATTACK_LOCAL_ACCEPTED != server hit/flag; S08 != proof of flag",
+            mc.fontRendererObj.drawStringWithShadow("S08 != flag proof; local attack != server hit/flag",
                     left + 4, top + 15, 0xFFBFC7D8);
             RotationManager rotations = RuntimeServices.rotation();
             boolean wireKnown = hasKnownWire(rotations);
