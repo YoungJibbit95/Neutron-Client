@@ -111,6 +111,20 @@ public class Wave05UiInputTest {
         fixture.row.mouseClicked(190,100,0);fixture.row.mouseReleased();fixture.row.mouseReleased();
         assertEquals("Alpha",fixture.value.combo.getValue());assertEquals(1,fixture.value.changes);
     }
+    @Test public void iosSharedOptionEdgeBelongsOnlyToFollowingRow()throws Exception {
+        for(float scroll:new float[]{0,-20}) {
+            set(Pulsar.INSTANCE.getIOS(),"scrollOffset",scroll);
+            for(int[] sample:new int[][]{{111,0},{112,1},{177,3},{178,-1}}) {
+                IosFixture fixture=new IosFixture(1000);
+                fixture.value.combo.setValue("Charlie");fixture.value.changes=0;
+                fixture.combo.mouseClicked(190,(int)(sample[0]+scroll),0);
+                fixture.combo.mouseReleased();fixture.combo.mouseReleased();
+                String expected=sample[1]<0?"Charlie":fixture.value.combo.getOptions()[sample[1]];
+                assertEquals("row edge y="+sample[0]+" scroll="+scroll,expected,fixture.value.combo.getValue());
+                assertEquals(sample[1]<0?0:1,fixture.value.changes);
+            }
+        }
+    }
     @Test public void iosAllOptionsRemainReachableWithMotionOffAndReducedMotion()throws Exception {
         for(boolean reduced:new boolean[]{false,true}) {
             settings.animations.setValue(reduced);settings.reducedMotion.setValue(reduced);UiEffects.invalidate();
