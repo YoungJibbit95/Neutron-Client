@@ -23,6 +23,43 @@ import static org.junit.Assert.*;
 
 /** Actual module, Ordinary walking, controller and EmbeddedChannel; world storage is synthetic. */
 public class Wave05CombatContractChecks {
+    @Test public void auraNestedWalkingCannotTransportTheSupersededC03() throws Exception {
+        try (CombatSequenceWave2Checks.Run run = new CombatSequenceWave2Checks.Run(false)) {
+            run.fixture.aura.getNumberSetting("Yaw Speed").setValue(90D);
+            run.fixture.aura.getNumberSetting("Pitch Speed").setValue(90D);
+            run.target.posX = -1;
+            run.target.setEntityBoundingBox(new AxisAlignedBB(-1.3, 64, 1.7, -.7, 65.8, 2.3));
+            boolean[] nested = {false};
+            int[] posts = {0};
+            float[] innerYaw = {Float.NaN};
+            ScaffoldOwnerContinuityTest.Hooks hooks = new ScaffoldOwnerContinuityTest.Hooks();
+            hooks.motion = event -> { if (event.isPost()) posts[0]++; };
+            hooks.packet = event -> {
+                if (!nested[0] && event.isOutbound() && event.isPre()
+                        && event.getPacket() instanceof C03PacketPlayer) {
+                    nested[0] = true;
+                    run.target.posX = 1.5;
+                    run.target.setEntityBoundingBox(new AxisAlignedBB(1.2, 64, 1.7, 1.8, 65.8, 2.3));
+                    run.scene.motionTime.addAndGet(50_000_000L);
+                    run.fixture.player.onUpdateWalkingPlayer();
+                    assertEquals("aura", run.fixture.runtime.getRotationManager().getConfirmedOwner());
+                    innerYaw[0] = run.fixture.runtime.getRotationManager().getEffectiveYaw();
+                }
+            };
+            Pulsar.BUS.subscribe(hooks);
+            try {
+                List<Object> packets = run.walk();
+                assertTrue(nested[0]);
+                assertTrue(Float.isFinite(innerYaw[0]));
+                assertEquals(1, posts[0]);
+                assertEquals("only the newer frame may transport movement", 1, count(packets, C03PacketPlayer.class));
+                assertEquals("aura", run.fixture.runtime.getRotationManager().getConfirmedOwner());
+                assertEquals(innerYaw[0], run.fixture.runtime.getRotationManager().getEffectiveYaw(), 0);
+                assertEquals(innerYaw[0], run.fixture.player.serverYaw, 0);
+            } finally { Pulsar.BUS.unsubscribe(hooks); }
+        }
+    }
+
     private static long count(List<Object> packets, Class<?> type) {
         return packets.stream().filter(type::isInstance).count();
     }

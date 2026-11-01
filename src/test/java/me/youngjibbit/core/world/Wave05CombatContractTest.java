@@ -18,7 +18,8 @@ public class Wave05CombatContractTest {
                 {"packetPreReentryCannotDuplicateManualAttack"},
                 {"cancelledAndThrowingCallbacksReleaseManualControllerScope"},
                 {"liveTargetStillStartsAutoblockAfterAttack"},
-                {"visibleAimAssistLeavesClicksManualAndMovementOnCameraBasis"}
+                {"visibleAimAssistLeavesClicksManualAndMovementOnCameraBasis"},
+                {"auraNestedWalkingCannotTransportTheSupersededC03"}
         });
     }
 

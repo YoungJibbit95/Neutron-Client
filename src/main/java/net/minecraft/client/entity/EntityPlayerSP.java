@@ -220,12 +220,29 @@ public class EntityPlayerSP extends AbstractClientPlayer
             rotations.beginMotion(this, this.worldObj, this.rotationYaw, this.rotationPitch);
             motionSequence = rotations.getMotionSequence();
             motionEvent.setEventPhase(EventPhase.PRE);
-            Pulsar.BUS.post(motionEvent);
+            try {
+                Pulsar.BUS.post(motionEvent);
+            } catch (RuntimeException | Error error) {
+                if (walkingContextValid(client, world, connection, packets, contextVersion)
+                        && RuntimeServices.rotation() == rotations && rotations.getMotionSequence() == motionSequence) {
+                    try { rotations.finishMotion(this.rotationYaw, this.rotationPitch, false); }
+                    catch (RuntimeException | Error cleanup) { if (cleanup != error) error.addSuppressed(cleanup); }
+                }
+                throw error;
+            }
         }
         if (!walkingContextValid(client, world, connection, packets, contextVersion)) {
             if (rotations != null && rotations.getMotionSequence() == motionSequence) rotations.reset();
             return;
         }
+        final RotationManager frameRotations = rotations;
+        final long frameSequence = motionSequence;
+        final java.util.function.BooleanSupplier sameMotionFrame = () -> frameRotations == null
+                || RuntimeServices.rotation() == frameRotations && frameRotations.getMotionSequence() == frameSequence;
+        final java.util.function.BooleanSupplier currentFrame = () ->
+                walkingContextValid(client, world, connection, packets, contextVersion) && sameMotionFrame.getAsBoolean();
+        // Motion PRE can itself finish a newer walking frame, including before cancelling this one.
+        if (!currentFrame.getAsBoolean()) return;
 
         // PRE movement owners finalize sprint before its action packet, even if motion is cancelled.
         final boolean flag = this.isSprinting();
@@ -235,8 +252,10 @@ public class EntityPlayerSP extends AbstractClientPlayer
             C0BPacketEntityAction sprintAction = new C0BPacketEntityAction(this, flag
                     ? C0BPacketEntityAction.Action.START_SPRINTING : C0BPacketEntityAction.Action.STOP_SPRINTING);
             if (connection.addToSendQueueGuarded(sprintAction,
-                    () -> walkingContextValid(client, world, connection, packets, contextVersion) && this.isSprinting() == flag) == sprintAction)
+                    () -> currentFrame.getAsBoolean() && this.isSprinting() == flag) == sprintAction
+                    && currentFrame.getAsBoolean())
                 serverSprintState = flag;
+            if (!sameMotionFrame.getAsBoolean()) return;
         }
 
         final boolean flag1 = this.isSneaking();
@@ -246,13 +265,16 @@ public class EntityPlayerSP extends AbstractClientPlayer
             C0BPacketEntityAction sneakAction = new C0BPacketEntityAction(this, flag1
                     ? C0BPacketEntityAction.Action.START_SNEAKING : C0BPacketEntityAction.Action.STOP_SNEAKING);
             if (connection.addToSendQueueGuarded(sneakAction,
-                    () -> walkingContextValid(client, world, connection, packets, contextVersion) && this.isSneaking() == flag1) == sneakAction)
+                    () -> currentFrame.getAsBoolean() && this.isSneaking() == flag1) == sneakAction
+                    && currentFrame.getAsBoolean())
                 this.serverSneakState = flag1;
+            if (!sameMotionFrame.getAsBoolean()) return;
         }
         if (!walkingContextValid(client, world, connection, packets, contextVersion)) {
             if (rotations != null && rotations.getMotionSequence() == motionSequence) rotations.reset();
             return;
         }
+        if (!currentFrame.getAsBoolean()) return;
 
         if (motionEvent != null)
         {
@@ -263,7 +285,7 @@ public class EntityPlayerSP extends AbstractClientPlayer
             }
             rotations.resolve(motionEvent);
             // Lease validation may have entered a newer walking frame before any ticket existed.
-            if (rotations.getMotionSequence() != motionSequence || RuntimeServices.rotation() != rotations) return;
+            if (!currentFrame.getAsBoolean()) return;
             final RotationManager.ResolvedC03SendTicket sendTicket =
                     rotations.captureResolvedC03SendTicket(this.lastReportedYaw, this.lastReportedPitch);
 
@@ -300,19 +322,31 @@ public class EntityPlayerSP extends AbstractClientPlayer
 
             net.minecraft.network.Packet<?> acceptedPacket;
             boolean currentSourceFrame = true;
+            final boolean[] synchronousSend = {true};
+            final java.util.function.Predicate<net.minecraft.network.Packet<?>> sourceGuard =
+                    sendTicket == null ? outgoing -> true : sendTicket.guard(movementPacket);
+            // Ordinary queued movement keeps its existing later replay semantics. Only the
+            // synchronous older call loses send power when a callback starts a newer frame.
+            final java.util.function.BooleanSupplier sendContext = () ->
+                    walkingContextValid(client, world, connection, packets, contextVersion)
+                            && (!synchronousSend[0] || sameMotionFrame.getAsBoolean());
             try {
-                acceptedPacket = sendTicket == null ? this.sendQueue.addToSendQueueTracked(movementPacket)
-                        : connection.addToSendQueueTracked(movementPacket, sendTicket.guard(movementPacket));
+                acceptedPacket = connection.addToSendQueueTracked(movementPacket, outgoing ->
+                        sendContext.getAsBoolean() && sourceGuard.test(outgoing) && sendContext.getAsBoolean());
                 // Packet POST may invalidate the scene after the packet actually reached transport.
                 if (sendTicket != null && acceptedPacket instanceof C03PacketPlayer
                         && connection.getNetworkManager().isChannelOpen()) currentSourceFrame = sendTicket.isCurrent();
             } catch (RuntimeException | Error error) {
-                if (sendTicket != null && rotations.getMotionSequence() == motionSequence && RuntimeServices.rotation() == rotations)
-                    rotations.finishMotion(rotationYaw, rotationPitch, false);
+                if (currentFrame.getAsBoolean()) {
+                    try { rotations.finishMotion(rotationYaw, rotationPitch, false); }
+                    catch (RuntimeException | Error cleanup) { if (cleanup != error) error.addSuppressed(cleanup); }
+                }
                 throw error;
+            } finally {
+                synchronousSend[0] = false;
             }
             // A nested walking frame owns its own finish/report/POST, even if this older packet was denied.
-            if (sendTicket != null && (rotations.getMotionSequence() != motionSequence || RuntimeServices.rotation() != rotations)) return;
+            if (!currentFrame.getAsBoolean()) return;
             boolean accepted = acceptedPacket instanceof C03PacketPlayer && connection.getNetworkManager().isChannelOpen();
             C03PacketPlayer sent = accepted ? (C03PacketPlayer) acceptedPacket : null;
             if (accepted) {
@@ -321,7 +355,7 @@ public class EntityPlayerSP extends AbstractClientPlayer
             }
             rotations.finishMotion(rotationYaw, rotationPitch, accepted && currentSourceFrame);
             // A nested lease callback owns its reporting fields and Motion POST as well as its packet.
-            if (rotations.getMotionSequence() != motionSequence || RuntimeServices.rotation() != rotations) return;
+            if (!currentFrame.getAsBoolean()) return;
 
             ++this.positionUpdateTicks;
 
