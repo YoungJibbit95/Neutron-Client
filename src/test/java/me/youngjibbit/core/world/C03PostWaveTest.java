@@ -115,4 +115,61 @@ public class C03PostWaveTest {
             } finally { Pulsar.BUS.unsubscribe(hooks); queue.set(run.f.player, original); }
         }
     }
+
+    private void epochChangeAndThrowClosesOwnFrame(boolean motionPre, boolean packetPost) throws Exception {
+        try (ScaffoldOwnerContinuityTest.Run run = new ScaffoldOwnerContinuityTest.Run("Post")) {
+            run.walk();
+            assertEquals("scaffold", run.rotation.getConfirmedOwner());
+            run.noSupport();
+            float wireYaw = run.rotation.getEffectiveYaw(), wirePitch = run.rotation.getEffectivePitch();
+            IllegalStateException failure = new IllegalStateException("epoch changed in callback");
+            int[] motionPosts = {0};
+            ScaffoldOwnerContinuityTest.Hooks hooks = new ScaffoldOwnerContinuityTest.Hooks();
+            Runnable invalidateAndThrow = () -> {
+                run.f.network.getClientPackets().worldChanged();
+                throw failure;
+            };
+            hooks.motion = event -> {
+                if (event.isPost()) motionPosts[0]++;
+                if (motionPre && event.isPre()) invalidateAndThrow.run();
+            };
+            hooks.packet = event -> {
+                if (!motionPre && event.isOutbound() && event.getPacket() instanceof C03PacketPlayer
+                        && (packetPost ? event.isPost() : event.isPre())) invalidateAndThrow.run();
+            };
+            Pulsar.BUS.subscribe(hooks);
+            try {
+                assertSame("cleanup preserves the original callback failure", failure,
+                        assertThrows(IllegalStateException.class, run::walk));
+                List<Object> transported = run.drain();
+                assertEquals("only Packet POST has already transported this C03", packetPost ? 1 : 0,
+                        transported.stream().filter(packet -> packet instanceof C03PacketPlayer).count());
+                ScaffoldOwnerContinuityTest.noActions(transported);
+                assertEquals("failed frame emits no Motion POST", 0, motionPosts[0]);
+                assertFalse(run.rotation.isMotionAccepted());
+                assertFalse("previous PRE authority is closed too", run.rotation.canUseRotation("scaffold", true));
+                assertFalse(run.rotation.canUseRotation("scaffold", false));
+                assertNull(run.rotation.getConfirmedOwner());
+                assertTrue("rejection preserves the observed wire pose", run.rotation.hasEffectiveRotation());
+                assertEquals(wireYaw, run.rotation.getEffectiveYaw(), 0);
+                assertEquals(wirePitch, run.rotation.getEffectivePitch(), 0);
+                assertNull(run.f.runtime.getObservation().getCurrentStep());
+                assertEquals(-1, run.f.runtime.getObservation().getActiveOuterTickId());
+            } finally {
+                Pulsar.BUS.unsubscribe(hooks);
+            }
+        }
+    }
+
+    @Test public void motionPreEpochChangeAndThrowClosesOnlyOwnFrame() throws Exception {
+        epochChangeAndThrowClosesOwnFrame(true, false);
+    }
+
+    @Test public void packetPreEpochChangeAndThrowClosesOnlyOwnFrame() throws Exception {
+        epochChangeAndThrowClosesOwnFrame(false, false);
+    }
+
+    @Test public void packetPostEpochChangeAndThrowClosesOnlyOwnFrame() throws Exception {
+        epochChangeAndThrowClosesOwnFrame(false, true);
+    }
 }
