@@ -88,6 +88,12 @@ public class Aura extends Module {
         super.onEnable();
     }
 
+    @Override public void beginConfigUpdate() {
+        super.beginConfigUpdate();
+        // Missing legacy keys cannot inherit activation; explicit incoming values apply afterward.
+        rotationSettings.speedCurve.reset();
+    }
+
     @Override
     public void onDisable() {
         clearCombat(false);

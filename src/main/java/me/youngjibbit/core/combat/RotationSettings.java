@@ -9,6 +9,8 @@ import me.youngjibbit.value.impl.*;
 public final class RotationSettings {
     public final ComboValue preset;
     public final SliderValue speedVariation;
+    public final ComboValue speedCurve;
+    public final SliderValue bezierStrength,bezierDuration;
     private final boolean placement;
     public final ComboValue mode,noise,cellularDistance,cellularReturn,fractal,warp;
     public final SliderValue minSpeed,maxSpeed,interpolation,yawOffset,pitchOffset,radius,frequency,strength;
@@ -38,6 +40,13 @@ public final class RotationSettings {
         mode=new ComboValue(modeName,parent,assist?new String[]{"Legit","Test","Normal"}:new String[]{"Basic","Smooth","Advanced"},assist?2:0);
         preset=new ComboValue("Randomization Style",parent,new String[]{"Aus","Sanft","Organisch","Dynamisch","Benutzerdefiniert"},1);
         speedVariation=new SliderValue("Speed Variation",parent,0D,0,.9,false);
+        speedCurve=placement?null:new ComboValue("Speed Curve",parent,new String[]{"Off","Bezier"},0);
+        bezierStrength=placement?null:new SliderValue("Bezier Strength",parent,.5,0,.9,false);
+        bezierDuration=placement?null:new SliderValue("Bezier Duration",parent,500D,100,2000,true);
+        if(!placement) {
+            bezierStrength.setVisibility(m->"Bezier".equals(speedCurve.getValue()));
+            bezierDuration.setVisibility(m->"Bezier".equals(speedCurve.getValue()));
+        }
         minSpeed=new SliderValue("Min Speed",parent,30D,1,180,true);maxSpeed=new SliderValue("Max Speed",parent,40D,1,180,true);
         interpolation=new SliderValue("Interpolation",parent,5D,1,20,false);
         randomization=new CheckBoxValue("Randomization",parent,true);
@@ -97,6 +106,8 @@ public final class RotationSettings {
         p.pingPong=f(pingPong);p.weighted=f(weighted);p.warp=FastNoiseLite.DomainWarpType.valueOf(warp.getValue());p.warpAmplitude=f(warpAmplitude);
         p.speedVariation=f(speedVariation);p.preset(preset.getValue());
         if(!placement) {
+            p.speedCurve="Bezier".equals(speedCurve.getValue())?RotationProfile.SpeedCurve.BEZIER:RotationProfile.SpeedCurve.OFF;
+            p.bezierStrength=f(bezierStrength);p.bezierDurationMs=f(bezierDuration);
             if(!presetTiming.getValue()) { p.minSpeed=f(minSpeed);p.maxSpeed=f(maxSpeed);p.interpolation=f(interpolation); }
             p.smartAim=smartAim.getValue();p.stopOnTarget=stopOnTarget.getValue();
             p.heuristics=heuristics.getValue();p.interpolateRotation=interpolateRotation.getValue();p.advancedPitch=advancedPitch.getValue();
