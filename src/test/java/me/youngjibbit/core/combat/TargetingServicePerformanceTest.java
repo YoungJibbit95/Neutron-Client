@@ -21,9 +21,10 @@ public class TargetingServicePerformanceTest {
         } catch (Exception e) { throw new AssertionError(e); }
     }
     public static class Player extends EntityPlayerSP {
+        int visibilityChecks, eyeReads;
         private Player() { super(null, null, null, null); }
-        @Override public boolean canEntityBeSeen(Entity e) { return true; }
-        @Override public Vec3 getPositionEyes(float partial) { return new Vec3(0, 0, 0); }
+        @Override public boolean canEntityBeSeen(Entity e) { visibilityChecks++; return true; }
+        @Override public Vec3 getPositionEyes(float partial) { eyeReads++; return new Vec3(0, 0, 0); }
     }
     public static class Mob extends EntityMob {
         int score, reads;
@@ -50,6 +51,33 @@ public class TargetingServicePerformanceTest {
         HealthWatcher watcher = (HealthWatcher) UNSAFE.allocateInstance(HealthWatcher.class); watcher.health = health;
         field(m, Entity.class, "dataWatcher", watcher);
         return m;
+    }
+    @Test public void skipsDisabledAndInvisibleEntitiesBeforeExpensiveChecks() throws Exception {
+        Field singleton = Minecraft.class.getDeclaredField("theMinecraft"); singleton.setAccessible(true);
+        Object previous = singleton.get(null);
+        Minecraft mc = (Minecraft) UNSAFE.allocateInstance(Minecraft.class);
+        Player player = (Player) UNSAFE.allocateInstance(Player.class);
+        mc.thePlayer = player;
+        singleton.set(null, mc);
+        try {
+            TargetingService service = new TargetingService();
+            TargetingService.Options options = new TargetingService.Options();
+            Mob candidate = mob(1, 10);
+            assertFalse(service.isValidTarget(candidate, options));
+            assertEquals(0, player.eyeReads);
+            assertEquals(0, player.visibilityChecks);
+
+            options.mobs = true;
+            candidate.invisible = true;
+            assertFalse(service.isValidTarget(candidate, options));
+            assertEquals(0, player.eyeReads);
+            assertEquals(0, player.visibilityChecks);
+
+            candidate.invisible = false;
+            assertTrue(service.isValidTarget(candidate, options));
+            assertEquals(1, player.eyeReads);
+            assertEquals(1, player.visibilityChecks);
+        } finally { singleton.set(null, previous); }
     }
     @Test public void bestMatchesStableSortedFirstAndAvoidsSortingWork() throws Exception {
         Field singleton = Minecraft.class.getDeclaredField("theMinecraft"); singleton.setAccessible(true);

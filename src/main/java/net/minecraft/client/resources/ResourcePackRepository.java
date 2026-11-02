@@ -67,7 +67,7 @@ public class ResourcePackRepository
         this.rprDefaultResourcePack = rprDefaultResourcePackIn;
         this.rprMetadataSerializer = rprMetadataSerializerIn;
         this.fixDirResourcepacks();
-        this.updateRepositoryEntriesAll();
+        this.updateRepositoryEntriesForStartup(settings.resourcePacks);
         Iterator<String> iterator = settings.resourcePacks.iterator();
 
         while (iterator.hasNext())
@@ -111,6 +111,34 @@ public class ResourcePackRepository
         return this.dirResourcepacks.isDirectory() ? Arrays.asList(this.dirResourcepacks.listFiles(resourcePackFilter)) : Collections.<File>emptyList();
     }
 
+    /** Only selected packs can affect the initial resource reload. The selection screen
+     * calls updateRepositoryEntriesAll() before it needs the remaining metadata/icons. */
+    private void updateRepositoryEntriesForStartup(List<String> selectedNames)
+    {
+        List<ResourcePackRepository.Entry> entries = Lists.newArrayList();
+
+        for (File file : this.getResourcePackFiles())
+        {
+            ResourcePackRepository.Entry entry = new ResourcePackRepository.Entry(file);
+
+            if (selectedNames.contains(file.getName()))
+            {
+                try
+                {
+                    entry.updateResourcePack();
+                }
+                catch (Exception ignored)
+                {
+                    continue;
+                }
+            }
+
+            entries.add(entry);
+        }
+
+        this.repositoryEntriesAll = entries;
+    }
+
     public void updateRepositoryEntriesAll()
     {
         List<ResourcePackRepository.Entry> list = Lists.<ResourcePackRepository.Entry>newArrayList();
@@ -137,7 +165,21 @@ public class ResourcePackRepository
 
                 if (i > -1 && i < this.repositoryEntriesAll.size())
                 {
-                    list.add(this.repositoryEntriesAll.get(i));
+                    ResourcePackRepository.Entry existing = this.repositoryEntriesAll.get(i);
+
+                    if (existing.reResourcePack == null)
+                    {
+                        try
+                        {
+                            existing.updateResourcePack();
+                        }
+                        catch (Exception ignored)
+                        {
+                            continue;
+                        }
+                    }
+
+                    list.add(existing);
                 }
             }
         }
@@ -341,29 +383,49 @@ public class ResourcePackRepository
         public void updateResourcePack() throws IOException
         {
             this.reResourcePack = (IResourcePack)(this.resourcePackFile.isDirectory() ? new FolderResourcePack(this.resourcePackFile) : new FileResourcePack(this.resourcePackFile));
-            this.rePackMetadataSection = (PackMetadataSection)this.reResourcePack.getPackMetadata(ResourcePackRepository.this.rprMetadataSerializer, "pack");
-
             try
             {
-                this.texturePackIcon = this.reResourcePack.getPackImage();
+                this.rePackMetadataSection = (PackMetadataSection)this.reResourcePack.getPackMetadata(ResourcePackRepository.this.rprMetadataSerializer, "pack");
             }
-            catch (IOException var2)
+            finally
             {
-                ;
+                this.closeResourcePack();
             }
+        }
 
-            if (this.texturePackIcon == null)
+        private void loadTexturePackIcon()
+        {
+            try
             {
-                this.texturePackIcon = ResourcePackRepository.this.rprDefaultResourcePack.getPackImage();
-            }
+                try
+                {
+                    this.texturePackIcon = this.reResourcePack.getPackImage();
+                }
+                catch (IOException ignored)
+                {
+                    // Use the same fallback icon as the eager loading path.
+                }
 
-            this.closeResourcePack();
+                if (this.texturePackIcon == null)
+                {
+                    this.texturePackIcon = ResourcePackRepository.this.rprDefaultResourcePack.getPackImage();
+                }
+            }
+            catch (IOException exception)
+            {
+                throw new RuntimeException("Unable to load resource pack icon: " + this.resourcePackFile, exception);
+            }
+            finally
+            {
+                this.closeResourcePack();
+            }
         }
 
         public void bindTexturePackIcon(TextureManager textureManagerIn)
         {
             if (this.locationTexturePackIcon == null)
             {
+                this.loadTexturePackIcon();
                 this.locationTexturePackIcon = textureManagerIn.getDynamicTextureLocation("texturepackicon", new DynamicTexture(this.texturePackIcon));
             }
 
@@ -385,7 +447,7 @@ public class ResourcePackRepository
 
         public String getResourcePackName()
         {
-            return this.reResourcePack.getPackName();
+            return this.resourcePackFile.getName();
         }
 
         public String getTexturePackDescription()
