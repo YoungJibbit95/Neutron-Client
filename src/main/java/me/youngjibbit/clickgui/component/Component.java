@@ -39,6 +39,7 @@ public abstract class Component implements MC
     public abstract void mouseClicked(int mouseX, int mouseY, int mouse);
     public abstract void keyTyped(char typedChar,int key);
     public void mouseReleased() {}
+    public void mouseDragged(int mouseX, int mouseY) {}
 
     public void updateComponent(float x, float y)
     {

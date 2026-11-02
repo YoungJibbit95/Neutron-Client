@@ -155,6 +155,9 @@ public class iOS extends GuiScreen
                         (int) (x + 105),
                 y+ 6, UiEffects.alpha(0xffffffff, 0.95f)));
 
+        ClipRect library=libraryBounds();
+        me.youngjibbit.clickgui.utils.GuiStyle.panel(library.x,library.y,library.width,library.height,3,.4f,new Color(24,26,34));
+        Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 18").drawString("Library",library.x+12,library.y+3,currentTheme.getTextColor().getRGB());
         drawGlowingDot();
 
         icon1("c", (int) (x + 5), (int) (y + 27), Theme.Rainbow);
@@ -320,6 +323,9 @@ public class iOS extends GuiScreen
         int rawX=mouseX,rawY=mouseY;
         mouseX=(int)(x+width/2+(mouseX-x-width/2)/renderedScale);
         mouseY=(int)(y+height/2+(mouseY-y-height/2)/renderedScale);
+        if(mouseButton==0&&libraryBounds().contains(mouseX,mouseY)){
+            mc.displayGuiScreen(new me.youngjibbit.clickgui.ClickLibraryScreen(this,true));return;
+        }
         if (isOverDraggableArea(mouseX, mouseY) && mouseButton == 0) {
             this.dragging = true;
             this.lastX = rawX - x;
@@ -359,6 +365,9 @@ public class iOS extends GuiScreen
             throws IOException
     {
         visualCategory=-1;
+        if(Keyboard.isCreated()&&isCtrlKeyDown()&&(keyCode==Keyboard.KEY_T||keyCode==Keyboard.KEY_O)){
+            mc.displayGuiScreen(new me.youngjibbit.clickgui.ClickLibraryScreen(this,keyCode==Keyboard.KEY_T));return;
+        }
         if (keyCode == Keyboard.KEY_ESCAPE)
         {
             Pulsar.INSTANCE.getMm()
@@ -376,6 +385,8 @@ public class iOS extends GuiScreen
             this.y = mouseY - lastY;
         }
     }
+
+    private ClipRect libraryBounds(){return new ClipRect(x+width-76,y+2,68,16);}
 
     private boolean isOverDraggableArea(int mouseX, int mouseY)
     {

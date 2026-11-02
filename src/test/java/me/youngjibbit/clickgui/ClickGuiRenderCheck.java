@@ -44,7 +44,7 @@ public final class ClickGuiRenderCheck {
     private static class Panel extends ClickGui {
         boolean shift,ctrl;int themeOpens;
         ClipRect searchBox(){return searchBounds();}ClipRect themesBox(){return themeBounds();}
-        @Override protected void openThemeEditor(){ThemeEditorScreen editor=createThemeEditor();require(editor!=null,"Theme editor factory");editor.onGuiClosed();themeOpens++;}
+        @Override protected void openThemeEditor(){ClickLibraryScreen editor=createThemeLibrary();require(editor!=null,"Theme library factory");editor.onGuiClosed();themeOpens++;}
         @Override protected boolean shiftDown(){return shift;}
         @Override protected boolean ctrlDown(){return ctrl;}
         void click(int x, int y, int button) throws Exception { mouseClicked(x, y, button); }

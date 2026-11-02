@@ -11,33 +11,23 @@ import java.awt.Color;
 
 /** Compact presentation; values, visibility, animation and editing belong to ClickModule. */
 public final class DropdownModule extends ClickModule {
-    public static final float ROW_HEIGHT = 16;
-    private float gradientPosition;
-
-    public DropdownModule(Module module) {
-        super(module, 0, 0, 108, ROW_HEIGHT);
-    }
-
-    public void setGradientPosition(float position) {
-        gradientPosition = Math.max(0, Math.min(1, position));
-    }
+    public static final float ROW_HEIGHT = 14;
+    public DropdownModule(Module module) { super(module, 0, 0, 104, ROW_HEIGHT); setWidth(104); }
+    @Override protected boolean compactSettings() { return true; }
 
     @Override public void drawScreen(int mouseX, int mouseY) {
         Theme theme = Theme.resolve(Theme.getDefaultTheme());
         float active = getToggleProgress();
         // One vertical accent ramp across the category, as in the reference.
         if (active > .001f) {
-            boolean ramp = UiEffects.options().gradients && UiEffects.gradient(theme, UiEffects.Channel.BORDER).mode != 0;
-            float position = ramp ? gradientPosition : 0;
-            int top = Theme.interpolateRGB(theme.getSecondaryGradientRGB(), theme.getPrimaryGradientRGB(), position);
-            int bottom = ramp ? Theme.interpolateRGB(theme.getSecondaryGradientRGB(), theme.getPrimaryGradientRGB(), Math.min(1, position + .08f)) : top;
             UIUtils.drawDecorationGradientVertical(x, y, width, ROW_HEIGHT, 0,
-                    UiEffects.color(top, active * .68f), UiEffects.color(bottom, active * .68f));
+                    UiEffects.color(theme.getPrimaryGradientRGB(), active * .72f),
+                    UiEffects.color(theme.getSecondaryGradientRGB(), active * .72f));
         }
         if (isMouseOver(mouseX, mouseY))
             UIUtils.drawDecorationRound(x, y, width, ROW_HEIGHT, 0, new Color(255, 255, 255, 22));
         drawFeedback();
-        TTFFontRenderer font = Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 18");
+        TTFFontRenderer font = Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 16");
         String title = ClickControlStyle.fit(font, getModule().getName(), width - 20);
         font.drawCenteredString(title, x + width / 2, y + (ROW_HEIGHT - font.getHeight(title)) / 2,
                 theme.isCustom() ? theme.getTextColor().getRGB() : 0xfff4f0fa);

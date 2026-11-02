@@ -39,7 +39,10 @@ public final class ThemeSyncRenderCheck {
             for(String direction:new String[]{"Horizontal","Vertical","Up","Left"}) {
                 c.direction.setValue(direction);nanos.set(0);clock.invoke(null,(java.util.function.LongSupplier)nanos::get);UiEffects.beginFrame();
                 BufferedImage first=panel(surface,Theme.Retro),firstDecorations=decorations(surface,Theme.Retro);
-                nanos.set(1000000000);UiEffects.beginFrame();BufferedImage next=panel(surface,Theme.Retro),nextDecorations=decorations(surface,Theme.Retro);
+                // The production clock caps a single stalled frame at 100 ms.
+                // Advance one second as ten frames instead of bypassing that contract.
+                for(int frame=1;frame<=10;frame++){nanos.set(frame*100000000L);UiEffects.beginFrame();}
+                BufferedImage next=panel(surface,Theme.Retro),nextDecorations=decorations(surface,Theme.Retro);
                 require(!sameRegion(firstDecorations,nextDecorations,200,59,400,4),"Global border ignores configured animation: "+direction);
                 require(!sameRegion(firstDecorations,nextDecorations,140,160,350,28),"Global text ignores configured animation: "+direction);
                 require(!same(first,next),"Animated production gradient is static: "+direction);

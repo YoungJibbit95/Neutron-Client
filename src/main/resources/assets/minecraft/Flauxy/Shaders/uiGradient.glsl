@@ -1,9 +1,10 @@
 // One coordinate/time contract for theme text, outlines and halos. GLSL 1.20.
 uniform bool uiEnabled;
 uniform vec2 uiResolution;
+uniform vec4 uiGradientBounds; // screen-space origin and extent; shared by every channel
 uniform vec3 uiText, uiBorder, uiGlow; // signed axis, mode, phase
 float uiPosition(vec3 channel){
- vec2 p=vec2(gl_FragCoord.x,uiResolution.y-gl_FragCoord.y)/max(uiResolution,vec2(1.0));
+ vec2 p=(vec2(gl_FragCoord.x,uiResolution.y-gl_FragCoord.y)-uiGradientBounds.xy)/max(uiGradientBounds.zw,vec2(1.0));
  float t=abs(channel.x)>1.5?p.y:p.x;
  if(channel.x<0.0)t=1.0-t;
  // Modes 0/1/2 retain Solid/Static/Flow; 3/4 extend the existing vec3 transport.
