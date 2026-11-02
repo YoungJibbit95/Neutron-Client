@@ -23,13 +23,13 @@ public class ClickCheckBox extends Component.Sub<CheckBoxValue> {
     @Override public void drawScreen(int mouseX,int mouseY){
         animation.setDirection(value.getValue()?Direction.FORWARDS:Direction.BACKWARDS);
         float progress=Math.max(0,Math.min(1,UiEffects.motion()?animation.getOutput().floatValue():value.getValue()?1:0));
-        Theme theme=Theme.resolve(Theme.getDefaultTheme());int ink=theme.isCustom()?theme.getTextColor().getRGB():0xffe4e4e8;
+        Theme theme=Theme.resolve(Theme.getDefaultTheme());int ink=hoverInk(theme.isCustom()?theme.getTextColor().getRGB():0xffe4e4e8);
         float th=compact()?11:14,knob=th-2,travel=toggleWidth()-knob-2;
         UIUtils.drawDecorationGradientVertical(toggleX(),y+5,toggleWidth(),th,th/2,
                 new Color(Theme.interpolateRGB(0xff464950,theme.getPrimaryGradientRGB(),progress),true),
                 new Color(Theme.interpolateRGB(0xff464950,theme.getSecondaryGradientRGB(),progress),true));
         UIUtils.drawDecorationRound(toggleX()+1+travel*progress,y+6,knob,knob,knob/2,
-                new Color(Theme.interpolateRGB(0xffd2d6de,ink,progress),true));
+                new Color(hoverInk(Theme.interpolateRGB(0xffd2d6de,theme.getTextColor().getRGB(),progress)),true));
         me.youngjibbit.utils.font.TTFFontRenderer font=compact()?me.youngjibbit.Pulsar.INSTANCE.fontManager.getFont("Poppins-Regular 16"):ClickControlStyle.font();
         font.drawString(ClickControlStyle.fit(font,UiEffects.settingLabel(value),toggleX()-x-(compact()?11:20)),x+(compact()?7:12),y+6,ink);
         if(!compact()&&hit(mouseX,mouseY,toggleX()-3,y+2,31,20))UIUtils.drawDecorationRound(toggleX()+9+11*progress,y+10,3,3,1.5f,new Color(255,255,255,150));

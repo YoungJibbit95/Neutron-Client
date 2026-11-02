@@ -25,7 +25,7 @@ public final class WatermarkCheck {
   for(String field:new String[]{"Client Name","Version","FPS","Player"})hud.getBooleanSetting(field).setValue(false);
   hud.getModeSetting("Mode").setValue("Status");SessionInfoRenderCheck.backdrop();BufferedImage off=SessionInfoRenderCheck.capture();draw.invoke(hud);SessionInfoRenderCheck.require(equal(off,SessionInfoRenderCheck.capture()),"Empty watermark left a panel");
   for(String field:new String[]{"Client Name","Version","FPS","Player"})hud.getBooleanSetting(field).setValue(true);
-  TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Medium 41");SessionInfoRenderCheck.require(Math.abs(font.getWidth("\u00a7lA\u00a7cB")-(font.getWidth("\u00a7lA")+font.getWidth("B")-2))<.001,"Formatting width reset");font.getHeight("tail\u00a7");
+  TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Medium 41");SessionInfoRenderCheck.require(Math.abs(font.getWidth("\u00a7lA\u00a7cB")-(font.getWidth("\u00a7lA")+font.getWidth("B")))<.001,"Formatting width reset");font.getHeight("tail\u00a7");
   TextEffects effects=new TextEffects();images.clear();captions.clear();
   for(int style=0;style<3;style++){
    SessionInfoRenderCheck.backdrop();effects.drawLocal(font,"Neutron \u00a7lB \u00a7r\u00a7oI \u00a7r\u00a7aGreen \u00a7r\u00b7",20,40,0xffff00ff,0xff00cfff,style,false,0,true,.6f,4,true,false,true);

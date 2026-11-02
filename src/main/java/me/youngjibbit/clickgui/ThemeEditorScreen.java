@@ -81,7 +81,7 @@ public class ThemeEditorScreen extends GuiScreen {
         GuiStyle.panel(r.x,r.y,r.width,r.height,3,on&&id==focus?1:.12f,new Color(20,23,30));GuiStyle.feedback(r,controlMotion[id]);
         try(GuiClip ignored=GuiClip.push(new ClipRect(r.x+3,r.y+1,r.width-6,r.height-2))){
             if(editingField==id)while(label.length()>1&&font().getWidth(label)>r.width-12)label=label.substring(1);
-            text(fit(label,r.width-12),r.x+6,r.y+6,UiEffects.alpha(ink,on?1:.42f));
+            text(fit(label,r.width-12),r.x+6,r.y+6,UiEffects.alpha(GuiStyle.ink(ink,controlMotion[id]),on?1:.42f));
         }
     }
     @Override public void drawScreen(int mx,int my,float partialTicks){
@@ -89,7 +89,7 @@ public class ThemeEditorScreen extends GuiScreen {
         scroll+=(targetScroll-scroll)*UiEffects.response(dt,22);advanceMotion(dt,mx,my);
         Theme theme=Theme.getDefaultTheme();int ink=theme.getTextColor().getRGB();
         try(RenderState state=new RenderState()){
-            state.screenSpace();UIUtils.drawDecorationRound(0,0,width,height,0,new Color(5,7,12,115));
+            state.screenSpace();if(mc.theWorld==null)me.youngjibbit.gui.MainMenu.drawBackdrop(theme);else UIUtils.drawDecorationRound(0,0,width,height,0,new Color(5,7,12,115));
             rootSurface.panel(ox,oy,w,h,6,theme,true,true,true,8,.92f,.8f,()->{
                 try(GuiClip clip=GuiClip.push(new ClipRect(ox+2,oy+2,w-4,h-4))){
                     Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Bold 28").drawString("Neutron themes",ox+12,oy+12,ink);

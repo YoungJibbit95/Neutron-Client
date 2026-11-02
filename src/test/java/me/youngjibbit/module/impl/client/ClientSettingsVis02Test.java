@@ -62,9 +62,9 @@ public class ClientSettingsVis02Test {
     };
     @Test public void everyOldIdNameDefaultAndEnumIndexIsUnchanged() {
         ClientSettings c=new ClientSettings();List<String> current=new ArrayList<>();
-        for(Value<?> v:c.getValues())if(!Arrays.asList("gradient_method","ambient_motion","semantic_color_priority","notification_theme").contains(v.getId()))
+        for(Value<?> v:c.getValues())if(!Arrays.asList("gradient_method","ambient_motion","semantic_color_priority","notification_theme","ui_font","text_glow","text_glow_strength","text_glow_radius","text_glow_color").contains(v.getId()))
             current.add(v.getId()+"|"+v.getName()+"|"+v.getDefaultValue()+"|"+(v instanceof ComboValue?String.join(",",((ComboValue)v).getOptions()):""));
-        assertArrayEquals(BEFORE,current.toArray(new String[0]));assertEquals(BEFORE.length+3+1,c.getValues().size());
+        assertArrayEquals(BEFORE,current.toArray(new String[0]));assertEquals(BEFORE.length+3+1+5,c.getValues().size());
         assertEquals("Balanced",c.motionIntensity.getValue());
     }
     @Test public void threeNewDefaultsBelongToExactlyOneExistingGroup() {

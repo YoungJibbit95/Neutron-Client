@@ -37,7 +37,7 @@ public class iOSSlider extends iOSComponent.Sub<SliderValue>
         Color themeColor2 = currentTheme.getSecondaryGradientColor();
 
         float trackX = x + width - TRACK_WIDTH - 12.0f;
-        float trackY = y + 8.0f;
+        float trackY = y + 18.0f;
         float trackHeight = Math.max(3.0f, height - 19.0f);
         double range = Math.max(0.001D, value.getMax() - value.getMin());
         float targetWidth = (float) (TRACK_WIDTH * ((value.getValue() - value.getMin()) / range));
@@ -48,9 +48,12 @@ public class iOSSlider extends iOSComponent.Sub<SliderValue>
         UIUtils.drawRound(trackX, trackY, TRACK_WIDTH, trackHeight, 2, new Color(0, 0, 0, 132));
         UIUtils.drawGradientRound(trackX, trackY, renderWidth, trackHeight, 2, themeColor1, themeColor1, themeColor2, themeColor2);
 
-        Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 20").drawString(value.getName(), x + 31, y + 6, new Color(235, 238, 246, 230).getRGB());
+        me.youngjibbit.utils.font.TTFFontRenderer labelFont=Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 20");
+        labelFont.drawString(me.youngjibbit.clickgui.utils.ClickControlStyle.fit(labelFont,value.getName(),width-80),x+10,y+3,currentTheme.getTextColor().getRGB());
 
-        Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 19").drawString(String.valueOf(value.getValue()), x + 166, y + 6, Color.white.getRGB());
+        me.youngjibbit.utils.font.TTFFontRenderer numberFont=Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 19");
+        String number=me.youngjibbit.clickgui.utils.ClickControlStyle.fit(numberFont,BigDecimal.valueOf(value.getValue()).stripTrailingZeros().toPlainString(),62);
+        numberFont.drawString(number,x+width-12-numberFont.getWidth(number),y+3,currentTheme.getTextColor().getRGB());
 
         double difference = Math.min(TRACK_WIDTH, Math.max(0, mouseX - trackX));
         if (dragging)
@@ -87,7 +90,7 @@ public class iOSSlider extends iOSComponent.Sub<SliderValue>
     public boolean isMouseOver(int mouseX, int mouseY) {
         float scrollOffset = Pulsar.INSTANCE.getIOS().getScrollOffset();
         float sliderX = x + width - TRACK_WIDTH - 12.0f;
-        float sliderY = y + scrollOffset + 8.0f;
+        float sliderY = y + scrollOffset + 18.0f;
         float sliderHeight = Math.max(3.0f, height - 19.0f);
 
         return mouseX >= sliderX && mouseX <= sliderX + TRACK_WIDTH && mouseY >= sliderY - 4.0f && mouseY <= sliderY + sliderHeight + 6.0f;

@@ -45,9 +45,9 @@ public class iOS extends GuiScreen
     private final List<iOSModule> MODULES = new ArrayList<>();
     public float scrollOffset = 0;
     private float maxScroll;
-    private float selectedCategoryY;
     private final me.youngjibbit.utils.render.ArrayListSurface surface=new me.youngjibbit.utils.render.ArrayListSurface();
-    private final List<StarParticle> particles;
+    private float targetScroll;
+    private boolean scrolling;
     Theme currentTheme = applyTheme();
     int[] outlineColors = getStaticOutlineGradientColors(currentTheme);
     private boolean closing = false;
@@ -62,8 +62,6 @@ public class iOS extends GuiScreen
     public iOS()
     {
         for(int i=0;i<categoryMotion.length;i++)categoryMotion[i]=new me.youngjibbit.gui.UiSpring();
-        this.particles = new ArrayList<>();
-        generateParticles(70);
         this.width = 350;
         this.height = 200;
         this.x = 250;
@@ -75,7 +73,7 @@ public class iOS extends GuiScreen
     /** Ends interrupted gestures without changing selected settings or categories. */
     private void cancelInputs() {
         categoryReady=false;visualCategory=-1;for(me.youngjibbit.gui.UiSpring state:categoryMotion)state.reset();lastFrame=System.nanoTime();
-        dragging = false;
+        dragging = false;scrolling=false;targetScroll=scrollOffset;
         lastX = lastY = 0;
         MODULES.forEach(iOSModule::cancelInputs);
     }
@@ -96,14 +94,15 @@ public class iOS extends GuiScreen
         long now=System.nanoTime();float dt=Math.max(0,Math.min(.1f,(now-lastFrame)/1e9f));lastFrame=now;
         super.drawScreen(mouseX, mouseY, partialTicks);
         GuiShaderBloom.beginBatch();
-        MenuShader.mm2(Pulsar.INSTANCE.getStartTimeLong());
+        UiEffects.beginFrame();
         currentTheme = Theme.resolve(Theme.getDefaultTheme());
+        if(mc.theWorld==null)me.youngjibbit.gui.MainMenu.drawBackdrop(currentTheme);
         outlineColors = getStaticOutlineGradientColors(currentTheme);
 
         float animProgress = UiEffects.motion()?animationEngine.getAnimationValue():1; // 0 to 1
         categoryReady=!UiEffects.motion()||animProgress>=.98f;
         float fit=Math.min(1,Math.min((super.width-16)/width,(super.height-16)/height));
-        renderedScale=Math.max(0.001f,animProgress*fit);
+        renderedScale=Math.max(0.001f,(.96f+.04f*animProgress)*fit);
         x=Math.max(8+width*fit/2,Math.min(x+width/2,super.width-8-width*fit/2))-width/2;
         y=Math.max(8+height*fit/2,Math.min(y+height/2,super.height-8-height*fit/2))-height/2;
         this.smoothDrag(mouseX,mouseY);
@@ -113,11 +112,7 @@ public class iOS extends GuiScreen
         advanceMotion(dt,localMouseX,localMouseY);
 
 
-        for (StarParticle particle : particles)
-        {
-            particle.update((int) this.width + 300, (int) this.height);
-            particle.render(mouseX, mouseY, particles);
-        }
+        // The shared shader supplies ambient motion; avoid the old O(n²) particle links.
 
         GL11.glPushMatrix();
         GL11.glTranslatef(centerX, centerY, 0);
@@ -127,6 +122,9 @@ public class iOS extends GuiScreen
         float[] bounds=me.youngjibbit.utils.render.ScreenRect.project(x,y,width,height-1);
         surface.panel(bounds[0],bounds[1],bounds[2],bounds[3],8*renderedScale,currentTheme,true,true,true,5,.72f,.68f,()->{
         GL11.glPushMatrix();GL11.glTranslatef(centerX,centerY,0);GL11.glScalef(renderedScale,renderedScale,1);GL11.glTranslatef(-centerX,-centerY,0);
+        int sidebarInk=currentTheme.getTextColor().getRGB();
+        int sidebarLuminance=(sidebarInk>>16&255)*299+(sidebarInk>>8&255)*587+(sidebarInk&255)*114;
+        UIUtils.drawDecorationRound(x+3,y+22,SIDEBAR_WIDTH-6,height-27,5,sidebarLuminance>=128000?new Color(7,10,16,185):new Color(240,242,246,220));
         UIUtils.drawRound(x + SIDEBAR_WIDTH, y, width - SIDEBAR_WIDTH, height - 1, 8, true, new Color(255, 255, 255, 16));
         UIUtils.drawRound(x + SIDEBAR_WIDTH + 1.0f, y + HEADER_HEIGHT, width - SIDEBAR_WIDTH - 4.0f, height - HEADER_HEIGHT - 4.0f, 8, true, new Color(0, 0, 0, 46));
 
@@ -146,7 +144,7 @@ public class iOS extends GuiScreen
                 .drawString(
                         cat.name(),
                         (int) (x + 120),
-                        y+ 4, Color.white.getRGB());
+                        y+ 4, currentTheme.getTextColor().getRGB());
 
         me.youngjibbit.utils.render.TextEffects.direct(currentTheme,()->Pulsar.INSTANCE.getFontManager()
                 .getFont("icon1 19")
@@ -160,21 +158,19 @@ public class iOS extends GuiScreen
         Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 18").drawString("Library",library.x+12,library.y+3,currentTheme.getTextColor().getRGB());
         drawGlowingDot();
 
-        icon1("c", (int) (x + 5), (int) (y + 27), Theme.Rainbow);
-        /*MOVEMENT*/icon1("f", (int) (x + 5), (int) (y + 44), Theme.Rainbow);
-        /*PLAYER*/icon2("d", (int) (x + 5), (int) (y + 62), Theme.Rainbow);
-        /*RENDER*/icon1("d", (int) (x + 5), (int) (y + 79), Theme.Rainbow);
-        /*WORLD*/icon2("e", (int) (x + 5), (int) (y + 97), Theme.Rainbow);
-        /*CLIENT*/icon1("t", (int) (x + 5), (int) (y + 113), Theme.Rainbow);
-        /*GHOST*/icon2("f", (int) (x + 5), (int) (y + 130), Theme.Rainbow);
-        /*EXPLOIT*/icon1("a", (int) (x + 5), (int) (y + 147),Theme.Rainbow);
-        /*TESTMODULES*/icon1("n", (int) (x + 5), (int) (y + 163), Theme.Rainbow);
+        icon1("c", (int) (x + 5), (int) (y + 27), currentTheme);
+        /*MOVEMENT*/icon1("f", (int) (x + 5), (int) (y + 44), currentTheme);
+        /*PLAYER*/icon2("d", (int) (x + 5), (int) (y + 62), currentTheme);
+        /*RENDER*/icon1("d", (int) (x + 5), (int) (y + 79), currentTheme);
+        /*WORLD*/icon2("e", (int) (x + 5), (int) (y + 97), currentTheme);
+        /*CLIENT*/icon1("t", (int) (x + 5), (int) (y + 113), currentTheme);
+        /*GHOST*/icon2("f", (int) (x + 5), (int) (y + 130), currentTheme);
+        /*EXPLOIT*/icon1("a", (int) (x + 5), (int) (y + 147),currentTheme);
 
         //Category Rendering
         int i = 0;
         for (Category category : CATEGORIES)
         {
-            float categoryY = y + 20 + i;
             // Already inside the opening/fit transform; no input geometry or scale changes.
             me.youngjibbit.clickgui.utils.GuiStyle.feedback(new ClipRect(x+4,y+25+i,86,17),categoryMotion[category.ordinal()]);
 
@@ -184,17 +180,15 @@ public class iOS extends GuiScreen
                             category.name(),
                             (int) (x + 21),
                             (int) (y + 18 + (float) mc.fontRendererObj.FONT_HEIGHT + i),
-                            isSelectedCategory(category) ? Color.white.getRGB() : new Color(210, 215, 230, 180).getRGB());
+                            me.youngjibbit.clickgui.utils.GuiStyle.ink(isSelectedCategory(category)?currentTheme.getTextColor().getRGB():UiEffects.alpha(currentTheme.getTextColor().getRGB(),.76f),categoryMotion[category.ordinal()]));
             i += 17;
-            if (isSelectedCategory(category))
-            {
-                selectedCategoryY = categoryY;
-            }
         }
 
         float contentHeight = 0;
         for (iOSModule module : MODULES) contentHeight += module.getHeight() + 4;
         maxScroll = Math.max(0, contentHeight - (height - 28));
+        targetScroll=Math.max(-maxScroll,Math.min(0,targetScroll));
+        if(scrolling){scrollOffset+=(targetScroll-scrollOffset)*UiEffects.response(dt,22);if(Math.abs(targetScroll-scrollOffset)<.01f){scrollOffset=targetScroll;scrolling=false;}}
         scrollOffset = Math.max(-maxScroll, Math.min(0, scrollOffset));
         GL11.glPushMatrix();
         try(GuiClip clip=GuiClip.pushTransformed(new ClipRect(x+102,y+20,width-104,height-22))) {
@@ -220,21 +214,6 @@ public class iOS extends GuiScreen
     }
 
 
-
-    public void generateParticles(int count)
-    {
-        Random random = new Random();
-        int width = (int) this.width;
-        int height = (int) this.height;
-
-        for (int i = 0; i < count; i++) {
-            float x = random.nextFloat() * width;
-            float y = random.nextFloat() * height;
-            float size = 10.0f + random.nextFloat();
-            float alphaChangeRate = 0.01f + random.nextFloat() * 0.03f;
-            particles.add(new StarParticle(x, y, size, alphaChangeRate));
-        }
-    }
 
     private static int interpolateTwoColorsSmoothly(int color1, int color2, long currentTime, float cycleDuration) {
 
@@ -279,7 +258,7 @@ public class iOS extends GuiScreen
     {
         int accent = UiEffects.gradientAt(Theme.resolve(currentTheme),UiEffects.Channel.BORDER,x,y);
 
-        UIUtils.drawRound(this.x + 4.0f, selectedCategoryY + 7.0f, 86.0f, 13.0f, 4, true, new Color(255, 255, 255, 24));
+        UIUtils.drawDecorationRound(this.x+4,this.y+27+selectedCategory.ordinal()*17,86,13,4,UiEffects.color(currentTheme.getTextColor().getRGB(),.09f));
     }
 
     @Override
@@ -289,20 +268,15 @@ public class iOS extends GuiScreen
         super.handleMouseInput();
         int scroll = Mouse.getEventDWheel();
 
-        if (scroll != 0) {
-            if (scroll > 0) {
-                scrollOffset += 20; //up
-            } else if (scroll < 0) {
-                scrollOffset -= 20; //down
+        if(scroll!=0){
+            float centerX=x+width/2,centerY=y+height/2;
+            int rawX=Mouse.getEventX()*super.width/mc.displayWidth,rawY=super.height-Mouse.getEventY()*super.height/mc.displayHeight-1;
+            float localX=centerX+(rawX-centerX)/renderedScale,localY=centerY+(rawY-centerY)/renderedScale;
+            if(new ClipRect(x+102,y+20,width-104,height-22).contains(localX,localY)){
+                MODULES.forEach(iOSModule::cancelInputs);
+                if(!scrolling)targetScroll=scrollOffset;
+                targetScroll=Math.max(-maxScroll,Math.min(0,targetScroll+Math.signum(scroll)*28));scrolling=true;
             }
-
-            if (scrollOffset > 0) {
-                scrollOffset = 0;
-            }
-            if (scrollOffset < -maxScroll) {
-                scrollOffset = -maxScroll;
-            }
-            scrollOffset = Math.max(Math.min(scrollOffset, 0), -maxScroll);
         }
     }
 
@@ -324,7 +298,7 @@ public class iOS extends GuiScreen
         mouseX=(int)(x+width/2+(mouseX-x-width/2)/renderedScale);
         mouseY=(int)(y+height/2+(mouseY-y-height/2)/renderedScale);
         if(mouseButton==0&&libraryBounds().contains(mouseX,mouseY)){
-            mc.displayGuiScreen(new me.youngjibbit.clickgui.ClickLibraryScreen(this,true));return;
+            mc.displayGuiScreen(new me.youngjibbit.clickgui.SideGuiScreen(this));return;
         }
         if (isOverDraggableArea(mouseX, mouseY) && mouseButton == 0) {
             this.dragging = true;
@@ -341,7 +315,7 @@ public class iOS extends GuiScreen
                 this.selectedCategory = category;
                 MODULES.clear();
                 this.setupModules();
-                this.scrollOffset = 0.0f;
+                this.scrollOffset = this.targetScroll = 0.0f;scrolling=false;
                 return;
             }
             i += 17;

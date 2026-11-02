@@ -224,7 +224,7 @@ public class DropdownGui extends GuiScreen {
                 font().drawString(ClickControlStyle.fit(font(), text, s.width - 22), s.x + 5, s.y + 4, ink(theme));
             }
             if (!search.isEmpty()) font().drawString("x", s.x + s.width - 11, s.y + 4, ink(theme));
-            button(configBounds(), "Configs", theme,0,mouseX,mouseY,dt);
+            button(configBounds(), "Library", theme,0,mouseX,mouseY,dt);
             button(themeBounds(), "Themes", theme,1,mouseX,mouseY,dt);
             button(resetBounds(), "Reset", theme,2,mouseX,mouseY,dt);
         });
@@ -264,7 +264,7 @@ public class DropdownGui extends GuiScreen {
             if (x >= searchBounds().x + searchBounds().width - 16) { search = ""; updateSearch(); }
             return;
         }
-        if (button == 0 && configBounds().contains(x,y)) { openConfigs(); return; }
+        if (button == 0 && configBounds().contains(x,y)) { openLibrary(); return; }
         if (button == 0 && themeBounds().contains(x, y)) { openThemeEditor(); return; }
         if (button == 0 && resetBounds().contains(x, y)) { cancelInteraction(); resetLayout(); layout(0); return; }
         searchFocus = false;
@@ -403,6 +403,7 @@ public class DropdownGui extends GuiScreen {
     }
 
     protected void openConfigs() { mc.displayGuiScreen(new ClickLibraryScreen(this, false)); }
+    protected void openLibrary() { mc.displayGuiScreen(new SideGuiScreen(this)); }
 
     private List<Component> focusables() {
         List<Component> result = new ArrayList<>();

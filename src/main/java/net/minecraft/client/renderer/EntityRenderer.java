@@ -673,6 +673,7 @@ public class EntityRenderer implements IResourceManagerReloadListener
 
     private void hurtCameraEffect(float partialTicks)
     {
+        if (me.youngjibbit.module.impl.render.NoHurtCam.active()) return;
         if (this.mc.getRenderViewEntity() instanceof EntityLivingBase)
         {
             EntityLivingBase entitylivingbase = (EntityLivingBase)this.mc.getRenderViewEntity();
@@ -1430,6 +1431,7 @@ public class EntityRenderer implements IResourceManagerReloadListener
             }
         }
 
+        me.youngjibbit.gui.GuiTransitions.draw();
         // One notification owner after world HUD and the current screen, before frame completion.
         if(!this.mc.skipRenderWorld)me.youngjibbit.notifications.NotificationManager.render();
         this.frameFinish();
