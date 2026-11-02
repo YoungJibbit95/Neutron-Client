@@ -14,7 +14,7 @@ public class BacktrackConfigTest {
     @Rule public TemporaryFolder temporary = new TemporaryFolder();
     @Test public void currentIdsAndOlderPartialConfigsKeepTheirValuesAndNewDefaults() throws Exception {
         Backtrack back = new Backtrack(); Path dir = temporary.newFolder().toPath();
-        assertEquals("Attack / Cursor", back.getModeSetting("target_source").getValue());
+        assertEquals("Attack", back.getModeSetting("target_source").getValue());
         ConfigManager config = new ConfigManager(dir, Collections.<Module>singletonList(back), () -> false, message -> { });
         Files.write(dir.resolve("Synthetic.json"), ("{\"BackTrack\":{\"Active On Hit\":false,\"Active On No Hit\":true,\"Acquire Range\":5.0,\"Min MS\":110,\"Max MS\":250,\"Release On Velocity\":false,\"Render\":\"Off\"}}").getBytes(StandardCharsets.UTF_8));
         assertTrue(config.getLastError(), config.loadConfig("Synthetic"));
@@ -24,7 +24,7 @@ public class BacktrackConfigTest {
         assertEquals("Combat / Nearest", back.getModeSetting("target_source").getValue()); assertEquals(500, back.getNumberSetting("target_hold_ms").getValue(), 0);
         assertNull(back.getDiagnostics());
         assertSame(back.getValueByName("release_on_velocity"), back.getValueByName("Release On Velocity"));
-        assertEquals("Pause after velocity (150 ms)", back.getBooleanSetting("release_on_velocity").getName());
+        assertEquals("Release on local knockback", back.getBooleanSetting("release_on_velocity").getName());
         assertEquals("While target hurt", back.getBooleanSetting("Active On Hit").getName());
         assertEquals("While target unhurt", back.getBooleanSetting("Active On No Hit").getName());
     }

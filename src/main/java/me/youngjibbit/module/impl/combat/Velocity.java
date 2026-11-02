@@ -1,252 +1,136 @@
 package me.youngjibbit.module.impl.combat;
 
+import me.youngjibbit.Pulsar;
+import me.youngjibbit.core.bootstrap.RuntimeServices;
+import me.youngjibbit.core.combat.*;
+import me.youngjibbit.core.contract.AutomationEligibility.ModuleAction;
+import me.youngjibbit.core.network.PacketPipeline;
+import me.youngjibbit.core.observation.AutomatedActionAdmission;
 import me.youngjibbit.event.motion.EventMotion;
-import me.youngjibbit.event.motion.KnockbackEvent;
+import me.youngjibbit.event.packet.EventPacket;
 import me.youngjibbit.event.packet.TickEvent;
-import me.youngjibbit.event.player.AttackEvent;
+import me.youngjibbit.event.player.MovementInputEvent;
+import me.youngjibbit.event.world.WorldEvent;
 import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.ModuleInfo;
-import me.youngjibbit.utils.MathUtils;
-import me.youngjibbit.utils.player.PlayerUtil;
-import me.youngjibbit.utils.player.MoveUtil;
-import me.youngjibbit.value.impl.CheckBoxValue;
-import me.youngjibbit.value.impl.ComboValue;
-import me.youngjibbit.value.impl.SliderValue;
-import me.zero.alpine.listener.Listener;
-import me.zero.alpine.listener.Subscribe;
-import net.minecraft.client.entity.EntityPlayerSP;
+import me.youngjibbit.module.impl.ghost.JumpReset;
+import me.youngjibbit.value.impl.*;
+import me.zero.alpine.listener.*;
 import net.minecraft.entity.EntityLivingBase;
-import net.minecraft.network.play.client.C03PacketPlayer;
-import net.minecraft.network.play.client.C07PacketPlayerDigging;
-import net.minecraft.potion.Potion;
-import net.minecraft.util.BlockPos;
-import net.minecraft.util.EnumFacing;
-import net.minecraft.util.MathHelper;
-import org.lwjgl.input.Keyboard;
+import net.minecraft.network.play.server.S12PacketEntityVelocity;
 
-import java.util.function.Consumer;
+/** Arsenic-inspired legit reduction; see docs/third-party/ARSENIC.md. */
+@ModuleInfo(name = "Velocity", description = "Reduces knockback through normal jumps and validated sprint hits", category = Category.Combat)
+public class Velocity extends Module {
+    public final ComboValue mode = new ComboValue("Mode", this, new String[]{"Legit"}, 0);
+    public final SliderValue reduceTicks = new SliderValue("Reduce Ticks", this, 2D, 1, 3, true);
+    public final CheckBoxValue jumpReset = new CheckBoxValue("Jump Reset", this, true);
+    private final CombatPacketState actions = new CombatPacketState();
+    private Object player, world;
+    private PacketPipeline connection;
+    private long epoch, expires;
+    private int remaining;
+    private boolean pendingJump;
+    private EntityLivingBase target;
 
-@ModuleInfo(name = "Velocity", category = Category.Combat)
-public class Velocity extends Module
-{
-    public ComboValue mode = new ComboValue("Mode", this, new String[]{"Jump", "Packet", "Verus", "Ground Grim", "Minemen", "Intave", "Intave2"}, 1);
-    public CheckBoxValue notWhileSpeed = new CheckBoxValue("Not while Speed", this, true);
-    public CheckBoxValue notWhileJumpBoost = new CheckBoxValue("Not while Jump", this, true);
-    public CheckBoxValue reduceUnnecessarySlowdown = new CheckBoxValue("Reduce Slowdown", this, true);
-    public CheckBoxValue jump = new CheckBoxValue("Toggle Jump", this, true);
-    public CheckBoxValue jumpInInv = new CheckBoxValue("Inventory Jump", this, false);
-    public SliderValue xzOnHit = new SliderValue("XZ on Hit", this, 0.6, 0.0, 1.0, false);
-    public SliderValue xzOnSprintHit = new SliderValue("XZ on Sprint Hit", this, 0.6, 0.0, 1.0, false);
-    public SliderValue jumpChance = new SliderValue("Jump Chance", this, 60.0, 1, 100, true);
-    public SliderValue horizontal = new SliderValue("X", this, 100.0, 0, 100, true);
-    public SliderValue vertical = new SliderValue("Y", this, 100.0, 0, 100, true);
-    private boolean reset;
-    private int timerTicks = 0, intaveTick = 0, ticks = 0;
-    private boolean reduced = false;
-
-    public Velocity()
-    {
-        super.setKey(Keyboard.KEY_0);
-    }
-
-    @Override
-    public void onEnable()
-    {
-        super.onEnable();
-    }
-
-    @Override
-    public void onDisable()
-    {
-        mc.timer.timerSpeed = 1.0f;
-        timerTicks = 0;
-        intaveTick = 0;
-        ticks = 0;
-        reset = false;
-        super.onDisable();
-    }
-
-    @Subscribe
-    private final Listener<AttackEvent> onAttack = new Listener<>(e->
-    {
-        switch (mode.getValue())
-        {
-            case "Intave2":
-                if (e.getTargetEntity() instanceof EntityLivingBase && mc.thePlayer.hurtTime > 0) {
-                    if (noAction()) return;
-                    if (Math.random() > jumpChance.getValue() / 100) return;
-                    if (reduceUnnecessarySlowdown.getValue() && reduced) return;
-
-                    if (mc.thePlayer.isSprinting()) {
-                        mc.thePlayer.motionX *= xzOnSprintHit.getValue();
-                        mc.thePlayer.motionZ *= xzOnSprintHit.getValue();
-                    } else {
-                        mc.thePlayer.motionX *= xzOnHit.getValue();
-                        mc.thePlayer.motionZ *= xzOnHit.getValue();
-                    }
-                    reduced = true;
-                        PlayerUtil.send(String.format("Reduced %.3f %.3f", mc.thePlayer.motionX, mc.thePlayer.motionZ));
-                }
-                break;
-        }
+    @Override public void onEnable() { clear(); super.onEnable(); }
+    @Override public void onDisable() { clear(); super.onDisable(); }
+    @Override public void onValueChange() { if (actions != null) clear(); }
+    @Subscribe private final Listener<WorldEvent> onWorld = new Listener<>(e -> clear());
+    @Subscribe private final Listener<TickEvent> onTick = new Listener<>(e -> {
+        if (!context() || !usable() || System.nanoTime() - expires >= 0) clearReduction();
     });
 
-    @Subscribe
-    private final Listener<KnockbackEvent> onKB = new Listener<>(e ->
-    {
-        if (!PlayerUtil.inGame()) {
-            return;
-        }
-
-        if (jumpChance.getValue() != 100.0D && Math.random() >= jumpChance.getValue() / 100.0D) {
-            return;
-        }
-
-        String mode = this.mode.getValue();
-        switch (mode) {
-            case "Jump":
-                if (e.isPre() && mc.thePlayer.onGround) {
-                    mc.thePlayer.jump();
-                }
-                break;
-
-            case "Packet":
-                e.setX(e.getX() * horizontal.getValue() / 100.0);
-                e.setY(e.getY() * vertical.getValue() / 100.0);
-                e.setZ(e.getZ() * horizontal.getValue() / 100.0);
-                break;
-
-            case "Ground Grim":
-                if (MoveUtil.hasMovementInput(mc.thePlayer) && mc.thePlayer.onGround) {
-                    e.setCancelled(true);
-                    reset = true;
-                }
-                break;
-
-            case "Intave":
-                reset = true;
-                break;
-
-            case "Intave2":
-                if(e.isPost())
-                {
-                    if (noAction()) return;
-
-                    if (jump.getValue())
-                    {
-                        if (Math.random() > jumpChance.getValue() / 100) return;
-
-                        if (mc.thePlayer.onGround && (jumpInInv.getValue() || mc.currentScreen == null))
-                            mc.thePlayer.jump();
-                    }
-                    reduced = false;
-                }
-                break;
-
-            case "Minemen":
-                if (ticks > 14) {
-                    adjustKnockBack(e, 1 / 42000.0, 1 / 8000.0);
-                    e.setCancelled(true);
-                    ticks = 0;
-                }
-                break;
-            default:
-                break;
-        }
+    // POST proves application, including replacement/cancellation and delayed delivery.
+    @Subscribe private final Listener<EventPacket> onPacket = new Listener<>(e -> {
+        if (!e.isPost() || !context() || e.getPipeline() != connection) return;
+        long now = System.nanoTime();
+        if (e.isOutbound()) { actions.accepted(e.getPacket(), now); return; }
+        if (!(e.getPacket() instanceof S12PacketEntityVelocity) || !usable()) return;
+        S12PacketEntityVelocity velocity = (S12PacketEntityVelocity) e.getPacket();
+        if (velocity.getEntityID() != mc.thePlayer.getEntityId() || velocity.getMotionY() <= 0) return;
+        remaining = reduceTicks.getValue().intValue();
+        expires = now + 250_000_000L;
+        pendingJump = jumpReset.getValue() && !JumpReset.isHandlingJumps()
+                && mc.thePlayer.onGround && mc.thePlayer.isSprinting();
     });
 
-    @Subscribe
-    private final Listener<TickEvent> onTick = new Listener<>(e ->
-    {
-        switch (mode.getValue())
-        {
-            case "Ground Grim":
-                if (timerTicks > 0 && mc.timer.timerSpeed <= 1) {
-                    float timerSpeed = 0.8f + (0.2f * (20 - timerTicks) / 20);
-                    mc.timer.timerSpeed = Math.min(timerSpeed, 1f);
-                    timerTicks--;
-                } else if (mc.timer.timerSpeed <= 1) {
-                    mc.timer.timerSpeed = 1f;
-                }
-
-                if (reset) {
-                    if (checkAir(new BlockPos(mc.thePlayer.posX, mc.thePlayer.posY, mc.thePlayer.posZ))) {
-                        reset = false;
-                    }
-                }
-        }
+    @Subscribe private final Listener<MovementInputEvent> onInput = new Listener<>(e -> {
+        boolean jump = pendingJump;
+        pendingJump = false;
+        if (jump && context() && usable() && System.nanoTime() - expires < 0
+                && !e.isCancelled() && !e.isJump() && !JumpReset.isHandlingJumps()
+                && mc.thePlayer.onGround && mc.thePlayer.isSprinting()
+                && !mc.thePlayer.isInWater() && !mc.thePlayer.isInLava()) e.setJump(true);
     });
 
-    @Subscribe
-    private final Listener<EventMotion> onMotion = new Listener<>(e ->
-    {
-        if (!PlayerUtil.inGame() || !e.isPre()) {
-            return;
-        }
-
-        String mode = this.mode.getValue();
-        switch (mode) {
-            case "Verus":
-                if (mc.thePlayer.hurtTime == 10 - MathUtils.getRandomFloat(3, 4)) {
-                    mc.thePlayer.motionX = 0.0D;
-                    mc.thePlayer.motionY = 0.0D;
-                    mc.thePlayer.motionZ = 0.0D;
-                }
-                break;
-            case "Intave":
-                intaveTick++;
-                if (reset && mc.thePlayer.hurtTime == 2) {
-                    if (mc.thePlayer.onGround && intaveTick % 2 == 0) {
-                        mc.thePlayer.jump();
-                        intaveTick = 0;
-                    }
-                    reset = false;
-                }
-                break;
-        }
-    });
-
-    private boolean checkAir(BlockPos blockPos) {
-        if (mc.theWorld == null)
-            return false;
-
-        if (!mc.theWorld.isAirBlock(blockPos))
-            return false;
-
-        timerTicks = 20;
-
-        if (mc.thePlayer != null) {
-            mc.getNetHandler().sendSilent(new C03PacketPlayer(true));
-            mc.getNetHandler().sendSilent(new C07PacketPlayerDigging(C07PacketPlayerDigging.Action.STOP_DESTROY_BLOCK, blockPos, EnumFacing.DOWN));
-        }
-
-        mc.theWorld.setBlockToAir(blockPos);
-
-        return true;
-    }
-
-    private void adjustPlayerMovement(Consumer<EntityPlayerSP> adjuster) {
-        adjuster.accept(mc.thePlayer);
-    }
-
-    private void adjustKnockBack(KnockbackEvent e, double horizontalFactor, double verticalFactor) {
-        e.setX(e.getX() * horizontalFactor / 100.0);
-        e.setY(e.getY() * verticalFactor / 100.0);
-        e.setZ(e.getZ() * horizontalFactor / 100.0);
-    }
-
-    private boolean noAction() {
-        for (net.minecraft.potion.PotionEffect effect : mc.thePlayer.getActivePotionEffects()) {
-            if ((notWhileSpeed.getValue() && effect.getPotionID() == Potion.moveSpeed.getId())
-                    || (notWhileJumpBoost.getValue() && effect.getPotionID() == Potion.jump.getId())) {
-                return true;
+    @Subscribe private final Listener<EventMotion> onMotion = new Listener<>(e -> {
+        if (!context() || !usable() || System.nanoTime() - expires >= 0) { clearReduction(); return; }
+        RotationManager rotation = RuntimeServices.rotation();
+        if (e.isPre()) {
+            target = null;
+            if (remaining <= 0) { rotation.reset("velocity"); return; }
+            remaining--;
+            Module aura = Pulsar.INSTANCE.getMm() == null ? null : Pulsar.INSTANCE.getMm().getModule(Aura.class);
+            if (aura != null && aura.isToggled() || RuntimeServices.attackScheduler().hasAttackThisTick()) return;
+            TargetingService.Options options = new TargetingService.Options();
+            options.range = 3;
+            double farthest = -1;
+            for (EntityLivingBase candidate : RuntimeServices.targeting().collectTargets(options, TargetingService.SortMode.DISTANCE)) {
+                double distance = candidate.getDistanceSqToEntity(mc.thePlayer);
+                if (distance > farthest) { farthest = distance; target = candidate; }
             }
+            if (target == null) return;
+            RotationProfile profile = new RotationProfile();
+            profile.randomization = false;
+            profile.yawSpeed = profile.pitchSpeed = 18;
+            profile.reach = 3;
+            float[] next = rotation.calculateRotations("velocity", e.getYaw(), e.getPitch(), target, true, profile, false);
+            if (next != null) rotation.request("velocity", 15, next[0], next[1]);
+        } else if (e.isPost() && e.isAccepted() && target != null && rotation.isOwner("velocity")) {
+            final EntityLivingBase hit = target;
+            final float yaw = rotation.getEffectiveYaw(), pitch = rotation.getEffectivePitch();
+            if (!actions.mayAttack(System.nanoTime()) || !validHit(hit, yaw, pitch)) return;
+            RuntimeServices.attackScheduler().tryAttack(rotation.getMotionSequence(), true, 20, 20, () -> {
+                if (!validHit(hit, yaw, pitch)) return false;
+                net.minecraft.client.entity.EntityPlayerSP attackingPlayer = mc.thePlayer;
+                float cameraYaw = attackingPlayer.rotationYaw, cameraPitch = attackingPlayer.rotationPitch;
+                try {
+                    attackingPlayer.rotationYaw = yaw; attackingPlayer.rotationPitch = pitch;
+                    attackingPlayer.swingItem();
+                    return mc.playerController.tryAttackEntity(attackingPlayer, hit, () -> validHit(hit, yaw, pitch));
+                } finally { attackingPlayer.rotationYaw = cameraYaw; attackingPlayer.rotationPitch = cameraPitch; }
+            });
         }
-        return false;
-    }
+    });
 
-    private boolean isValidMotion(double motion, double min, double max) {
-        return Math.abs(motion) > min && Math.abs(motion) < max;
+    private boolean validHit(EntityLivingBase hit, float yaw, float pitch) {
+        return context() && usable() && AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)
+                && !mc.thePlayer.isUsingItem() && !actions.usingItem(System.nanoTime())
+                && hit != null && hit.worldObj == mc.theWorld && mc.theWorld.getEntityByID(hit.getEntityId()) == hit
+                && !hit.isDead && hit.isEntityAlive() && RuntimeServices.rotation().isOwner("velocity")
+                && RuntimeServices.rotation().matchesEffective(yaw, pitch)
+                && RuntimeServices.raycast().canHit(hit, yaw, pitch, 3, false);
     }
+    public boolean correctionEnabled() { return isToggled() && context() && usable() && target != null; }
+    private boolean usable() {
+        return mc.thePlayer != null && mc.theWorld != null && mc.playerController != null
+                && mc.currentScreen == null && mc.inGameHasFocus && mc.getRenderViewEntity() == mc.thePlayer
+                && mc.thePlayer.isEntityAlive() && !mc.thePlayer.isDead && !mc.thePlayer.isRiding() && !mc.thePlayer.isSpectator();
+    }
+    private boolean context() {
+        PacketPipeline pipe = mc.getNetHandler() == null ? null : mc.getNetHandler().getNetworkManager().getClientPackets();
+        if (player != mc.thePlayer || world != mc.theWorld || connection != pipe
+                || pipe != null && epoch != pipe.getContextVersion()) {
+            clear(); player = mc.thePlayer; world = mc.theWorld; connection = pipe;
+            epoch = pipe == null ? 0 : pipe.getContextVersion();
+        }
+        return player != null && world != null && pipe != null && pipe.isActive();
+    }
+    private void clearReduction() {
+        remaining = 0; expires = 0; pendingJump = false; target = null;
+        RuntimeServices.rotation().reset("velocity");
+    }
+    private void clear() { clearReduction(); actions.reset(); player = world = null; connection = null; }
 }

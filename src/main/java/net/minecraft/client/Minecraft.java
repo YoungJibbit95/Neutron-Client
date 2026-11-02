@@ -1092,6 +1092,8 @@ public class Minecraft implements IThreadListener, IPlayerUsage
 
         me.youngjibbit.module.impl.exploit.Tickbase.beginFrame(this, this.isGamePaused,
                 this.timer.elapsedTicks, this.timer.lastFrameDurationMs);
+        me.youngjibbit.module.impl.exploit.LagRange.beginFrame(this, this.isGamePaused,
+                this.timer.elapsedTicks, this.timer.lastFrameDurationMs);
 
         for(int j = 0; j < this.timer.elapsedTicks; ++j) {
             if (getMinecraft().thePlayer == null) {
@@ -1485,6 +1487,7 @@ public class Minecraft implements IThreadListener, IPlayerUsage
 
     private void sendClickBlockToController(boolean leftClick)
     {
+        leftClick = leftClick && me.youngjibbit.module.impl.exploit.LagRange.allowBlockAttack();
         if (!leftClick)
         {
             this.leftClickCounter = 0;
@@ -1512,6 +1515,7 @@ public class Minecraft implements IThreadListener, IPlayerUsage
     public void clickMouse()
     {
         if (this.thePlayer == null || this.theWorld == null || this.currentScreen != null || !this.inGameHasFocus) return;
+        if (!me.youngjibbit.module.impl.exploit.LagRange.allowBlockAttack()) return;
         me.youngjibbit.module.Module aura = Pulsar.INSTANCE.getMm() == null ? null
                 : Pulsar.INSTANCE.getMm().getModule(me.youngjibbit.module.impl.combat.Aura.class);
         if (aura != null && aura.isToggled() && me.youngjibbit.core.bootstrap.RuntimeServices.attackScheduler().hasAttackThisTick()) return;

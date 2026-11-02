@@ -926,6 +926,15 @@ public class EntityPlayerSP extends AbstractClientPlayer
         boolean flag2 = me.youngjibbit.core.combat.RotationCorrections.sprintForward(
                 this.rotationYaw, this.movementInput.moveStrafe, this.movementInput.moveForward) >= f;
         this.movementInput.updatePlayerMoveState();
+        me.youngjibbit.event.player.MovementInputEvent inputEvent = new me.youngjibbit.event.player.MovementInputEvent(
+                this.movementInput.moveStrafe, this.movementInput.moveForward, this.movementInput.jump, this.movementInput.sneak);
+        Pulsar.BUS.post(inputEvent);
+        if (!inputEvent.isCancelled()) {
+            this.movementInput.moveStrafe = inputEvent.getStrafe();
+            this.movementInput.moveForward = inputEvent.getForward();
+            this.movementInput.jump = inputEvent.isJump();
+            this.movementInput.sneak = inputEvent.isSneak();
+        }
         me.youngjibbit.module.impl.world.Scaffold.applyDownwardsInput(this.movementInput);
         boolean noslowAllowSprint = false;
 

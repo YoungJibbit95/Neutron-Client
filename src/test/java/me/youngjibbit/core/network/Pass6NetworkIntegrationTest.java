@@ -32,6 +32,7 @@ public class Pass6NetworkIntegrationTest {
     @Test public void fixedDelayUsesReceiptsFromBeforeAcquisitionWithoutASecondShadowOrRandomDraw() throws Exception {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
             Backtrack back=new Backtrack(()->0,f.client,(min,max)->{throw new AssertionError("Fixed mode must not draw another delay");});
+            back.getModeSetting("Target Source").setValue("Attack / Cursor");
             back.getModeSetting("Delay Mode").setValue("Fixed");back.getNumberSetting("Delay").setValue(125D);back.getBooleanSetting("Diagnostics").setValue(true);back.setToggled(true);
             Object other=new Object();
             try {

@@ -32,7 +32,7 @@ public class NetworkPolicyIntegrationTest {
     @Test public void fixedNetworkProfilesAndPriorPartialProfilesRestoreDistinctDocumentedDefaults() throws Exception {
         Path dir=temporary.newFolder().toPath();Backtrack back=new Backtrack();Tickbase tick=new Tickbase();
         ConfigManager config=new ConfigManager(dir,Arrays.<Module>asList(back,tick),()->false,message->{});
-        assertEquals("Attack / Cursor",back.getModeSetting("Target Source").getValue());assertEquals(300,tick.getNumberSetting("Delay").getValue(),0);
+        assertEquals("Attack",back.getModeSetting("Target Source").getValue());assertEquals(300,tick.getNumberSetting("Delay").getValue(),0);
         write(dir,"Old","{\"BackTrack\":{\"Min MS\":80},\"Tickbase\":{\"Charge Ticks\":4}}");assertTrue(config.loadConfig("Old"));
         assertEquals("Combat / Nearest",back.getModeSetting("Target Source").getValue());assertEquals(0,tick.getNumberSetting("Delay").getValue(),0);
         write(dir,"Network","{\"BackTrack\":{\"Target Source\":\"Attack / Cursor\",\"Min Server Distance\":3.2},\"Tickbase\":{\"Release On\":\"Attack / Approach\"}}");assertTrue(config.loadConfig("Network"));
