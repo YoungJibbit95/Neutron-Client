@@ -79,6 +79,7 @@ public class Aura extends Module {
 
     public Aura() {
         this.setKey(Keyboard.KEY_R);
+        bestHitVec.setVisibility(m->!rotationSettings.arsenic());
     }
     @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String name) { return super.getValueByName(name!=null && name.equalsIgnoreCase("Range")?"reach":RotationSettings.canonicalName(name)); }
 
@@ -92,6 +93,7 @@ public class Aura extends Module {
         super.beginConfigUpdate();
         // Missing legacy keys cannot inherit activation; explicit incoming values apply afterward.
         rotationSettings.speedCurve.reset();
+        if(rotationSettings.arsenic())rotationSettings.mode.reset();
     }
 
     @Override

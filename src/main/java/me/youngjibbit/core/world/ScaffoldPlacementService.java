@@ -144,6 +144,42 @@ public final class ScaffoldPlacementService {
         return null;
     }
 
+    /** Capture a predictive face with the same world/inventory/visibility checks as ordinary plans. */
+    public PlacementTarget planFace(BlockPos support,EnumFacing face,Vec3 hit) {
+        PlacementTarget target=captureFace(support,face,hit);
+        return isValid(target)?target:null;
+    }
+
+    public boolean canPlanFace(BlockPos support,EnumFacing face) {
+        PlacementTarget target=captureFace(support,face,null);
+        return target!=null && access.replaceable(target.getDestination()) && access.canPlace(target);
+    }
+
+    private PlacementTarget captureFace(BlockPos support,EnumFacing face,Vec3 hit) {
+        if(!access.ready() || support==null || face==null)return null;
+        int slot=getBlockSlot();
+        if(slot<0)return null;
+        AxisAlignedBB box=access.supportBounds(support);
+        if(box==null)return null;
+        if(hit==null)hit=new Vec3((box.minX+box.maxX)/2+face.getFrontOffsetX()*(box.maxX-box.minX)/2,
+                (box.minY+box.maxY)/2+face.getFrontOffsetY()*(box.maxY-box.minY)/2,
+                (box.minZ+box.maxZ)/2+face.getFrontOffsetZ()*(box.maxZ-box.minZ)/2);
+        return new PlacementTarget(support.offset(face),support,face,hit,slot,access.selectedSlot(),
+                access.world(),access.player(),access.state(support),access.stack(slot));
+    }
+
+    /** Refine only the hit point of the PRE face; never acquire a new block/stack in POST. */
+    public PlacementTarget alignAcceptedHit(PlacementTarget target,RotationManager rotations) {
+        if(!isValid(target) || !rotations.canUseRotation("scaffold",false))return null;
+        Vec3 eyes=access.wireEyes();
+        Vec3 direction=Entity.getVectorForRotation(rotations.getEffectivePitch(),rotations.getEffectiveYaw());
+        MovingObjectPosition hit=access.rayTrace(eyes,eyes.add(scaled(direction,access.reach())));
+        if(hit==null || hit.typeOfHit!=MovingObjectPosition.MovingObjectType.BLOCK || hit.hitVec==null
+                || !target.getBlockPos().equals(hit.getBlockPos()) || target.getFacing()!=hit.sideHit)return null;
+        PlacementTarget aligned=target.withHit(hit.hitVec);
+        return isValid(aligned)?aligned:null;
+    }
+
     /** Keep one immutable PRE/POST intent; only accept randomized points that pass the normal face checks. */
     public PlacementTarget randomize(PlacementTarget target,RotationManager rotations,me.youngjibbit.core.combat.RotationProfile profile) {
         if(target==null || target.pointChosen) return target;

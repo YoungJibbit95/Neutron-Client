@@ -956,7 +956,8 @@ public class EntityPlayerSP extends AbstractClientPlayer
         this.pushOutOfBlocks(this.posX - (double)this.width * 0.35D, this.getEntityBoundingBox().minY + 0.5D, this.posZ - (double)this.width * 0.35D);
         this.pushOutOfBlocks(this.posX + (double)this.width * 0.35D, this.getEntityBoundingBox().minY + 0.5D, this.posZ - (double)this.width * 0.35D);
         this.pushOutOfBlocks(this.posX + (double)this.width * 0.35D, this.getEntityBoundingBox().minY + 0.5D, this.posZ + (double)this.width * 0.35D);
-        boolean flag3 = (float)this.getFoodStats().getFoodLevel() > 6.0F || this.capabilities.allowFlying;
+        boolean flag3 = ((float)this.getFoodStats().getFoodLevel() > 6.0F || this.capabilities.allowFlying)
+                && me.youngjibbit.module.impl.world.Scaffold.allowsSprint();
         // Check vanilla sprint thresholds against the input basis used by moveFlying.
         // Non-rounded modes and missing/invalid rotation ownership stay byte-for-byte equivalent.
         float sprintForward = me.youngjibbit.core.combat.RotationCorrections.sprintForward(
