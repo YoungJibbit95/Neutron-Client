@@ -82,6 +82,7 @@ public class Scaffold extends Module {
     private RotationManager contextRotation;
     private SceneContext contextScene;
     private long contextMotionSequence = -1;
+    private long lifecycleGeneration;
     private boolean hasHoldBasis;
     private float holdYaw, holdPitch;
     private static Scaffold active;
@@ -111,24 +112,42 @@ public class Scaffold extends Module {
     }
     @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String name) { return super.getValueByName(name!=null && name.replace("_","").replace(" ","").equalsIgnoreCase("SameY")?"keep_y":name); }
     @Override public void onValueChange() {
+        long generation = lifecycleGeneration;
         releasePlacement();
         // Module's callback has no changed-value argument; revalidate the actual owner conditions.
-        if (!isToggled() || !rotations.getValue() || !sameScene()) endRotation();
+        boolean end = !isToggled() || !rotations.getValue() || !sameScene();
+        if (generation != lifecycleGeneration) return;
+        if (!rotations.getValue()) RuntimeServices.rotation().cancelScaffoldRelease();
+        if (end) endRotation();
     }
 
     @Override
     public void onEnable() {
+        long generation = ++lifecycleGeneration;
+        RuntimeServices.rotation().cancelScaffoldRelease();
         clearState();
+        if (generation != lifecycleGeneration) return;
         active = this;
         captureContext();
+        if (generation != lifecycleGeneration) return;
         super.onEnable();
     }
 
     @Override
     public void onDisable() {
-        clearState();
-        if (active == this) active = null;
+        final long generation = ++lifecycleGeneration;
+        // Detach normal action listeners before any scene supplier can reenter the lifecycle.
         super.onDisable();
+        try {
+            RotationManager rotation = contextRotation;
+            if (rotations.getValue() && rotation != null && rotation == RuntimeServices.rotation())
+                rotation.beginScaffoldRelease(() -> lifecycleGeneration == generation);
+        } finally {
+            if (generation == lifecycleGeneration) {
+                try { clearState(); }
+                finally { if (generation == lifecycleGeneration && active == this) active = null; }
+            }
+        }
     }
 
     private boolean liveContext() {
@@ -167,6 +186,7 @@ public class Scaffold extends Module {
     }
 
     private void captureContext() {
+        long generation = lifecycleGeneration;
         Minecraft mc = Minecraft.getMinecraft();
         contextPlayer = mc == null ? null : mc.thePlayer;
         contextWorld = mc == null ? null : mc.theWorld;
@@ -179,18 +199,31 @@ public class Scaffold extends Module {
         contextMotionSequence = contextRotation.getMotionSequence();
         RuntimeObservation observation = RuntimeServices.observation();
         SceneContext scene = observation == null ? null : observation.captureScene();
+        if (generation != lifecycleGeneration) return;
         // Pre-bootstrap rotation planning has no fallback observer and grants no placement admission.
         contextScene = scene != null && scene.isValid() ? scene : null;
         if (mc != null && mc.thePlayer != null) keepYCoord = Math.floor(mc.thePlayer.posY - 1);
     }
 
     private void releaseRotation() {
+        long generation = lifecycleGeneration;
         RotationManager rotation = contextRotation;
+        long sequence = rotation == null ? -1 : rotation.getMotionSequence();
         // Never release a replacement manager or a newly bound foreign scene during a callback.
         if (rotation == null) rotation = RuntimeServices.rotation();
-        else if (contextPackets != null && (!rotation.isConnection(contextPackets)
-                || !sameScene() && !("scaffold".equals(rotation.getConfirmedOwner(contextPlayer, contextWorld, contextPackets))
-                && (rotation.getMotionSequence() == contextMotionSequence || rotation.canUseRotation("scaffold", true))))) return;
+        else try {
+            if (contextPackets != null && (!rotation.isConnection(contextPackets)
+                    || !sameScene() && !("scaffold".equals(rotation.getConfirmedOwner(contextPlayer, contextWorld, contextPackets))
+                    && (rotation.getMotionSequence() == contextMotionSequence || rotation.canUseRotation("scaffold", true))))) return;
+        } catch (RuntimeException | Error error) {
+            if (generation == lifecycleGeneration && rotation == contextRotation
+                    && rotation.getMotionSequence() == sequence && rotation.isConnection(contextPackets)) {
+                rotation.reset("scaffold");
+                RotationCorrections.reset("scaffold");
+            }
+            throw error;
+        }
+        if (generation != lifecycleGeneration || sequence >= 0 && rotation.getMotionSequence() != sequence) return;
         rotation.reset("scaffold");
         RotationCorrections.reset("scaffold");
     }
@@ -229,17 +262,22 @@ public class Scaffold extends Module {
     }
 
     private void clearState() {
-        endRotation();
-        releasePlacement();
-        RuntimeServices.scaffoldPlacement().reset();
-        contextPlayer = contextWorld = null;
-        contextConnection = contextPackets = null;
-        contextRotation = null;
-        contextTimer = null;
-        contextScene = null;
-        contextEpoch = -1;
-        contextMotionSequence = -1;
-        keepYCoord = 0;
+        long generation = lifecycleGeneration;
+        try { endRotation(); }
+        finally {
+            if (generation == lifecycleGeneration) {
+                releasePlacement();
+                RuntimeServices.scaffoldPlacement().reset();
+                contextPlayer = contextWorld = null;
+                contextConnection = contextPackets = null;
+                contextRotation = null;
+                contextTimer = null;
+                contextScene = null;
+                contextEpoch = -1;
+                contextMotionSequence = -1;
+                keepYCoord = 0;
+            }
+        }
     }
 
     @Subscribe
@@ -259,6 +297,7 @@ public class Scaffold extends Module {
         rememberAcceptedRotation();
         if (!validContext()) { suspendPlacement(); return; }
         final long motionSequence = contextMotionSequence;
+        final long generation = lifecycleGeneration;
         if (event.isPre()) {
             downwardsState = downwards.getValue() && mc.gameSettings.keyBindSneak.isKeyDown();
             if (mc.thePlayer.onGround) keepYCoord = Math.floor(mc.thePlayer.posY - 1);
@@ -269,8 +308,13 @@ public class Scaffold extends Module {
 
             // A valid placement plan owns this decision before Auto Jump consumes sprint's impulse.
             if (!sprint.getValue()) mc.thePlayer.setSprinting(false);
-            if (autoJump.getValue() && mc.thePlayer.onGround && isMoving() && !mc.gameSettings.keyBindJump.isKeyDown()) mc.thePlayer.jump();
-            towerController.apply(event, tower.getValue(), towerMode.getValue(), mc.gameSettings.keyBindJump.isKeyDown(), isMoving(), true);
+            if (autoJump.getValue() && mc.thePlayer.onGround && isMoving() && !mc.gameSettings.keyBindJump.isKeyDown()) {
+                mc.thePlayer.jump();
+                if (!continueMotion(motionSequence, generation)) return;
+            }
+            boolean towerEnabled = tower.getValue();
+            towerController.apply(event, towerEnabled, towerMode.getValue(), mc.gameSettings.keyBindJump.isKeyDown(), isMoving(), true);
+            if (towerEnabled && !continueMotion(motionSequence, generation)) return;
             // Tower may move the local player. Finalize the plan before issuing a rotation or attempting placement.
             if (!RuntimeServices.scaffoldPlacement().stillNeeded(currentTarget, context))
                 currentTarget = findTarget(context,event);
@@ -288,7 +332,7 @@ public class Scaffold extends Module {
             framePre = "Pre".equalsIgnoreCase(placeTiming.getValue());
             if (framePre) {
                 boolean placed = tryPlace(true);
-                if (!continueMotion(motionSequence)) return;
+                if (!continueMotion(motionSequence, generation)) return;
                 if (placed) { releasePlacement(); requestAcceptedHold(); return; }
             }
             if (!RuntimeServices.scaffoldPlacement().isValid(frameTarget)) { releasePlacement(); requestAcceptedHold(); return; }
@@ -299,7 +343,7 @@ public class Scaffold extends Module {
             PlacementContext context = new PlacementContext(downwards.getValue() && mc.gameSettings.keyBindSneak.isKeyDown(), keepY.getValue(), keepYCoord);
             if (!RuntimeServices.scaffoldPlacement().stillNeeded(frameTarget, context)) { releasePlacement(); return; }
             boolean placed = !framePre && tryPlace(false);
-            if (!continueMotion(motionSequence)) return;
+            if (!continueMotion(motionSequence, generation)) return;
             if (placed || !RuntimeServices.scaffoldPlacement().isValid(frameTarget)) releasePlacement();
         }
     });
@@ -357,8 +401,8 @@ public class Scaffold extends Module {
                 holdYaw, holdPitch);
     }
 
-    private boolean continueMotion(long sequence) {
-        if (!isToggled() || contextRotation != RuntimeServices.rotation()
+    private boolean continueMotion(long sequence, long generation) {
+        if (generation != lifecycleGeneration || !isToggled() || contextRotation != RuntimeServices.rotation()
                 || contextRotation.getMotionSequence() != sequence) return false;
         if (!liveContext() || !sameScene()) { clearState(); return false; }
         if (!validContext()) { suspendPlacement(); return false; }

@@ -4,8 +4,12 @@ import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.bootstrap.RuntimeServices;
 import me.youngjibbit.core.combat.CombatCorrectionPreview;
 import me.youngjibbit.core.combat.CombatDiagnosticTrace;
+import me.youngjibbit.core.combat.CombatDiagnosticTrace.*;
 import me.youngjibbit.core.combat.CombatTargetTracker;
 import me.youngjibbit.core.combat.RotationManager;
+import me.youngjibbit.core.contract.ExecutedStep;
+import me.youngjibbit.core.observation.RuntimeObservation;
+import me.youngjibbit.core.network.PacketPipeline;
 import me.youngjibbit.event.input.EventKey;
 import me.youngjibbit.event.motion.EventMotion;
 import me.youngjibbit.event.motion.KnockbackEvent;
@@ -29,6 +33,10 @@ import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.network.Packet;
+import net.minecraft.network.play.client.C03PacketPlayer;
+import net.minecraft.network.play.client.C02PacketUseEntity;
+import net.minecraft.network.play.client.C0APacketAnimation;
 import net.minecraft.network.play.server.S08PacketPlayerPosLook;
 import net.minecraft.network.play.server.S12PacketEntityVelocity;
 import net.minecraft.util.MathHelper;
@@ -36,6 +44,7 @@ import org.lwjgl.input.Keyboard;
 
 import java.util.List;
 import java.util.Locale;
+import java.lang.ref.WeakReference;
 
 /**
  * Read-only client-side diagnostics for controlled test servers.
@@ -49,6 +58,9 @@ public final class CombatDiagnostics extends Module {
     private long postSequence = Long.MIN_VALUE, eventId;
     private float postCameraYaw, postCameraPitch;
     private MovementSample lastMovement;
+    private WeakReference<Object> traceObserver = new WeakReference<>(null), tracePlayer = new WeakReference<>(null),
+            traceWorld = new WeakReference<>(null), tracePipeline = new WeakReference<>(null);
+    private long traceGeneration=Long.MIN_VALUE, traceEpoch=Long.MIN_VALUE;
 
     /** Immutable last observed moveFlying input. Does not influence acceleration or packets. */
     private static final class MovementSample {
@@ -94,6 +106,147 @@ public final class CombatDiagnostics extends Module {
         return diagnostics != null && diagnostics.isToggled() && diagnostics.inWorld() ? diagnostics : null;
     }
 
+    /** Observation only: these reads never re-run admission, raycast or transport predicates. */
+    private void refreshRun() {
+        RuntimeObservation observation=RuntimeServices.observation();
+        PacketPipeline pipeline=mc.thePlayer == null || mc.thePlayer.sendQueue == null ? null
+                : mc.thePlayer.sendQueue.getNetworkManager().getClientPackets();
+        long generation=observation == null ? -1 : observation.getObservedConnectionGeneration();
+        long epoch=pipeline == null ? -1 : pipeline.getContextVersion();
+        if (traceObserver.get()!=observation || tracePlayer.get()!=mc.thePlayer || traceWorld.get()!=mc.theWorld
+                || tracePipeline.get()!=pipeline || traceGeneration!=generation || traceEpoch!=epoch) {
+            history.startRun();
+            traceObserver=new WeakReference<>(observation);tracePlayer=new WeakReference<>(mc.thePlayer);
+            traceWorld=new WeakReference<>(mc.theWorld);tracePipeline=new WeakReference<>(pipeline);
+            traceGeneration=generation;traceEpoch=epoch;
+        }
+    }
+
+    private void scalar(Kind kind, Stage stage, PacketType type, Origin origin, Outcome outcome,
+                        long action, long packet, long causeAction) {
+        RuntimeObservation observation=RuntimeServices.observation();
+        ExecutedStep step=observation == null ? null : observation.getCurrentStep();
+        scalar(kind,stage,type,origin,outcome,action,packet,causeAction,
+                observation == null ? -1 : observation.getActiveOuterTickId(),
+                step == null ? null : step.getKind(),step == null ? -1 : step.getStepIndex(),
+                step == null ? StepState.NO_STEP : StepState.CURRENT_IN_PROGRESS);
+    }
+
+    private void scalar(Kind kind, Stage stage, PacketType type, Origin origin, Outcome outcome,
+                        long action, long packet, long causeAction, long outer, ExecutedStep.Kind stepKind,
+                        int stepIndex, StepState stepState) {
+        ScalarRecord record=new ScalarRecord(history.getRunId(),history.nextEvent(),action,packet,causeAction,
+                System.nanoTime(),outer,traceGeneration,traceEpoch,stepIndex,kind,stage,type,origin,outcome,stepState,stepKind);
+        history.appendScalar(record);
+        boolean sparse=kind==Kind.OPPORTUNITY && stage==Stage.BEGIN
+                || kind==Kind.PACKET && (type==PacketType.C0A || type==PacketType.C02 || causeAction!=0)
+                && (stage==Stage.LOCAL_ACCEPTED || stage==Stage.CANCELLED || stage==Stage.DENIED || stage==Stage.FAILED);
+        if (!sparse) return;
+        String line=String.format(Locale.ROOT,
+                "%s run=%d event=%d action=%d packet=%d causeAction=%d stage=%s type=%s origin=%s server=UNKNOWN"
+                        + " outcome=%s nanos=%d outer=%d step=%s stepIndex=%d stepState=%s observedGeneration=%d epoch=%d overwritten=%d captureFailures=%d staleTokens=%d",
+                kind==Kind.OPPORTUNITY ? "H2_OPPORTUNITY" : "H2_PACKET",record.run,record.event,action,packet,causeAction,
+                stage,type,origin,outcome,record.nanos,outer,stepKind,stepIndex,stepState,traceGeneration,traceEpoch,
+                history.getOverwrittenCount(),history.getCaptureFailureCount(),history.getStaleTokenCount());
+        history.append(line);
+        if (consoleLog.getValue()) System.out.println("[NeutronCombatDiagnostics] "+line);
+    }
+
+    public static ActionToken beginOpportunity() {
+        CombatDiagnostics diagnostics=active();
+        if (diagnostics==null) return null;
+        ActionToken token=null;
+        try {
+            diagnostics.refreshRun();
+            token=diagnostics.history.beginOpportunity();
+            diagnostics.scalar(Kind.OPPORTUNITY,Stage.BEGIN,PacketType.NONE,Origin.AURA_AUTOMATIC,Outcome.UNKNOWN,token.action,0,0);
+            return token;
+        } catch (RuntimeException failure) {
+            diagnostics.history.captureFailed();diagnostics.history.endOpportunity(token);return null;
+        }
+    }
+
+    public static void opportunityResult(ActionToken token, Stage stage, boolean actualResult) {
+        if (token==null) return;
+        CombatDiagnostics diagnostics=active();if (diagnostics==null) return;
+        try {
+            diagnostics.refreshRun();if (!diagnostics.history.current(token.run)) return;
+            diagnostics.scalar(Kind.OPPORTUNITY,stage,PacketType.NONE,Origin.AURA_AUTOMATIC,
+                    actualResult ? Outcome.TRUE : Outcome.FALSE,token.action,0,0);
+        } catch (RuntimeException failure) { diagnostics.history.captureFailed(); }
+    }
+
+    public static void endOpportunity(ActionToken token, boolean accepted, boolean interrupted) {
+        if (token==null) return;
+        CombatDiagnostics diagnostics=active();if (diagnostics==null) return;
+        try {
+            diagnostics.refreshRun();
+            if (diagnostics.history.current(token.run)) diagnostics.scalar(Kind.OPPORTUNITY,
+                    interrupted ? Stage.INTERRUPTED : Stage.END,PacketType.NONE,Origin.AURA_AUTOMATIC,
+                    accepted ? Outcome.TRUE : Outcome.FALSE,token.action,0,0);
+        } catch (RuntimeException failure) { diagnostics.history.captureFailed(); }
+        finally { diagnostics.history.endOpportunity(token); }
+    }
+
+    private static PacketType packetType(Packet<?> packet) {
+        if (packet instanceof C03PacketPlayer) return PacketType.C03;
+        if (packet instanceof C0APacketAnimation) return PacketType.C0A;
+        if (packet instanceof C02PacketUseEntity && ((C02PacketUseEntity)packet).getAction()==C02PacketUseEntity.Action.ATTACK) return PacketType.C02;
+        return PacketType.OTHER;
+    }
+
+    public static PacketToken beginPacket(Packet<?> packet) {
+        CombatDiagnostics diagnostics=active();if (diagnostics==null) return null;
+        try {
+            PacketType type=packetType(packet);
+            diagnostics.refreshRun();PacketToken token=diagnostics.history.beginPacket();
+            diagnostics.scalar(Kind.PACKET,Stage.ATTEMPT,type,token.origin,Outcome.UNKNOWN,token.action,token.packet,0);
+            return token;
+        } catch (RuntimeException failure) { diagnostics.history.captureFailed();return null; }
+    }
+
+    public static void packetStage(PacketToken token, Packet<?> actual, Stage stage) {
+        if (token==null) return;
+        CombatDiagnostics diagnostics=active();if (diagnostics==null) return;
+        try {
+            diagnostics.refreshRun();if (!diagnostics.history.current(token.run)) return;
+            long current=diagnostics.history.getActiveAction();
+            diagnostics.scalar(Kind.PACKET,stage,packetType(actual),token.origin,Outcome.UNKNOWN,token.action,token.packet,
+                    current!=token.action ? current : 0);
+        } catch (RuntimeException failure) { diagnostics.history.captureFailed(); }
+    }
+
+    /** Capture at the actual canonical body entry; only scalars survive into its finally. */
+    public static StepToken beginStep(RuntimeObservation originObserver, long outer, ExecutedStep.Kind kind, int index) {
+        CombatDiagnostics diagnostics=active();if (diagnostics==null) return null;
+        try {
+            if (originObserver!=RuntimeServices.observation()) return null;
+            diagnostics.refreshRun();
+            return diagnostics.history.beginStep(outer,index,kind,diagnostics.traceGeneration,diagnostics.traceEpoch);
+        } catch (RuntimeException failure) { diagnostics.history.captureFailed();return null; }
+    }
+
+    /** A predecessor's finally must not become a completion in a replacement observer/scene run. */
+    public static void observeStepResult(StepToken token, boolean interrupted) {
+        if (token==null) return;
+        CombatDiagnostics diagnostics=active();if (diagnostics==null) return;
+        try {
+            diagnostics.refreshRun();
+            if (!diagnostics.history.current(token.run)) return;
+            diagnostics.scalar(Kind.STEP,interrupted ? Stage.INTERRUPTED : Stage.COMPLETED,PacketType.NONE,Origin.UNKNOWN,
+                    Outcome.UNKNOWN,0,0,0,token.outerTick,token.stepKind,token.stepIndex,
+                    interrupted ? StepState.INTERRUPTED : StepState.COMPLETED);
+        } catch (RuntimeException failure) { diagnostics.history.captureFailed(); }
+    }
+
+    private void controllerStage(Stage stage) {
+        if (!isToggled() || !inWorld()) return;
+        try {
+            refreshRun();scalar(Kind.CONTROLLER,stage,PacketType.NONE,history.getActiveOrigin(),Outcome.UNKNOWN,
+                    history.getActiveAction(),0,0);
+        } catch (RuntimeException failure) { history.captureFailed(); }
+    }
+
     public static void observeMoveFlying(EntityPlayerSP player,
                                           float rawStrafe, float rawForward, float rawYaw,
                                           float finalStrafe, float finalForward, float finalYaw, float friction) {
@@ -135,6 +288,8 @@ public final class CombatDiagnostics extends Module {
 
     private void clearTrace() {
         history.clear();
+        if (isToggled()) history.startRun();else history.stop();
+        traceGeneration=traceEpoch=Long.MIN_VALUE;
         postSequence = Long.MIN_VALUE;
         eventId = 0;
         lastMovement = null;
@@ -159,11 +314,13 @@ public final class CombatDiagnostics extends Module {
         if (event.isPost()) postSequence = Long.MIN_VALUE;
     }, EventPriority.LOWEST);
 
-    @Subscribe private final Listener<AttackEvent> attack = new Listener<>(event ->
-            capture("ATTACK_PRE_ATTEMPT", event.getTargetEntity()));
+    @Subscribe private final Listener<AttackEvent> attack = new Listener<>(event -> {
+        controllerStage(Stage.ATTEMPT);capture("ATTACK_PRE_ATTEMPT", event.getTargetEntity());
+    });
 
-    @Subscribe private final Listener<AttackResultEvent> result = new Listener<>(event ->
-            capture("ATTACK_LOCAL_ACCEPTED", event.getTargetEntity()));
+    @Subscribe private final Listener<AttackResultEvent> result = new Listener<>(event -> {
+        controllerStage(Stage.LOCAL_ACCEPTED);capture("ATTACK_LOCAL_ACCEPTED", event.getTargetEntity());
+    });
 
     @Subscribe private final Listener<PacketReceiveEvent> inbound = new Listener<>(event -> {
         if (!isToggled() || !inWorld()) return;

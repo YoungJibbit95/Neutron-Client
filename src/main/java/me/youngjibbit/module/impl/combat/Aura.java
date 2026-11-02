@@ -12,6 +12,9 @@ import me.youngjibbit.core.combat.TargetingService;
 import me.youngjibbit.core.combat.MoveFixController;
 import me.youngjibbit.core.combat.BodyRotationController;
 import me.youngjibbit.core.combat.RotationCorrections;
+import me.youngjibbit.core.combat.CombatDiagnosticTrace.ActionToken;
+import me.youngjibbit.core.combat.CombatDiagnosticTrace.Stage;
+import me.youngjibbit.module.impl.client.CombatDiagnostics;
 import me.youngjibbit.value.impl.MoveFixValue;
 import me.youngjibbit.event.motion.EventMotion;
 import me.youngjibbit.event.packet.TickEvent;
@@ -177,48 +180,62 @@ public class Aura extends Module {
                     rotationManager.request(ROTATION_SOURCE, RotationManager.AURA_PRIORITY, nextRotations[0], nextRotations[1]);
                 } else { clearCombat(false);return; }
             } else if (target != null) {
+                // A real camera-target intent ends rotation-only release before this frame resolves.
+                RuntimeServices.rotation().cancelScaffoldReleaseForCameraIntent();
                 RuntimeServices.rotation().reset(ROTATION_SOURCE);
             }
         }
 
         if (event.isPost()) {
-            if (!AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)) return;
-            RotationManager rotationManager = RuntimeServices.rotation();
-            float yaw = rotationManager.getEffectiveYaw(), pitch = rotationManager.getEffectivePitch();
-            EntityLivingBase selected = target;
-            boolean owns = rotations.getValue() ? rotationManager.isOwner(ROTATION_SOURCE) : !rotationManager.isOwner("scaffold");
-            boolean hit = rotationManager.isMotionAccepted() && owns && validHit(selected, yaw, pitch) && !mc.thePlayer.isUsingItem();
-            RuntimeServices.attackScheduler().tryAttack(rotationManager.getMotionSequence(), hit, minCps.getValue(), maxCps.getValue(), () -> {
-                // The optional RayCast setting adds an early recheck before changing block state.
-                // The final controller gate below is mandatory, even when this option is off.
-                if (raycast.getValue() && !validHit(selected, yaw, pitch)) return false;
-                net.minecraft.client.entity.EntityPlayerSP attackingPlayer = mc.thePlayer;
-                net.minecraft.client.multiplayer.PlayerControllerMP attackingController = mc.playerController;
-                autoblockController.beforeAttack();
-                if (!validHit(selected, yaw, pitch)) return false;
-                float cameraYaw = attackingPlayer.rotationYaw, cameraPitch = attackingPlayer.rotationPitch;
-                try {
-                    // The normal local attack/knockback uses player yaw. Keep it consistent
-                    // with the sent silent rotation, then restore the separate camera view.
-                    attackingPlayer.rotationYaw = yaw;
-                    attackingPlayer.rotationPitch = pitch;
-                    attackingPlayer.swingItem();
-                    boolean attacked = attackingController.tryAttackEntity(attackingPlayer, selected, () -> validHit(selected, yaw, pitch));
-                    if (attacked) advanceTarget = true;
-                    return attacked;
-                } finally {
-                    attackingPlayer.rotationYaw = cameraYaw;
-                    attackingPlayer.rotationPitch = cameraPitch;
+            ActionToken opportunity=CombatDiagnostics.beginOpportunity();
+            boolean attackAccepted=false, interrupted=false;
+            try {
+                boolean admitted=AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK);
+                CombatDiagnostics.opportunityResult(opportunity,Stage.ADMISSION,admitted);
+                if (!admitted) return;
+                RotationManager rotationManager = RuntimeServices.rotation();
+                float yaw = rotationManager.getEffectiveYaw(), pitch = rotationManager.getEffectivePitch();
+                EntityLivingBase selected = target;
+                boolean owns = rotations.getValue() ? rotationManager.isOwner(ROTATION_SOURCE)
+                        : !rotationManager.isOwner("scaffold") && !rotationManager.isOwner(RotationManager.SCAFFOLD_RELEASE_SOURCE);
+                boolean hit = rotationManager.isMotionAccepted() && owns && validHit(selected, yaw, pitch) && !mc.thePlayer.isUsingItem();
+                CombatDiagnostics.opportunityResult(opportunity,Stage.HIT_CHECK,hit);
+                attackAccepted=RuntimeServices.attackScheduler().tryAttack(rotationManager.getMotionSequence(), hit, minCps.getValue(), maxCps.getValue(), () -> {
+                    // The optional RayCast setting adds an early recheck before changing block state.
+                    // The final controller gate below is mandatory, even when this option is off.
+                    if (raycast.getValue() && !validHit(selected, yaw, pitch)) return false;
+                    net.minecraft.client.entity.EntityPlayerSP attackingPlayer = mc.thePlayer;
+                    net.minecraft.client.multiplayer.PlayerControllerMP attackingController = mc.playerController;
+                    autoblockController.beforeAttack();
+                    if (!validHit(selected, yaw, pitch)) return false;
+                    float cameraYaw = attackingPlayer.rotationYaw, cameraPitch = attackingPlayer.rotationPitch;
+                    try {
+                        // The normal local attack/knockback uses player yaw. Keep it consistent
+                        // with the sent silent rotation, then restore the separate camera view.
+                        attackingPlayer.rotationYaw = yaw;
+                        attackingPlayer.rotationPitch = pitch;
+                        attackingPlayer.swingItem();
+                        boolean attacked = attackingController.tryAttackEntity(attackingPlayer, selected, () -> validHit(selected, yaw, pitch));
+                        if (attacked) advanceTarget = true;
+                        return attacked;
+                    } finally {
+                        attackingPlayer.rotationYaw = cameraYaw;
+                        attackingPlayer.rotationPitch = cameraPitch;
+                    }
+                });
+                CombatDiagnostics.opportunityResult(opportunity,Stage.SCHEDULER_RESULT,attackAccepted);
+                if (!usable()) {
+                    clearCombat(mc == null || mc.thePlayer == null || mc.theWorld == null);
+                    return;
                 }
-            });
-            if (!usable()) {
-                clearCombat(mc == null || mc.thePlayer == null || mc.theWorld == null);
-                return;
-            }
-            boolean blockOwns = rotations.getValue() ? rotationManager.isOwner(ROTATION_SOURCE) : !rotationManager.isOwner("scaffold");
-            if (!AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)) return;
-            autoblockController.update(autoblock.getValue() && attacking && blockOwns && rotationManager.isMotionAccepted() && PlayerUtil.isHoldingWeapon(),
-                    mapAutoblock(autoblockMode.getValue()), false, true);
+                boolean blockOwns = rotations.getValue() ? rotationManager.isOwner(ROTATION_SOURCE)
+                        : !rotationManager.isOwner("scaffold") && !rotationManager.isOwner(RotationManager.SCAFFOLD_RELEASE_SOURCE);
+                if (!AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)) return;
+                autoblockController.update(autoblock.getValue() && attacking && blockOwns && rotationManager.isMotionAccepted() && PlayerUtil.isHoldingWeapon(),
+                        mapAutoblock(autoblockMode.getValue()), false, true);
+            } catch (RuntimeException | Error failure) {
+                interrupted=true;throw failure;
+            } finally { CombatDiagnostics.endOpportunity(opportunity,attackAccepted,interrupted); }
         } else if (AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)) {
             autoblockController.update(autoblock.getValue() && attacking && PlayerUtil.isHoldingWeapon(),
                     mapAutoblock(autoblockMode.getValue()), true, false);
@@ -235,7 +252,8 @@ public class Aura extends Module {
                 && usable() && worldContext == mc.theWorld && playerContext == mc.thePlayer
                 && !mc.thePlayer.isUsingItem()
                 && manager.matchesEffective(yaw, pitch)
-                && (rotations.getValue() ? manager.isOwner(ROTATION_SOURCE) : !manager.isOwner("scaffold"))
+                && (rotations.getValue() ? manager.isOwner(ROTATION_SOURCE)
+                    : !manager.isOwner("scaffold") && !manager.isOwner(RotationManager.SCAFFOLD_RELEASE_SOURCE))
                 && entity != null && mc.theWorld.loadedEntityList.contains(entity)
                 && RuntimeServices.targeting().isValidTarget(entity, options())
                 && RuntimeServices.raycast().canHit(entity, yaw, pitch, reach.getValue().floatValue(), throughWalls.getValue());
