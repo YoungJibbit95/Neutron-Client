@@ -5,7 +5,6 @@ import me.youngjibbit.altmanager.GuiAltManager;
 import me.youngjibbit.clickgui.component.Component;
 import me.youngjibbit.clickgui.component.impl.*;
 import me.youngjibbit.clickgui.utils.*;
-import me.youngjibbit.gui.GuiMotion;
 import me.youngjibbit.gui.MainMenu;
 import me.youngjibbit.gui.UiSpring;
 import me.youngjibbit.gui.clientsettings.SettingsMenu;
@@ -28,7 +27,6 @@ public class SideGuiScreen extends GuiScreen {
     private static final String[] TABS={"Modules","Configs","Themes","Client","Accounts"};
     private final GuiScreen parent;
     private final ArrayListSurface surface=new ArrayListSurface();
-    private final GuiMotion reveal=new GuiMotion();
     private final UiSpring[] tabs=new UiSpring[6];
     private final List<Module> all=new ArrayList<>(),results=new ArrayList<>();
     private final Map<Module,String> searchIndex=new IdentityHashMap<>();
@@ -40,13 +38,12 @@ public class SideGuiScreen extends GuiScreen {
     private float x,y,w,h,scroll,targetScroll,detailScroll,targetDetail;
     private int navFocus=-1;
     private long lastFrame;
-    private GuiScreen destination;
 
     public SideGuiScreen(GuiScreen parent){this.parent=parent;for(int i=0;i<tabs.length;i++)tabs[i]=new UiSpring();}
     @Override public void initGui(){
         all.clear();all.addAll(Pulsar.INSTANCE.getMm().getAllModules());all.sort(Comparator.comparing(Module::getName,String.CASE_INSENSITIVE_ORDER));
         searchIndex.clear();for(Module m:all){StringBuilder terms=new StringBuilder(m.getName()).append(' ').append(m.getCategory()).append(' ').append(m.getDescription());for(Value<?> v:m.getValues())terms.append(' ').append(v.getName());searchIndex.put(m,terms.toString().toLowerCase(Locale.ROOT));}
-        filter();reveal.open();lastFrame=System.nanoTime();
+        filter();lastFrame=System.nanoTime();
         if(Keyboard.isCreated()){repeatBefore=Keyboard.areRepeatEventsEnabled();Keyboard.enableRepeatEvents(true);}
         layout();
     }
@@ -55,7 +52,7 @@ public class SideGuiScreen extends GuiScreen {
     private void select(Module module){if(editor!=null)editor.cancelInputs();selected=module;editor=module==null?null:new ClickModule(module,0,0,220,24);if(editor!=null)editor.setOpen(true);detailScroll=targetDetail=0;focus=pressed=null;binding=false;}
     private void layout(){
         w=Math.min(550,Math.max(1,width-20));h=Math.min(350,Math.max(1,height-20));
-        x=(width-w)/2+(1-reveal.progress())*(width+w)/2;y=(height-h)/2;
+        x=(width-w)/2;y=(height-h)/2;
         float max=Math.max(0,results.size()*30-listBounds().height);targetScroll=clamp(targetScroll,0,max);scroll=clamp(scroll,0,max);
         if(editor!=null){editor.setWidth(detailBounds().width);editor.updateAnimation();float limit=Math.max(0,editor.getHeight()-detailBounds().height);targetDetail=clamp(targetDetail,0,limit);detailScroll=clamp(detailScroll,0,limit);editor.layout(detailBounds().x,detailBounds().y-detailScroll,detailBounds().width,detailBounds());}
     }
@@ -69,7 +66,7 @@ public class SideGuiScreen extends GuiScreen {
     private TTFFontRenderer font(){return Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 18");}
     private void text(String s,float px,float py,float limit,int color){font().drawString(ClickControlStyle.fit(font(),s,limit),px,py,color);}
     @Override public void drawScreen(int mx,int my,float partial){
-        UiEffects.beginFrame();if(reveal.finished()){mc.displayGuiScreen(destination);return;}
+        UiEffects.beginFrame();
         long now=System.nanoTime();float dt=Math.min(.05f,Math.max(0,(now-lastFrame)/1e9f));lastFrame=now;
         scroll+=(targetScroll-scroll)*UiEffects.response(dt,22);detailScroll+=(targetDetail-detailScroll)*UiEffects.response(dt,22);layout();
         Theme theme=Theme.resolve(Theme.getDefaultTheme());int ink=theme.getTextColor().getRGB();
@@ -104,7 +101,7 @@ public class SideGuiScreen extends GuiScreen {
                     if(editor!=null)try(GuiClip detail=GuiClip.push(detailBounds())){
                         editor.advanceMotion(dt,mx,my,focus==editor,pressed==editor,true);
                         for(Component.Sub<?> c:editor.presentationValues())c.advanceMotion(dt,mx,my,focus==c,pressed==c,!c.getClip().intersect(c.presentationBounds()).isEmpty());
-                        editor.drawScreen(reveal.closing()?-1:mx,reveal.closing()?-1:my);
+                        editor.drawScreen(mx,my);
                     }
                     scrollbar(listBounds(),scroll,results.size()*30);
                     if(editor!=null)scrollbar(detailBounds(),detailScroll,editor.getHeight());
@@ -114,18 +111,18 @@ public class SideGuiScreen extends GuiScreen {
         }
     }
     private void scrollbar(ClipRect r,float amount,float content){if(content<=r.height)return;float size=Math.max(10,r.height*r.height/content);UIUtils.drawDecorationRound(r.x+r.width-2,r.y+amount/(content-r.height)*(r.height-size),2,size,1,UiEffects.color(Theme.getDefaultTheme().getTextColor().getRGB(),.5f));}
-    protected void open(GuiScreen screen){if(editor!=null)editor.cancelInputs();destination=screen;reveal.close();}
+    protected void open(GuiScreen screen){if(editor!=null)editor.cancelInputs();mc.displayGuiScreen(screen);}
     protected void activate(int id){switch(id){case 0:searchFocus=true;navFocus=-1;break;case 1:open(new ClickLibraryScreen(this,false));break;case 2:open(new ClickLibraryScreen(this,true));break;case 3:open(new SettingsMenu(this));break;case 4:open(new GuiAltManager(null,this));break;case 5:open(parent);break;default:break;}}
     private Component componentAt(int mx,int my){if(editor==null||!detailBounds().contains(mx,my))return null;for(Component.Sub<?> c:editor.focusableValues())if(c.getClip().contains(mx,my)&&new ClipRect(c.getX(),c.getY(),c.getWidth(),c.getHeight()).contains(mx,my))return c;return editor.isMouseOver(mx,my)?editor:null;}
     private void focus(Component next){if(focus!=next&&focus instanceof ClickSlider)((ClickSlider)focus).cancelInput();focus=next;searchFocus=listFocus=false;navFocus=-1;}
     @Override protected void mouseClicked(int mx,int my,int button)throws IOException{
-        if(reveal.closing()||binding)return;layout();
+        if(binding)return;layout();
         if(button==0){for(int i=0;i<6;i++)if(tabBounds(i).contains(mx,my)){activate(i);return;}if(searchBounds().contains(mx,my)){focus(null);searchFocus=true;replace=false;return;}}
         if(listBounds().contains(mx,my)&&(button==0||button==2))for(int i=0;i<results.size();i++)if(resultBounds(i).contains(mx,my)){select(results.get(i));focus(null);listFocus=true;if(button==2)binding=true;return;}
         Component target=componentAt(mx,my);focus(target);pressed=button==0?target:null;
         if(button==2&&target==editor){binding=true;return;}if(target!=null)target.mouseClicked(mx,my,button);layout();
     }
-    @Override protected void mouseClickMove(int mx,int my,int button,long elapsed){if(button==0&&pressed!=null&&!reveal.closing())pressed.mouseDragged(mx,my);}
+    @Override protected void mouseClickMove(int mx,int my,int button,long elapsed){if(button==0&&pressed!=null)pressed.mouseDragged(mx,my);}
     @Override protected void mouseReleased(int mx,int my,int button){pressed=null;if(editor!=null)editor.mouseReleased();}
     protected void scrollAt(int mx,int my,int wheel){if(wheel==0||binding)return;if(editor!=null)editor.mouseReleased();if(listBounds().contains(mx,my))targetScroll-=Math.signum(wheel)*45;else if(detailBounds().contains(mx,my)){if(focus instanceof ClickSlider)((ClickSlider)focus).cancelInput();targetDetail-=Math.signum(wheel)*40;}layout();}
     @Override public void handleMouseInput()throws IOException{super.handleMouseInput();scrollAt(Mouse.getEventX()*width/mc.displayWidth,height-Mouse.getEventY()*height/mc.displayHeight-1,Mouse.getEventDWheel());}
@@ -143,7 +140,6 @@ public class SideGuiScreen extends GuiScreen {
     }
     private void ensureFocus(){if(focus==null)return;ClipRect r=focus.presentationBounds(),v=detailBounds();if(r.y<v.y)targetDetail=detailScroll=Math.max(0,detailScroll+r.y-v.y);else if(r.y+r.height>v.y+v.height)targetDetail=detailScroll=detailScroll+r.y+r.height-v.y-v.height;layout();}
     @Override protected void keyTyped(char c,int key)throws IOException{
-        if(reveal.closing())return;
         if(binding){if(key==Keyboard.KEY_ESCAPE)binding=false;else if(key!=Keyboard.KEY_NONE&&selected!=null){selected.setKey(key==Keyboard.KEY_DELETE||key==Keyboard.KEY_BACK?0:key);binding=false;}return;}
         if(focus instanceof ClickSlider&&((ClickSlider)focus).isEditing()){if(key==Keyboard.KEY_TAB){((ClickSlider)focus).cancelInput();navigate(shift()?-1:1);}else focus.keyTyped(c,key);return;}
         if(ctrl()&&key==Keyboard.KEY_F){focus(null);searchFocus=true;return;}
