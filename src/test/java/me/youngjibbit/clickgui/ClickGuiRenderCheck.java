@@ -450,31 +450,10 @@ public final class ClickGuiRenderCheck {
 
     static FontManager minimalFonts(String... additionalKeys) throws Exception {
         FontManager manager = new FontManager();
-        HashMap<String, TTFFontRenderer> fonts = new HashMap<>();
-        ConcurrentLinkedQueue<TextureData> queue = new ConcurrentLinkedQueue<>();
-        ExecutorService executor = Executors.newFixedThreadPool(4);
         String[] keys = {"Poppins-Regular 18", "Poppins-Regular 20", "Poppins-Medium 18", "Product-Sans-Regular 20",
                 "Product-Sans-Bold 28", "icon1 21", "icon1 23", "icon 21"};
-        java.util.List<String> requested = new ArrayList<>(Arrays.asList(keys));
-        requested.addAll(Arrays.asList(additionalKeys));
-        for (String key : requested) {
-            int split = key.lastIndexOf(' ');
-            String face = key.substring(0, split).replace("SFProText", "SFProRounded");
-            Font font = Font.createFont(Font.TRUETYPE_FONT, ClickGuiRenderCheck.class.getResourceAsStream(
-                    "/assets/minecraft/" + face + ".ttf")).deriveFont(Float.parseFloat(key.substring(split + 1)));
-            fonts.put(key, new TTFFontRenderer(executor, queue, font));
-        }
-        executor.shutdown();
-        require(executor.awaitTermination(60, TimeUnit.SECONDS), "Font generation timed out");
-        require(queue.size() == requested.size() * 3 * 256, "Incomplete font generation must fail the render check");
-        for (TextureData texture : queue) {
-            GlStateManager.bindTexture(texture.getTextureId());
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, texture.getWidth(), texture.getHeight(), 0, GL_RGBA, GL_UNSIGNED_BYTE, texture.getBuffer());
-        }
-        set(manager, "fonts", fonts);
-        set(manager, "defaultFont", fonts.get("Poppins-Regular 18"));
+        for(String key:keys)manager.getFont(key);
+        for(String key:additionalKeys)manager.getFont(key);
         return manager;
     }
 
