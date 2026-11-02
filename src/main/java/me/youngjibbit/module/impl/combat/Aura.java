@@ -8,6 +8,7 @@ import me.youngjibbit.core.combat.CombatTargetTracker;
 import me.youngjibbit.core.combat.RotationManager;
 import me.youngjibbit.core.combat.RotationSettings;
 import me.youngjibbit.core.combat.RotationProfile;
+import me.youngjibbit.core.combat.RotationReturnSettings;
 import me.youngjibbit.core.combat.TargetingService;
 import me.youngjibbit.core.combat.MoveFixController;
 import me.youngjibbit.core.combat.BodyRotationController;
@@ -43,6 +44,7 @@ public class Aura extends Module {
     private boolean attacking;
     private boolean advanceTarget;
     private Object worldContext, playerContext;
+    private long lifecycleGeneration;
     private EntityLivingBase target;
     private final List<EntityLivingBase> targets = new ArrayList<>();
 
@@ -73,6 +75,7 @@ public class Aura extends Module {
     private final CheckBoxValue raycast = new CheckBoxValue("RayCast", this, false);
     private final MoveFixValue movefix = new MoveFixValue(this, true);
     private final ComboValue bodyRotation = new ComboValue("Body Rotation", this, new String[]{"Vanilla", "Direkt", "Natürlich"}, 0);
+    private final RotationReturnSettings rotationReturn = new RotationReturnSettings(this);
 
     private final CheckBoxValue autoblock = new CheckBoxValue("Autoblock", this, false);
     private final ComboValue autoblockMode = new ComboValue("Autoblock Mode", this, new String[]{"Watchdog", "Verus", "Fake"}, 0);
@@ -96,24 +99,44 @@ public class Aura extends Module {
         if(rotationSettings.arsenic())rotationSettings.mode.reset();
     }
 
+    @Override public void onValueChange() {
+        if (rotationReturn == null) return;
+        final long generation = ++lifecycleGeneration;
+        final RotationManager manager = RuntimeServices.rotation();
+        if (!rotationReturn.enabled.getValue()) manager.cancelRotationRelease(ROTATION_SOURCE);
+        if (isToggled() && !rotations.getValue()) {
+            rotationReturn.begin(manager, ROTATION_SOURCE, moveFixMode(), bodyRotationMode(),
+                    () -> generation == lifecycleGeneration && manager == RuntimeServices.rotation());
+            if (generation == lifecycleGeneration && manager == RuntimeServices.rotation()) manager.reset(ROTATION_SOURCE);
+        }
+    }
+
     @Override
     public void onDisable() {
-        clearCombat(false);
+        // Reentrant scene callbacks must not unsubscribe a newly enabled generation.
         super.onDisable();
+        clearCombat(false);
     }
 
     private void clearCombat(boolean worldChanged) {
+        final long generation = ++lifecycleGeneration;
+        final RotationManager manager = RuntimeServices.rotation();
+        if (worldChanged) manager.cancelRotationRelease(ROTATION_SOURCE);
+        else rotationReturn.begin(manager, ROTATION_SOURCE, moveFixMode(), bodyRotationMode(),
+                () -> generation == lifecycleGeneration && manager == RuntimeServices.rotation());
+        if (generation != lifecycleGeneration || manager != RuntimeServices.rotation()) return;
         target = null;
         targets.clear();
         attacking = false;
         advanceTarget = false;
-        worldContext = playerContext = null;
+        // A target loss is not a world transition. Keep the scene identity while returning.
+        if (worldChanged) worldContext = playerContext = null;
+        manager.reset(ROTATION_SOURCE);
+        if (!manager.hasRotationRelease(ROTATION_SOURCE)) RotationCorrections.reset(ROTATION_SOURCE);
+        CombatTargetTracker.clear("aura");
+        RuntimeServices.attackScheduler().reset();
         if (worldChanged) autoblockController.reset();
         else autoblockController.release();
-        RuntimeServices.attackScheduler().reset();
-        RuntimeServices.rotation().reset(ROTATION_SOURCE);
-        RotationCorrections.reset(ROTATION_SOURCE);
-        CombatTargetTracker.clear("aura");
     }
 
     private boolean usable() {
@@ -159,9 +182,12 @@ public class Aura extends Module {
             if (worldContext != mc.theWorld || playerContext != mc.thePlayer) clearCombat(true);
             worldContext = mc.theWorld;
             playerContext = mc.thePlayer;
+            final long generation = lifecycleGeneration;
 
+            List<EntityLivingBase> collected = RuntimeServices.targeting().collectTargets(options(), mapSort(sortMode.getValue()));
+            if (generation != lifecycleGeneration || !usable()) return;
             targets.clear();
-            targets.addAll(RuntimeServices.targeting().collectTargets(options(), mapSort(sortMode.getValue())));
+            targets.addAll(collected);
             target = TargetingService.selectTarget(targets, target, "Multi".equalsIgnoreCase(mode.getValue()), multiTargets.getValue().intValue(), advanceTarget);
             advanceTarget = false;
             attacking = target != null;
@@ -183,14 +209,18 @@ public class Aura extends Module {
                         bestHitVec.getValue(),
                         profile, false
                 );
-
+                if (generation != lifecycleGeneration || !usable() || rotationManager != RuntimeServices.rotation()) return;
                 if (nextRotations != null) {
                     rotationManager.request(ROTATION_SOURCE, RotationManager.AURA_PRIORITY, nextRotations[0], nextRotations[1]);
                 } else { clearCombat(false);return; }
             } else if (target != null) {
-                // A real camera-target intent ends rotation-only release before this frame resolves.
-                RuntimeServices.rotation().cancelScaffoldReleaseForCameraIntent();
-                RuntimeServices.rotation().reset(ROTATION_SOURCE);
+                RotationManager manager = RuntimeServices.rotation();
+                rotationReturn.begin(manager, ROTATION_SOURCE, moveFixMode(), bodyRotationMode(),
+                        () -> generation == lifecycleGeneration && usable());
+                if (generation != lifecycleGeneration || !usable()) return;
+                // Preserve our own stop; an unrelated camera-target intent still preempts Scaffold.
+                if (!manager.hasRotationRelease(ROTATION_SOURCE)) manager.cancelScaffoldReleaseForCameraIntent();
+                manager.reset(ROTATION_SOURCE);
             }
         }
 
@@ -205,7 +235,7 @@ public class Aura extends Module {
                 float yaw = rotationManager.getEffectiveYaw(), pitch = rotationManager.getEffectivePitch();
                 EntityLivingBase selected = target;
                 boolean owns = rotations.getValue() ? rotationManager.isOwner(ROTATION_SOURCE)
-                        : !rotationManager.isOwner("scaffold") && !rotationManager.isOwner(RotationManager.SCAFFOLD_RELEASE_SOURCE);
+                        : !rotationManager.isOwner("scaffold") && rotationManager.getRotationRelease() == null;
                 boolean hit = rotationManager.isMotionAccepted() && owns && validHit(selected, yaw, pitch) && !mc.thePlayer.isUsingItem();
                 CombatDiagnostics.opportunityResult(opportunity,Stage.HIT_CHECK,hit);
                 attackAccepted=RuntimeServices.attackScheduler().tryAttack(rotationManager.getMotionSequence(), hit, minCps.getValue(), maxCps.getValue(), () -> {
@@ -237,7 +267,7 @@ public class Aura extends Module {
                     return;
                 }
                 boolean blockOwns = rotations.getValue() ? rotationManager.isOwner(ROTATION_SOURCE)
-                        : !rotationManager.isOwner("scaffold") && !rotationManager.isOwner(RotationManager.SCAFFOLD_RELEASE_SOURCE);
+                        : !rotationManager.isOwner("scaffold") && rotationManager.getRotationRelease() == null;
                 if (!AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)) return;
                 autoblockController.update(autoblock.getValue() && attacking && blockOwns && rotationManager.isMotionAccepted()
                                 && validHit(selected, yaw, pitch) && PlayerUtil.isHoldingWeapon(),
@@ -262,7 +292,7 @@ public class Aura extends Module {
                 && !mc.thePlayer.isUsingItem()
                 && manager.matchesEffective(yaw, pitch)
                 && (rotations.getValue() ? manager.isOwner(ROTATION_SOURCE)
-                    : !manager.isOwner("scaffold") && !manager.isOwner(RotationManager.SCAFFOLD_RELEASE_SOURCE))
+                    : !manager.isOwner("scaffold") && manager.getRotationRelease() == null)
                 && entity != null && mc.theWorld.loadedEntityList.contains(entity)
                 && RuntimeServices.targeting().isValidTarget(entity, options())
                 && RuntimeServices.raycast().canHit(entity, yaw, pitch, reach.getValue().floatValue(), throughWalls.getValue());

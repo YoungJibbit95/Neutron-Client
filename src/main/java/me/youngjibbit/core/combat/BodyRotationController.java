@@ -35,6 +35,23 @@ public final class BodyRotationController {
     private Mode frameMode;
     private float frameYaw,framePitch;
     private Pose framePose;
+    private WeakReference<Object> returnIdentity = new WeakReference<>(null);
+    private float returnBodyYaw;
+
+    /** The return keeps its presentation between disable and the next accepted motion.
+     * It never writes entity angles or implies movement/attack/placement authority.
+     */
+    public Pose sampleReturn(Object player, Object world, Object identity, String source,
+                             float yaw, float pitch, float vanillaBodyYaw, float progress) {
+        if (player == null || world == null || identity == null || !Float.isFinite(yaw)
+                || !Float.isFinite(pitch) || !Float.isFinite(vanillaBodyYaw)) { reset(); return null; }
+        if (returnIdentity.get() != identity) {
+            returnBodyYaw = framePlayer.get() == player && frameWorld.get() == world
+                    && Objects.equals(frameOwner, source) && framePose != null ? framePose.bodyYaw : vanillaBodyYaw;
+            returnIdentity = new WeakReference<>(identity);
+        }
+        return new Pose(RotationReturnCurve.angle(returnBodyYaw, vanillaBodyYaw, progress), yaw, clamp(pitch, -90, 90));
+    }
 
     /** Multiple render passes in one frame share the same smoothing time and pose. */
     public Pose sampleFrame(long frame, Object player, Object world, String owner, Mode mode,
@@ -82,6 +99,7 @@ public final class BodyRotationController {
         player.clear(); world.clear();
         bodyYaw = 0; lastNanos = 0;
         sampledFrame=Long.MIN_VALUE;framePose=null;frameOwner=null;framePlayer.clear();frameWorld.clear();
+        returnIdentity.clear(); returnBodyYaw=0;
     }
     private static float clamp(float value, float min, float max) { return Math.max(min, Math.min(max, value)); }
 }
