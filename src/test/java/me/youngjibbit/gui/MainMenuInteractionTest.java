@@ -24,7 +24,7 @@ public class MainMenuInteractionTest {
         @Override protected boolean shiftDown() { return shift; }
         @Override protected void activate(int id) throws java.io.IOException {
             calls++; last = id;
-            if (id >= 5) super.activate(id);
+            if (id >= 5 && id <= 7) super.activate(id);
         }
         void down(int id, int button) throws Exception {
             ClipRect r = actionBounds(id);
@@ -51,8 +51,8 @@ public class MainMenuInteractionTest {
     }
     @After public void restore() throws Exception { managerField.set(Pulsar.INSTANCE, previous); UiEffects.invalidate(); }
 
-    @Test public void leftPressReleaseRoutesAllEightIdsOnce() throws Exception {
-        for (int id = 0; id < 8; id++) {
+    @Test public void leftPressReleaseRoutesAllNineIdsOnce() throws Exception {
+        for (int id = 0; id < 9; id++) {
             int before = screen.calls;
             screen.down(id, 1); screen.up(id, 1); assertEquals(before, screen.calls);
             screen.down(id, 0); assertEquals(before, screen.calls);
@@ -80,11 +80,11 @@ public class MainMenuInteractionTest {
     @Test public void keyboardWrapsAndActivatesWithoutMouse() throws Exception {
         screen.key(Keyboard.KEY_UP); assertEquals(7, screen.focusedAction());
         screen.key(Keyboard.KEY_RIGHT); assertEquals(0, screen.focusedAction());
-        for(int id = 0; id < 8; id++) {
+        for(int id : new int[]{0,1,2,3,8,4,5,6,7}) {
             assertEquals(id, screen.focusedAction()); screen.key(Keyboard.KEY_RETURN);
             assertEquals(id, screen.last); screen.key(Keyboard.KEY_TAB);
         }
-        assertEquals(0, screen.focusedAction()); assertEquals(8, screen.calls);
+        assertEquals(0, screen.focusedAction()); assertEquals(9, screen.calls);
     }
     @Test public void roundedCornersAndExclusiveEdgesDoNotActivate() throws Exception {
         ClipRect r = screen.actionBounds(0);
@@ -95,7 +95,7 @@ public class MainMenuInteractionTest {
     @Test public void boundsStayVisibleAndDisjointAtSmallOddSizesAndGuiScales() throws Exception {
         for(int[] size : new int[][]{{480,320},{320,240},{367,245},{320,180},{1920,1080}}) {
             screen.resize(size[0], size[1]);
-            for(int id=0; id<8; id++) {
+            for(int id=0; id<9; id++) {
                 ClipRect r=screen.actionBounds(id);
                 assertTrue(r.width>0 && r.height>0 && r.x>=0 && r.y>=0);
                 assertTrue(r.x+r.width<=screen.width && r.y+r.height<=screen.height);
@@ -132,12 +132,13 @@ public class MainMenuInteractionTest {
         }
     }
     @Test public void consumerSeparatesLinearReducedFromLegacySnapAndResetsOnLifecycle() throws Exception {
-        settings.reducedMotion.setValue(true);screen.advanceMotion(.03f,-1,-1);assertEquals(.55*.25,amounts()[0],.00001);
+        settings.reducedMotion.setValue(true);screen.key(Keyboard.KEY_ESCAPE);screen.advanceMotion(.03f,-1,-1);assertEquals(.55*.25,amounts()[0],.00001);
         screen.advanceMotion(.09f,-1,-1);assertEquals(.55,amounts()[0],.00001);
         settings.animations.setValue(false);screen.down(2,0);screen.advanceMotion(0,-1,-1);assertEquals(-.45,amounts()[2],.00001);
         screen.onGuiClosed();for(float value:amounts())assertEquals(0,value,0);
         screen.resize(320,240);for(float value:amounts())assertEquals(0,value,0);
-        assertEquals(0,screen.focusedAction());screen.advanceMotion(0,-1,-1);assertEquals(.55,amounts()[0],.00001);
+        assertEquals(0,screen.focusedAction());screen.advanceMotion(0,-1,-1);assertEquals(0,amounts()[0],.00001);
+        screen.key(Keyboard.KEY_ESCAPE);screen.advanceMotion(0,-1,-1);assertEquals(.55,amounts()[0],.00001);
         managerField.set(Pulsar.INSTANCE,null);UiEffects.invalidate();screen.resize(480,320);
         screen.advanceMotion(.03f,-1,-1);
         assertEquals(new MenuSpring().step(.55f,.03f,true),amounts()[0],0);

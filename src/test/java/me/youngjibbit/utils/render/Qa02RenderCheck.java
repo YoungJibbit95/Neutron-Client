@@ -51,7 +51,7 @@ public final class Qa02RenderCheck {
         @Override protected void leave(){}
     }
     static class Panel extends ClickGui {
-        int themes;@Override protected void openThemeEditor(){themes++;}ClipRect box(){return themeBounds();}
+        int themes;@Override protected void openThemeEditor(){themes++;}@Override protected void openLibrary(){themes++;}ClipRect box(){return themeBounds();}
         void click(int x,int y)throws Exception{mouseClicked(x,y,0);}void release(){mouseReleased(-1,-1,0);}
     }
     static class IOS extends iOS {void click(int x,int y)throws Exception{mouseClicked(x,y,0);}void release(){mouseReleased(-1,-1,0);}}
@@ -180,7 +180,8 @@ public final class Qa02RenderCheck {
             for(me.youngjibbit.clickgui.component.Component.Sub<?> value:row.presentationValues()){
                 ClipRect v=value.presentationBounds();if(value.getClip().intersect(v).isEmpty())continue;int vx=(int)(v.x+v.width/2),vy=(int)(v.y+v.height/2);c.motionIntensity.setValue("Calm");step(p,.12f,vx,vy);BufferedImage a=screen(p,vx,vy,"panel-value-calm-"+value.getClass().getSimpleName());c.motionIntensity.setValue("Expressive");step(p,.12f,vx,vy);BufferedImage z=screen(p,vx,vy,"panel-value-expressive-"+value.getClass().getSimpleName());int pixels=diff(a,z,Math.max(0,(int)v.x*2),Math.max(0,(int)v.y*2),(int)v.width*2,(int)v.height*2);record("Panel "+value.getClass().getSimpleName(),pixels);check(pixels>2,"Value motion invisible "+value.getClass());
             }p.onGuiClosed();for(me.youngjibbit.gui.UiSpring state:(me.youngjibbit.gui.UiSpring[])get(p,"chromeMotion"))check(state.amount()==0&&!state.pressed(),"Panel close retained visual state");
-            IOS ios=new IOS();set(Pulsar.INSTANCE,"iOS",ios);ios.setWorldAndResolution(mc,480,320);((List<?>)get(ios,"particles")).clear();screen(ios,-1,-1,"ios-warm");screen(ios,-1,-1,"ios-idle");float ix=(float)get(ios,"x"),iy=(float)get(ios,"y");mx=(int)ix+45;my=(int)iy+50;
+            IOS ios=new IOS();set(Pulsar.INSTANCE,"iOS",ios);ios.setWorldAndResolution(mc,480,320);screen(ios,-1,-1,"ios-warm");screen(ios,-1,-1,"ios-idle");float ix=(float)get(ios,"x"),iy=(float)get(ios,"y");mx=(int)ix+45;my=(int)iy+50;
+            List<?> iosRows=(List<?>)get(ios,"MODULES");if(!iosRows.isEmpty()){set(iosRows.get(0),"open",true);screen(ios,-1,-1,"ios-expanded");set(iosRows.get(0),"open",false);}
             c.motionIntensity.setValue("Calm");step(ios,.12f,mx,my);calm=screen(ios,mx,my,"ios-calm");c.motionIntensity.setValue("Expressive");step(ios,.12f,mx,my);expressive=screen(ios,mx,my,"ios-expressive");n=diff(calm,expressive,((int)ix+4)*2,((int)iy+42)*2,172,34);record("iOS category preset",n);check(n>5,"iOS category motion invisible");
             ios.click(mx,my);ios.release();check(get(ios,"selectedCategory")==me.youngjibbit.module.Category.Movement,"Native iOS inverse hit changed");
             resize(new int[]{320,224,1});ios.setWorldAndResolution(mc,320,224);screen(ios,-1,-1,"ios-small-idle");ix=(float)get(ios,"x");iy=(float)get(ios,"y");float iw=(float)get(ios,"width"),ih=(float)get(ios,"height"),scale=(float)get(ios,"renderedScale");

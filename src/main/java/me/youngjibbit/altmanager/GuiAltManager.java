@@ -31,17 +31,19 @@ public class GuiAltManager extends GuiScreen {
     private Account pendingRemoval;
     private boolean pendingClear;
     private final AccountManager suppliedManager;
+    private final GuiScreen parent;
 
     public GuiAltManager() { this(null); }
-    public GuiAltManager(AccountManager manager) {
-        suppliedManager=manager;
+    public GuiAltManager(AccountManager manager) { this(manager,null); }
+    public GuiAltManager(AccountManager manager,GuiScreen parent) {
+        suppliedManager=manager;this.parent=parent;
         if(INSTANCE!=null) { currentAccount=INSTANCE.currentAccount;selectedAccountId=INSTANCE.selectedAccountId;loginThread=INSTANCE.loginThread; }
         INSTANCE=this;
     }
     protected AccountManager manager() { return suppliedManager==null?Pulsar.INSTANCE.getAccountManager():suppliedManager; }
     public AccountManager accountManager() { return manager(); }
     protected void openScreen(GuiScreen screen) { mc.displayGuiScreen(screen); }
-    protected void closeScreen() { openScreen(new me.youngjibbit.gui.MainMenu()); }
+    protected void closeScreen() { openScreen(parent==null?new me.youngjibbit.gui.MainMenu():parent); }
 
     @Override public void initGui() {
         buttonList.clear();layout=new AccountLayout(width,height);

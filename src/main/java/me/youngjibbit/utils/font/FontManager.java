@@ -10,7 +10,7 @@ import java.util.*;
 /** Owns requested renderer variants and one base Font per bundled file. All GPU work stays on the render thread. */
 public class FontManager implements AutoCloseable {
     private static final Map<String, String> FACES;
-    private static final Set<Integer> SIZES=new HashSet<>(Arrays.asList(6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,36,40,41,42,43,44));
+    private static final Set<Integer> SIZES=new HashSet<>(Arrays.asList(6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,36,40,41,42,43,44,48,56,64,80));
     static {
         Map<String, String> faces = new LinkedHashMap<>();
         faces.put("Poppins-Regular", "Poppins-Regular.ttf");

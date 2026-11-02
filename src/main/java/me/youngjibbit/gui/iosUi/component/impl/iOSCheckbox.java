@@ -36,10 +36,10 @@ public class iOSCheckbox extends iOSComponent.Sub<CheckBoxValue>
         UIUtils.drawRound(switchX + 1.5f + progress * 12.5f, switchY + 1.5f, 11.0f, 11.0f, 5.5f, true, new Color(245, 247, 255, 230));
 
         Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 21").drawString(
-                value.getName(),
-                x + 52,
+                me.youngjibbit.clickgui.utils.ClickControlStyle.fit(Pulsar.INSTANCE.fontManager.getFont("Poppins-Regular 21"),UiEffects.settingLabel(value),width-58),
+                x + 10,
                 y + 5,
-                new Color(235, 238, 246, 230).getRGB()
+                Theme.getDefaultTheme().getTextColor().getRGB()
         );
     }
 
@@ -47,7 +47,7 @@ public class iOSCheckbox extends iOSComponent.Sub<CheckBoxValue>
     @Override
     public void mouseClicked(int mouseX, int mouseY, int mouse)
     {
-        if (isMouseOverCheckBox(mouseX, mouseY))
+        if (mouse==0 && isMouseOverCheckBox(mouseX, mouseY))
         {
             value.setValue(!value.getValue());
         }

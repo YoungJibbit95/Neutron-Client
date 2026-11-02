@@ -180,6 +180,7 @@ public enum Pulsar implements Subscriber {
         me.youngjibbit.utils.render.shader.blur.GaussianBlur.releaseResources();
         me.youngjibbit.gui.MenuShader.releaseResources();
         me.youngjibbit.gui.MainMenu.releaseResources();
+        me.youngjibbit.gui.GuiTransitions.releaseResources();
         me.youngjibbit.module.impl.render.SessionInfo.releaseRenderResources();
         System.out.println("Shutting down Neutron(Pulsar forever, fuck Geuxy, Pulsar is my Name bruh)...");
         PingSpoofComponent.shutdown();

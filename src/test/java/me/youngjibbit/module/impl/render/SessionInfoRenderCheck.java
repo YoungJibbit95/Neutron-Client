@@ -71,6 +71,7 @@ public final class SessionInfoRenderCheck {
             if(Boolean.getBoolean("pulsar.watermark.check")) WatermarkCheck.run();
             if(Boolean.getBoolean("pulsar.armor.check")) ArmorHudCheck.run();
             if(Boolean.getBoolean("pulsar.menu.check")) me.youngjibbit.gui.MainMenuCheck.run(mc);
+            if(Boolean.getBoolean("pulsar.neutron.ui.check")) me.youngjibbit.clickgui.NeutronUiRenderCheck.run(mc);
             if(Boolean.getBoolean("pulsar.settings.check")) ClientSettingsMenuCheck.run();
             if(Boolean.getBoolean("pulsar.global.check")) GlobalEffectsCheck.run();
             if(Boolean.getBoolean("pulsar.notifications.check")) NotificationRenderCheck.run();
