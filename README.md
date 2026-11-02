@@ -16,6 +16,8 @@
 
 A Minecraft **1.8.9** client with customizable menus, HUDs and gameplay modules. Runs on **Java 8**.
 
+**Focus:** Intave/Polar bypass research, consistent visuals and maintainable client systems.
+
 ## Features
 
 - **ClickGUI:** Panel and iOS layouts, module settings and keybinds. Open with **Right Shift**.
@@ -60,6 +62,8 @@ mvn -Prelease-bundle package
 [Development setup](docs/DEVELOPMENT-WORKFLOW.md) · [Release bundles & changelog](docs/RELEASES.md) · [Technical reference](docs/CLIENT_TECH_REFERENCE.md) · [Microsoft sign-in setup](design/microsoft-browser-login.md)
 
 Version tags build a JAR + launcher JSON, ZIP, checksums and a short changelog automatically. Builds are tested in Actions; game and account sign-in checks are still required before publishing a release. [Traffic badge setup](docs/README_ASSETS.md#traffic-badges) is documented separately.
+
+[Contributing](CONTRIBUTING.md) · [Security](SECURITY.md) · [Roadmap and compatibility](docs/PROJECT-DIRECTION.md)
 
 ## License
 

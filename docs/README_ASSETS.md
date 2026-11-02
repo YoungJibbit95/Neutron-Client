@@ -28,7 +28,9 @@ To refresh them daily:
 
 The workflow reads from `GITHUB_REPOSITORY`, updates both SVGs and opens or updates
 the `codex/readme-traffic` PR. It does not push directly to `main` or force-push.
-Merge the badge PR when desired. Missing secrets produce a visible warning; API
+The workflow dispatches Java 8 and repository/dependency checks on the badge
+branch so the protected-branch CI gate can be met. Merge the badge PR when desired.
+Missing secrets produce a visible warning; API
 errors fail the run and preserve the last valid files. Check the printed UTC date
 for freshness. Traffic remains visible only to people who can view this repository.
 
