@@ -12,7 +12,7 @@ public final class AttackScheduler {
     private long tick, lastAttackTick = Long.MIN_VALUE, lastAutoTick = Long.MIN_VALUE;
     private long attemptedMotion = Long.MIN_VALUE, lastAttackAt = Long.MIN_VALUE;
     private long delay;
-    private boolean automatic, controllerUsed;
+    private boolean automatic, controllerUsed, controllerInFlight;
 
     public AttackScheduler() {
         this(() -> System.nanoTime() / 1_000_000L,
@@ -35,12 +35,25 @@ public final class AttackScheduler {
         return !auraEnabled || !hasAttackThisTick();
     }
 
+    /** Reserve only an admitted controller call, including all of its synchronous callbacks. */
+    public boolean beginControllerAttack(boolean auraEnabled) {
+        if (controllerInFlight || !allowControllerAttack(auraEnabled)) return false;
+        controllerInFlight = true;
+        return true;
+    }
+
+    /** A cancelled or throwing manual call must not prevent a later independent retry. */
+    public void endControllerAttack() {
+        controllerInFlight = false;
+    }
+
     public void recordControllerAttack() {
         lastAttackTick = tick;
         lastAttackAt = clock.getAsLong();
     }
 
     public boolean tryAttack(long motion, boolean hitValidated, double minCps, double maxCps, BooleanSupplier action) {
+        if (controllerInFlight) return false;
         if (attemptedMotion == motion) return false;
         attemptedMotion = motion;
         if (!hitValidated || hasAttackThisTick()) return false;

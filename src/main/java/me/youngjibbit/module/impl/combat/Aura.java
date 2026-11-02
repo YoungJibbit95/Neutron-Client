@@ -231,7 +231,8 @@ public class Aura extends Module {
                 boolean blockOwns = rotations.getValue() ? rotationManager.isOwner(ROTATION_SOURCE)
                         : !rotationManager.isOwner("scaffold") && !rotationManager.isOwner(RotationManager.SCAFFOLD_RELEASE_SOURCE);
                 if (!AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)) return;
-                autoblockController.update(autoblock.getValue() && attacking && blockOwns && rotationManager.isMotionAccepted() && PlayerUtil.isHoldingWeapon(),
+                autoblockController.update(autoblock.getValue() && attacking && blockOwns && rotationManager.isMotionAccepted()
+                                && validHit(selected, yaw, pitch) && PlayerUtil.isHoldingWeapon(),
                         mapAutoblock(autoblockMode.getValue()), false, true);
             } catch (RuntimeException | Error failure) {
                 interrupted=true;throw failure;
