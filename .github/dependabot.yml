@@ -1,0 +1,30 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '08:00'
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 3
+    labels: [dependencies, ci]
+    groups:
+      actions:
+        patterns: ['*']
+  - package-ecosystem: maven
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: '08:30'
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 3
+    labels: [dependencies]
+    groups:
+      compatible-updates:
+        patterns: ['*']
+        update-types: [minor, patch]
+      security-updates:
+        applies-to: security-updates
+        patterns: ['*']

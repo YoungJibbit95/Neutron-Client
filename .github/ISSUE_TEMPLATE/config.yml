@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability privately
+    url: https://github.com/YoungJibbit95/Neutron-Client/security/advisories/new
+    about: Account, token, file-access or release-integrity problems belong in private reporting.
+  - name: Questions and ideas
+    url: https://github.com/YoungJibbit95/Neutron-Client/discussions
+    about: Ask for help or discuss an idea before opening a feature request.

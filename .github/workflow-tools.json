@@ -1,0 +1,28 @@
+{
+  "actionlint": {
+    "version": "v1.7.12",
+    "windows": {
+      "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_windows_amd64.zip",
+      "sha256": "6e7241b51e6817ea6a047693d8e6fed13b31819c9a0dd6c5a726e1592d22f6e9",
+      "member": "actionlint.exe"
+    },
+    "linux": {
+      "url": "https://github.com/rhysd/actionlint/releases/download/v1.7.12/actionlint_1.7.12_linux_amd64.tar.gz",
+      "sha256": "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8",
+      "member": "actionlint"
+    }
+  },
+  "zizmor": {
+    "version": "v1.31.1",
+    "windows": {
+      "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-x86_64-pc-windows-msvc.zip",
+      "sha256": "4de30371c8a3b483aecbcf0dec1fd6a2b6aae65051ca226b4f6527baac6a8c7a",
+      "member": "zizmor.exe"
+    },
+    "linux": {
+      "url": "https://github.com/zizmorcore/zizmor/releases/download/v1.31.1/zizmor-x86_64-unknown-linux-gnu.tar.gz",
+      "sha256": "d185f726bdaf92df78273217dfdd24ebcd6b0ef48cf3ce776ff5762b6e138c99",
+      "member": "zizmor"
+    }
+  }
+}

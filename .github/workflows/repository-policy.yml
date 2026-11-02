@@ -1,0 +1,67 @@
+name: Repository security
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '41 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: repository-security-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  policy:
+    name: Repository policy
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Policy and release tooling tests
+        run: python3 -B -m unittest discover -s .github/scripts -p 'test_*.py' -v
+      - name: Install checksum-locked linters
+        run: python3 -B .github/scripts/install_workflow_tools.py --destination "$RUNNER_TEMP/workflow-tools"
+      - name: Workflow syntax and shell checks
+        run: '"$RUNNER_TEMP/workflow-tools/actionlint"'
+      - name: Workflow security checks
+        run: '"$RUNNER_TEMP/workflow-tools/zizmor" --offline --min-severity medium .github/workflows'
+
+  dependency-review:
+    name: Dependency review
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Resolve comparison commits
+        id: revisions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          base="${PR_BASE:-$(gh api "repos/$GH_REPO/commits/main" --jq .sha)}"
+          head="${PR_HEAD:-$(git rev-parse HEAD)}"
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+          echo "head=$head" >> "$GITHUB_OUTPUT"
+      - name: Reject newly introduced high or critical vulnerabilities
+        uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          base-ref: ${{ steps.revisions.outputs.base }}
+          head-ref: ${{ steps.revisions.outputs.head }}
+          fail-on-severity: high
+          comment-summary-in-pr: never

@@ -1,0 +1,30 @@
+name: Bug report
+description: A reproducible client, configuration or launcher problem.
+labels: [bug, needs-triage]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: Client version or commit
+      placeholder: Release name or full Git commit
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps, expected behavior and actual behavior
+      description: Include relevant modules/settings and whether a clean profile reproduces it.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: OS, Java version, launcher, game version and renderer/shaderpack if relevant
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted logs or screenshots
+      description: Remove tokens, account details and private addresses before attaching evidence.

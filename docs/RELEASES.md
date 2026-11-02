@@ -72,3 +72,16 @@ The packaged checks cover entrypoint linkage, Java 8 project bytecode, dependenc
 services, resources and reflective module discovery. They do not establish a real
 launcher start or platform compatibility. Windows, Linux and macOS launcher checks
 remain required for any platform advertised as supported.
+
+## Integrity and provenance
+
+Release tags cannot be updated or deleted. Future published releases are immutable;
+prepare all files in the draft before publishing and use a new version for fixes.
+The tagged-release job attests the bundle ZIP through GitHub OIDC. Verify it with:
+
+```shell
+gh attestation verify Neutron-<version>-bundle.zip --repo YoungJibbit95/Neutron-Client
+```
+
+A provenance attestation identifies the workflow/source that produced the archive.
+It does not replace launcher/game acceptance or the component provenance review.
