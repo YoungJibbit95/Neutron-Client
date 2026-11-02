@@ -113,6 +113,9 @@ public class TickbaseBehaviorHookTest {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             AtomicLong now = new AtomicLong(); Tickbase tick = enable(now, f);
             Backtrack back = new Backtrack(now::get, f.client); LagRange lag = new LagRange();
+            back.getModeSetting("Target Source").setValue("Attack / Cursor");
+            back.getModeSetting("Delay Mode").setValue("Range");
+            lag.getNumberSetting("Start Distance").setValue(0D);
             back.getNumberSetting("Min MS").setValue(500.0); back.getNumberSetting("Max MS").setValue(500.0);
             lag.getNumberSetting("Min MS").setValue(500.0); lag.getNumberSetting("Max MS").setValue(500.0);
             back.setToggled(true); lag.setToggled(true);

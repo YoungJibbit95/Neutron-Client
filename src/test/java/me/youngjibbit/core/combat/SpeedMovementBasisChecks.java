@@ -101,7 +101,7 @@ public class SpeedMovementBasisChecks {
                     // Rounded keeps moveFlying's snapped strafe -1/forward 1 direction.
                     double expected = mode == MoveFixController.Mode.ROTATION_BOUND
                             || mode == MoveFixController.Mode.LEGACY_STRICT ? 28
-                            : mode == MoveFixController.Mode.SIMPLE ? 118
+                            : mode == MoveFixController.Mode.SIMPLE || mode == MoveFixController.Mode.PRECISE ? 118
                             : mode == MoveFixController.Mode.LEGACY_ROUNDED ? 118 : 135;
                     direction(f, expected);
                     assertEquals(.2f, f.player.moveForward, 0);

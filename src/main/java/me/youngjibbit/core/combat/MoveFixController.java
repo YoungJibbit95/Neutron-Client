@@ -3,7 +3,7 @@ package me.youngjibbit.core.combat;
 import net.minecraft.util.MathHelper;
 
 /** Pure input correction; never changes velocity, packets, camera or body rotations.
- * SIMPLE/PRECISE retain their existing camera-space contracts.
+ * SIMPLE/PRECISE choose the nearest legal keyboard direction in server-yaw space.
  * LEGACY_ROUNDED maps normal 1.8.9 keyboard inputs into rounded module-yaw inputs.
  * ROTATION_BOUND and LEGACY_STRICT use original keys relative to module yaw. */
 public final class MoveFixController {
@@ -38,11 +38,9 @@ public final class MoveFixController {
         float yawDifference = wrap(wrap(inputYaw) - wrap(effectiveYaw));
         if (mode == Mode.LEGACY_ROUNDED) return legacyRounded(strafe, forward, yawDifference);
 
-        double magnitude = Math.hypot(strafe, forward);
         double delta = Math.toRadians(yawDifference);
         double s = strafe * Math.cos(delta) - forward * Math.sin(delta);
         double f = strafe * Math.sin(delta) + forward * Math.cos(delta);
-        if (mode == Mode.PRECISE) return new Input((float) s, (float) f);
 
         double best = -Double.MAX_VALUE;
         int[] direction = DIRECTIONS[0];
@@ -50,8 +48,10 @@ public final class MoveFixController {
             double score = (s * candidate[0] + f * candidate[1]) / Math.hypot(candidate[0], candidate[1]);
             if (score > best + 1.0e-9) { best = score; direction = candidate; }
         }
-        // Keep the pre-existing SIMPLE semantics; this is not the rounded-key contract.
-        double scale = magnitude / Math.hypot(direction[0], direction[1]);
+        // Axes are keys, not a continuously rotated vector. Preserving vector length
+        // produced .707/1.414 key strengths and non-vanilla sneak/item acceleration.
+        // Restore the sampled per-key slowdown, then let moveFlying normalize once.
+        double scale = Math.max(Math.abs(strafe), Math.abs(forward));
         return new Input((float) (direction[0] * scale), (float) (direction[1] * scale));
     }
 
@@ -68,17 +68,14 @@ public final class MoveFixController {
         // Kotlin round uses ties-to-even, as does Math.rint.
         int roundedForward = (int) Math.rint(keyForward * cosine + keyStrafe * sine);
         int roundedStrafe = (int) Math.rint(keyStrafe * cosine - keyForward * sine);
-        float strength = forward != 0f ? Math.abs(forward) : Math.abs(strafe);
+        float strength = Math.max(Math.abs(forward), Math.abs(strafe));
         return new Input(roundedStrafe * strength, roundedForward * strength);
     }
 
     /** Chooses a yaw basis for the existing jump consumer; does not simulate jump impulses. */
     public static float jumpYaw(float cameraYaw, float effectiveYaw, Mode mode) {
-        if (mode == Mode.ROTATION_BOUND || mode == Mode.LEGACY_STRICT || mode == Mode.LEGACY_ROUNDED)
-            return effectiveYaw;
-        if (mode != Mode.SIMPLE) return cameraYaw;
-        Input input = correct(0, 1, cameraYaw, effectiveYaw, mode);
-        return effectiveYaw - (float) Math.toDegrees(Math.atan2(input.strafe, input.forward));
+        // Vanilla's sprint impulse follows look yaw, irrespective of the strafing key.
+        return mode == Mode.OFF || !Float.isFinite(effectiveYaw) ? cameraYaw : effectiveYaw;
     }
 
     public static float wrap(float degrees) {

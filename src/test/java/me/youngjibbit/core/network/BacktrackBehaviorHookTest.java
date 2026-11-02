@@ -13,6 +13,11 @@ import static org.junit.Assert.*;
 public class BacktrackBehaviorHookTest {
     private Backtrack enable(AtomicLong now, ExploitHookFixture f) {
         Backtrack module = new Backtrack(now::get, f.client);
+        module.getModeSetting("Target Source").setValue("Attack / Cursor");
+        module.getNumberSetting("Target Hold MS").setValue(350D);
+        module.getModeSetting("Delay Mode").setValue("Range");
+        module.getNumberSetting("Cooldown Ticks").setValue(0D);
+        module.getBooleanSetting("Active On No Hit").setValue(false);
         assertNull(module.getDiagnostics());
         module.getBooleanSetting("Diagnostics").setValue(true);
         module.getNumberSetting("Min MS").setValue(500.0); module.getNumberSetting("Max MS").setValue(500.0);
