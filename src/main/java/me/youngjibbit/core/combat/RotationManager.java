@@ -7,6 +7,9 @@ import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.MathHelper;
 import net.minecraft.util.Vec3;
 import me.youngjibbit.event.motion.EventMotion;
+import me.youngjibbit.event.motion.EventRotation;
+import me.youngjibbit.event.player.MovementReadyEvent;
+import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.bootstrap.RuntimeServices;
 import me.youngjibbit.core.contract.SceneContext;
 import me.youngjibbit.core.observation.RuntimeObservation;
@@ -63,6 +66,113 @@ public final class RotationManager {
     private boolean cameraIntent;
     private WeakReference<Object> motionPlayer = new WeakReference<>(null);
     private WeakReference<Object> motionWorld = new WeakReference<>(null);
+    private MovementFrame movementFrame;
+
+    /** Predict local physics before living input; only finishMotion can grant packet/action authority. */
+    public void prepareMovement(EntityPlayerSP player) {
+        RuntimeObservation observation = RuntimeServices.observation();
+        if (mc == null || player != mc.thePlayer || mc.theWorld == null || player.worldObj != mc.theWorld
+                || observation == null || observation.getCurrentStep() == null || !player.isEntityAlive()
+                || player.isRiding() || player.isSpectator() || mc.currentScreen != null || !mc.inGameHasFocus
+                || mc.getRenderViewEntity() != player || player.sendQueue == null) return;
+        Object step = observation.getCurrentStep();
+        PacketPipeline pipeline = player.sendQueue.getNetworkManager().getClientPackets();
+        if (pipeline == null || !pipeline.isActive() || !player.sendQueue.getNetworkManager().isChannelOpen()) return;
+        SceneContext scene = observation.captureScene();
+        if (!scene.isValid() || scene.isSuspended() || observation.getCurrentStep() != step) return;
+        bindConnection(pipeline);
+        beginMotion(player, mc.theWorld, player.rotationYaw, player.rotationPitch);
+        final long preparingSequence = sequence;
+        EventRotation preparation = new EventRotation(
+                new EventMotion(player.posX, player.getEntityBoundingBox().minY, player.posZ,
+                        player.rotationYaw, player.rotationPitch, player.onGround));
+        try {
+            Pulsar.BUS.post(preparation);
+            if (sequence != preparingSequence || !collecting || observation.getCurrentStep() != step) return;
+            resolve(preparation.motion());
+            if (sequence != preparingSequence || !collecting || observation.getCurrentStep() != step) return;
+            MoveFixController.Mode mode = RotationCorrections.movementModeFor(winner == null ? null : winner.source);
+            if (sequence != preparingSequence || !collecting || observation.getCurrentStep() != step) return;
+            movementFrame = new MovementFrame(observation, step, scene, pipeline, winner, preparation,
+                    preparation.motion().getYaw(), preparation.motion().getPitch(), mode);
+            if (!movementFrame.current()) { movementFrame = null; return; }
+        } catch (RuntimeException | Error error) {
+            if (sequence == preparingSequence) finishMotion(player.rotationYaw, player.rotationPitch, false);
+            throw error;
+        }
+    }
+
+    public boolean hasPreparedMovement() { return movementFrame != null && movementFrame.current(); }
+
+    /** Final sprint owners run before automatic/vanilla jumps and horizontal acceleration. */
+    public void beforeMovementPhysics() {
+        MovementFrame frame = movementFrame;
+        if (frame == null || !frame.current() || frame.movementReady) return;
+        frame.movementReady = true;
+        Pulsar.BUS.post(new MovementReadyEvent());
+        if (movementFrame == frame && frame.current()) frame.preparation.runBeforePhysics();
+    }
+
+    public boolean isPreparedMovementClaimed() {
+        return movementFrame != null && movementFrame.current() && movementFrame.claimed;
+    }
+
+    public boolean resumePreparedMovement(EntityPlayerSP player, Object world) {
+        MovementFrame frame = movementFrame;
+        if (frame == null || !frame.current() || frame.claimed || motionPlayer.get() != player || motionWorld.get() != world) return false;
+        // Claim before the scene supplier: a callback cannot send this physical step twice.
+        frame.claimed = true;
+        SceneContext fresh = frame.observation.captureScene();
+        return movementFrame == frame && frame.current() && fresh.isValid() && !fresh.isSuspended()
+                && frame.scene.sameSceneAs(fresh);
+    }
+
+    /** This prediction is for local input/physics only, never for attacks, placement or rendering. */
+    public MovementRotation getPreparedMovement() {
+        MovementFrame frame = movementFrame;
+        return frame != null && frame.current() ? frame.rotation : null;
+    }
+
+    public static final class MovementRotation {
+        public final String source;
+        public final float yaw, pitch;
+        public final MoveFixController.Mode mode;
+        private MovementRotation(String source, float yaw, float pitch, MoveFixController.Mode mode) {
+            this.source = source; this.yaw = yaw; this.pitch = pitch; this.mode = mode;
+        }
+    }
+
+    private final class MovementFrame {
+        final RuntimeObservation observation;
+        final Object step;
+        final SceneContext scene;
+        final WeakReference<PacketPipeline> pipeline;
+        final long frameSequence, epoch, suspension;
+        final Request request;
+        final EventRotation preparation;
+        final MovementRotation rotation;
+        boolean claimed, movementReady;
+        RotationReleaseLease returnAfterMovement;
+        MovementFrame(RuntimeObservation observation, Object step, SceneContext scene, PacketPipeline pipeline,
+                      Request request, EventRotation preparation, float yaw, float pitch, MoveFixController.Mode mode) {
+            this.observation = observation; this.step = step; this.scene = scene;
+            this.pipeline = new WeakReference<>(pipeline); this.request = request;
+            this.preparation = preparation;
+            frameSequence = sequence; epoch = pipeline.getContextVersion();
+            suspension = observation.getObservedSuspensionRevision();
+            rotation = new MovementRotation(request == null ? null : request.source, yaw, pitch, mode);
+        }
+        boolean current() {
+            PacketPipeline pipe = pipeline.get();
+            return collecting && sequence == frameSequence && observation == RuntimeServices.observation()
+                    && observation.getCurrentStep() == step && observation.getActiveOuterTickId() >= 0
+                    && observation.getObservedConnectionGeneration() == scene.getConnectionGeneration()
+                    && observation.getObservedSuspensionRevision() == suspension
+                    && pipe != null && pipe.isActive() && pipe.getContextVersion() == epoch && isConnection(pipe)
+                    && mc.thePlayer == motionPlayer.get() && mc.theWorld == motionWorld.get()
+                    && mc.thePlayer != null && mc.thePlayer.worldObj == mc.theWorld;
+        }
+    }
 
     public void beginMotion(Object player, Object world, float cameraYaw, float cameraPitch) {
         if (motionPlayer.get() != player || motionWorld.get() != world) {
@@ -74,6 +184,7 @@ public final class RotationManager {
     }
 
     public void beginMotion(float cameraYaw, float cameraPitch) {
+        movementFrame = null;
         // Keep the observed packet values for finishMotion's rejection, but never smooth from them.
         boolean usableBase = hasEffective && Float.isFinite(effectiveYaw) && Float.isFinite(effectivePitch)
                 && effectivePitch >= -90 && effectivePitch <= 90;
@@ -114,6 +225,28 @@ public final class RotationManager {
         resolvedRequest = null;
         resolvedFrame = null;
         resolvedTicket = null;
+        MovementFrame prepared = movementFrame;
+        if (prepared != null && prepared.current()) {
+            // Physics has already used this exact pose. A late replacement/disable may
+            // withdraw its source, but must not relabel the acceleration with another yaw.
+            if (winner != prepared.request) {
+                RotationReleaseLease release = currentRotationRelease();
+                if (sequence != resolvingSequence || movementFrame != prepared || !prepared.current()) return;
+                if (prepared.request != null && release != null && release.basis.source.equals(prepared.request.source)) {
+                    // Disable happened after physics. Send its consumed pose as a strict,
+                    // rotation-only return frame, then start easing from that accepted pose.
+                    winner = new Request(release.releaseSource, 0, prepared.rotation.yaw, prepared.rotation.pitch,
+                            false, 0, 0, () -> true);
+                    prepared.returnAfterMovement = release;
+                } else winner = null;
+            }
+            event.setRotations(prepared.rotation.yaw, prepared.rotation.pitch);
+            if (winner != null && ("aura".equals(winner.source) || "scaffold".equals(winner.source) || isReleaseSource(winner.source))) {
+                resolvedRequest = winner; resolvedFrame = new Object();
+                resolvedTicket = new ResolvedC03SendTicket(winner, resolvedFrame, Float.NaN, Float.NaN);
+            }
+            return;
+        }
         RotationReleaseLease release = currentRotationRelease();
         if (sequence != resolvingSequence || !collecting) return;
         if (winner == null && release != null && !competingIntent(release.basis.source)) {
@@ -336,7 +469,7 @@ public final class RotationManager {
         private final BodyRotationController.Mode body;
         private final long outerTick, started;
         private long lastObservedNanos, lastObservedOuterTick;
-        private final float yaw, pitch;
+        private float yaw, pitch;
         private float lastYaw, lastPitch;
         private RotationReleaseLease(AcceptedRotationBasis basis, long outerTick, long started, float yaw, float pitch,
                                      int ticks, MoveFixController.Mode movement, BodyRotationController.Mode body) {
@@ -466,6 +599,8 @@ public final class RotationManager {
 
     public void finishMotion(float yaw, float pitch, boolean packetAccepted) {
         final long finishingSequence = sequence;
+        final MovementFrame appliedMovement = movementFrame;
+        movementFrame = null;
         final boolean releaseFrame = winner != null && isReleaseSource(winner.source);
         if (releaseFrame) {
             RotationReleaseLease expected = rotationRelease;
@@ -488,6 +623,10 @@ public final class RotationManager {
         if (rotationRelease != null && rotationRelease.releaseSource.equals(owner)) {
             rotationRelease.lastYaw = effectiveYaw;
             rotationRelease.lastPitch = effectivePitch;
+            if (appliedMovement != null && appliedMovement.returnAfterMovement == rotationRelease) {
+                rotationRelease.yaw = effectiveYaw;
+                rotationRelease.pitch = effectivePitch;
+            }
         }
         invalidateUnownedSpeedCurves(owner);
         if (("scaffold".equals(owner) || "aura".equals(owner)) && evidence != null && evidence.request == winner
@@ -761,6 +900,7 @@ public final class RotationManager {
     }
 
     public void reset() {
+        movementFrame = null;
         curveMotionSequence=Long.MIN_VALUE;
         rotationRelease = null;
         releaseAcceptance = null;

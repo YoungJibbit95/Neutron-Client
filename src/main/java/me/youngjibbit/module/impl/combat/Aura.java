@@ -18,6 +18,7 @@ import me.youngjibbit.core.combat.CombatDiagnosticTrace.Stage;
 import me.youngjibbit.module.impl.client.CombatDiagnostics;
 import me.youngjibbit.value.impl.MoveFixValue;
 import me.youngjibbit.event.motion.EventMotion;
+import me.youngjibbit.event.motion.EventRotation;
 import me.youngjibbit.event.packet.TickEvent;
 import me.youngjibbit.event.player.AttackEvent;
 import me.youngjibbit.event.world.WorldEvent;
@@ -173,6 +174,13 @@ public class Aura extends Module {
 
     @Subscribe
     private final Listener<EventMotion> onMotion = new Listener<>(event -> {
+        if (event.isPre() && RuntimeServices.rotation().hasPreparedMovement()) return;
+        handleMotion(event);
+    });
+
+    @Subscribe private final Listener<EventRotation> prepareRotation = new Listener<>(preparation -> handleMotion(preparation.motion()));
+
+    private void handleMotion(EventMotion event) {
         if (!usable()) {
             clearCombat(mc == null || mc.thePlayer == null || mc.theWorld == null);
             return;
@@ -279,7 +287,7 @@ public class Aura extends Module {
             autoblockController.update(autoblock.getValue() && attacking && PlayerUtil.isHoldingWeapon(),
                     mapAutoblock(autoblockMode.getValue()), true, false);
         }
-    });
+    }
 
     public boolean correctionEnabled() { return usable() && rotations.getValue(); }
     public MoveFixController.Mode moveFixMode() { return MoveFixController.Mode.fromSetting(movefix.getValue()); }

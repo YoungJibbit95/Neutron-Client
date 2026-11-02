@@ -1,9 +1,11 @@
 package me.youngjibbit.module.impl.ghost;
 
 import me.youngjibbit.core.combat.CombatTargetTracker;
+import me.youngjibbit.core.bootstrap.RuntimeServices;
 import me.youngjibbit.event.motion.EventMotion;
 import me.youngjibbit.event.packet.TickEvent;
 import me.youngjibbit.event.player.AttackEvent;
+import me.youngjibbit.event.player.MovementReadyEvent;
 import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.ModuleInfo;
@@ -100,17 +102,17 @@ public class WTap2 extends Module {
 
     @Subscribe
     private final Listener<EventMotion> onMotion = new Listener<>(event -> {
-        if (mc.thePlayer == null || !event.isPre()) {
-            return;
-        }
+        if (event.isPre() && !RuntimeServices.rotation().hasPreparedMovement()) applySpoof(true);
+    });
 
-        if (!"Spoof".equalsIgnoreCase(mode.getValue())) {
-            return;
-        }
+    @Subscribe private final Listener<MovementReadyEvent> movementReady = new Listener<>(event -> applySpoof(false));
+
+    private void applySpoof(boolean restorePhysicalKey) {
+        if (mc.thePlayer == null || !"Spoof".equalsIgnoreCase(mode.getValue())) return;
 
         EntityLivingBase target = resolveTarget();
         if (target == null) {
-            if (spoofedSprint && shouldResumeSprint()) {
+            if (restorePhysicalKey && spoofedSprint && shouldResumeSprint()) {
                 mc.thePlayer.setSprinting(true);
             }
             spoofedSprint = false;
@@ -123,12 +125,12 @@ public class WTap2 extends Module {
                 spoofedSprint = true;
             }
         } else {
-            if (spoofedSprint && shouldResumeSprint()) {
+            if (restorePhysicalKey && spoofedSprint && shouldResumeSprint()) {
                 mc.thePlayer.setSprinting(true);
             }
             spoofedSprint = false;
         }
-    });
+    }
 
     private void handleLegit(EntityLivingBase target) {
         if (stoppedLastTick) {

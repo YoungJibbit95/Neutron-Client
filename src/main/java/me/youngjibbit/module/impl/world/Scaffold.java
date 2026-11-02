@@ -11,6 +11,7 @@ import me.youngjibbit.core.world.PlacementTarget;
 import me.youngjibbit.core.world.ScaffoldRotationPlan;
 import me.youngjibbit.core.world.TowerController;
 import me.youngjibbit.event.motion.EventMotion;
+import me.youngjibbit.event.motion.EventRotation;
 import me.youngjibbit.core.combat.RotationManager;
 import me.youngjibbit.core.combat.RotationSettings;
 import me.youngjibbit.core.combat.RotationProfile;
@@ -91,6 +92,7 @@ public class Scaffold extends Module {
     private SceneContext contextScene;
     private long contextMotionSequence = -1;
     private long lifecycleGeneration;
+    private long noSprintSequence = -1, noSprintGeneration = -1;
     private boolean hasHoldBasis;
     private float holdYaw, holdPitch;
     private static Scaffold active;
@@ -310,6 +312,13 @@ public class Scaffold extends Module {
 
     @Subscribe
     public final Listener<EventMotion> onMotionEvent = new Listener<>(event -> {
+        if (event.isPre() && RuntimeServices.rotation().hasPreparedMovement()) return;
+        handleMotion(event, null);
+    });
+
+    @Subscribe private final Listener<EventRotation> prepareRotation = new Listener<>(preparation -> handleMotion(preparation.motion(), preparation));
+
+    private void handleMotion(EventMotion event, EventRotation preparation) {
         Minecraft mc = Minecraft.getMinecraft();
         if (!isToggled()) return;
         if (!liveContext()) { diagnose(me.youngjibbit.core.world.ScaffoldPlacementService.Rejection.CONTEXT);clearState(); return; }
@@ -340,10 +349,20 @@ public class Scaffold extends Module {
             if (currentTarget == null) { diagnose(RuntimeServices.scaffoldPlacement().getLastRejection());releasePlacement(); requestAcceptedHold(); return; }
 
             // A valid placement plan owns this decision before Auto Jump consumes sprint's impulse.
-            if (!sprint.getValue()) mc.thePlayer.setSprinting(false);
-            if (autoJump.getValue() && mc.thePlayer.onGround && isMoving() && !mc.gameSettings.keyBindJump.isKeyDown()) {
-                mc.thePlayer.jump();
-                if (!continueMotion(motionSequence, generation)) return;
+            if (!sprint.getValue()) {
+                noSprintSequence = motionSequence; noSprintGeneration = generation;
+                mc.thePlayer.setSprinting(false);
+            }
+            if (autoJump.getValue() && mc.thePlayer.onGround && !mc.gameSettings.keyBindJump.isKeyDown()) {
+                if (preparation != null) {
+                    preparation.beforePhysics(() -> {
+                        if (continueMotion(motionSequence, generation) && mc.thePlayer.onGround && isMoving()
+                                && !mc.gameSettings.keyBindJump.isKeyDown()) mc.thePlayer.jump();
+                    });
+                } else if (isMoving()) {
+                    mc.thePlayer.jump();
+                    if (!continueMotion(motionSequence, generation)) return;
+                }
             }
             boolean towerEnabled = tower.getValue();
             towerController.apply(event, towerEnabled, towerMode.getValue(), mc.gameSettings.keyBindJump.isKeyDown(), isMoving(), true);
@@ -379,7 +398,7 @@ public class Scaffold extends Module {
             if (!continueMotion(motionSequence, generation)) return;
             if (placed || !RuntimeServices.scaffoldPlacement().isValid(frameTarget)) releasePlacement();
         }
-    });
+    }
 
     private void arsenicMotion(EventMotion event,long sequence,long generation) {
         if(event.isPre()) {
@@ -419,7 +438,11 @@ public class Scaffold extends Module {
     /** Keep sprint admission and jump acceleration consistent in the ordinary physics path. */
     public static boolean allowsSprint() {
         Scaffold scaffold=active;
-        return scaffold==null || !scaffold.isToggled() || !scaffold.arsenic() || !scaffold.validContext() || !scaffold.sameScene();
+        if (scaffold==null || !scaffold.isToggled() || !scaffold.validContext() || !scaffold.sameScene()) return true;
+        if (scaffold.arsenic()) return false;
+        // Keep a valid plan's decision for this step even if PRE placement consumed the plan.
+        return scaffold.sprint.getValue() || scaffold.noSprintGeneration != scaffold.lifecycleGeneration
+                || scaffold.noSprintSequence != scaffold.contextRotation.getMotionSequence();
     }
 
     @Subscribe
