@@ -7,6 +7,7 @@ import me.youngjibbit.core.combat.RotationSettings;
 import me.youngjibbit.core.combat.RotationProfile;
 import me.youngjibbit.core.combat.TargetingService;
 import me.youngjibbit.event.motion.EventMotion;
+import me.youngjibbit.event.motion.EventRotation;
 import me.youngjibbit.event.packet.TickEvent;
 import me.youngjibbit.event.world.WorldEvent;
 import me.youngjibbit.module.Category;
@@ -86,6 +87,13 @@ public class AimAssist extends Module {
 
     @Subscribe
     private final Listener<EventMotion> onMotion = new Listener<>(event -> {
+        if (event.isPre() && RuntimeServices.rotation().hasPreparedMovement()) return;
+        handleMotion(event);
+    });
+
+    @Subscribe private final Listener<EventRotation> prepareRotation = new Listener<>(preparation -> handleMotion(preparation.motion()));
+
+    private void handleMotion(EventMotion event) {
         if(!usable()) { clearAim();return; }
         if(!event.isPre()) return;
         RotationManager rotationManager = RuntimeServices.rotation();
@@ -120,7 +128,7 @@ public class AimAssist extends Module {
         rotationManager.requestVisible(ROTATION_SOURCE, RotationManager.AIM_ASSIST_PRIORITY, targetRotations[0], targetRotations[1],
                 mc.thePlayer.rotationYaw, mc.thePlayer.rotationPitch,
                 ()->usable() && target==selected && validTarget(selected,options()));
-    });
+    }
 
     @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String name) {
         if(name!=null && (name.equalsIgnoreCase("Jitter Range") || name.equalsIgnoreCase("jitter_range"))) name="jitter";

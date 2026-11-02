@@ -217,7 +217,9 @@ public class EntityPlayerSP extends AbstractClientPlayer
             motionEvent = new EventMotion(this.posX, this.getEntityBoundingBox().minY, this.posZ, this.rotationYaw, this.rotationPitch, this.onGround);
             rotations = RuntimeServices.rotation();
             rotations.bindConnection(this.sendQueue.getNetworkManager().getClientPackets());
-            rotations.beginMotion(this, this.worldObj, this.rotationYaw, this.rotationPitch);
+            if (rotations.isPreparedMovementClaimed()) return;
+            if (!rotations.resumePreparedMovement(this, this.worldObj))
+                rotations.beginMotion(this, this.worldObj, this.rotationYaw, this.rotationPitch);
             motionSequence = rotations.getMotionSequence();
             motionEvent.setEventPhase(EventPhase.PRE);
             try {
@@ -853,6 +855,7 @@ public class EntityPlayerSP extends AbstractClientPlayer
      */
     public void onLivingUpdate()
     {
+        RuntimeServices.rotation().prepareMovement(this);
         Pulsar.INSTANCE.BUS.post(new LivingEvent());
 
         if (this.sprintingTicksLeft > 0)
@@ -984,6 +987,8 @@ public class EntityPlayerSP extends AbstractClientPlayer
         {
             this.setSprinting(false);
         }
+
+        RuntimeServices.rotation().beforeMovementPhysics();
 
         if (this.capabilities.allowFlying)
         {
