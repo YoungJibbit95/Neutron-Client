@@ -249,15 +249,8 @@ public class SessionInfo extends Module {
         final TTFFontRenderer font;
         final float x,y,width;
         final boolean gradient;
-        final float[] positions;
         TextRun(String text,TTFFontRenderer font,float x,float y,boolean gradient) {
             this.text=text;this.font=font;this.x=x;this.y=y;this.gradient=gradient;
-            positions=new float[text.length()]; float advance=0;
-            for (int i=0;i<text.length();i++) {
-                positions[i]=advance;
-                // TTFFontRenderer.getWidth includes a two-unit trailing margin; remove it for glyph advance.
-                advance+=font.getWidth(String.valueOf(text.charAt(i)))-2;
-            }
             width=font.getWidth(text);
         }
         void draw(Frame frame) {
@@ -265,7 +258,7 @@ public class SessionInfo extends Module {
             me.youngjibbit.utils.render.TextEffects.direct(frame.theme,()->glyphs(frame));
         }
         void glyphs(Frame frame){
-            for(int i=0;i<text.length();i++)font.drawString(String.valueOf(text.charAt(i)),frame.x+x+positions[i],frame.y+y,-1);
+            font.drawString(text,frame.x+x,frame.y+y,-1);
         }
     }
 }

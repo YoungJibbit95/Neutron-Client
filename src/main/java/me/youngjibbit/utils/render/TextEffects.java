@@ -14,9 +14,9 @@ public final class TextEffects implements AutoCloseable {
     private static boolean capturing;
     public static boolean isCapturing(){return capturing;}
     private static final java.util.Set<TextEffects> owners=java.util.Collections.newSetFromMap(new java.util.WeakHashMap<TextEffects,Boolean>());
-    private static ShaderUtil effectShader,directShader;
+    private static ShaderUtil effectShader;
     public TextEffects(){owners.add(this);}
-    public static void releaseResources(){for(TextEffects owner:new java.util.ArrayList<>(owners))owner.close();if(effectShader!=null){effectShader.close();effectShader=null;}if(directShader!=null){directShader.close();directShader=null;}}
+    public static void releaseResources(){for(TextEffects owner:new java.util.ArrayList<>(owners))owner.close();if(effectShader!=null){effectShader.close();effectShader=null;}FontInk.releaseResources();}
     private final Framebuffer[] buffers=new Framebuffer[3];
     private int width,height;
     private float localPhase,lastLocalTime;
@@ -32,14 +32,19 @@ public final class TextEffects implements AutoCloseable {
     public void themed(me.youngjibbit.utils.Theme theme,Runnable glyphs){direct(theme,glyphs);}
     /** Sharp theme text shades the existing glyph draws directly: no framebuffer or per-row effect pass. */
     public static void direct(me.youngjibbit.utils.Theme theme,Runnable glyphs){
-        theme=UiEffects.theme(theme);
-        if(!net.minecraft.client.renderer.OpenGlHelper.shadersSupported){glyphs.run();return;}
-        try(RenderState state=new RenderState()){
-            texture(0,0);if(directShader==null)directShader=new ShaderUtil("Flauxy/Shaders/textDirect.frag");ShaderUtil s=directShader;s.init();s.setUniformi("glyph",0);UiEffects.upload(s,theme);color(s,"first",theme.getPrimaryGradientRGB());color(s,"second",theme.getSecondaryGradientRGB());glyphs.run();s.unload();
-        }
+        FontInk.themed(UiEffects.theme(theme),glyphs);
     }
+
     private void draw(float[] bounds,int first,int second,int style,boolean animate,float speed,boolean glow,float strength,float radius,boolean localGradient,boolean localRadius,Runnable glyphs){
         if(!net.minecraft.client.renderer.OpenGlHelper.shadersSupported||!net.minecraft.client.renderer.OpenGlHelper.isFramebufferEnabled()){glyphs.run();return;}
+        me.youngjibbit.module.impl.client.ClientSettings settings=me.youngjibbit.module.impl.client.ClientSettings.current();
+        if(settings!=null){
+            if("Off".equals(settings.textGlow.getValue()))glow=false;
+            else if("On".equals(settings.textGlow.getValue())){
+                glow=true;strength=settings.textGlowStrength.getValue().floatValue();
+                radius=settings.textGlowRadius.getValue().floatValue();localRadius=true;
+            }
+        }
         glow=glow&&UiEffects.glowEnabled()&&strength>0;strength=UiEffects.glowAlpha(strength);radius=localRadius?radius:UiEffects.glowRadius(radius);
         float time=UiEffects.time();if(animate&&UiEffects.motion())localPhase=(localPhase+Math.max(0,time-lastLocalTime)*speed)%1;lastLocalTime=time;
         if(UiEffects.options().configured&&!UiEffects.options().gradients)style=0;
@@ -56,7 +61,12 @@ public final class TextEffects implements AutoCloseable {
             texture(0,buffers[0].framebufferTexture);texture(1,glow?buffers[2].framebufferTexture:buffers[0].framebufferTexture);
             if(effectShader==null)effectShader=new ShaderUtil("Flauxy/Shaders/textEffect.frag");ShaderUtil s=effectShader;s.init();s.setUniformi("glyphs",0);s.setUniformi("halo",1);s.setUniformf("resolution",width,height);
             s.setUniformf("origin",bounds[0]*sr.getScaleFactor(),bounds[1]*sr.getScaleFactor());s.setUniformf("extent",bounds[2]*sr.getScaleFactor(),bounds[3]*sr.getScaleFactor());
-            UiEffects.upload(s,me.youngjibbit.utils.Theme.getDefaultTheme());s.setUniformi("useShared",style!=0&&!localGradient?1:0);color(s,"first",first);color(s,"second",second);s.setUniformi("style",style);s.setUniformf("phase",animate?localPhase:-1);s.setUniformf("strength",glow?strength:0);
+            UiEffects.upload(s,me.youngjibbit.utils.Theme.getDefaultTheme());s.setUniformi("useShared",style!=0&&!localGradient?1:0);color(s,"first",first);color(s,"second",second);
+            int haloMode=settings!=null&&"On".equals(settings.textGlow.getValue())?("Theme".equals(settings.textGlowColor.getValue())?2:1):0;
+            s.setUniformi("globalHalo",haloMode);
+            me.youngjibbit.utils.Theme globalTheme=me.youngjibbit.utils.Theme.resolve(me.youngjibbit.utils.Theme.getDefaultTheme());
+            color(s,"globalFirst",globalTheme.getPrimaryGradientRGB());color(s,"globalSecond",globalTheme.getSecondaryGradientRGB());
+            s.setUniformi("style",style);s.setUniformf("phase",animate?localPhase:-1);s.setUniformf("strength",glow?strength:0);
             ShaderUtil.drawQuads();s.unload();if(RenderDiagnostics.enabled)RenderDiagnostics.composites++;
         }
     }

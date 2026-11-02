@@ -22,7 +22,8 @@ public class Qa02SettingsTest {
         assertArrayEquals(new String[]{"Follow Global","Obsidian","Aurora","Neon Edge","Minimal"},v.getOptions());
         List<Value<?>> group=c.groups().get("Notifications");assertSame(v,group.get(group.indexOf(c.notificationDesign)+1));
         int count=0;for(List<Value<?>> values:c.groups().values())for(Value<?> each:values)if(each==v)count++;
-        assertEquals(1,count);assertTrue(v.isVisible());assertEquals(50,c.getValues().size());
+        assertEquals(1,count);assertTrue(v.isVisible());assertEquals(55,c.getValues().size());
+        assertEquals(5,c.groups().get("Typography").size());
         assertSame(v,c.getValues().get(49)); // no old registration index moves
     }
     @Test public void allTwentySelectorPairsRoundTripThroughRealCodec() throws Exception {
@@ -62,7 +63,7 @@ public class Qa02SettingsTest {
         List<String> expected=new ArrayList<>(Arrays.asList((String[])before.get(null)));
         int i=expected.indexOf("notifications|Notifications|true|");
         expected.addAll(i,Arrays.asList("gradient_method|Gradient Method|Flow|Flow,Ping-Pong,Pulse","ambient_motion|Ambient Motion|true|","semantic_color_priority|Semantic Color Priority|true|"));
-        List<String> actual=new ArrayList<>();for(Value<?> v:new ClientSettings().getValues())if(!v.getId().equals("notification_theme"))
+        List<String> actual=new ArrayList<>();for(Value<?> v:new ClientSettings().getValues())if(!Arrays.asList("notification_theme","ui_font","text_glow","text_glow_strength","text_glow_radius","text_glow_color").contains(v.getId()))
             actual.add(v.getId()+"|"+v.getName()+"|"+v.getDefaultValue()+"|"+(v instanceof ComboValue?String.join(",",((ComboValue)v).getOptions()):""));
         assertEquals(49,expected.size());assertEquals(expected,actual);
     }

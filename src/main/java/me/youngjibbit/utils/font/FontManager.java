@@ -64,6 +64,31 @@ public class FontManager implements AutoCloseable {
 
     /** Lookup and metrics are CPU-only; the renderer enforces ownership when drawing. */
     public synchronized TTFFontRenderer getFont(String key) {
+        me.youngjibbit.module.impl.client.ClientSettings settings=me.youngjibbit.module.impl.client.ClientSettings.current();
+        return getLocalFont(resolveKey(key,settings==null?"Original":settings.fontFamily.getValue()));
+    }
+
+    /** Explicit module font choices bypass the global UI family; icons always retain their face. */
+    public static String resolveKey(String key,String family) {
+        int split=key==null?-1:key.lastIndexOf(' ');
+        if(split<1||family==null||"Original".equals(family))return key;
+        String face=key.substring(0,split);
+        if((!FACES.containsKey(face)&&!face.equals("Verdana Bold"))||face.equals("icon")||face.equals("icon1")||face.equals("iOSIcons"))return key;
+        String weight=face.endsWith("Bold")?"Bold":face.endsWith("Medium")?"Medium":"Regular";
+        String resolved;
+        switch(family){
+            case "DM Sans":resolved="DmSans"+weight;break;
+            case "Inter":resolved="Inter-"+weight;break;
+            case "Poppins":resolved="Poppins-"+weight;break;
+            case "Product Sans":resolved="Product-Sans-"+weight;break;
+            case "SF Pro":resolved="SFProText-"+weight;break;
+            case "Tenorite":resolved="Tenorite"+("Bold".equals(weight)?"Bold":"Regular");break;
+            default:return key;
+        }
+        return resolved+key.substring(split);
+    }
+
+    public synchronized TTFFontRenderer getLocalFont(String key) {
         if (closed) throw new IllegalStateException("FontManager is closed");
         TTFFontRenderer cached = fonts.get(key);
         if (cached != null) return cached;
@@ -99,7 +124,8 @@ public class FontManager implements AutoCloseable {
                 return fallback();
             }
         }
-        TTFFontRenderer renderer = new TTFFontRenderer(base.deriveFont(Font.PLAIN, (float) size), renderThread);
+        TTFFontRenderer renderer = new TTFFontRenderer(base.deriveFont(Font.PLAIN, (float) size), renderThread)
+                .textEffects(!face.equals("icon")&&!face.equals("icon1")&&!face.equals("iOSIcons"));
         fonts.put(key, renderer);
         return renderer;
     }

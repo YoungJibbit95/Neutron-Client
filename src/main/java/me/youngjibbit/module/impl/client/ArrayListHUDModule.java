@@ -39,7 +39,7 @@ import java.util.Set;
 public class ArrayListHUDModule extends Module {
 
     private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Glass", "Compact", "BasicV2", "Basic", "Rounded", "None"}, 0);
-    private final ComboValue font = new ComboValue("Font", this, new String[]{"DmSans", "Product-Sans", "Poppins", "Minecraft", "Inter", "SFPro", "KhmerOureang"}, 0);
+    private final ComboValue font = new ComboValue("Font", this, new String[]{"DmSans", "Product-Sans", "Poppins", "Minecraft", "Inter", "SFPro", "KhmerOureang", "Follow global"}, 7);
     private final ComboValue fontMode = new ComboValue("Font Strength", this, new String[]{"Regular", "Medium", "Bold"}, 1);
     private final CheckBoxValue background = new CheckBoxValue("Background", this, true);
     private final CheckBoxValue blur = new CheckBoxValue("Blur", this, true);
@@ -214,12 +214,9 @@ public class ArrayListHUDModule extends Module {
             try {
                 GL11.glTranslatef(row.textX,row.textY,0);
                 GL11.glScalef(metrics.scale,metrics.scale,1);
-                for (int i=0;i<metrics.glyphs.length;i++) {
-                    float offset=metrics.glyphs.length<=1?0:(float)i/metrics.glyphs.length;
-                    int color=UiEffects.alpha(-1,row.progress);
-                    if (metrics.renderer==null) Wrapper.mc.fontRendererObj.drawStringWithShadow(metrics.glyphs[i],metrics.positions[i],0,color);
-                    else metrics.renderer.drawString(metrics.glyphs[i],metrics.positions[i],0,color);
-                }
+                int color=UiEffects.alpha(-1,row.progress);
+                if(metrics.renderer==null)Wrapper.mc.fontRendererObj.drawStringWithShadow(metrics.label,0,0,color);
+                else metrics.renderer.drawString(metrics.label,0,0,color);
             } finally { GL11.glPopMatrix(); }
         }
     }
@@ -227,21 +224,11 @@ public class ArrayListHUDModule extends Module {
     /** The same glyph advances drive measurement, sorting, clipping and drawing. No width fudge factor. */
     private static final class Metrics {
         final String label;
-        final String[] glyphs;
-        final float[] positions;
         final TTFFontRenderer renderer;
         final float scale,width,height;
         Metrics(String label,TTFFontRenderer renderer,float scale) {
-            this.label=label; this.renderer=renderer; this.scale=scale;
-            glyphs=new String[label.length()]; positions=new float[label.length()];
-            float advance=0,extent=0;
-            for (int i=0;i<label.length();i++) {
-                glyphs[i]=String.valueOf(label.charAt(i)); positions[i]=advance;
-                float width=renderer==null?Wrapper.mc.fontRendererObj.getStringWidth(glyphs[i]):renderer.getWidth(glyphs[i]);
-                extent=Math.max(extent,advance+width);
-                advance+=renderer==null?width:width-1.2f;
-            }
-            width=(extent+(renderer==null?1:0))*scale;
+            this.label=label;this.renderer=renderer;this.scale=scale;
+            width=(renderer==null?Wrapper.mc.fontRendererObj.getStringWidth(label)+1:renderer.getWidth(label))*scale;
             height=(renderer==null?Wrapper.mc.fontRendererObj.FONT_HEIGHT:renderer.getHeight("Ay"))*scale;
         }
     }
@@ -256,20 +243,21 @@ public class ArrayListHUDModule extends Module {
 
     private TTFFontRenderer getFontRenderer() {
         String strength = fontMode.getValue();
+        if("Follow global".equals(font.getValue()))return Pulsar.INSTANCE.getFontManager().getFont("DmSans"+toDmSansWeight(strength)+" 20");
         switch (font.getValue()) {
             case "Poppins":
-                return Pulsar.INSTANCE.getFontManager().getFont("Poppins-" + toFontWeight(strength) + " 20");
+                return Pulsar.INSTANCE.getFontManager().getLocalFont("Poppins-" + toFontWeight(strength) + " 20");
             case "Product-Sans":
-                return Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-" + toFontWeight(strength) + " 20");
+                return Pulsar.INSTANCE.getFontManager().getLocalFont("Product-Sans-" + toFontWeight(strength) + " 20");
             case "Inter":
-                return Pulsar.INSTANCE.getFontManager().getFont("Inter-" + toFontWeight(strength) + " 20");
+                return Pulsar.INSTANCE.getFontManager().getLocalFont("Inter-" + toFontWeight(strength) + " 20");
             case "SFPro":
-                return Pulsar.INSTANCE.getFontManager().getFont("SFProText-" + toFontWeight(strength) + " 20");
+                return Pulsar.INSTANCE.getFontManager().getLocalFont("SFProText-" + toFontWeight(strength) + " 20");
             case "KhmerOureang":
-                return Pulsar.INSTANCE.getFontManager().getFont("KhmerOureang 20");
+                return Pulsar.INSTANCE.getFontManager().getLocalFont("KhmerOureang 20");
             case "DmSans":
             default:
-                return Pulsar.INSTANCE.getFontManager().getFont("DmSans" + toDmSansWeight(strength) + " 20");
+                return Pulsar.INSTANCE.getFontManager().getLocalFont("DmSans" + toDmSansWeight(strength) + " 20");
         }
     }
 

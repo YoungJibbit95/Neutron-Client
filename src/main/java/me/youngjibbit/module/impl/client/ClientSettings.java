@@ -54,6 +54,13 @@ public class ClientSettings extends Module {
     // Append registration, preserving every existing Value index. Group display is adjacent to Design.
     public final ComboValue notificationTheme=new ComboValue("Notification Theme",this,new String[]{"Follow Global","Obsidian","Aurora","Neon Edge","Minimal"},0);
 
+    // Append new registrations: existing config ids and legacy Value indices stay stable.
+    public final ComboValue fontFamily=new ComboValue("UI Font",this,new String[]{"Original","DM Sans","Inter","Poppins","Product Sans","SF Pro","Tenorite"},0);
+    public final ComboValue textGlow=new ComboValue("Text Glow",this,new String[]{"Module settings","Off","On"},0);
+    public final SliderValue textGlowStrength=new SliderValue("Text Glow Strength",this,.45,0,1);
+    public final SliderValue textGlowRadius=new SliderValue("Text Glow Radius",this,1.5,.5,3);
+    public final ComboValue textGlowColor=new ComboValue("Text Glow Color",this,new String[]{"Text","Theme"},0);
+
     private ComboValue direction(String name){return new ComboValue(name,this,new String[]{"Theme","Vertical","Horizontal","Up","Left"},0);}
     private ComboValue motion(String name){return new ComboValue(name,this,new String[]{"Theme","Static","Animated","Solid"},0);}
     private SliderValue speed(String name){return new SliderValue(name,this,.18,.02,1);}
@@ -65,6 +72,7 @@ public class ClientSettings extends Module {
         groups.put("Glow",Arrays.asList(glow,glowIntensity,glowRadius));
         groups.put("Gradients / Motion",Arrays.asList(gradients,synchronize,direction,gradientMotion,gradientMethod,gradientSpeed,textDirection,textMotion,textSpeed,borderDirection,borderMotion,borderSpeed,glowDirection,glowMotion,glowSpeed,animations,reducedMotion,motionIntensity,ambientMotion,semanticColorPriority));
         groups.put("Notifications",Arrays.asList(notifications,notificationDesign,notificationTheme,notificationPosition,notificationDuration,notificationWidth,notificationVisible,notificationQueue,info,success,warnings,errors));
+        groups.put("Typography",Arrays.asList(fontFamily,textGlow,textGlowStrength,textGlowRadius,textGlowColor));
         return groups;
     }
     public ClientSettings(){
@@ -82,6 +90,7 @@ public class ClientSettings extends Module {
         // Only the new appearance key has this migration default. Imported keys still win,
         // and callbacks/persistence retain the existing config batch owner.
         notificationTheme.reset();
+        fontFamily.reset();textGlow.reset();textGlowStrength.reset();textGlowRadius.reset();textGlowColor.reset();
     }
     @Override public void onValueChange(){me.youngjibbit.utils.render.UiEffects.invalidate();}
     @Override public void onEnable(){
