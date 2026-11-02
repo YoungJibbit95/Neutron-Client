@@ -57,8 +57,8 @@ public class ThemeConfigIntegrationTest {
   write(configs.resolve("Invalid.json"),"{\"version\":2,\"modules\":{\"synthetic\":{\"settings\":{\"flag\":true}},\"theme\":{\"settings\":{\"theme\":\"not-a-theme\"}}}}");assertFalse(cfg.loadConfig("Invalid"));assertFalse(sample.flag.getValue());assertEquals("PinkLemonade",module.selectedTheme.getValue());
  }
  @Test public void liveChoiceListUsesIdsAndPublicIndexSetter()throws Exception{
-  assertEquals(19,module.selectedTheme.getOptions().length);String id;
-  try(ThemeDraft d=new ThemeDraft(catalog,module.selectedTheme::setValue)){d.duplicate();id=d.reference();d.title.setValue("Friendly label");d.save();}assertEquals(20,module.selectedTheme.getOptions().length);assertEquals("Friendly label",ThemeSelectionValue.label(id));module.selectedTheme.setSelectedIndex(0);assertEquals("BlackLight",module.selectedTheme.getValue());module.selectedTheme.setSelectedIndex(19);assertEquals(id,module.selectedTheme.getValue());assertEquals(19,module.selectedTheme.getSelectedIndex());
+  assertEquals(20,module.selectedTheme.getOptions().length);String id;
+  try(ThemeDraft d=new ThemeDraft(catalog,module.selectedTheme::setValue)){d.duplicate();id=d.reference();d.title.setValue("Friendly label");d.save();}assertEquals(21,module.selectedTheme.getOptions().length);assertEquals("Friendly label",ThemeSelectionValue.label(id));module.selectedTheme.setSelectedIndex(0);assertEquals("BlackLight",module.selectedTheme.getValue());module.selectedTheme.setSelectedIndex(20);assertEquals(id,module.selectedTheme.getValue());assertEquals(20,module.selectedTheme.getSelectedIndex());
  }
  @Test public void customThemeAndIndependentMovefixModesSurviveOneConfigAndRestart()throws Exception{
   me.youngjibbit.module.impl.combat.Aura aura=new me.youngjibbit.module.impl.combat.Aura();

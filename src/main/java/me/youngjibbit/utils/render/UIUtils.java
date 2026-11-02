@@ -73,6 +73,7 @@ public class UIUtils
         roundedGradientShader.setUniformf("uiFirst",topLeft.getRed()/255f,topLeft.getGreen()/255f,topLeft.getBlue()/255f,topLeft.getAlpha()/255f);
         roundedGradientShader.setUniformf("uiSecond",gradientEnd.getRed()/255f,gradientEnd.getGreen()/255f,gradientEnd.getBlue()/255f,gradientEnd.getAlpha()/255f);
         UiEffects.upload(roundedGradientShader,UiEffects.theme(me.youngjibbit.utils.Theme.getDefaultTheme()));
+        if(literalGradients>0)roundedGradientShader.setUniformi("uiEnabled",0);
         setupRoundedRectUniforms(x, y, width, height, radius, roundedGradientShader);
         //Top left
         roundedGradientShader.setUniformf("color1", topLeft.getRed() / 255f, topLeft.getGreen() / 255f, topLeft.getBlue() / 255f, topLeft.getAlpha() / 255f);
@@ -159,9 +160,16 @@ public class UIUtils
             }
     }
 
-    private static int decorations,sceneMasks,exactGeometry;
+    private static int decorations,sceneMasks,exactGeometry,literalGradients;
     /** Literal color swatches, identity tiles and semantic badges keep their color while sharing rounded geometry. */
     public static void drawDecorationRound(float x,float y,float width,float height,float radius,Color color){decorations++;try{drawRound(x,y,width,height,radius,color);}finally{decorations--;}}
+    /** Color pickers and preset swatches display their literal colors, independent of global effects. */
+    public static void drawLiteralGradient(float x,float y,float width,float height,float radius,Color first,Color second){
+        decorations++;literalGradients++;try{drawGradientHorizontal(x,y,width,height,radius,first,second);}finally{literalGradients--;decorations--;}
+    }
+    public static void drawLiteralGradientVertical(float x,float y,float width,float height,float radius,Color first,Color second){
+        decorations++;literalGradients++;try{drawGradientVertical(x,y,width,height,radius,first,second);}finally{literalGradients--;decorations--;}
+    }
     public static void drawWorldMaskRound(float x,float y,float width,float height,float radius,Color color){decorations++;exactGeometry++;try{drawRound(x,y,width,height,radius,color);}finally{exactGeometry--;decorations--;}}
     public static void drawSceneRound(float x,float y,float width,float height,float radius){sceneMasks++;try{drawRound(x,y,width,height,radius,Color.WHITE);}finally{sceneMasks--;}}
     private static boolean material(float width,float height,float radius,Color fill){return sceneMasks>0||decorations==0&&width>8&&height>8&&radius<Math.min(width,height)/2&&fill.getAlpha()>64;}

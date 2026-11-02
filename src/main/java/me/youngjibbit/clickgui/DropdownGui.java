@@ -24,13 +24,15 @@ import java.util.Locale;
 
 /** Floating category columns using the same values, controls and scene compositor as PanelGUI. */
 public class DropdownGui extends GuiScreen {
-    private static final float MARGIN = 10, GAP = 12, HEADER = 19, COMPACT_WIDTH = 108;
+    private static final float MARGIN = 10, GAP = 12, HEADER = 17, COMPACT_WIDTH = 104;
     private static final Category[] ORDER = {Category.Combat, Category.Movement, Category.Render,
             Category.Player, Category.Exploit, Category.World, Category.Ghost, Category.Client};
     private final List<CategoryPanel> panels = new ArrayList<>();
     private final ArrayListSurface scene = new ArrayListSurface(), toolbarSurface = new ArrayListSurface();
+    private final me.youngjibbit.gui.UiSpring[] toolbarMotion={new me.youngjibbit.gui.UiSpring(),new me.youngjibbit.gui.UiSpring(),new me.youngjibbit.gui.UiSpring()};
     private final TextEffects headingEffects = new TextEffects();
-    private CategoryPanel dragging;
+    private CategoryPanel dragging, scrolling;
+    private float scrollGrab;
     private float grabX, grabY;
     private int layoutWidth, layoutHeight;
     private float compactWidth = COMPACT_WIDTH;
@@ -46,9 +48,13 @@ public class DropdownGui extends GuiScreen {
         final ArrayListSurface surface = new ArrayListSurface();
         float x, y, width, height, slotHeight, scroll, targetScroll, maxScroll;
         boolean open = true;
+        final ClickAnimation reveal = new ClickAnimation(200, 1, me.youngjibbit.utils.animations.Direction.FORWARDS);
+        float expandedBody, contentHeight, openness=1;
+        final me.youngjibbit.gui.UiSpring headerMotion=new me.youngjibbit.gui.UiSpring();
         ClipRect viewport = new ClipRect(0, 0, 0, 0);
         CategoryPanel(Category category) {
             this.category = category;
+            reveal.timerUtil.setTime(System.currentTimeMillis()-200);
             for (Module module : Pulsar.INSTANCE.getMm().getModules(category)) all.add(new DropdownModule(module));
             rows.addAll(all);
         }
@@ -90,32 +96,35 @@ public class DropdownGui extends GuiScreen {
         }
     }
 
-    private void layout(float dt) {
+    protected void layout(float dt) {
         for (CategoryPanel panel : panels) {
             float content = 0;
-            boolean expanded = false;
+            panel.width = Math.min(compactWidth, width - 2 * MARGIN);
             for (DropdownModule row : panel.rows) {
+                row.setWidth(panel.width - 2);
                 row.updateAnimation();
                 content += row.getHeight();
-                // Keep width during the closing animation to avoid squeezing live controls.
-                expanded |= row.isOpen() || row.getHeight() > DropdownModule.ROW_HEIGHT + .1f;
             }
-            panel.width = Math.min(expanded ? 220 : compactWidth, width - 2 * MARGIN);
             panel.x = Math.max(MARGIN, Math.min(panel.x, width - panel.width - MARGIN));
             panel.y = Math.max(MARGIN, Math.min(panel.y, bottom() - HEADER - 2));
             boolean visible = panel.open || !search.trim().isEmpty();
-            float body = visible ? Math.min(Math.max(DropdownModule.ROW_HEIGHT, content),
-                    Math.max(0, Math.min(panel.slotHeight - HEADER - 2, bottom() - panel.y - HEADER - 2))) : 0;
-            panel.height = HEADER + (visible ? body + 2 : 0);
+            panel.reveal.setDirection(visible ? me.youngjibbit.utils.animations.Direction.FORWARDS : me.youngjibbit.utils.animations.Direction.BACKWARDS);
+            panel.expandedBody = Math.min(Math.max(DropdownModule.ROW_HEIGHT, content),
+                    Math.max(0, Math.min(panel.slotHeight - HEADER - 2, bottom() - panel.y - HEADER - 2)));
+            float reveal = UiEffects.motion() ? panel.reveal.getOutput().floatValue() : visible ? 1 : 0;
+            panel.openness=reveal;
+            float body = panel.expandedBody * reveal;
+            panel.contentHeight = content;
+            panel.height = HEADER + body + 2 * reveal;
             panel.viewport = new ClipRect(panel.x + 1, panel.y + HEADER, panel.width - 2, body);
-            panel.maxScroll = Math.max(0, content - body);
+            // Preserve the scroll destination through collapse; clipping alone hides the rows.
+            panel.maxScroll = Math.max(0, content - panel.expandedBody);
             panel.targetScroll = Math.max(-panel.maxScroll, Math.min(0, panel.targetScroll));
             panel.scroll += (panel.targetScroll - panel.scroll) * UiEffects.response(dt, 22);
             panel.scroll = Math.max(-panel.maxScroll, Math.min(0, panel.scroll));
             float rowY = panel.viewport.y + panel.scroll;
             for (DropdownModule row : panel.rows) {
-                row.layout(panel.viewport.x, rowY, panel.viewport.width, visible ? panel.viewport : new ClipRect(0, 0, 0, 0));
-                row.setGradientPosition((rowY - panel.viewport.y) / Math.max(1, body));
+                row.layout(panel.viewport.x, rowY, panel.viewport.width, panel.viewport);
                 rowY += row.getHeight();
             }
         }
@@ -129,9 +138,10 @@ public class DropdownGui extends GuiScreen {
         if (dragging != null) { dragging.x = mouseX - grabX; dragging.y = mouseY - grabY; }
         layout(dt);
         CategoryPanel top = panelAt(mouseX, mouseY);
+        for(CategoryPanel panel:panels)panel.headerMotion.step(dt,panel==top&&panel.header().contains(mouseX,mouseY),false,dragging==panel,binding==null,me.youngjibbit.module.impl.client.ClientSettings.current());
         for (CategoryPanel panel : panels) for (DropdownModule row : panel.all) {
             boolean shown = panel.rows.contains(row) && (panel.open || !search.trim().isEmpty());
-            boolean available = shown && dragging == null && binding == null;
+            boolean available = shown && dragging == null && scrolling == null && binding == null;
             row.advanceMotion(dt, panel == top ? mouseX : -1, panel == top ? mouseY : -1, focus == row, pressed == row,
                     available && !panel.viewport.intersect(row.presentationBounds()).isEmpty());
             for (Component.Sub<?> value : row.presentationValues()) {
@@ -148,58 +158,63 @@ public class DropdownGui extends GuiScreen {
             for (CategoryPanel panel : panels) drawPanel(panel, theme,
                     panel == top && dragging == null && binding == null ? mouseX : -1,
                     panel == top && dragging == null && binding == null ? mouseY : -1);
-            drawToolbar(theme);
+            drawToolbar(theme,mouseX,mouseY,dt);
             if (binding != null) drawBinding();
             else drawTooltip(mouseX, mouseY);
         });
     }
 
     private void drawPanel(CategoryPanel panel, Theme theme, int mouseX, int mouseY) {
+        try (UiEffects.GradientSpace gradient = UiEffects.gradientSpace(panel.x,panel.y,panel.width,Math.max(HEADER,panel.height))) {
         panel.surface.panel(panel.x, panel.y, panel.width, panel.height, 3, theme, true, true, true, 8, .88f, 1, () -> {
             try (GuiClip ignored = GuiClip.push(panel.bounds())) {
-                // Secondary -> primary yields the reference's pink-to-cyan ramp for Cotton_candy.
+                // The entire column, including its halo, uses the same gradient domain and clock.
                 UIUtils.drawDecorationGradientVertical(panel.x, panel.y, panel.width, HEADER, 3,
-                        UiEffects.color(theme.getSecondaryGradientRGB(), .88f),
-                        UiEffects.color(theme.getSecondaryGradientRGB(), .60f));
-                TTFFontRenderer heading = Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18");
+                        UiEffects.color(theme.getPrimaryGradientRGB(), .94f),
+                        UiEffects.color(theme.getSecondaryGradientRGB(), .94f));
+                TTFFontRenderer heading = Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 16");
                 ClickGUI settings = (ClickGUI)Pulsar.INSTANCE.getMm().getModule(ClickGUI.class);
                 boolean glow = settings != null && settings.getBooleanSetting("Heading Glow").getValue();
                 int headingInk = ink(theme);
-                float headingX = panel.x + (panel.width - heading.getWidth(panel.category.name())) / 2;
+                float headingX = panel.x + (panel.width - heading.getWidth(panel.category.name()) - 10) / 2;
                 float headingY = panel.y + (HEADER - heading.getHeight(panel.category.name())) / 2;
                 if (glow && UiEffects.glowEnabled()) {
                     headingEffects.draw(heading, panel.category.name(), headingX, headingY,
                             headingInk, headingInk, 1, false, theme.getAnimationSpeed(), true,
                             theme.isCustom() ? theme.getGlowStrength() : .4f, theme.isCustom() ? theme.getGlowRadius() : 3, false);
                 } else heading.drawString(panel.category.name(), headingX, headingY, headingInk);
+                String[] icons={"c","f","d","d","e","t","f","a"};
+                Pulsar.INSTANCE.fontManager.getFont("icon1 16").drawString(icons[panel.category.ordinal()],
+                        headingX+heading.getWidth(panel.category.name())+3,panel.y+5,headingInk);
                 float markX = panel.x + panel.width - 10, markY = panel.y + HEADER / 2;
                 UIUtils.drawDecorationRound(markX, markY, 5, 1, 0, new Color(ink(theme), true));
-                if (!panel.open && search.trim().isEmpty())
-                    UIUtils.drawDecorationRound(markX + 2, markY - 2, 1, 5, 0, new Color(ink(theme), true));
+                if(panel.openness<.99f)UIUtils.drawDecorationRound(markX+2,markY-2*(1-panel.openness),1,5*(1-panel.openness),0,new Color(ink(theme),true));
+                GuiStyle.feedback(panel.header(),panel.headerMotion);
                 try (GuiClip content = GuiClip.push(panel.viewport)) {
                     if (panel.rows.isEmpty()) font().drawCenteredString(search.isEmpty() ? "No modules" : "No results",
                             panel.x + panel.width / 2, panel.viewport.y + 3, ink(theme));
-                    if (panel.open || !search.trim().isEmpty()) for (DropdownModule row : panel.rows)
+                    if (panel.viewport.height > .01f) for (DropdownModule row : panel.rows)
                         if (!panel.viewport.intersect(new ClipRect(row.getX(), row.getY(), row.getWidth(), row.getHeight())).isEmpty())
                             row.drawScreen(mouseX, mouseY);
                     if (panel.maxScroll > 0 && panel.viewport.height > 0) {
-                        float thumb = Math.max(10, panel.viewport.height * panel.viewport.height / (panel.viewport.height + panel.maxScroll));
-                        float sy = panel.viewport.y - panel.scroll / panel.maxScroll * (panel.viewport.height - thumb);
-                        UIUtils.drawDecorationRound(panel.x + panel.width - 2, sy, 1, thumb, 0, new Color(ink(theme), true));
+                        ClipRect thumb = scrollThumb(panel);
+                        UIUtils.drawDecorationRound(thumb.x,thumb.y,thumb.width,thumb.height,1,UiEffects.color(ink(theme),.75f));
                     }
                 }
             }
         });
+        }
     }
 
     private TTFFontRenderer font() { return ClickControlStyle.font(); }
     private static int ink(Theme theme) { return theme.isCustom() ? theme.getTextColor().getRGB() : 0xfff4f0fa; }
-    protected ClipRect toolbarBounds() { return new ClipRect((width - Math.min(310, width - 20)) / 2f, height - 32, Math.min(310, width - 20), 22); }
-    protected ClipRect searchBounds() { ClipRect r = toolbarBounds(); return new ClipRect(r.x + 4, r.y + 2, r.width - 118, 18); }
-    private ClipRect themeBounds() { ClipRect r = toolbarBounds(); return new ClipRect(r.x + r.width - 108, r.y + 2, 62, 18); }
+    protected ClipRect toolbarBounds() { return new ClipRect((width - Math.min(382, width - 20)) / 2f, height - 32, Math.min(382, width - 20), 22); }
+    protected ClipRect searchBounds() { ClipRect r = toolbarBounds(); return new ClipRect(r.x + 4, r.y + 2, r.width - 170, 18); }
+    private ClipRect configBounds() { ClipRect r = toolbarBounds(); return new ClipRect(r.x + r.width - 162,r.y+2,52,18); }
+    private ClipRect themeBounds() { ClipRect r = toolbarBounds(); return new ClipRect(r.x + r.width - 106, r.y + 2, 58, 18); }
     private ClipRect resetBounds() { ClipRect r = toolbarBounds(); return new ClipRect(r.x + r.width - 42, r.y + 2, 38, 18); }
 
-    private void drawToolbar(Theme theme) {
+    private void drawToolbar(Theme theme,int mouseX,int mouseY,float dt) {
         ClipRect r = toolbarBounds();
         toolbarSurface.panel(r.x, r.y, r.width, r.height, 4, theme, true, true, true, 8, .88f, .8f, () -> {
             ClipRect s = searchBounds();
@@ -209,15 +224,18 @@ public class DropdownGui extends GuiScreen {
                 font().drawString(ClickControlStyle.fit(font(), text, s.width - 22), s.x + 5, s.y + 4, ink(theme));
             }
             if (!search.isEmpty()) font().drawString("x", s.x + s.width - 11, s.y + 4, ink(theme));
-            button(themeBounds(), "Themes", theme);
-            button(resetBounds(), "Reset", theme);
+            button(configBounds(), "Configs", theme,0,mouseX,mouseY,dt);
+            button(themeBounds(), "Themes", theme,1,mouseX,mouseY,dt);
+            button(resetBounds(), "Reset", theme,2,mouseX,mouseY,dt);
         });
         String hint = "LMB Toggle   RMB Settings   MMB Bind";
         font().drawCenteredString(hint, width / 2f, height - 45, ink(theme));
     }
 
-    private void button(ClipRect r, String text, Theme theme) {
+    private void button(ClipRect r, String text, Theme theme,int index,int mouseX,int mouseY,float dt) {
+        toolbarMotion[index].step(dt,r.contains(mouseX,mouseY),false,false,binding==null,me.youngjibbit.module.impl.client.ClientSettings.current());
         GuiStyle.panel(r.x, r.y, r.width, r.height, 3, .25f, new Color(22, 22, 26));
+        GuiStyle.feedback(r,toolbarMotion[index]);
         font().drawCenteredString(text, r.x + r.width / 2, r.y + 4, ink(theme));
     }
 
@@ -246,6 +264,7 @@ public class DropdownGui extends GuiScreen {
             if (x >= searchBounds().x + searchBounds().width - 16) { search = ""; updateSearch(); }
             return;
         }
+        if (button == 0 && configBounds().contains(x,y)) { openConfigs(); return; }
         if (button == 0 && themeBounds().contains(x, y)) { openThemeEditor(); return; }
         if (button == 0 && resetBounds().contains(x, y)) { cancelInteraction(); resetLayout(); layout(0); return; }
         searchFocus = false;
@@ -263,6 +282,10 @@ public class DropdownGui extends GuiScreen {
             } else if (button == 0) { dragging = panel; grabX = x - panel.x; grabY = y - panel.y; }
             return;
         }
+        if(button==0 && panel.maxScroll>0 && panel.viewport.height>0 && x>=panel.x+panel.width-3 && panel.viewport.contains(x,y)) {
+            scrolling=panel;ClipRect thumb=scrollThumb(panel);scrollGrab=thumb.contains(x,y)?y-thumb.y:thumb.height/2;
+            dragScrollbar(y);return;
+        }
         Component target = componentAt(panel, x, y);
         setFocus(target);
         if (button == 2 && target instanceof DropdownModule) {
@@ -277,10 +300,28 @@ public class DropdownGui extends GuiScreen {
     }
 
     @Override protected void mouseReleased(int x, int y, int button) {
-        dragging = null;
+        dragging = scrolling = null;
         pressed = null;
         releaseControls();
         super.mouseReleased(x, y, button);
+    }
+
+    private ClipRect scrollThumb(CategoryPanel panel) {
+        float thumb=Math.min(panel.viewport.height,Math.max(10,panel.viewport.height*panel.expandedBody/Math.max(1,panel.contentHeight)));
+        float sy=panel.viewport.y-(panel.maxScroll==0?0:panel.scroll/panel.maxScroll)*(panel.viewport.height-thumb);
+        return new ClipRect(panel.x+panel.width-3,sy,2,thumb);
+    }
+    private void dragScrollbar(int mouseY) {
+        if(scrolling==null)return;
+        ClipRect thumb=scrollThumb(scrolling);
+        float travel=Math.max(1,scrolling.viewport.height-thumb.height);
+        float progress=Math.max(0,Math.min(1,(mouseY-scrolling.viewport.y-scrollGrab)/travel));
+        scrolling.scroll=scrolling.targetScroll=-progress*scrolling.maxScroll;
+        layout(0);
+    }
+    @Override protected void mouseClickMove(int mouseX,int mouseY,int button,long elapsed) {
+        if(scrolling!=null){dragScrollbar(mouseY);return;}
+        if(button==0 && pressed!=null && dragging==null && binding==null)pressed.mouseDragged(mouseX,mouseY);
     }
 
     @Override public void handleMouseInput() throws IOException {
@@ -291,12 +332,12 @@ public class DropdownGui extends GuiScreen {
     }
 
     protected void scrollAt(int x, int y, int wheel) {
-        if (wheel == 0 || dragging != null || binding != null) return;
+        if (wheel == 0 || dragging != null || scrolling != null || binding != null) return;
         CategoryPanel panel = panelAt(x, y);
         if (panel == null || !panel.viewport.contains(x, y)) return;
         releaseControls();
         if (focus instanceof ClickSlider) ((ClickSlider)focus).cancelInput();
-        panel.targetScroll = Math.max(-panel.maxScroll, Math.min(0, panel.targetScroll + (wheel > 0 ? 32 : -32)));
+        panel.targetScroll = Math.max(-panel.maxScroll, Math.min(0, panel.targetScroll + wheel / 120f * 32));
     }
 
     private void updateSearch() {
@@ -330,6 +371,7 @@ public class DropdownGui extends GuiScreen {
             else focus.keyTyped(typed, key);
             return;
         }
+        if (ctrlDown() && key == Keyboard.KEY_O) { openConfigs(); return; }
         if (ctrlDown() && key == Keyboard.KEY_T) { openThemeEditor(); return; }
         if ((typed == '/' && !searchFocus) || (ctrlDown() && key == Keyboard.KEY_F)) { setFocus(null); searchFocus = true; return; }
         if (key == Keyboard.KEY_TAB) { navigate(shiftDown() ? -1 : 1); return; }
@@ -357,8 +399,10 @@ public class DropdownGui extends GuiScreen {
     protected boolean shiftDown() { return Keyboard.isCreated() && isShiftKeyDown(); }
     protected boolean ctrlDown() { return Keyboard.isCreated() && isCtrlKeyDown(); }
     protected void openThemeEditor() {
-        mc.displayGuiScreen(new ThemeEditorScreen(this, me.youngjibbit.theme.ThemeCatalog.global(), me.youngjibbit.theme.ThemeRuntime::select));
+        mc.displayGuiScreen(new ClickLibraryScreen(this, true));
     }
+
+    protected void openConfigs() { mc.displayGuiScreen(new ClickLibraryScreen(this, false)); }
 
     private List<Component> focusables() {
         List<Component> result = new ArrayList<>();
@@ -387,7 +431,7 @@ public class DropdownGui extends GuiScreen {
         if (owner == null) return;
         panels.remove(owner);
         panels.add(owner);
-        float top = component.getY(), bottom = top + (component instanceof DropdownModule ? DropdownModule.ROW_HEIGHT : 24);
+        float top = component.getY(), bottom = top + (component instanceof DropdownModule ? DropdownModule.ROW_HEIGHT : component.getHeight());
         float correction = top < owner.viewport.y ? owner.viewport.y - top
                 : bottom > owner.viewport.y + owner.viewport.height ? owner.viewport.y + owner.viewport.height - bottom : 0;
         owner.targetScroll = Math.max(-owner.maxScroll, Math.min(0, owner.targetScroll + correction));
@@ -403,7 +447,9 @@ public class DropdownGui extends GuiScreen {
 
     private void releaseControls() { for (CategoryPanel panel : panels) for (DropdownModule row : panel.all) row.mouseReleased(); }
     private void cancelInteraction() {
-        dragging = null;
+        dragging = scrolling = null;
+        for(me.youngjibbit.gui.UiSpring motion:toolbarMotion)motion.reset();
+        for(CategoryPanel panel:panels)panel.headerMotion.reset();
         focus = pressed = hovered = null;
         binding = null;
         searchFocus = false;
@@ -430,12 +476,18 @@ public class DropdownGui extends GuiScreen {
     private void drawTooltip(int x, int y) {
         Component target = dragging == null ? componentAt(panelAt(x, y), x, y) : null;
         if (target != hovered) { hovered = target; hoverStarted = System.nanoTime(); return; }
-        if (!(target instanceof DropdownModule) || System.nanoTime() - hoverStarted < 500_000_000L) return;
-        Module module = ((DropdownModule)target).getModule();
+        if (target == null || System.nanoTime() - hoverStarted < 500_000_000L) return;
+        String description;
+        if(target instanceof DropdownModule) {
+            Module module=((DropdownModule)target).getModule();description=module.getName()+": "+module.getDescription();
+        } else if(target instanceof Component.Sub) {
+            me.youngjibbit.value.Value<?> value=(me.youngjibbit.value.Value<?>)((Component.Sub<?>)target).getValue();
+            description=value.getName()+": "+UiEffects.settingOption(value,String.valueOf(value.getValue()));
+        } else return;
         float w = Math.min(265, width - 20);
         List<String> lines = new ArrayList<>();
         String line = "";
-        for (String word : (module.getName() + ": " + module.getDescription()).split(" ")) {
+        for (String word : description.split(" ")) {
             String next = line.isEmpty() ? word : line + " " + word;
             if (font().getWidth(next) > w - 16 && !line.isEmpty()) { lines.add(line); line = word; } else line = next;
         }
