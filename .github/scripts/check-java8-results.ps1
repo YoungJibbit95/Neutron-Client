@@ -12,6 +12,7 @@ if ($files.Count -eq 0) { throw 'No fresh Surefire XML suites; no test PASS can 
 
 $totals = [ordered]@{ suites = $files.Count; tests = 0; failures = 0; errors = 0; skipped = 0 }
 $skippedCases = @()
+$executedCases = @()
 foreach ($file in $files) {
     $suite = ([xml](Get-Content -LiteralPath $file.FullName -Raw)).testsuite
     foreach ($field in @('tests', 'failures', 'errors', 'skipped')) {
@@ -19,6 +20,7 @@ foreach ($file in $files) {
     }
     foreach ($case in $suite.testcase) {
         if ($null -ne $case.skipped) { $skippedCases += "$($case.classname).$($case.name)" }
+        else { $executedCases += "$($case.classname).$($case.name)" }
     }
 }
 $totals['skippedCases'] = $skippedCases
@@ -36,6 +38,10 @@ $expectedSkips = @(
 )
 if ($RequireNative) {
     if ($totals.skipped -ne 0) { throw 'Native acceptance requires zero skipped tests' }
+    $missingNativeCases = @($expectedSkips | Where-Object { $_ -cnotin $executedCases })
+    if ($missingNativeCases.Count -ne 0) {
+        throw ('Native acceptance requires all three native opt-in cases; missing: ' + ($missingNativeCases -join ', '))
+    }
 } else {
     $difference = @(Compare-Object ($expectedSkips | Sort-Object) ($skippedCases | Sort-Object))
     if ($difference.Count -ne 0 -or $totals.skipped -ne $expectedSkips.Count) {
