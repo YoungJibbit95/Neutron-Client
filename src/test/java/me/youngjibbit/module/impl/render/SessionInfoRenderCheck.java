@@ -73,6 +73,7 @@ public final class SessionInfoRenderCheck {
             if(Boolean.getBoolean("pulsar.menu.check")) me.youngjibbit.gui.MainMenuCheck.run(mc);
             if(Boolean.getBoolean("pulsar.neutron.ui.check")) me.youngjibbit.clickgui.NeutronUiRenderCheck.run(mc);
             if(Boolean.getBoolean("pulsar.settings.check")) ClientSettingsMenuCheck.run();
+            if(Boolean.getBoolean("pulsar.typography.check")) TypographyRenderCheck.run();
             if(Boolean.getBoolean("pulsar.global.check")) GlobalEffectsCheck.run();
             if(Boolean.getBoolean("pulsar.notifications.check")) NotificationRenderCheck.run();
             if(Boolean.getBoolean("pulsar.motion.check")) MotionRenderCheck.run();
@@ -109,8 +110,6 @@ public final class SessionInfoRenderCheck {
             SessionInfo.Frame frame=layout(NAME,sample());
             for(SessionInfo.TextRun text:frame.text) {
                 require(Math.abs(text.width-text.font.getWidth(text.text))<0.0001,"Text width mismatch");
-                float advance=0;
-                for(int i=0;i<text.text.length();i++){require(Math.abs(text.positions[i]-advance)<0.0001,"Glyph spacing mismatch");advance+=text.font.getWidth(String.valueOf(text.text.charAt(i)))-2;}
                 require(text.x>=0 && text.x+text.width<=frame.width+0.01,"Text overflow: "+text.text);
             }
             hud.setToggled(true);hud.setToggled(false);
