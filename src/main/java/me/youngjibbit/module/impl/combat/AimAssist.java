@@ -62,6 +62,11 @@ public class AimAssist extends Module {
         target=null;RuntimeServices.rotation().reset(ROTATION_SOURCE);CombatTargetTracker.clear(ROTATION_SOURCE);
     }
     @Override public void onEnable() { clearAim();super.onEnable(); }
+    @Override public void beginConfigUpdate() {
+        super.beginConfigUpdate();
+        // Missing legacy keys cannot inherit activation; explicit incoming values apply afterward.
+        rotationSettings.speedCurve.reset();
+    }
     @Override public void onDisable() { clearAim();super.onDisable(); }
     @Subscribe private final Listener<WorldEvent> world=new Listener<>(event->clearAim());
     @Subscribe private final Listener<TickEvent> context=new Listener<>(event->{if(!usable() || (target!=null && !validTarget(target,options())))clearAim();});

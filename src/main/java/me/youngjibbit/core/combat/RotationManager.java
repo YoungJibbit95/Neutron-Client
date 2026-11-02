@@ -44,6 +44,7 @@ public final class RotationManager {
     private static final long SCAFFOLD_RELEASE_NANOS = 200_000_000L;
     private boolean collecting, accepted, previousAccepted, hasEffective;
     private long sequence;
+    private long curveMotionSequence=Long.MIN_VALUE,curveMotionNanos;
     private float baseYaw, basePitch, effectiveYaw, effectivePitch;
     private String owner;
     private WeakReference<Object> connection = new WeakReference<>(null);
@@ -411,12 +412,13 @@ public final class RotationManager {
         collecting = false;
         scaffoldAcceptance = null;
         accepted = packetAccepted && Float.isFinite(yaw) && Float.isFinite(pitch) && pitch >= -90 && pitch <= 90;
-        if (!accepted) return;
+        if (!accepted) { invalidateUnownedSpeedCurves(null); return; }
         hasEffective = true;
         effectiveYaw = yaw;
         effectivePitch = clamp(pitch, -90, 90);
         owner = winner != null && Math.abs(MathHelper.wrapAngleTo180_float(winner.yaw - yaw)) < .001f
                 && Math.abs(winner.pitch - pitch) < .001f ? winner.source : null;
+        invalidateUnownedSpeedCurves(owner);
         if ("scaffold".equals(owner) && evidence != null && evidence.request == winner
                 && evidence.motionSequence == sequence && evidence.observation != null
                 && evidence.observation == RuntimeServices.observation() && evidence.outerTick >= 0
@@ -431,6 +433,21 @@ public final class RotationManager {
             state.pitch = effectivePitch;
             state.active = true;
         }
+    }
+
+    private void invalidateUnownedSpeedCurves(String acceptedSource) {
+        for (Map.Entry<String,RotationState> entry : states.entrySet()) {
+            RotationTrajectory trajectory=entry.getValue().trajectory;
+            if(trajectory.hasSpeedCurve() && !entry.getKey().equals(acceptedSource))trajectory.resetSpeedCurve();
+        }
+    }
+
+    /** Capture only when the feature is used: OFF retains its original clock-read order. */
+    private long curveMotionTime() {
+        if(curveMotionSequence!=sequence) {
+            curveMotionSequence=sequence;curveMotionNanos=clock.getAsLong();
+        }
+        return curveMotionNanos;
     }
 
     public boolean isOwner(String source) { currentScaffoldRelease(); return hasEffective && source.equals(owner); }
@@ -481,10 +498,17 @@ public final class RotationManager {
             accepted = false;
             previousAccepted = false;
             owner = null;
+            invalidateUnownedSpeedCurves(null);
         } else if (!hasEffective || Math.abs(MathHelper.wrapAngleTo180_float(effectiveYaw-yaw)) >= .001f
                 || Math.abs(effectivePitch-pitch) >= .001f) {
             scaffoldAcceptance = null;
             owner = null;
+            // Matching ordinary transport belongs to this acquisition; an unrelated
+            // observed/replayed pose withdraws it without changing packet authority.
+            String matchingSource = collecting && winner != null
+                    && Math.abs(MathHelper.wrapAngleTo180_float(winner.yaw-yaw)) < .001f
+                    && Math.abs(winner.pitch-pitch) < .001f ? winner.source : null;
+            invalidateUnownedSpeedCurves(matchingSource);
         }
         hasEffective = true;
         effectiveYaw = yaw;
@@ -570,7 +594,10 @@ public final class RotationManager {
         float fromYaw=visible?cameraYaw:collecting?baseYaw:state.active?state.yaw:cameraYaw;
         float fromPitch=visible?cameraPitch:collecting?basePitch:state.active?state.pitch:cameraPitch;
         if(profile.stopOnTarget && rays.canHitFrom(feet,target,fromYaw,fromPitch,profile.reach,profile.throughWalls)) {
-            state.trajectory.pause(target);return new float[]{fromYaw,fromPitch};
+            if(profile.speedCurve==RotationProfile.SpeedCurve.BEZIER) {
+                if(collecting)state.trajectory.pauseMotion(target,sequence,curveMotionTime());
+            } else state.trajectory.pause(target);
+            return new float[]{fromYaw,fromPitch};
         }
         Vec3 base=baseAimPoint(target,bestHitVec,box);
         if(profile.smartAim || profile.heuristics)base=visibleAimPoint(target,box,base,feet,fromYaw,fromPitch,profile,rays);
@@ -621,7 +648,13 @@ public final class RotationManager {
         RotationState state=state(source);
         float fromYaw=visible?cameraYaw:collecting?baseYaw:state.active?state.yaw:cameraYaw;
         float fromPitch=visible?cameraPitch:collecting?basePitch:state.active?state.pitch:cameraPitch;
-        float[] next=state.trajectory.advance(target,fromYaw,fromPitch,targetYaw,targetPitch,distance,profile);
+        float[] next;
+        if(profile.speedCurve==RotationProfile.SpeedCurve.BEZIER) {
+            if(!collecting)return new float[]{fromYaw,fromPitch};
+            next=state.trajectory.advanceMotion(target,fromYaw,fromPitch,targetYaw,targetPitch,distance,profile,sequence,curveMotionTime());
+        } else next=state.trajectory.advance(target,fromYaw,fromPitch,targetYaw,targetPitch,distance,profile);
+        // Existing nearest-grid rounding may add half a mouse quantum to a pre-GCD cap.
+        // Visible assistance stays relative to the camera; later manual input is preserved at resolve.
         return quantize(next[0],next[1],fromYaw,fromPitch,mc.gameSettings.mouseSensitivity);
     }
 
@@ -642,6 +675,7 @@ public final class RotationManager {
     }
 
     public void reset() {
+        curveMotionSequence=Long.MIN_VALUE;
         scaffoldRelease = null;
         scaffoldAcceptance = null;
         foreignRequestOffered = false;

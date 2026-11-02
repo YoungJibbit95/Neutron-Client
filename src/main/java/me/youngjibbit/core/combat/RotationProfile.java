@@ -5,6 +5,10 @@ import me.youngjibbit.utils.math.FastNoiseLite;
 /** Per-call settings snapshot; speeds are degrees per 50 ms, offsets degrees, radius blocks, frequency Hz. */
 public final class RotationProfile {
     public enum Mode { BASIC, SMOOTH, ADVANCED }
+    public enum SpeedCurve { OFF, BEZIER }
+    /** Independent opt-in; legacy randomization presets never enable or override it. */
+    public SpeedCurve speedCurve=SpeedCurve.OFF;
+    public float bezierStrength=.5f, bezierDurationMs=500;
     /** Angular perturbation only; hit-point and speed variation keep their own controls. */
     public enum Pattern { NOISE, BASIC, ONLY_ROTATION, DOUBLED }
     public Pattern pattern=Pattern.NOISE;

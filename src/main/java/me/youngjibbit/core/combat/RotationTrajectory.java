@@ -15,11 +15,21 @@ public final class RotationTrajectory {
     private long epoch, lastStep=Long.MIN_VALUE;
     private int generation;
     private int boundSeed;
+    private BezierSpeedEnvelope speedEnvelope;
+    private double curveSeconds,curveStrength,curveDuration;
+    private long curveAcquisition,curveMotion=Long.MIN_VALUE;
+    private WeakReference<Object> curveMotionTarget=new WeakReference<>(null);
+    private float curveYaw,curvePitch;
+    private boolean curvePaused;
     public RotationTrajectory(LongSupplier clock,int seed) { this.clock=clock;this.seed=seed; }
-    public void pause(Object current) { bind(current);lastStep=clock.getAsLong(); }
+    public void pause(Object current) {
+        if(speedEnvelope!=null)resetSpeedCurve();
+        bind(current);lastStep=clock.getAsLong();
+    }
 
     private void bind(Object current) {
         if (target.get()!=current) {
+            if(speedEnvelope!=null)resetSpeedCurve();
             target=new WeakReference<>(current);epoch=clock.getAsLong();lastStep=Long.MIN_VALUE;
             int targetSeed=seed+ ++generation*0x9e3779b9;
             boundSeed=targetSeed;
@@ -69,6 +79,12 @@ public final class RotationTrajectory {
         return Math.max(min+inset,Math.min(max-inset,value));
     }
     public float[] advance(Object current,float yaw,float pitch,float targetYaw,float targetPitch,double distance,RotationProfile p) {
+        // Unscoped callers retain time-based sampling; real consumers supply the manager's motion ID.
+        if(p.speedCurve==RotationProfile.SpeedCurve.BEZIER) {
+            long now=clock.getAsLong();
+            return advanceMotion(current,yaw,pitch,targetYaw,targetPitch,distance,p,now,now);
+        }
+        if(speedEnvelope!=null)resetSpeedCurve();
         bind(current);long now=clock.getAsLong();
         double elapsed=lastStep==Long.MIN_VALUE ? .05 : Math.max(0,Math.min(.1,(now-lastStep)/1_000_000_000.0));
         lastStep=now;
@@ -81,6 +97,58 @@ public final class RotationTrajectory {
         return new float[]{yaw+axisStep(dy,p.yawSpeed,distance,elapsed,p,speedFactor(current,p,5)),
                 clamp(pitch+axisStep(dp,p.pitchSpeed,distance,elapsed,p,speedFactor(current,p,6)),-90,90)};
     }
+
+    /** One calculation per motion. Rejected candidates consume time, never accepted-angle authority. */
+    public float[] advanceMotion(Object current,float yaw,float pitch,float targetYaw,float targetPitch,
+                                 double distance,RotationProfile p,long motionSequence,long motionNanos) {
+        if(p.speedCurve!=RotationProfile.SpeedCurve.BEZIER)
+            return advance(current,yaw,pitch,targetYaw,targetPitch,distance,p);
+        if(curveMotion==motionSequence) {
+            if(curveMotionTarget.get()==current)
+                return curvePaused?new float[]{yaw,pitch}:new float[]{curveYaw,curvePitch};
+            // A target change within the same scope cannot obtain a second first-step allowance.
+            bind(current);resetSpeedCurve();lastStep=motionNanos;
+            cacheMotion(motionSequence,yaw,pitch,true);
+            return new float[]{yaw,pitch};
+        }
+        bind(current);
+        double elapsed=lastStep==Long.MIN_VALUE?.05:Math.max(0,Math.min(.1,(motionNanos-lastStep)/1_000_000_000.0));
+        lastStep=motionNanos;
+        if(elapsed==0) {cacheMotion(motionSequence,yaw,pitch,false);return new float[]{yaw,pitch};}
+        double strength=Float.isFinite(p.bezierStrength)?Math.max(0,Math.min(.9,p.bezierStrength)):.5;
+        double duration=(Float.isFinite(p.bezierDurationMs)?Math.max(100,Math.min(2000,p.bezierDurationMs)):500)/1000.0;
+        if(speedEnvelope==null || strength!=curveStrength || duration!=curveDuration) {
+            curveStrength=strength;curveDuration=duration;curveSeconds=0;
+            long acquisition=++curveAcquisition;
+            speedEnvelope=new BezierSpeedEnvelope(1-strength*uniform(acquisition,9,1),
+                    1-strength*uniform(acquisition,9,2),1-strength*uniform(acquisition,9,3),1);
+        }
+        double multiplier=speedEnvelope.average(curveSeconds/duration,(curveSeconds+elapsed)/duration);
+        curveSeconds=Math.min(duration,curveSeconds+elapsed);
+        boolean near=Math.abs(MoveFixController.wrap(targetYaw-yaw))<=p.yawSpeed*elapsed/.05 && Math.abs(targetPitch-pitch)<=p.pitchSpeed*elapsed/.05;
+        float desiredYaw=targetYaw+angularSample(current,p,0,near)*(p.jitter+p.yawOffset)*p.strength;
+        float coupling=p.advancedPitch?(float)(Math.sin(Math.toRadians(MoveFixController.wrap(targetYaw-yaw))*4)*8):0;
+        float desiredPitch=clamp(targetPitch+coupling+angularSample(current,p,1,near)*(p.jitter+p.pitchOffset)*p.strength,-90,90);
+        float dy=MoveFixController.wrap(desiredYaw-yaw),dp=desiredPitch-pitch;
+        float yawStep=axisStep(dy,p.yawSpeed,distance,elapsed,p,speedFactor(current,p,5)*multiplier);
+        float pitchStep=axisStep(dp,p.pitchSpeed,distance,elapsed,p,speedFactor(current,p,6)*multiplier);
+        // Large elapsed intervals in Advanced mode still must not pass the desired endpoint.
+        float nextYaw=yaw+clamp(yawStep,-Math.abs(dy),Math.abs(dy));
+        float nextPitch=clamp(pitch+clamp(pitchStep,-Math.abs(dp),Math.abs(dp)),-90,90);
+        cacheMotion(motionSequence,nextYaw,nextPitch,false);
+        return new float[]{nextYaw,nextPitch};
+    }
+    private void cacheMotion(long sequence,float yaw,float pitch,boolean paused) {
+        curveMotion=sequence;curveMotionTarget=target;curveYaw=yaw;curvePitch=pitch;curvePaused=paused;
+    }
+    /** Stop-on-target consumes the scope but accumulates no curve progress or catch-up allowance. */
+    public void pauseMotion(Object current,long motionSequence,long motionNanos) {
+        if(curveMotion==motionSequence)return;
+        bind(current);lastStep=motionNanos;cacheMotion(motionSequence,0,0,true);
+    }
+    /** Idempotent invalidation: the next actual step chooses controls; no time or angles are restored. */
+    public void resetSpeedCurve() {speedEnvelope=null;curveSeconds=0;}
+    boolean hasSpeedCurve() {return speedEnvelope!=null;}
     private float angularSample(Object current,RotationProfile p,int axis,boolean near) {
         if(!p.angularRandomized() || (p.pattern==RotationProfile.Pattern.ONLY_ROTATION && near))return 0;
         if(p.pattern==RotationProfile.Pattern.NOISE)return sample(current,p,axis);
