@@ -42,6 +42,11 @@ public final class RotationCorrections {
         RotationManager rotation = RuntimeServices.rotation();
         if (mc.getNetHandler()==null || !mc.getNetHandler().getNetworkManager().isChannelOpen()) return null;
         String owner = rotation.getConfirmedOwner(mc.thePlayer, mc.theWorld, mc.getNetHandler().getNetworkManager().getClientPackets());
+        if (RotationManager.isReleaseSource(owner)) {
+            RotationManager.ReleaseView release = rotation.getRotationRelease();
+            return release != null && owner.equals(release.releaseSource)
+                    ? new Selection(owner, rotation.getEffectiveYaw(), rotation.getEffectivePitch(), release.movement, release.body) : null;
+        }
         if ("aura".equals(owner)) {
             Aura aura = (Aura) modules.getModule(Aura.class);
             return aura == null ? null : select(rotation, "aura", aura.correctionEnabled(), aura.moveFixMode(), aura.bodyRotationMode());
@@ -116,6 +121,11 @@ public final class RotationCorrections {
     public static BodyRotationController.Pose renderPose(EntityLivingBase entity, float vanillaBodyYaw) {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc == null || entity != mc.thePlayer) return null;
+        RotationManager.ReleaseView release = RuntimeServices.rotation().getRotationRelease();
+        if (release != null && release.body != BodyRotationController.Mode.VANILLA) {
+            return BODY.sampleReturn(mc.thePlayer, mc.theWorld, release.identity, release.source,
+                    release.yaw, release.pitch, vanillaBodyYaw, release.progress);
+        }
         Selection selected = current();
         return BODY.sampleFrame(mc.getRenderFrameSequence(), mc.thePlayer, mc.theWorld, selected == null ? null : selected.owner,
                 selected == null ? BodyRotationController.Mode.VANILLA : selected.body,

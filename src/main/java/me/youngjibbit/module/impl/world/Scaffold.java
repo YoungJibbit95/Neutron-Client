@@ -14,6 +14,7 @@ import me.youngjibbit.event.motion.EventMotion;
 import me.youngjibbit.core.combat.RotationManager;
 import me.youngjibbit.core.combat.RotationSettings;
 import me.youngjibbit.core.combat.RotationProfile;
+import me.youngjibbit.core.combat.RotationReturnSettings;
 import me.youngjibbit.core.combat.MoveFixController;
 import me.youngjibbit.core.combat.BodyRotationController;
 import me.youngjibbit.core.combat.RotationCorrections;
@@ -53,6 +54,7 @@ public class Scaffold extends Module {
     private final CheckBoxValue rotations = new CheckBoxValue("Rotations", this, true);
     private final MoveFixValue movefix = new MoveFixValue(this, false);
     private final ComboValue bodyRotation = new ComboValue("Body Rotation", this, new String[]{"Vanilla", "Direkt", "Natürlich"}, 0);
+    private final RotationReturnSettings rotationReturn = new RotationReturnSettings(this);
     private final ComboValue rotationMode = new ComboValue("Rotation Mode", this, new String[]{"Back", "Down", "NCP", "Godbridge"}, 0);
     private final CheckBoxValue roundRots=new CheckBoxValue("Round Rots",this,false);
     private final SliderValue yawSpeed = new SliderValue("Yaw Speed", this, 35.0, 1.0, 90.0, true);
@@ -117,7 +119,7 @@ public class Scaffold extends Module {
         roundRots.setVisibility(module->rotations.getValue());
         for(me.youngjibbit.value.Value<?> value:getValues()) {
             if(value==approach || value==bodyRotation || value==itemSpoof || value==swing || value==swingMode
-                    || value==placeDelay || value==placementDiagnostics)continue;
+                    || value==placeDelay || value==placementDiagnostics || value==rotationReturn.enabled || value==rotationReturn.ticks)continue;
             if(value==eagle || value==safety || value==arsenicMinSpeed || value==arsenicMaxSpeed) {
                 value.setVisibility(m->arsenic());continue;
             }
@@ -136,7 +138,12 @@ public class Scaffold extends Module {
         // Module's callback has no changed-value argument; revalidate the actual owner conditions.
         boolean end = !isToggled() || !usesRotations() || !sameScene();
         if (generation != lifecycleGeneration) return;
-        if (!usesRotations()) RuntimeServices.rotation().cancelScaffoldRelease();
+        if (!usesRotations() && isToggled() && contextRotation != null) {
+            rotationReturn.begin(contextRotation, "scaffold", moveFixMode(), bodyRotationMode(),
+                    () -> lifecycleGeneration == generation && contextRotation == RuntimeServices.rotation());
+            if (generation != lifecycleGeneration) return;
+        }
+        if (!rotationReturn.enabled.getValue()) RuntimeServices.rotation().cancelScaffoldRelease();
         if (end) endRotation();
     }
 
@@ -160,7 +167,7 @@ public class Scaffold extends Module {
         try {
             RotationManager rotation = contextRotation;
             if (usesRotations() && rotation != null && rotation == RuntimeServices.rotation())
-                rotation.beginScaffoldRelease(() -> lifecycleGeneration == generation);
+                rotationReturn.begin(rotation, "scaffold", moveFixMode(), bodyRotationMode(), () -> lifecycleGeneration == generation);
         } finally {
             if (generation == lifecycleGeneration) {
                 try { clearState(); }
@@ -244,7 +251,7 @@ public class Scaffold extends Module {
         }
         if (generation != lifecycleGeneration || sequence >= 0 && rotation.getMotionSequence() != sequence) return;
         rotation.reset("scaffold");
-        RotationCorrections.reset("scaffold");
+        if (!rotation.hasRotationRelease("scaffold")) RotationCorrections.reset("scaffold");
     }
 
     private void endRotation() {
@@ -319,6 +326,10 @@ public class Scaffold extends Module {
         if (!validContext()) { suspendPlacement(); return; }
         final long motionSequence = contextMotionSequence;
         final long generation = lifecycleGeneration;
+        if (!usesRotations() && contextRotation.hasRotationRelease("scaffold")) {
+            if (currentMotion(motionSequence, generation)) releasePlacement();
+            return;
+        }
         if(arsenic()) { arsenicMotion(event,motionSequence,generation);return; }
         if (event.isPre()) {
             downwardsState = downwards.getValue() && mc.gameSettings.keyBindSneak.isKeyDown();

@@ -258,7 +258,8 @@ public final class ScaffoldPlacementService {
         if (target == null) return reject(Rejection.NO_TARGET);
         if (!actionValid.getAsBoolean()) return reject(Rejection.CONTEXT);
         if (sequence != rotations.getMotionSequence()) return reject(Rejection.STALE_PLAN);
-        if (requiredRotationSource != null && !rotations.canUseRotation(requiredRotationSource, pre)) return reject(Rejection.ROTATION);
+        if (rotations.getRotationRelease() != null
+                || requiredRotationSource != null && !rotations.canUseRotation(requiredRotationSource, pre)) return reject(Rejection.ROTATION);
         if (sequence == lastSequence || tick == lastAttemptTick) return reject(Rejection.BUDGET);
         if (clock.getAsLong() - lastAttempt < Math.max(0, delay)) return reject(Rejection.DELAY);
         if (!isValid(target)) return reject(Rejection.CHANGED);
@@ -295,7 +296,8 @@ public final class ScaffoldPlacementService {
     }
 
     private boolean usableRotation(RotationManager rotations, boolean pre, String requiredSource) {
-        return requiredSource == null ? rotations.canUseRotation(pre) : rotations.canUseRotation(requiredSource, pre);
+        return rotations.getRotationRelease() == null
+                && (requiredSource == null ? rotations.canUseRotation(pre) : rotations.canUseRotation(requiredSource, pre));
     }
 
     private static final class MinecraftAccess implements Access {
