@@ -178,7 +178,8 @@ public class NoSlowSprintChecks {
                             rotations.beginMotion(player, fixture.world, 180, 0);
                             rotations.request(owner, 30, acceptedYaw, 0);
                             rotations.finishMotion(acceptedYaw, 0, true);
-                            boolean expected = !mode.equals("Legacy Rounded") || acceptedYaw >= 145;
+                            boolean remapped = mode.equals("Legacy Rounded") || mode.equals("Einfach") || mode.equals("Präzise");
+                            boolean expected = !remapped || acceptedYaw >= 145;
                             for (boolean alreadySprinting : new boolean[]{false, true}) {
                                 player.sprint = alreadySprinting;
                                 living();

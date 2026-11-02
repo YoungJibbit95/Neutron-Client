@@ -6,6 +6,7 @@ import me.youngjibbit.event.player.JumpFixEvent;
 import me.youngjibbit.event.player.PlayerMoveUpdateEvent;
 import me.youngjibbit.module.ModuleManager;
 import me.youngjibbit.module.impl.combat.Aura;
+import me.youngjibbit.module.impl.combat.Velocity;
 import me.youngjibbit.module.impl.world.Scaffold;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.EntityLivingBase;
@@ -49,7 +50,12 @@ public final class RotationCorrections {
             Scaffold scaffold = (Scaffold) modules.getModule(Scaffold.class);
             return scaffold == null ? null : select(rotation, "scaffold", scaffold.correctionEnabled(), scaffold.moveFixMode(), scaffold.bodyRotationMode());
         }
-        // AimAssist or any unowned/manual rotation cannot inherit Aura/Scaffold settings.
+        if ("velocity".equals(owner)) {
+            Velocity velocity = (Velocity) modules.getModule(Velocity.class);
+            return velocity == null ? null : select(rotation, "velocity", velocity.correctionEnabled(),
+                    MoveFixController.Mode.SIMPLE, BodyRotationController.Mode.NATURAL);
+        }
+        // AimAssist or any unowned/manual rotation cannot inherit another module's settings.
         return null;
     }
 
@@ -63,8 +69,7 @@ public final class RotationCorrections {
      * sideways/backward module-yaw key; using the original W to retain sprint
      * creates a contradictory sprint/action state.
      *
-     * This is a read-only query. Sprint remains vanilla for every other mode,
-     * owner, or missing/invalid correction context.
+     * This is a read-only query and uses the same transform for every enabled mode.
      */
     public static float sprintForward(float cameraYaw, float rawStrafe, float rawForward) {
         return correctedSprintForward(current(), cameraYaw, rawStrafe, rawForward);
@@ -72,10 +77,10 @@ public final class RotationCorrections {
 
     static float correctedSprintForward(Selection selected, float cameraYaw,
                                         float rawStrafe, float rawForward) {
-        if (selected == null || selected.movement != MoveFixController.Mode.LEGACY_ROUNDED)
+        if (selected == null || selected.movement == MoveFixController.Mode.OFF)
             return rawForward;
         return MoveFixController.correct(rawStrafe, rawForward, cameraYaw,
-                selected.yaw, MoveFixController.Mode.LEGACY_ROUNDED).forward;
+                selected.yaw, selected.movement).forward;
     }
 
     /** Direction for a direct velocity writer consuming untransformed current-step inputs.
@@ -84,15 +89,12 @@ public final class RotationCorrections {
      */
     public static float directMotionYaw(float cameraYaw, float cameraDirectionYaw, float strafe, float forward) {
         Selection selected = current();
-        if (selected == null || selected.movement == MoveFixController.Mode.OFF
-                || selected.movement == MoveFixController.Mode.PRECISE) return cameraDirectionYaw;
+        if (selected == null || selected.movement == MoveFixController.Mode.OFF) return cameraDirectionYaw;
         if (selected.movement == MoveFixController.Mode.ROTATION_BOUND
                 || selected.movement == MoveFixController.Mode.LEGACY_STRICT)
             return selected.yaw + (cameraDirectionYaw - cameraYaw);
         // Rounded key reconstruction needs the original axes, including diagonal keys.
-        MoveFixController.Input input = selected.movement == MoveFixController.Mode.LEGACY_ROUNDED
-                ? MoveFixController.correct(strafe, forward, cameraYaw, selected.yaw, selected.movement)
-                : MoveFixController.correct(0, 1, cameraDirectionYaw, selected.yaw, selected.movement);
+        MoveFixController.Input input = MoveFixController.correct(strafe, forward, cameraYaw, selected.yaw, selected.movement);
         return selected.yaw - (float) Math.toDegrees(Math.atan2(input.strafe, input.forward));
     }
 

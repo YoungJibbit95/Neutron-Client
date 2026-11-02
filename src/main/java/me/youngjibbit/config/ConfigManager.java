@@ -490,6 +490,14 @@ public class ConfigManager {
     }
 
     private void parseSetting(Plan plan, Change change, String id, JsonElement json) {
+        if (change.module.getId().equals("velocity") && normalizedName(id).equals("mode")) {
+            JsonElement raw = json != null && json.isJsonObject() ? json.getAsJsonObject().get("value") : json;
+            if (raw != null && raw.isJsonPrimitive() && raw.getAsJsonPrimitive().isString()) {
+                String old = raw.getAsString();
+                for (String removed : new String[]{"Jump", "Packet", "Verus", "Ground Grim", "Minemen", "Intave", "Intave2"})
+                    if (removed.equalsIgnoreCase(old)) { json = new JsonPrimitive("Legit"); break; }
+            }
+        }
         if(change.module.getId().equals("backtrack") && (normalizedName(id).equals("delayping") || normalizedName(id).equals("delayvelocity"))) {bool(json,"backtrack."+id);return;}
         if(change.module.getId().equals("scaffold") && oldScaffoldName(id)) {
             change.legacyScaffold=true;

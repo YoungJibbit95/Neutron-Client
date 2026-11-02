@@ -166,7 +166,9 @@ public final class PacketPipeline {
                             if (!silent) post(selected, EventFlow.INBOUND, EventPhase.POST);
                         });
                 };
-                if (selected instanceof S14PacketEntity && !silent) {
+                if (!silent && (selected instanceof S14PacketEntity || selected instanceof S19PacketEntityStatus
+                        || selected instanceof S29PacketSoundEffect
+                        || selected instanceof S06PacketUpdateHealth && ((S06PacketUpdateHealth) selected).getHealth() > 0)) {
                     if (delays.defer(selected, EventFlow.INBOUND, apply)) return;
                 } else if (!(selected instanceof S00PacketKeepAlive)
                         && !(selected instanceof S02PacketChat) && !(selected instanceof S03PacketTimeUpdate)) {

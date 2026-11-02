@@ -4,7 +4,7 @@ import com.google.gson.JsonElement;
 import me.youngjibbit.core.combat.MoveFixController;
 import me.youngjibbit.module.Module;
 
-/** Stable config labels: existing choices retain their meaning.
+/** Stable config labels. Simple/Precise now both use vanilla keyboard axes;
  * Legacy Strict uses the module yaw; Legacy Rounded snaps to discrete key inputs.
  * Only Aura's former boolean has a compatibility mapping to Einfach/Aus. */
 public final class MoveFixValue extends ComboValue {

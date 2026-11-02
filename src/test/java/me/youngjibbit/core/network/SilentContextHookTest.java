@@ -36,7 +36,8 @@ public class SilentContextHookTest {
     }
     @Test public void silentCorrectionDropsAnOldAttackLockInsteadOfOverridingFreshCursorEvidence() throws Exception {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
-            Backtrack back=new Backtrack(()->0,f.client);back.getBooleanSetting("Diagnostics").setValue(true);back.setToggled(true);
+            Backtrack back=new Backtrack(()->0,f.client);back.getModeSetting("Target Source").setValue("Attack / Cursor");
+            back.getBooleanSetting("Diagnostics").setValue(true);back.setToggled(true);
             try {
                 ExploitHookFixture.Enemy a=f.enemy(7,3),b=f.enemy(8,3);f.cursor(b);
                 assertTrue(f.controller.tryAttackEntity(f.player,a,()->true));assertEquals(7,back.getDiagnostics().targetId);

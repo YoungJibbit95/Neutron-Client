@@ -87,7 +87,7 @@ public class NetworkMoveFixIntegrationTest {
         try(Fixture f=new Fixture()) {
             f.accept("aura",71);RotationCorrections.Selection selected=f.select("aura",MoveFixController.Mode.SIMPLE);
             JumpFixEvent jump=new JumpFixEvent(0);RotationCorrections.applyJump(selected,jump);float once=jump.getYaw();
-            RotationCorrections.applyJump(selected,jump);assertEquals(once,jump.getYaw(),0);assertTrue(Math.abs(once)<=22.5001);
+            RotationCorrections.applyJump(selected,jump);assertEquals(once,jump.getYaw(),0);assertEquals(71,once,0);
             JumpFixEvent cancelled=new JumpFixEvent(0);cancelled.cancel();RotationCorrections.applyJump(selected,cancelled);assertEquals(0,cancelled.getYaw(),0);
         }
     }
