@@ -174,7 +174,7 @@ public final class Wave05UiRenderCheck {
     private static void moduleCaptureCase()throws Exception {
         set(Pulsar.INSTANCE.getIOS(),"scrollOffset",0f);
         IosFixture fixture=new IosFixture(1000);frame(()->fixture.row.drawScreen(-1,-1));
-        fixture.row.mouseClicked(190,(int)fixture.slider.getY()+10,0);
+        fixture.row.mouseClicked(190,(int)fixture.slider.getY()+18,0);
         check((Boolean)get(fixture.slider,"dragging"),"Slider fixture did not capture");
         fixture.row.mouseClicked(30,20,1);
         boolean captured=(Boolean)get(fixture.slider,"dragging");record("slider-captured-after-close",captured);

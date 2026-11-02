@@ -15,7 +15,7 @@ public final class ClickControlStyle {
         String suffix = "...";
         if (font.getWidth(suffix) > width) return "";
         int end = text.length();
-        while (end > 0 && font.getWidth(text.substring(0, end) + suffix) > width) end--;
+        while (end > 0 && font.getWidth(text.substring(0, end) + suffix) > width) end=text.offsetByCodePoints(end,-1);
         return text.substring(0, end) + suffix;
     }
     public static void label(String text, float x, float y, float available, int color) {

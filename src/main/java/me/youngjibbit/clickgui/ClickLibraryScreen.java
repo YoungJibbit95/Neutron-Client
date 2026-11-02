@@ -99,7 +99,7 @@ public class ClickLibraryScreen extends GuiScreen {
         Theme theme = Theme.getDefaultTheme(); int ink = theme.getTextColor().getRGB();
         try (RenderState state = new RenderState()) {
             state.screenSpace();
-            UIUtils.drawDecorationRound(0, 0, width, height, 0, new Color(5, 7, 12, 115));
+            if(mc.theWorld==null)me.youngjibbit.gui.MainMenu.drawBackdrop(theme);else UIUtils.drawDecorationRound(0, 0, width, height, 0, new Color(5, 7, 12, 115));
             surface.panel(x, y, w, h, 6, theme, true, true, true, 8, .92f, .8f, () -> {
                 try (GuiClip clip = GuiClip.push(new ClipRect(x + 2, y + 2, w - 4, h - 4))) {
                     Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Bold 28").drawString("Neutron", x + 12, y + 12, ink);

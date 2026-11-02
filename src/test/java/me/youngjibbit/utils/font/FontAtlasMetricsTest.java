@@ -6,6 +6,20 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.junit.Assert.*;
 
 public class FontAtlasMetricsTest {
+    @Test public void compactLabelsNeverSplitSupplementaryCharacters(){
+        try(TTFFontRenderer font=new TTFFontRenderer(new Font(Font.DIALOG,Font.PLAIN,20))){
+            String label="A😀B";
+            for(float width=0;width<font.getWidth(label)+20;width+=.5f){
+                String fitted=me.youngjibbit.clickgui.utils.ClickControlStyle.fit(font,label,width);
+                assertTrue(font.getWidth(fitted)<=width+.001f);
+                for(int i=0;i<fitted.length();i++){
+                    char c=fitted.charAt(i);
+                    if(Character.isHighSurrogate(c))assertTrue(++i<fitted.length()&&Character.isLowSurrogate(fitted.charAt(i)));
+                    else assertFalse(Character.isLowSurrogate(c));
+                }
+            }
+        }
+    }
     @Test public void unicodeAndSupplementaryCharactersHaveVisibleAdvances(){
         try(TTFFontRenderer font=new TTFFontRenderer(new Font(Font.DIALOG,Font.PLAIN,20))){
             assertTrue(font.getWidth("Привет")>font.getWidth("P"));

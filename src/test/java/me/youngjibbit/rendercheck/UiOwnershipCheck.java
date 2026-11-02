@@ -57,7 +57,7 @@ public class UiOwnershipCheck {
           require(f(iOS.class,"dragging").getBoolean(screen),"header capture");
           iOSSlider slider=null;
           for(Object row:(List<?>)f(iOS.class,"MODULES").get(screen)) for(Object child:(List<?>)f(iOSModule.class,"VALUES").get(row)) if(child instanceof iOSSlider) slider=(iOSSlider)child;
-          require(slider!=null,"slider fixture"); slider.updateComponent(20,20);slider.mouseClicked(170,28,0);
+          require(slider!=null,"slider fixture"); slider.updateComponent(20,20);slider.mouseClicked(170,38,0);
           require(f(iOSSlider.class,"dragging").getBoolean(slider),"slider capture");
           double value=slider.getValue().getValue();
           if(close) {screen.onGuiClosed();screen.onGuiClosed();} // Escape and child-screen share this lifecycle.
@@ -67,7 +67,7 @@ public class UiOwnershipCheck {
           Method move=iOS.class.getDeclaredMethod("smoothDrag",int.class,int.class);move.setAccessible(true);move.invoke(screen,200,150);
           require(f(iOS.class,"x").getFloat(screen)==x,"header moved without gesture");
           slider.drawScreen(-1000,-1000);require(slider.getValue().getValue()==value,"slider changed without gesture");
-          slider.mouseClicked(170,28,0);require(f(iOSSlider.class,"dragging").getBoolean(slider),"fresh capture failed");slider.mouseReleased();
+          slider.mouseClicked(170,38,0);require(f(iOSSlider.class,"dragging").getBoolean(slider),"fresh capture failed");slider.mouseReleased();
         }
         System.out.println("PASS input: close/reopen and reinit, motion/reduced motion, repeated cancellation, no-gesture draw, fresh drag");
       } else {

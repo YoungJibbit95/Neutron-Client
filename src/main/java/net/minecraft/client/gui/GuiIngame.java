@@ -179,7 +179,7 @@ public class GuiIngame extends Gui
         this.mc.getTextureManager().bindTexture(icons);
         GlStateManager.enableBlend();
 
-        if (this.showCrosshair())
+        if (this.showCrosshair() && !me.youngjibbit.module.impl.render.Crosshair.replacesVanilla())
         {
             GlStateManager.tryBlendFuncSeparate(775, 769, 1, 0);
             GlStateManager.enableAlpha();

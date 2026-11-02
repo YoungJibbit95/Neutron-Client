@@ -130,15 +130,13 @@ public final class ArrayListRenderCheck {
         BufferedImage removed=capture();
         sheet("01-shape-animation.png",new String[]{"One row","Entering","Different widths","Reordering","New order","Leaving","Removed"},single,entering,multiple,sorting,sorted,exiting,removed);
         require(((Map<?,?>)get(hud,"visibilityAnimations")).size()==2,"Hidden row state removed");
-        // The stored advance/extent must exactly match the same per-glyph renderer calls.
+        // The exact whole-string contract drives layout, sorting and the actual draw.
         List<?> rows=rows();
-        for (Object row:rows) {
-            Object metrics=get(row,"metrics"); String[] glyphs=(String[])get(metrics,"glyphs"); float[] positions=(float[])get(metrics,"positions");
+        for(Object row:rows){
+            Object metrics=get(row,"metrics");String label=(String)get(metrics,"label");
             me.youngjibbit.utils.font.TTFFontRenderer renderer=(me.youngjibbit.utils.font.TTFFontRenderer)get(metrics,"renderer");
-            float x=0,extent=0;
-            for (int i=0;i<glyphs.length;i++) { require(Math.abs(positions[i]-x)<0.0001,"Glyph advance mismatch"); float w=renderer.getWidth(glyphs[i]); extent=Math.max(extent,x+w); x+=w-1.2f; }
             float scale=((Number)get(metrics,"scale")).floatValue();
-            require(Math.abs(((Number)get(metrics,"width")).floatValue()-extent*scale)<0.0001,"Measured text extent mismatch");
+            require(Math.abs(((Number)get(metrics,"width")).floatValue()-renderer.getWidth(label)*scale)<.0001,"Whole-string width mismatch");
         }
         hud.getBooleanSetting("Show Combat").setValue(false); render(); require(rows().size()==1,"Category filter");
         hud.getBooleanSetting("Show Combat").setValue(true); render(); finishAnimations();

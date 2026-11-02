@@ -24,13 +24,11 @@ public final class DropdownModule extends ClickModule {
                     UiEffects.color(theme.getPrimaryGradientRGB(), active * .72f),
                     UiEffects.color(theme.getSecondaryGradientRGB(), active * .72f));
         }
-        if (isMouseOver(mouseX, mouseY))
-            UIUtils.drawDecorationRound(x, y, width, ROW_HEIGHT, 0, new Color(255, 255, 255, 22));
         drawFeedback();
         TTFFontRenderer font = Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 16");
         String title = ClickControlStyle.fit(font, getModule().getName(), width - 20);
         font.drawCenteredString(title, x + width / 2, y + (ROW_HEIGHT - font.getHeight(title)) / 2,
-                theme.isCustom() ? theme.getTextColor().getRGB() : 0xfff4f0fa);
+                hoverInk(theme.isCustom() ? theme.getTextColor().getRGB() : 0xfff4f0fa));
         // An explicit shape cue supplements color for enabled modules.
         if (getModule().isToggled())
             UIUtils.drawDecorationRound(x + 3, y + ROW_HEIGHT / 2 - 1, 2, 2, 1, new Color(245, 241, 250));

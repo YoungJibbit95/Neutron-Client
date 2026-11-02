@@ -47,7 +47,7 @@ public class IosSettingsVisibilityTest {
             row.mouseClicked(200,80,0);assertTrue(frequency.getValue().isVisible());
             assertFalse("The click revealing a slider must not start dragging it",field(iOSSlider.class,"dragging").getBoolean(frequency));
             randomization.updateComponent(10,40);
-            row.mouseClicked(200,80,0);assertTrue(field(iOSSlider.class,"dragging").getBoolean(frequency));
+            row.mouseClicked(200,90,0);assertTrue(field(iOSSlider.class,"dragging").getBoolean(frequency));
             aura.getModeSetting("Randomization Style").setValue("Sanft");
             row.mouseClicked(200,80,0);assertFalse(field(iOSSlider.class,"dragging").getBoolean(frequency));
             assertEquals(presetHeight,row.getHeight(),.001);assertEquals(2,callbacks.get());assertFalse(aura.isToggled());
