@@ -10,6 +10,7 @@ import net.minecraft.client.resources.data.IMetadataSerializer;
 import net.minecraft.client.resources.data.PackMetadataSection;
 import net.minecraft.client.resources.data.PackMetadataSectionSerializer;
 import net.minecraft.client.settings.GameSettings;
+import net.minecraft.src.Config;
 import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.Session;
 import org.lwjgl.BufferUtils;
@@ -21,13 +22,14 @@ import org.junit.rules.TemporaryFolder;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.InputStream;
 import java.lang.reflect.Field;
 import java.net.Proxy;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -70,19 +72,13 @@ public class ResourcePackRepositoryStartupTest {
 
     @Test public void selectedZipReopensForResourceReloadAfterMetadataRead() throws Exception {
         File packs = temporary.newFolder("resourcepacks");
-        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(new File(packs, "Selected.zip").toPath()))) {
-            zip.putNextEntry(new ZipEntry("pack.mcmeta"));
-            zip.write("{\"pack\":{\"pack_format\":1,\"description\":\"Zip pack\"}}".getBytes(StandardCharsets.UTF_8));
-            zip.closeEntry();
-            zip.putNextEntry(new ZipEntry("assets/minecraft/probe.txt"));
-            zip.write(42);
-            zip.closeEntry();
-        }
+        zipPack(packs, "Selected.zip", 0xFFFF0000);
         GameSettings settings = new GameSettings();
         settings.resourcePacks.add("Selected.zip");
         ResourcePackRepository.Entry selected = entry(repository(packs, settings), "Selected.zip");
         assertNotNull(selected.getResourcePack());
-        try (java.io.InputStream input = selected.getResourcePack().getInputStream(new ResourceLocation("probe.txt"))) {
+        try (InputStream input = selected.getResourcePack().getInputStream(new ResourceLocation("probe.txt"))) {
+            assertEquals(41, input.read());
             assertEquals(42, input.read());
         }
     }
@@ -102,20 +98,24 @@ public class ResourcePackRepositoryStartupTest {
                     new GameConfiguration.ServerInformation(null, 0)));
             context.initialize(mc, data);
             File packs = temporary.newFolder("resourcepacks");
-            pack(packs, "Selected", 0xFFFF0000);
+            zipPack(packs, "Selected.zip", 0xFFFF0000);
             pack(packs, "Available", 0xFF0000FF);
-            mc.gameSettings.resourcePacks.add("Selected");
+            mc.gameSettings.resourcePacks.add("Selected.zip");
             ResourcePackRepositoryStartupTest fixture = new ResourcePackRepositoryStartupTest();
             fixture.temporary = temporary;
             ResourcePackRepository repository = fixture.repository(packs, mc.gameSettings);
-            ResourcePackRepository.Entry selected = entry(repository, "Selected");
+            ResourcePackRepository.Entry selected = entry(repository, "Selected.zip");
             ResourcePackRepository.Entry available = entry(repository, "Available");
             assertNull(icon(selected));
             assertNull(available.getResourcePack());
             repository.updateRepositoryEntriesAll();
             assertNotNull(available.getResourcePack());
             TextureManager textures = new TextureManager(null);
-            checkGpuIcon(selected, textures, 255, 0, 0);
+            try (InputStream activeStream = selected.getResourcePack().getInputStream(new ResourceLocation("probe.txt"))) {
+                assertEquals(41, activeStream.read());
+                checkGpuIcon(selected, textures, 255, 0, 0);
+                assertEquals("An active ZIP stream must survive lazy icon loading", 42, activeStream.read());
+            }
             checkGpuIcon(available, textures, 0, 0, 255);
             checkMipmapUpload();
             context.check();
@@ -146,20 +146,33 @@ public class ResourcePackRepositoryStartupTest {
         try {
             TextureUtil.allocateTextureImpl(texture, 2, 4, 4);
             int[][] levels = {new int[16], new int[4], new int[1]};
-            Arrays.fill(levels[0], 0xFFFF0000);
-            Arrays.fill(levels[1], 0xFF00FF00);
-            Arrays.fill(levels[2], 0xFF0000FF);
-            TextureUtil.uploadTextureMipmap(levels, 4, 4, 0, 0, true, true);
-            assertEquals(GL11.GL_LINEAR_MIPMAP_LINEAR, GL11.glGetTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER));
-            assertEquals(GL11.GL_LINEAR, GL11.glGetTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER));
-            assertEquals(GL12.GL_CLAMP_TO_EDGE, GL11.glGetTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S));
             for (int level = 0; level < levels.length; level++) {
-                ByteBuffer pixel = BufferUtils.createByteBuffer(levels[level].length * 4);
-                GL11.glGetTexImage(GL11.GL_TEXTURE_2D, level, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixel);
-                int expected = levels[level][0];
-                assertEquals((expected >> 16) & 255, pixel.get(0) & 255);
-                assertEquals((expected >> 8) & 255, pixel.get(1) & 255);
-                assertEquals(expected & 255, pixel.get(2) & 255);
+                for (int pixel = 0; pixel < levels[level].length; pixel++) {
+                    levels[level][pixel] = 0xFF000000 | ((level * 47 + pixel * 13) & 255) << 16
+                            | ((level * 31 + pixel * 17) & 255) << 8 | ((level * 19 + pixel * 23) & 255);
+                }
+            }
+            for (boolean blur : new boolean[]{true, false}) {
+                TextureUtil.uploadTextureMipmap(levels, 4, 4, 0, 0, blur, blur);
+                assertEquals(blur ? GL11.GL_LINEAR_MIPMAP_LINEAR : Config.getMipmapType(),
+                        GL11.glGetTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MIN_FILTER));
+                assertEquals(blur ? GL11.GL_LINEAR : GL11.GL_NEAREST,
+                        GL11.glGetTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_MAG_FILTER));
+                int wrap = blur ? GL12.GL_CLAMP_TO_EDGE : GL11.GL_REPEAT;
+                assertEquals(wrap, GL11.glGetTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_S));
+                assertEquals(wrap, GL11.glGetTexParameteri(GL11.GL_TEXTURE_2D, GL11.GL_TEXTURE_WRAP_T));
+                for (int level = 0; level < levels.length; level++) {
+                    ByteBuffer pixels = BufferUtils.createByteBuffer(levels[level].length * 4);
+                    GL11.glGetTexImage(GL11.GL_TEXTURE_2D, level, GL11.GL_RGBA, GL11.GL_UNSIGNED_BYTE, pixels);
+                    for (int pixel = 0; pixel < levels[level].length; pixel++) {
+                        int expected = levels[level][pixel];
+                        int offset = pixel * 4;
+                        assertEquals((expected >> 16) & 255, pixels.get(offset) & 255);
+                        assertEquals((expected >> 8) & 255, pixels.get(offset + 1) & 255);
+                        assertEquals(expected & 255, pixels.get(offset + 2) & 255);
+                        assertEquals((expected >>> 24) & 255, pixels.get(offset + 3) & 255);
+                    }
+                }
             }
         } finally {
             TextureUtil.deleteTexture(texture);
@@ -201,5 +214,23 @@ public class ResourcePackRepositoryStartupTest {
         BufferedImage image = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
         image.setRGB(0, 0, color);
         assertTrue(ImageIO.write(image, "png", new File(directory, "pack.png")));
+    }
+
+    private static void zipPack(File root, String name, int color) throws Exception {
+        BufferedImage image = new BufferedImage(1, 1, BufferedImage.TYPE_INT_ARGB);
+        image.setRGB(0, 0, color);
+        ByteArrayOutputStream png = new ByteArrayOutputStream();
+        assertTrue(ImageIO.write(image, "png", png));
+        try (ZipOutputStream zip = new ZipOutputStream(Files.newOutputStream(new File(root, name).toPath()))) {
+            zip.putNextEntry(new ZipEntry("pack.mcmeta"));
+            zip.write("{\"pack\":{\"pack_format\":1,\"description\":\"Zip pack\"}}".getBytes(StandardCharsets.UTF_8));
+            zip.closeEntry();
+            zip.putNextEntry(new ZipEntry("pack.png"));
+            zip.write(png.toByteArray());
+            zip.closeEntry();
+            zip.putNextEntry(new ZipEntry("assets/minecraft/probe.txt"));
+            zip.write(new byte[]{41, 42});
+            zip.closeEntry();
+        }
     }
 }

@@ -395,11 +395,13 @@ public class ResourcePackRepository
 
         private void loadTexturePackIcon()
         {
+            IResourcePack iconPack = this.resourcePackFile.isDirectory()
+                    ? new FolderResourcePack(this.resourcePackFile) : new FileResourcePack(this.resourcePackFile);
             try
             {
                 try
                 {
-                    this.texturePackIcon = this.reResourcePack.getPackImage();
+                    this.texturePackIcon = iconPack.getPackImage();
                 }
                 catch (IOException ignored)
                 {
@@ -417,7 +419,10 @@ public class ResourcePackRepository
             }
             finally
             {
-                this.closeResourcePack();
+                if (iconPack instanceof Closeable)
+                {
+                    IOUtils.closeQuietly((Closeable)iconPack);
+                }
             }
         }
 
