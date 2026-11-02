@@ -297,9 +297,13 @@ public class EntityPlayerSP extends AbstractClientPlayer
             }
 
             net.minecraft.network.Packet<?> acceptedPacket;
+            boolean currentSourceFrame = true;
             try {
                 acceptedPacket = sendTicket == null ? this.sendQueue.addToSendQueueTracked(movementPacket)
                         : connection.addToSendQueueTracked(movementPacket, sendTicket.guard(movementPacket));
+                // Packet POST may invalidate the scene after the packet actually reached transport.
+                if (sendTicket != null && acceptedPacket instanceof C03PacketPlayer
+                        && connection.getNetworkManager().isChannelOpen()) currentSourceFrame = sendTicket.isCurrent();
             } catch (RuntimeException | Error error) {
                 if (sendTicket != null && rotations.getMotionSequence() == motionSequence && RuntimeServices.rotation() == rotations)
                     rotations.finishMotion(rotationYaw, rotationPitch, false);
@@ -307,13 +311,13 @@ public class EntityPlayerSP extends AbstractClientPlayer
             }
             // A nested walking frame owns its own finish/report/POST, even if this older packet was denied.
             if (sendTicket != null && (rotations.getMotionSequence() != motionSequence || RuntimeServices.rotation() != rotations)) return;
-            boolean accepted = acceptedPacket instanceof C03PacketPlayer && this.sendQueue.getNetworkManager().isChannelOpen();
+            boolean accepted = acceptedPacket instanceof C03PacketPlayer && connection.getNetworkManager().isChannelOpen();
             C03PacketPlayer sent = accepted ? (C03PacketPlayer) acceptedPacket : null;
             if (accepted) {
                 rotationYaw = rotations.hasEffectiveRotation() ? rotations.getEffectiveYaw() : this.lastReportedYaw;
                 rotationPitch = rotations.hasEffectiveRotation() ? rotations.getEffectivePitch() : this.lastReportedPitch;
             }
-            rotations.finishMotion(rotationYaw, rotationPitch, accepted);
+            rotations.finishMotion(rotationYaw, rotationPitch, accepted && currentSourceFrame);
 
             ++this.positionUpdateTicks;
 

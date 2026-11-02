@@ -197,6 +197,9 @@ public final class RotationManager {
                     && observation.getActiveOuterTickId() == outerTick;
         }
 
+        /** Revalidate the captured lifetime after transport callbacks, before granting source authority. */
+        public boolean isCurrent() { return current(); }
+
         /** Seal packet facts before PRE; selected must preserve this envelope and the resolved pose. */
         public Predicate<Packet<?>> guard(C03PacketPlayer original) {
             final Class<?> type = original.getClass();
