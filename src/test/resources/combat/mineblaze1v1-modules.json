@@ -1,0 +1,124 @@
+{
+  "version": 2,
+  "modules": {
+    "aura": {
+      "enabled": false,
+      "key": 19,
+      "rotationVersion": 2,
+      "settings": {
+        "players": true,
+        "animals": false,
+        "mobs": false,
+        "invisibles": false,
+        "teams": false,
+        "through_walls": false,
+        "mode": "Single",
+        "sort_mode": "Range",
+        "min_cps": 9.0,
+        "max_cps": 12.0,
+        "reach": 2.95,
+        "multi_targets": 2.0,
+        "yaw_speed": 50.0,
+        "pitch_speed": 44.0,
+        "jitter": 0.18,
+        "rotations": true,
+        "best_aim_vec": true,
+        "random_hit_vec": true,
+        "smart_aim": false,
+        "stop_on_target": false,
+        "preset_timing": false,
+        "heuristics": true,
+        "interpolate_rotation": true,
+        "advanced_pitch": true,
+        "random_mode": "Noise",
+        "rot_mode": "Advanced",
+        "prediction_ticks": 1.2,
+        "miss_chance": 6.0,
+        "randomization_style": "Benutzerdefiniert",
+        "speed_variation": 0.22,
+        "speed_curve": "Bezier",
+        "bezier_strength": 0.3,
+        "bezier_duration": 338.0,
+        "min_speed": 86.0,
+        "max_speed": 106.0,
+        "interpolation": 2.19,
+        "randomization": true,
+        "noise_strength": 0.45,
+        "noise_mode": "OpenSimplex2S",
+        "frequency": 0.75,
+        "yaw_offset": 0.1,
+        "pitch_offset": 0.06,
+        "hit_vec_radius": 1.38,
+        "cellular_distance_mode": "EuclideanSq",
+        "cellular_return_mode": "Distance",
+        "cellular_jitter": 1.0,
+        "fractal_mode": "FBm",
+        "gain": 0.45,
+        "lacunarity": 2.0,
+        "octaves": 2.0,
+        "ping_pong_strength": 2.0,
+        "weighted_strength": 0.1,
+        "domain_warp_mode": "OpenSimplex2",
+        "domain_warp_amp": 0.0,
+        "raycast": true,
+        "movefix": "Legacy Strict",
+        "body_rotation": "Natürlich",
+        "smooth_rotation_stop": true,
+        "return_ticks": 7.0,
+        "autoblock": false,
+        "autoblock_mode": "Fake"
+      }
+    },
+    "wtap2": {
+      "enabled": true,
+      "key": 11,
+      "settings": {
+        "mode": "Legit",
+        "duration_(ms)": 35.0,
+        "cooldown_(ms)": 428.0,
+        "min_distance": 1.2,
+        "max_distance": 3.6
+      }
+    },
+    "jumpreset": {
+      "enabled": true,
+      "key": 11,
+      "settings": {
+        "jump_chance": 60.0
+      }
+    },
+    "sprint": {
+      "enabled": true,
+      "key": 38,
+      "settings": {}
+    },
+    "hitdelayfix": {
+      "enabled": true,
+      "key": 11,
+      "settings": {}
+    },
+    "velocity": {
+      "enabled": false,
+      "key": 11,
+      "settings": {
+        "mode": "Legit",
+        "reduce_ticks": 2.0,
+        "jump_reset": true
+      }
+    },
+    "autoclicker": {
+      "enabled": false,
+      "key": 0,
+      "settings": {
+        "min_cps": 10.0,
+        "max_cps": 15.0,
+        "autoblock": false,
+        "block_frequency": 4.0,
+        "enable_randomization": true,
+        "randomization_mode": "Pi",
+        "randomization": 3.0,
+        "debugging": true
+      }
+    }
+  }
+}

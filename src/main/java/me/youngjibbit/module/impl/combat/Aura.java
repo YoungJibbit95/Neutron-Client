@@ -4,6 +4,8 @@ import me.youngjibbit.core.bootstrap.RuntimeServices;
 import me.youngjibbit.core.contract.AutomationEligibility.ModuleAction;
 import me.youngjibbit.core.observation.AutomatedActionAdmission;
 import me.youngjibbit.core.combat.AutoblockController;
+import me.youngjibbit.core.combat.ClickTimingSettings;
+import me.youngjibbit.core.combat.ClickRandomizer;
 import me.youngjibbit.core.combat.CombatTargetTracker;
 import me.youngjibbit.core.combat.RotationManager;
 import me.youngjibbit.core.combat.RotationSettings;
@@ -63,6 +65,8 @@ public class Aura extends Module {
 
     private final SliderValue minCps = new SliderValue("Min CPS", this, 10.0, 1.0, 20.0, true);
     private final SliderValue maxCps = new SliderValue("Max CPS", this, 12.0, 1.0, 20.0, true);
+    private final ClickTimingSettings clickTiming = new ClickTimingSettings(this, minCps, maxCps, true);
+    private ClickRandomizer.Sample clickSample;
     private final SliderValue reach = new SliderValue("Reach", this, 3.0, 1.0, 6.0, false);
     private final SliderValue multiTargets = new SliderValue("Multi Targets", this, 3.0, 2.0, 6.0, true);
     private final SliderValue maxYawStep = new SliderValue("Yaw Speed", this, 28.0, 1.0, 90.0, true);
@@ -80,10 +84,14 @@ public class Aura extends Module {
 
     private final CheckBoxValue autoblock = new CheckBoxValue("Autoblock", this, false);
     private final ComboValue autoblockMode = new ComboValue("Autoblock Mode", this, new String[]{"Watchdog", "Verus", "Fake"}, 0);
+    private final CheckBoxValue customBlockFrequency = new CheckBoxValue("Custom Block Frequency", this, false);
+    private final SliderValue blockFrequency = new SliderValue("Block Frequency", this, 4D, 0, 10, true);
 
     public Aura() {
         this.setKey(Keyboard.KEY_R);
         bestHitVec.setVisibility(m->!rotationSettings.arsenic());
+        customBlockFrequency.setVisibility(m -> autoblock.getValue() && !"Fake".equals(autoblockMode.getValue()));
+        blockFrequency.setVisibility(m -> customBlockFrequency.isVisible() && customBlockFrequency.getValue());
     }
     @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String name) { return super.getValueByName(name!=null && name.equalsIgnoreCase("Range")?"reach":RotationSettings.canonicalName(name)); }
 
@@ -95,6 +103,9 @@ public class Aura extends Module {
 
     @Override public void beginConfigUpdate() {
         super.beginConfigUpdate();
+        clickTiming.legacyDefaults();
+        customBlockFrequency.setValue(false);
+        blockFrequency.reset();
         // Missing legacy keys cannot inherit activation; explicit incoming values apply afterward.
         rotationSettings.speedCurve.reset();
         if(rotationSettings.arsenic())rotationSettings.mode.reset();
@@ -246,7 +257,10 @@ public class Aura extends Module {
                         : !rotationManager.isOwner("scaffold") && rotationManager.getRotationRelease() == null;
                 boolean hit = rotationManager.isMotionAccepted() && owns && validHit(selected, yaw, pitch) && !mc.thePlayer.isUsingItem();
                 CombatDiagnostics.opportunityResult(opportunity,Stage.HIT_CHECK,hit);
-                attackAccepted=RuntimeServices.attackScheduler().tryAttack(rotationManager.getMotionSequence(), hit, minCps.getValue(), maxCps.getValue(), () -> {
+                attackAccepted=RuntimeServices.attackScheduler().tryAttack(rotationManager.getMotionSequence(), hit, () -> {
+                    clickSample = clickTiming.sample();
+                    return clickSample.delayMillis;
+                }, () -> {
                     // The optional RayCast setting adds an early recheck before changing block state.
                     // The final controller gate below is mandatory, even when this option is off.
                     if (raycast.getValue() && !validHit(selected, yaw, pitch)) return false;
@@ -262,7 +276,12 @@ public class Aura extends Module {
                         attackingPlayer.rotationPitch = pitch;
                         attackingPlayer.swingItem();
                         boolean attacked = attackingController.tryAttackEntity(attackingPlayer, selected, () -> validHit(selected, yaw, pitch));
-                        if (attacked) advanceTarget = true;
+                        if (attacked) {
+                            advanceTarget = true;
+                            if (clickTiming.debugging.getValue() && clickSample != null)
+                                me.youngjibbit.Pulsar.INSTANCE.debugMessage("[Aura/" + clickTiming.mode.getValue() + "] "
+                                        + me.youngjibbit.utils.MathUtils.round(clickSample.cps, 1) + " cps");
+                        }
                         return attacked;
                     } finally {
                         attackingPlayer.rotationYaw = cameraYaw;
@@ -279,13 +298,13 @@ public class Aura extends Module {
                 if (!AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)) return;
                 autoblockController.update(autoblock.getValue() && attacking && blockOwns && rotationManager.isMotionAccepted()
                                 && validHit(selected, yaw, pitch) && PlayerUtil.isHoldingWeapon(),
-                        mapAutoblock(autoblockMode.getValue()), false, true);
+                        mapAutoblock(autoblockMode.getValue()), false, true, customBlockFrequency.getValue(), blockFrequency.getValue());
             } catch (RuntimeException | Error failure) {
                 interrupted=true;throw failure;
             } finally { CombatDiagnostics.endOpportunity(opportunity,attackAccepted,interrupted); }
         } else if (AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)) {
             autoblockController.update(autoblock.getValue() && attacking && PlayerUtil.isHoldingWeapon(),
-                    mapAutoblock(autoblockMode.getValue()), true, false);
+                    mapAutoblock(autoblockMode.getValue()), true, false, customBlockFrequency.getValue(), blockFrequency.getValue());
         }
     }
 

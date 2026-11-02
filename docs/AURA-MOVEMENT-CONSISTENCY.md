@@ -21,9 +21,10 @@ Two related sprint boundaries also needed correction:
   stopped sprint, but vanilla sprint admission subsequently enabled it again.
   Auto Jump must also wait for current input and the final sprint decision.
 
-Aura's ordinary successful survival attack already followed the native attack
-path: horizontal motion is multiplied by 0.6 and sprint is cleared. A canceled
-C02 does not apply that local reduction. Both counterchecks passed before the fix;
+Aura's ordinary successful survival sprint attack already followed the native
+attack path: horizontal motion is multiplied by 0.6 and sprint is cleared when
+native damage succeeds and the knockback modifier is positive. A canceled C02
+does not apply that local reduction. Both counterchecks passed before the fix;
 there is no additional forced attack slowdown or permanent Aura sprint lock.
 Sprinting can legitimately resume on a subsequent movement step.
 
@@ -83,6 +84,9 @@ Movefix `Aus` deliberately retains camera-relative input while silent rotation i
 active. These changes do not make that combination consistent with server yaw.
 Speed/timer modes can independently change vanilla displacement; this fix does not
 certify every combination of movement modules or packet-delay features.
+
+The later retained-knockback, WTap Legit and click-cadence investigation is recorded
+in [Combat input and click timing](COMBAT-INPUT-AND-CLICK-TIMING.md).
 
 For an attributable retest, record the revision, profile, enabled modules, Movefix
 mode and exact server check. Compare rotation without attacks, attacks while still,
