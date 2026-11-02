@@ -99,7 +99,7 @@ public class Wave05UiInputTest {
     @Test public void iosInvisibleOptionCannotChangeValueInsideOpenModule()throws Exception {
         for(float scroll:new float[]{0,-20}) {
             set(Pulsar.INSTANCE.getIOS(),"scrollOffset",scroll);
-            IosFixture fixture=new IosFixture(66); // EaseInOutQuad: ~.301, not a wall-clock sleep.
+            IosFixture fixture=new IosFixture(28); // Interruptible quadratic ease-out: ~.302, no wall-clock sleep.
             assertTrue(fixture.revealHeight()<33);
             fixture.row.mouseClicked(190,(int)(123+scroll),0);
             assertEquals("Invisible second option changed value","Alpha",fixture.value.combo.getValue());
@@ -107,7 +107,7 @@ public class Wave05UiInputTest {
         }
     }
     @Test public void iosVisibleOptionDispatchesOnceAndReleaseDoesNotRepeat()throws Exception {
-        IosFixture fixture=new IosFixture(66);fixture.value.combo.setValue("Bravo");fixture.value.changes=0;
+        IosFixture fixture=new IosFixture(28);fixture.value.combo.setValue("Bravo");fixture.value.changes=0;
         fixture.row.mouseClicked(190,100,0);fixture.row.mouseReleased();fixture.row.mouseReleased();
         assertEquals("Alpha",fixture.value.combo.getValue());assertEquals(1,fixture.value.changes);
     }
@@ -137,7 +137,7 @@ public class Wave05UiInputTest {
     }
     @Test public void iosClosingModuleCancelsCapturedSliderWithoutMouseUp()throws Exception {
         IosFixture fixture=new IosFixture(1000);
-        fixture.row.mouseClicked(190,(int)fixture.slider.getY()+10,0);
+        fixture.row.mouseClicked(190,(int)fixture.slider.getY()+18,0);
         assertTrue((Boolean)get(fixture.slider,"dragging"));
         fixture.row.mouseClicked(30,20,1);
         assertFalse("Closing retained hidden slider capture",(Boolean)get(fixture.slider,"dragging"));

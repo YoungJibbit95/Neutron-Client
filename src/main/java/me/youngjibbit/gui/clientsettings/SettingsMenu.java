@@ -50,7 +50,7 @@ public class SettingsMenu extends GuiScreen {
     private TTFFontRenderer font(){return Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 18");}
     private void text(String value,float x,float y,int color){font().drawString(value,x,y,color);}
     private String fit(String text,float width){if(font().getWidth(text)<=width)return text;while(text.length()>0&&font().getWidth(text+"...")>width)text=text.substring(0,text.length()-1);return text.isEmpty()?"":text+"...";}
-    private void button(int id,String title,int mx,int my){ClipRect b=actionBounds(id);me.youngjibbit.gui.UiSpring state=actionMotion[id];float accent=state.pressed()?1:Math.max(Math.max(0,Math.min(1,state.amount())),state.focused()?.75f:.15f);GuiStyle.panel(b.x,b.y,b.width,b.height,4,accent,new Color(24,27,35));GuiStyle.feedback(b,state);text(fit(title,b.width-10),b.x+5,b.y+6,0xffe8edf6);}
+    private void button(int id,String title,int mx,int my){ClipRect b=actionBounds(id);me.youngjibbit.gui.UiSpring state=actionMotion[id];float accent=state.pressed()?1:Math.max(Math.max(0,Math.min(1,state.amount())),state.focused()?.75f:.15f);GuiStyle.panel(b.x,b.y,b.width,b.height,4,accent,new Color(24,27,35));GuiStyle.feedback(b,state);text(fit(title,b.width-10),b.x+5,b.y+6,GuiStyle.ink(Theme.getDefaultTheme().getTextColor().getRGB(),state));}
     protected void advanceMotion(float dt,int mx,int my){ClientSettings c=ClientSettings.current();int size=rows().size();for(int i=0;i<6;i++)actionMotion[i].step(dt,actionBounds(i).contains(mx,my),focus==size+i,pressed==i,true,c);}
     private String description(){String name=names().isEmpty()?"":names().get(group);switch(name){
         case "Appearance":return "Clear: tint only. Gradient: theme fill. Blur: soft scene. Glass: refracted scene. Border/Glow are independent.";
@@ -65,7 +65,7 @@ public class SettingsMenu extends GuiScreen {
         if(drag>=0&&drag<rows().size())updateSlider(drag,mx);
         advanceMotion(dt,mx,my);
         try(RenderState frameState=new RenderState()){frameState.screenSpace();
-        drawDefaultBackground();Theme theme=Theme.getDefaultTheme();
+        Theme theme=Theme.getDefaultTheme();if(mc.theWorld==null)me.youngjibbit.gui.MainMenu.drawBackdrop(theme);else drawDefaultBackground();
         surface.panel(x,y,w,h,7,theme,true,true,true,5,.9f,.8f,()->{
             text("Client settings",x+12,y+12,0xfff0f3fa);text("Live / saved with your config",x+Math.max(150,w-200),y+14,0xff9ca9bd);
             button(0,"<",mx,my);button(1,">",mx,my);List<String> names=names();text(names.isEmpty()?"Settings unavailable":names.get(group),x+44,y+46,theme.getTextColor().getRGB());

@@ -45,7 +45,7 @@ public class Qa02ScreenMotionTest {
     }
     static class Panel extends ClickGui {
         void dispose()throws Exception{Method reset=ClickGui.class.getDeclaredMethod("resetMotion");reset.setAccessible(true);reset.invoke(this);}
-        int themes;@Override protected void openThemeEditor(){themes++;}
+        int themes;@Override protected void openThemeEditor(){themes++;}@Override protected void openLibrary(){themes++;}
         void resize(int w,int h)throws Exception{((GuiScreen)this).width=w;((GuiScreen)this).height=h;initGui();layout();}
         void layout()throws Exception{Method m=ClickGui.class.getDeclaredMethod("layoutModules",float.class);m.setAccessible(true);m.invoke(this,0f);}
         void step(float dt,int x,int y){advanceMotion(dt,x,y);}void click(int x,int y,int b)throws Exception{mouseClicked(x,y,b);}void up(){mouseReleased(-1,-1,0);}void key(int k)throws Exception{keyTyped(' ',k);}

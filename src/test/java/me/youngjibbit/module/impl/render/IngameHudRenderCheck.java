@@ -100,6 +100,7 @@ public final class IngameHudRenderCheck {
             int texture=glow.framebuffer.framebufferTexture;glow.setToggled(false);SessionInfoRenderCheck.require(!glIsTexture(texture),"Entity glow framebuffer survived disable");
             SessionInfoRenderCheck.require(glGetError()==GL_NO_ERROR,"Combined HUD GL error");
             System.out.println("PASS: native hotbar + Event2D/bloom owner, actual player/cow/zombie models/data + entity glow (both paths), seven target designs/switch/death/long names, compact equipment, exclusive silhouette drag, vector icons, GL state, steady reuse and odd resize/scales");
+            if(Boolean.getBoolean("pulsar.neutron.world.check"))CosmeticRenderCheck.run();
         }finally{
             if(modules!=null)for(me.youngjibbit.module.Module module:modules.getAllModules())if(module.isToggled())module.setToggled(false);
             CombatTargetTracker.clear();mc.currentScreen=null;mc.thePlayer=null;mc.theWorld=null;SessionInfoRenderCheck.set(mc,"itemRenderer",oldItemRenderer);fonts.close();Pulsar.INSTANCE.fontManager=oldFonts;SessionInfoRenderCheck.set(Pulsar.INSTANCE,"mm",oldModules);

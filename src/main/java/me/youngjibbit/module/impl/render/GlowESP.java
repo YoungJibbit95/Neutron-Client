@@ -62,14 +62,10 @@ public class GlowESP extends Module
     private final CheckBoxValue mobs = new CheckBoxValue("Mobs", this, true);
     private final CheckBoxValue chests = new CheckBoxValue("Chests", this, true);
     private final SliderValue radius = new SliderValue("Radius", this, 5.0, 2, 20, true);
-    private final SliderValue iterationsSetting = new SliderValue("Iterations", this, 4.0, 2, 10, true);
+    private final SliderValue iterationsSetting = new SliderValue("Iterations", this, 4.0, 2, 6, true);
     private final SliderValue offsetSetting = new SliderValue("Offset", this, 4.0, 2, 10, true);
     private final SliderValue exposure = new SliderValue("Intensity", this,  3.0, 0.5, 3.5, false);
-    private final ShaderUtil chamsShader = new ShaderUtil("chams");
-    private final ShaderUtil outlineShader = new ShaderUtil("Flauxy/Shaders/outline.frag");
-    private final ShaderUtil glowShader = new ShaderUtil("glow");
-    private final ShaderUtil kawaseGlowShader = new ShaderUtil("kawaseDownBloom");
-    private final ShaderUtil kawaseGlowShader2 = new ShaderUtil("kawaseUpGlow");
+    private ShaderUtil chamsShader,outlineShader,glowShader,kawaseGlowShader,kawaseGlowShader2;
 
     public Framebuffer framebuffer;
     public Framebuffer outlineFrameBuffer;
@@ -77,12 +73,14 @@ public class GlowESP extends Module
     public Framebuffer glowFrameBuffer;
     public static boolean renderGlint = false;
 
-    private final java.util.List<Entity> entities = new ArrayList<>();
+    private final java.util.Set<Entity> entities = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<Entity,Boolean>());
     private final Map<Object, Color> entityColorMap = new HashMap<>();
 
     public static Animation fadeIn;
 
     private int currentIterations;
+    private int lastPrunedTick=Integer.MIN_VALUE;
+    private final java.util.Set<Object> liveObjects=java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<Object,Boolean>());
 
     private final List<Framebuffer> framebufferList = new ArrayList<>();
     // Keep all 256 uploaded floats (including zero padding) identical to the previous path.
@@ -99,10 +97,19 @@ public class GlowESP extends Module
     public GlowESP() {
 
     }
+    private void ensureShaders(){
+        if(chamsShader==null)chamsShader=new ShaderUtil("chams");
+        if(outlineShader==null)outlineShader=new ShaderUtil("Flauxy/Shaders/outline.frag");
+        if(kawaseGlow.getValue()){
+            if(kawaseGlowShader==null)kawaseGlowShader=new ShaderUtil("kawaseDownBloom");
+            if(kawaseGlowShader2==null)kawaseGlowShader2=new ShaderUtil("kawaseUpGlow");
+        }else if(glowShader==null)glowShader=new ShaderUtil("glow");
+    }
+    private float fade(){return me.youngjibbit.utils.render.UiEffects.motion()&&fadeIn!=null?fadeIn.getOutput().floatValue():1;}
 
     @Subscribe
     public final Listener<WorldEvent> onWorldEvent = new Listener<>(e ->{
-        entityColorMap.clear();
+        entityColorMap.clear();entities.clear();
     });
 
     @Override
@@ -118,11 +125,14 @@ public class GlowESP extends Module
             releaseGlowFramebuffers();
             if(framebuffer!=null)owned.add(framebuffer);if(outlineFrameBuffer!=null)owned.add(outlineFrameBuffer);
             for(Framebuffer buffer:owned)buffer.deleteFramebuffer();framebufferList.clear();framebuffer=outlineFrameBuffer=glowFrameBuffer=null;entities.clear();
+            for(ShaderUtil shader:new ShaderUtil[]{chamsShader,outlineShader,glowShader,kawaseGlowShader,kawaseGlowShader2})if(shader!=null)shader.close();
+            chamsShader=outlineShader=glowShader=kawaseGlowShader=kawaseGlowShader2=null;entityColorMap.clear();liveObjects.clear();
         }
         super.onDisable();
     }
 
     public void createFrameBuffers() {
+        ensureShaders();
         framebuffer = RenderUtil.createFrameBuffer(framebuffer);
         outlineFrameBuffer = RenderUtil.createFrameBuffer(outlineFrameBuffer);
     }
@@ -224,7 +234,7 @@ public class GlowESP extends Module
 
             if (kawaseGlow.getValue()) {
                 int offset = offsetSetting.getValue().intValue();
-                int iterations = 3;
+                int iterations = Math.max(2,Math.min(6,iterationsSetting.getValue().intValue()));
 
                 if (framebufferList.isEmpty() || currentIterations != iterations || (framebufferList.get(0).framebufferWidth != mc.displayWidth || framebufferList.get(0).framebufferHeight != mc.displayHeight)) {
                     initFramebuffers(iterations);
@@ -255,7 +265,7 @@ public class GlowESP extends Module
                 kawaseGlowShader2.setUniformi("inTexture", 0);
                 kawaseGlowShader2.setUniformi("check", 1);
                 kawaseGlowShader2.setUniformf("lastPass", 1);
-                kawaseGlowShader2.setUniformf("exposure", (float) (exposure.getValue().floatValue() * fadeIn.getOutput().floatValue()));
+                kawaseGlowShader2.setUniformf("exposure", exposure.getValue().floatValue()*fade());
                 kawaseGlowShader2.setUniformi("textureToCheck", 16);
                 kawaseGlowShader2.setUniformf("halfpixel", 1.0f / lastBuffer.framebufferWidth, 1.0f / lastBuffer.framebufferHeight);
                 kawaseGlowShader2.setUniformf("iResolution", lastBuffer.framebufferWidth, lastBuffer.framebufferHeight);
@@ -371,7 +381,7 @@ public class GlowESP extends Module
         glowShader.setUniformf("radius", radius.getValue().floatValue());
         glowShader.setUniformf("texelSize", 1.0f / mc.displayWidth, 1.0f / mc.displayHeight);
         glowShader.setUniformf("direction", dir1, dir2);
-        glowShader.setUniformf("exposure", (float) (exposure.getValue().floatValue() * fadeIn.getOutput().floatValue()));
+        glowShader.setUniformf("exposure", exposure.getValue().floatValue()*fade());
         glowShader.setUniformi("avoidTexture", 1);
 
         float currentRadius = radius.getValue().floatValue();
@@ -426,7 +436,8 @@ public class GlowESP extends Module
                     color = Color.green;
                 } else
                 {
-                    color = ColorUtil.interpolateColorsBackAndForth(15, 0, themeColor1, themeColor2, false);
+                    color = new Color(me.youngjibbit.utils.render.UiEffects.gradientColor(resolvedTheme,
+                            me.youngjibbit.utils.render.UiEffects.Channel.GLOW,0,0),true);
                 }
 
                 break;
@@ -453,6 +464,12 @@ public class GlowESP extends Module
 
     public void collectEntities() {
         entities.clear();
+        // Dead/removed entities must not retain random-color entries for an entire session.
+        if(!entityColorMap.isEmpty()&&mc.thePlayer.ticksExisted!=lastPrunedTick){
+            lastPrunedTick=mc.thePlayer.ticksExisted;liveObjects.clear();
+            liveObjects.addAll(mc.theWorld.getLoadedEntityList());liveObjects.addAll(mc.theWorld.loadedTileEntityList);
+            entityColorMap.keySet().retainAll(liveObjects);liveObjects.clear();
+        }
         for (Entity entity : mc.theWorld.getLoadedEntityList()) {
             if (!ESPUtil.isInView(entity)) continue;
             if (entity == mc.thePlayer && mc.gameSettings.thirdPersonView == 0) continue;

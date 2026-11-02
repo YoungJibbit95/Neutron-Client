@@ -37,7 +37,7 @@ public class ClickSlider extends Component.Sub<SliderValue> {
         UIUtils.drawDecorationRound(trackX(),trackY()-2,trackWidth(),4,2,new Color(64,68,77));
         if(fill>.5f)UIUtils.drawDecorationGradientVertical(trackX(),trackY()-2,fill,4,Math.min(2,fill/2),theme.getPrimaryGradientColor(),theme.getSecondaryGradientColor());
         UIUtils.drawDecorationRound(trackX()+fill-3,trackY()-4,6,8,3,new Color(dragging?UiEffects.gradientAt(theme,UiEffects.Channel.BORDER,trackX()+fill,trackY()):0xffe0e4ed,true));
-        int ink=theme.isCustom()?theme.getTextColor().getRGB():0xffe4e4e8;
+        int ink=hoverInk(theme.isCustom()?theme.getTextColor().getRGB():0xffe4e4e8);
         TTFFontRenderer font=compact()?me.youngjibbit.Pulsar.INSTANCE.fontManager.getFont("Poppins-Regular 16"):ClickControlStyle.font();
         float labelX=x+(compact()?7:12),labelY=y+(compact()?4:6);
         font.drawString(ClickControlStyle.fit(font,value.getName(),(compact()?valueX()-4:fieldX()-8)-labelX),labelX,labelY,ink);
