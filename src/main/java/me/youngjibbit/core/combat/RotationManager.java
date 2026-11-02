@@ -40,6 +40,8 @@ public final class RotationManager {
     public static final int AIM_ASSIST_PRIORITY = 10;
     public static final int AURA_PRIORITY = 20;
     public static final int SCAFFOLD_PRIORITY = 30;
+    public static final String SCAFFOLD_RELEASE_SOURCE = "scaffold-release";
+    private static final long SCAFFOLD_RELEASE_NANOS = 200_000_000L;
     private boolean collecting, accepted, previousAccepted, hasEffective;
     private long sequence;
     private float baseYaw, basePitch, effectiveYaw, effectivePitch;
@@ -54,6 +56,9 @@ public final class RotationManager {
     private Request resolvedRequest;
     private Object resolvedFrame;
     private ResolvedC03SendTicket resolvedTicket;
+    private AcceptedScaffoldBasis scaffoldAcceptance;
+    private ScaffoldReleaseLease scaffoldRelease;
+    private boolean foreignRequestOffered;
     private WeakReference<Object> motionPlayer = new WeakReference<>(null);
     private WeakReference<Object> motionWorld = new WeakReference<>(null);
 
@@ -79,6 +84,7 @@ public final class RotationManager {
         resolvedRequest = null;
         resolvedFrame = null;
         resolvedTicket = null;
+        foreignRequestOffered = false;
         sequence++;
     }
 
@@ -91,16 +97,35 @@ public final class RotationManager {
     }
 
     private void offer(Request request) {
-        if (!collecting || request.source==null || !Float.isFinite(request.yaw) || !Float.isFinite(request.pitch)) return;
+        if (!collecting || request.source==null || SCAFFOLD_RELEASE_SOURCE.equals(request.source)
+                || !Float.isFinite(request.yaw) || !Float.isFinite(request.pitch)) return;
+        if (!"scaffold".equals(request.source)) {
+            foreignRequestOffered = true;
+        }
+        cancelScaffoldRelease();
         request.pitch=clamp(request.pitch,-90,90);
         if (winner==null || request.priority>winner.priority
                 || (request.priority==winner.priority && request.source.compareTo(winner.source)<0)) winner=request;
     }
 
     public void resolve(EventMotion event) {
+        final long resolvingSequence = sequence;
         resolvedRequest = null;
         resolvedFrame = null;
         resolvedTicket = null;
+        ScaffoldReleaseLease release = currentScaffoldRelease();
+        if (sequence != resolvingSequence || !collecting) return;
+        if (winner == null && release != null && !foreignRequestOffered) {
+            RuntimeObservation observation = release.basis.observation.get();
+            if (collecting && observation != null && observation.getActiveOuterTickId() >= 0) {
+                float progress = (observation.getOuterTickId() - release.outerTick) / 3.0f;
+                float yaw = release.yaw + MathHelper.wrapAngleTo180_float(event.getYaw() - release.yaw) * progress;
+                float pitch = release.pitch + (clamp(event.getPitch(), -90, 90) - release.pitch) * progress;
+                float[] next = quantize(yaw, pitch, baseYaw, basePitch, mc.gameSettings.mouseSensitivity);
+                if (scaffoldRelease == release && sequence == resolvingSequence && collecting && winner == null)
+                    winner = new Request(SCAFFOLD_RELEASE_SOURCE, 0, next[0], next[1], false, 0, 0, () -> true);
+            }
+        }
         if (winner==null) return;
         if (winner.visible) {
             String confirmed=getConfirmedOwner();
@@ -115,7 +140,7 @@ public final class RotationManager {
             winner.yaw=mc.thePlayer.rotationYaw;winner.pitch=mc.thePlayer.rotationPitch;
         }
         event.setRotations(winner.yaw,winner.pitch);
-        if ("scaffold".equals(winner.source)) {
+        if ("scaffold".equals(winner.source) || SCAFFOLD_RELEASE_SOURCE.equals(winner.source)) {
             resolvedRequest = winner;
             resolvedFrame = new Object();
             // Bind the resolve lifetime now; a later getter cannot rebind it to another tick/scene.
@@ -131,6 +156,149 @@ public final class RotationManager {
         return captured == null ? null : new ResolvedC03SendTicket(captured, wireYaw, wirePitch);
     }
 
+    /** Arms rotation only from the original scene of a real accepted Scaffold frame.
+     * The lifecycle predicate is transient: no disabled module listener or callback is retained.
+     */
+    public boolean beginScaffoldRelease(BooleanSupplier lifetimeValid) {
+        final AcceptedScaffoldBasis basis = scaffoldAcceptance;
+        final long motionSequence = sequence;
+        if (lifetimeValid == null || !lifetimeValid.getAsBoolean() || basis == null
+                || !canUseRotation("scaffold", collecting) || collecting && foreignRequestOffered) return false;
+        final RuntimeObservation observation = basis.observation.get();
+        if (observation == null || !basis.isCurrent()) return false;
+        final long outerTick = observation.getOuterTickId(), started = clock.getAsLong();
+        final float yaw = effectiveYaw, pitch = effectivePitch;
+        if (outerTick < 0 || !lifetimeValid.getAsBoolean()) return false;
+        final SceneContext fresh = observation.captureScene();
+        long elapsed = clock.getAsLong() - started;
+        if (!fresh.isValid() || fresh.isSuspended() || !basis.scene.sameSceneAs(fresh)
+                || !basis.isCurrent() || scaffoldAcceptance != basis || sequence != motionSequence
+                || observation.getOuterTickId() != outerTick || elapsed < 0 || elapsed >= SCAFFOLD_RELEASE_NANOS
+                || !canUseRotation("scaffold", collecting) || collecting && foreignRequestOffered
+                || !lifetimeValid.getAsBoolean()) return false;
+        scaffoldRelease = new ScaffoldReleaseLease(basis, outerTick, started, yaw, pitch);
+        return true;
+    }
+
+    public void cancelScaffoldRelease() { cancelScaffoldRelease(scaffoldRelease); }
+
+    /** A real camera-target intent also prevents a later disable in this same frame from arming a lease. */
+    public void cancelScaffoldReleaseForCameraIntent() {
+        if (collecting) foreignRequestOffered = true;
+        cancelScaffoldRelease();
+    }
+
+    private void cancelScaffoldRelease(ScaffoldReleaseLease expected) {
+        if (expected == null || scaffoldRelease != expected) return;
+        scaffoldRelease = null;
+        states.remove(SCAFFOLD_RELEASE_SOURCE);
+        if (SCAFFOLD_RELEASE_SOURCE.equals(owner)) {
+            owner = null;
+            accepted = previousAccepted = false;
+        }
+        if (winner != null && SCAFFOLD_RELEASE_SOURCE.equals(winner.source)) winner = null;
+        if (resolvedRequest != null && SCAFFOLD_RELEASE_SOURCE.equals(resolvedRequest.source)) {
+            resolvedRequest = null;
+            resolvedFrame = null;
+            resolvedTicket = null;
+        }
+    }
+
+    private ScaffoldReleaseLease currentScaffoldRelease() {
+        ScaffoldReleaseLease expected = scaffoldRelease;
+        if (expected == null) return null;
+        try {
+            if (expected.isCurrent() && scaffoldRelease == expected) return expected;
+        } catch (RuntimeException | Error error) {
+            cancelScaffoldRelease(expected);
+            throw error;
+        }
+        cancelScaffoldRelease(expected);
+        return null;
+    }
+
+    /** Weak evidence copied before finishMotion clears its resolved ticket; never resampled at arm. */
+    private final class AcceptedScaffoldBasis {
+        private final WeakReference<Object> player, world;
+        private final WeakReference<NetHandlerPlayClient> handler;
+        private final WeakReference<PacketPipeline> packets;
+        private final WeakReference<RuntimeObservation> observation;
+        private final SceneContext scene;
+        private final long suspensionRevision;
+
+        private AcceptedScaffoldBasis(ResolvedC03SendTicket ticket) {
+            player = ticket.player; world = ticket.world; handler = ticket.handler; packets = ticket.packets;
+            observation = new WeakReference<>(ticket.observation);
+            scene = ticket.scene;
+            suspensionRevision = ticket.suspensionRevision;
+        }
+
+        private boolean sameObjects() {
+            Object p = player.get(), w = world.get();
+            NetHandlerPlayClient h = handler.get();
+            PacketPipeline pipe = packets.get();
+            return p instanceof EntityPlayerSP && w != null && h != null && pipe != null
+                    && RuntimeServices.rotation() == RotationManager.this && mc == Minecraft.getMinecraft()
+                    && mc.thePlayer == p && mc.theWorld == w && motionPlayer.get() == p && motionWorld.get() == w
+                    && connection.get() == pipe && ((EntityPlayerSP)p).worldObj == w && ((EntityPlayerSP)p).sendQueue == h
+                    && h.getNetworkManager().getClientPackets() == pipe && scene != null
+                    && pipe.getContextVersion() == scene.getPacketContextEpoch();
+        }
+
+        private boolean isCurrent() {
+            Object p = player.get(), w = world.get();
+            NetHandlerPlayClient h = handler.get();
+            PacketPipeline pipe = packets.get();
+            RuntimeObservation observed = observation.get();
+            if (!(p instanceof EntityPlayerSP) || w == null || h == null || pipe == null || observed == null
+                    || scene == null || !scene.isValid() || scene.isSuspended()
+                    || RuntimeServices.rotation() != RotationManager.this || mc != Minecraft.getMinecraft()
+                    || mc.thePlayer != p || mc.theWorld != w || motionPlayer.get() != p || motionWorld.get() != w
+                    || connection.get() != pipe || ((EntityPlayerSP)p).worldObj != w || ((EntityPlayerSP)p).sendQueue != h
+                    || h.getNetworkManager().getClientPackets() != pipe || !pipe.isActive()
+                    || !((EntityPlayerSP)p).isEntityAlive() || ((EntityPlayerSP)p).isDead
+                    || ((EntityPlayerSP)p).isSpectator() || ((EntityPlayerSP)p).isRiding()
+                    || mc.currentScreen != null || !mc.inGameHasFocus || mc.isGamePaused()
+                    || mc.getRenderViewEntity() != p) return false;
+            // Live checks may call connection/player code. Recheck identity and observed boundaries afterwards.
+            return observed == RuntimeServices.observation()
+                    && observed.getObservedConnectionGeneration() == scene.getConnectionGeneration()
+                    && observed.getObservedSuspensionRevision() == suspensionRevision
+                    && pipe.getContextVersion() == scene.getPacketContextEpoch()
+                    && RuntimeServices.rotation() == RotationManager.this && mc == Minecraft.getMinecraft()
+                    && mc.thePlayer == p && mc.theWorld == w && motionPlayer.get() == p && motionWorld.get() == w
+                    && connection.get() == pipe && ((EntityPlayerSP)p).worldObj == w && ((EntityPlayerSP)p).sendQueue == h
+                    && h.getNetworkManager().getClientPackets() == pipe;
+        }
+    }
+
+    private final class ScaffoldReleaseLease {
+        private final AcceptedScaffoldBasis basis;
+        private final long outerTick, started;
+        private long lastObservedNanos, lastObservedOuterTick;
+        private final float yaw, pitch;
+        private ScaffoldReleaseLease(AcceptedScaffoldBasis basis, long outerTick, long started, float yaw, float pitch) {
+            this.basis = basis; this.outerTick = outerTick; this.started = started;
+            lastObservedNanos = started;
+            lastObservedOuterTick = outerTick;
+            this.yaw = yaw; this.pitch = pitch;
+        }
+        private boolean isCurrent() {
+            if (!basis.isCurrent() || scaffoldRelease != this) return false;
+            RuntimeObservation observed = basis.observation.get();
+            long now = clock.getAsLong(), tick = observed == null ? -1 : observed.getOuterTickId();
+            long elapsed = now - started;
+            boolean valid = scaffoldRelease == this && observed != null && observed == RuntimeServices.observation()
+                    && observed.getObservedConnectionGeneration() == basis.scene.getConnectionGeneration()
+                    && observed.getObservedSuspensionRevision() == basis.suspensionRevision
+                    && tick >= outerTick && tick >= lastObservedOuterTick && tick >= 0 && tick - outerTick < 3
+                    && elapsed >= 0 && elapsed < SCAFFOLD_RELEASE_NANOS && now - lastObservedNanos >= 0
+                    && basis.sameObjects();
+            if (valid) { lastObservedNanos = now; lastObservedOuterTick = tick; }
+            return valid;
+        }
+    }
+
     /** Immutable evidence for one resolved frame, not an accepted owner or a release lease. */
     public final class ResolvedC03SendTicket {
         private final Request request;
@@ -139,6 +307,8 @@ public final class RotationManager {
         private final float yaw, pitch, wireYaw, wirePitch;
         private final RuntimeObservation observation;
         private final SceneContext scene;
+        private final long suspensionRevision;
+        private final ScaffoldReleaseLease release;
         private final WeakReference<Object> player, world;
         private final WeakReference<NetHandlerPlayClient> handler;
         private final WeakReference<PacketPipeline> packets;
@@ -147,6 +317,7 @@ public final class RotationManager {
             request = captured.request; frame = captured.frame; motionSequence = captured.motionSequence;
             outerTick = captured.outerTick; yaw = captured.yaw; pitch = captured.pitch;
             observation = captured.observation; scene = captured.scene;
+            suspensionRevision = captured.suspensionRevision; release = captured.release;
             player = captured.player; world = captured.world; handler = captured.handler; packets = captured.packets;
             this.wireYaw = wireYaw; this.wirePitch = wirePitch;
         }
@@ -166,6 +337,8 @@ public final class RotationManager {
             packets = new WeakReference<>(currentHandler == null ? null : currentHandler.getNetworkManager().getClientPackets());
             observation = RuntimeServices.observation();
             outerTick = observation == null ? -1 : observation.getActiveOuterTickId();
+            suspensionRevision = observation == null ? -1 : observation.getObservedSuspensionRevision();
+            release = SCAFFOLD_RELEASE_SOURCE.equals(request.source) ? scaffoldRelease : null;
             scene = observation == null ? null : observation.captureScene();
         }
 
@@ -187,6 +360,8 @@ public final class RotationManager {
         }
 
         private boolean current() {
+            if (SCAFFOLD_RELEASE_SOURCE.equals(request.source)
+                    && (release == null || currentScaffoldRelease() != release)) return false;
             if (!sameFrame() || !sameObjects() || observation == null || observation != RuntimeServices.observation()
                     || outerTick < 0 || observation.getActiveOuterTickId() != outerTick
                     || scene == null || !scene.isValid() || scene.isSuspended()) return false;
@@ -194,7 +369,8 @@ public final class RotationManager {
             SceneContext fresh = observation.captureScene();
             return fresh.isValid() && !fresh.isSuspended() && scene.sameSceneAs(fresh)
                     && sameFrame() && sameObjects() && observation == RuntimeServices.observation()
-                    && observation.getActiveOuterTickId() == outerTick;
+                    && observation.getActiveOuterTickId() == outerTick
+                    && (release == null || currentScaffoldRelease() == release);
         }
 
         /** Revalidate the captured lifetime after transport callbacks, before granting source authority. */
@@ -221,10 +397,19 @@ public final class RotationManager {
     }
 
     public void finishMotion(float yaw, float pitch, boolean packetAccepted) {
+        final long finishingSequence = sequence;
+        final boolean releaseFrame = winner != null && SCAFFOLD_RELEASE_SOURCE.equals(winner.source);
+        if (releaseFrame) {
+            ScaffoldReleaseLease expected = scaffoldRelease;
+            if (expected == null || currentScaffoldRelease() != expected) packetAccepted = false;
+            if (sequence != finishingSequence) return;
+        }
+        final ResolvedC03SendTicket evidence = resolvedTicket;
         resolvedRequest = null;
         resolvedFrame = null;
         resolvedTicket = null;
         collecting = false;
+        scaffoldAcceptance = null;
         accepted = packetAccepted && Float.isFinite(yaw) && Float.isFinite(pitch) && pitch >= -90 && pitch <= 90;
         if (!accepted) return;
         hasEffective = true;
@@ -232,6 +417,14 @@ public final class RotationManager {
         effectivePitch = clamp(pitch, -90, 90);
         owner = winner != null && Math.abs(MathHelper.wrapAngleTo180_float(winner.yaw - yaw)) < .001f
                 && Math.abs(winner.pitch - pitch) < .001f ? winner.source : null;
+        if ("scaffold".equals(owner) && evidence != null && evidence.request == winner
+                && evidence.motionSequence == sequence && evidence.observation != null
+                && evidence.observation == RuntimeServices.observation() && evidence.outerTick >= 0
+                && evidence.observation.getActiveOuterTickId() == evidence.outerTick
+                && evidence.scene != null && evidence.scene.isValid() && !evidence.scene.isSuspended()
+                && evidence.scene.getConnectionGeneration() == evidence.observation.getObservedConnectionGeneration()
+                && evidence.suspensionRevision == evidence.observation.getObservedSuspensionRevision())
+            scaffoldAcceptance = new AcceptedScaffoldBasis(evidence);
         if (owner != null) {
             RotationState state = state(owner);
             state.yaw = effectiveYaw;
@@ -240,7 +433,7 @@ public final class RotationManager {
         }
     }
 
-    public boolean isOwner(String source) { return hasEffective && source.equals(owner); }
+    public boolean isOwner(String source) { currentScaffoldRelease(); return hasEffective && source.equals(owner); }
     /** During PRE, only the last accepted owner is usable; a pending winner grants no correction. */
     public String getConfirmedOwner() {
         return canUseRotation(owner, collecting) ? owner : null;
@@ -253,6 +446,7 @@ public final class RotationManager {
     }
     /** PRE consumes the preceding accepted movement; POST consumes the current movement result. */
     public boolean canUseRotation(boolean pre) {
+        currentScaffoldRelease();
         return hasEffective && (pre ? previousAccepted : accepted)
                 && Float.isFinite(effectiveYaw) && Float.isFinite(effectivePitch);
     }
@@ -260,28 +454,36 @@ public final class RotationManager {
      * PRE is available while collecting; finishMotion replaces that basis with the POST result.
      */
     public boolean canUseRotation(String source, boolean pre) {
+        currentScaffoldRelease();
         return pre == collecting && source != null && !source.trim().isEmpty()
                 && source.equals(owner) && canUseRotation(pre);
     }
-    public boolean isMotionAccepted() { return accepted; }
+    public boolean isMotionAccepted() { currentScaffoldRelease(); return accepted; }
     public long getMotionSequence() { return sequence; }
     public float getEffectiveYaw() { return effectiveYaw; }
     public float getEffectivePitch() { return effectivePitch; }
     public boolean hasEffectiveRotation() { return hasEffective; }
 
     public boolean matchesEffective(float yaw, float pitch) {
+        currentScaffoldRelease();
         return accepted && Math.abs(MathHelper.wrapAngleTo180_float(effectiveYaw-yaw)) < .001f
                 && Math.abs(effectivePitch-pitch) < .001f;
     }
 
     /** Also observe replays/other movement emitted by attack listeners, not just the motion event. */
     public void observeOutboundRotation(float yaw, float pitch) {
+        boolean matchingRelease = collecting && winner != null && SCAFFOLD_RELEASE_SOURCE.equals(winner.source)
+                && Math.abs(MathHelper.wrapAngleTo180_float(winner.yaw - yaw)) < .001f
+                && Math.abs(winner.pitch - pitch) < .001f;
+        if (scaffoldRelease != null && !matchingRelease) cancelScaffoldRelease();
         if (!Float.isFinite(yaw) || !Float.isFinite(pitch) || pitch < -90 || pitch > 90) {
+            scaffoldAcceptance = null;
             accepted = false;
             previousAccepted = false;
             owner = null;
         } else if (!hasEffective || Math.abs(MathHelper.wrapAngleTo180_float(effectiveYaw-yaw)) >= .001f
                 || Math.abs(effectivePitch-pitch) >= .001f) {
+            scaffoldAcceptance = null;
             owner = null;
         }
         hasEffective = true;
@@ -427,6 +629,8 @@ public final class RotationManager {
         if (source == null) {
             return;
         }
+        if ("scaffold".equals(source)) scaffoldAcceptance = null;
+        if (SCAFFOLD_RELEASE_SOURCE.equals(source)) cancelScaffoldRelease();
         states.remove(source);
         if (source.equals(owner)) owner = null;
         if (winner != null && source.equals(winner.source)) winner = null;
@@ -438,6 +642,9 @@ public final class RotationManager {
     }
 
     public void reset() {
+        scaffoldRelease = null;
+        scaffoldAcceptance = null;
+        foreignRequestOffered = false;
         RotationCorrections.reset();
         states.clear();
         owner = null;

@@ -29,14 +29,25 @@ Maven 3.9.15 liegt lokal unter
    nicht erneut einspielen. Historische Branches mit Laufzeitdateien benötigen einen
    geprüften Quellenpatch; ihre gesamte Historie gehört nicht in die Veröffentlichung.
 3. Konflikte fachlich lösen und die betroffenen Java-8-Tests auf dem integrierten Stand ausführen.
-4. Die komplette Differenz zu `origin/main` prüfen und den geprüften Stand veröffentlichen:
+4. Nach jedem abgeschlossenen Entwicklungsdurchgang die komplette Differenz und
+   Historie zum vorgesehenen PR-Basisbranch prüfen. Ausschließlich eigene geprüfte
+   Änderungen auf einen eigenen `codex/`-Aufgabenbranch committen und mit
+   explizitem Ziel pushen, beispielsweise:
 
    ```powershell
-   git push origin main:refs/heads/codex/test-integration
+   git push origin HEAD:refs/heads/codex/aufgabenbranch
    ```
 
-5. Einen PR von `codex/test-integration` nach `YoungJibbit95/Neutron-Client:main` erstellen
-   oder den vorhandenen PR aktualisieren. Ohne ausdrücklichen Merge-Auftrag bleibt er offen.
+5. Automatisch einen eigenen PR für diesen Durchgang nach
+   `YoungJibbit95/Neutron-Client:main` erstellen. Hängt der Durchgang von einem noch
+   offenen PR ab, dessen Branch als Basis für einen Stacked PR verwenden und die
+   Abhängigkeit dokumentieren. Bei offenen erforderlichen Spiel-, Lifecycle-, CI-
+   oder sonstigen Abnahme-Gates einen Draft-PR erstellen. Keine erneute Rückfrage
+   für normale Commits, Pushes oder die PR-Erstellung; fehlender Spiel-/Serverzugang
+   wird im Draft dokumentiert. `codex/test-integration` nur für ausdrücklich
+   beauftragte gemeinsame Integrations-PRs verwenden. Merge und Veröffentlichung
+   als Release/Deployment benötigen weiterhin den entsprechenden Nutzerauftrag
+   und erfüllte Projektfreigaben; andernfalls den PR offen lassen.
 6. Nach dem GitHub-Merge den Hauptcheckout sicher synchronisieren. Normale Merge-Commits
    erhalten die gemeinsame Integrationshistorie. Nicht direkt auf `origin/main` pushen.
 7. Nicht mehr benötigte Worktrees erst nach Sicherung der Änderungen und lokalen Nachweise
