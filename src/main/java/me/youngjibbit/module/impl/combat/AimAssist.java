@@ -51,6 +51,7 @@ public class AimAssist extends Module {
 
     public AimAssist() {
         this.setKey(Keyboard.KEY_F);
+        bestHitVec.setVisibility(m->!rotationSettings.arsenic());
     }
 
     private boolean usable() {
@@ -66,6 +67,7 @@ public class AimAssist extends Module {
         super.beginConfigUpdate();
         // Missing legacy keys cannot inherit activation; explicit incoming values apply afterward.
         rotationSettings.speedCurve.reset();
+        if(rotationSettings.arsenic())rotationSettings.mode.reset();
     }
     @Override public void onDisable() { clearAim();super.onDisable(); }
     @Subscribe private final Listener<WorldEvent> world=new Listener<>(event->clearAim());

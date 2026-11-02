@@ -10,6 +10,22 @@ Sources: [BackTrack](https://github.com/ArsenicClient/Arsenic/blob/ee93d48a4b78b
 Supporting code reviewed: LagManager/PacketDelayChannel, TimerBalance, SyntheticKeys,
 BadPacketsManager and the run-tick/input hooks.
 
+The rotation/scaffold integration also ports the pure `AimCore`, `ScaffoldCore`,
+`ScaffoldWorld`, `LaneNudge`, `SneakPresses`, `Box` and `Dir` classes from the same
+revision into `me.youngjibbit.core.arsenic`. The source paths are respectively
+`utils/aimcore`, `utils/scaffoldcore` and `utils/botcore` below
+`src/main/java/arsenic`. Reviewed adapters: `utils/rotations/AimController`,
+`SilentRotationManager`, `RotationUtils`, `utils/minecraft/ScaffoldUtil`,
+`McScaffoldWorld`, `module/impl/blatant/KillAura`, `ghost/AimAssist` and
+`world/Scaffold`.
+
+The cores retain upstream algorithms. Namespace changes, a separate confirmed
+movement yaw for Scaffold prediction and fresh-input preview methods are Neutron
+adaptations. The surrounding adapters add scene/ownership resets, per-motion
+sampling, bounded prediction, accepted-ray placement and existing input priority.
+See [integration details](../ARSENIC-ROTATIONS-SCAFFOLD.md). This license also ships
+in the client artifact as `META-INF/licenses/arsenic.txt`.
+
 Neutron retains its connection-scoped FIFO pipeline, final-packet receipt tracking,
 accepted-motion authority and controller attack gates. Arsenic's event bus, mixins
 and packet replay shortcuts are not installed. The adaptations are covered by the

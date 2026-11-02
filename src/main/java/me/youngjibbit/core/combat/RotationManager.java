@@ -439,6 +439,7 @@ public final class RotationManager {
         for (Map.Entry<String,RotationState> entry : states.entrySet()) {
             RotationTrajectory trajectory=entry.getValue().trajectory;
             if(trajectory.hasSpeedCurve() && !entry.getKey().equals(acceptedSource))trajectory.resetSpeedCurve();
+            if(!entry.getKey().equals(acceptedSource))entry.getValue().arsenic.reset();
         }
     }
 
@@ -589,16 +590,29 @@ public final class RotationManager {
         RotationState state=state(source);
         AxisAlignedBB box=target.getEntityBoundingBox();
         Vec3 feet=new Vec3(mc.thePlayer.posX,mc.thePlayer.posY,mc.thePlayer.posZ);
-        if(!visible && (profile.smartAim || profile.stopOnTarget || profile.heuristics))feet=mc.thePlayer.getPlannedMovementPosition(feet.xCoord,feet.yCoord,feet.zCoord);
+        if(!visible && (profile.arsenic!=RotationProfile.ArsenicMode.OFF || profile.smartAim || profile.stopOnTarget || profile.heuristics))feet=mc.thePlayer.getPlannedMovementPosition(feet.xCoord,feet.yCoord,feet.zCoord);
         Vec3 eyes=feet.addVector(0,mc.thePlayer.getEyeHeight(),0);
         float fromYaw=visible?cameraYaw:collecting?baseYaw:state.active?state.yaw:cameraYaw;
         float fromPitch=visible?cameraPitch:collecting?basePitch:state.active?state.pitch:cameraPitch;
         if(profile.stopOnTarget && rays.canHitFrom(feet,target,fromYaw,fromPitch,profile.reach,profile.throughWalls)) {
+            state.arsenic.reset();
             if(profile.speedCurve==RotationProfile.SpeedCurve.BEZIER) {
                 if(collecting)state.trajectory.pauseMotion(target,sequence,curveMotionTime());
             } else state.trajectory.pause(target);
             return new float[]{fromYaw,fromPitch};
         }
+        if(profile.arsenic!=RotationProfile.ArsenicMode.OFF) {
+            if(!collecting)return new float[]{fromYaw,fromPitch};
+            me.youngjibbit.core.arsenic.aim.AimCore.Input in=new me.youngjibbit.core.arsenic.aim.AimCore.Input();
+            in.eyeX=eyes.xCoord;in.eyeY=eyes.yCoord;in.eyeZ=eyes.zCoord;
+            in.minX=box.minX;in.minY=box.minY;in.minZ=box.minZ;in.maxX=box.maxX;in.maxY=box.maxY;in.maxZ=box.maxZ;
+            in.selfDX=sampleDelta(mc.thePlayer.posX-mc.thePlayer.lastTickPosX);in.selfDZ=sampleDelta(mc.thePlayer.posZ-mc.thePlayer.lastTickPosZ);
+            in.targetDX=sampleDelta(target.posX-target.lastTickPosX);in.targetDZ=sampleDelta(target.posZ-target.lastTickPosZ);
+            in.targetId=target.getEntityId();in.curYaw=fromYaw;in.curPitch=fromPitch;
+            float[] next=state.arsenic.advance(target,in,profile,sequence,curveMotionTime());
+            return quantize(next[0],next[1],fromYaw,fromPitch,mc.gameSettings.mouseSensitivity);
+        }
+        state.arsenic.reset();
         Vec3 base=baseAimPoint(target,bestHitVec,box);
         if(profile.smartAim || profile.heuristics)base=visibleAimPoint(target,box,base,feet,fromYaw,fromPitch,profile,rays);
         if(base==null)return null;
@@ -612,6 +626,7 @@ public final class RotationManager {
         float[] direction=angles(feet.addVector(0,mc.thePlayer.getEyeHeight(),0),point);
         return rays.canHitFrom(feet,target,direction[0],direction[1],profile.reach,profile.throughWalls);
     }
+    private static double sampleDelta(double delta) { return Double.isFinite(delta) && Math.abs(delta)<=2?delta:0; }
     private Vec3 visibleAimPoint(EntityLivingBase target,AxisAlignedBB box,Vec3 base,Vec3 feet,float yaw,float pitch,RotationProfile profile,RaycastService rays) {
         Vec3 eyes=feet.addVector(0,mc.thePlayer.getEyeHeight(),0);
         List<Vec3> candidates=new ArrayList<>();candidates.add(base);
@@ -712,7 +727,8 @@ public final class RotationManager {
         RotationState state = states.get(key);
         if (state == null) {
             long epoch=trajectoryEpochs.merge(key,1L,Long::sum);
-            state = new RotationState(new RotationTrajectory(clock,(int)(seed ^ sourceHash(key) ^ epoch*0x54ab183dL)));
+            long trajectorySeed=seed ^ sourceHash(key) ^ epoch*0x54ab183dL;
+            state = new RotationState(new RotationTrajectory(clock,(int)trajectorySeed),new ArsenicAimTrajectory(trajectorySeed));
             states.put(key, state);
         }
         return state;
@@ -722,7 +738,8 @@ public final class RotationManager {
 
     private static final class RotationState {
         final RotationTrajectory trajectory;
-        RotationState(RotationTrajectory trajectory) { this.trajectory=trajectory; }
+        final ArsenicAimTrajectory arsenic;
+        RotationState(RotationTrajectory trajectory,ArsenicAimTrajectory arsenic) { this.trajectory=trajectory;this.arsenic=arsenic; }
         private float yaw;
         private float pitch;
         private boolean active;

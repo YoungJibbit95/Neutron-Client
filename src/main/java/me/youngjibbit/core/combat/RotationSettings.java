@@ -11,6 +11,7 @@ public final class RotationSettings {
     public final SliderValue speedVariation;
     public final ComboValue speedCurve;
     public final SliderValue bezierStrength,bezierDuration;
+    public final SliderValue predictionTicks,missChance;
     private final boolean placement;
     public final ComboValue mode,noise,cellularDistance,cellularReturn,fractal,warp;
     public final SliderValue minSpeed,maxSpeed,interpolation,yawOffset,pitchOffset,radius,frequency,strength;
@@ -37,7 +38,9 @@ public final class RotationSettings {
         interpolateRotation=placement?null:new CheckBoxValue("Interpolate Rotation",parent,false);
         advancedPitch=placement?null:new CheckBoxValue("Advanced Pitch",parent,false);
         randomMode=placement?null:new ComboValue("Random Mode",parent,new String[]{"Noise","Basic","OnlyRotation","Doubled"},0);
-        mode=new ComboValue(modeName,parent,assist?new String[]{"Legit","Test","Normal"}:new String[]{"Basic","Smooth","Advanced"},assist?2:0);
+        mode=new ComboValue(modeName,parent,placement?new String[]{"Basic","Smooth","Advanced"}:assist?new String[]{"Legit","Test","Normal","Arsenic Lazy","Arsenic Heuristics"}:new String[]{"Basic","Smooth","Advanced","Arsenic Lazy","Arsenic Heuristics"},assist?2:0);
+        predictionTicks=placement?null:new SliderValue("Prediction Ticks",parent,assist?3D:1D,0,3,false);
+        missChance=placement?null:new SliderValue("Miss Chance",parent,5D,0,50,true);
         preset=new ComboValue("Randomization Style",parent,new String[]{"Aus","Sanft","Organisch","Dynamisch","Benutzerdefiniert"},1);
         speedVariation=new SliderValue("Speed Variation",parent,0D,0,.9,false);
         speedCurve=placement?null:new ComboValue("Speed Curve",parent,new String[]{"Off","Bezier"},0);
@@ -83,7 +86,19 @@ public final class RotationSettings {
         weighted.setVisibility(m->gain.isVisible() && gain.getValue()>0 && !domain());
         pingPong.setVisibility(m->custom() && noiseOn() && "PingPong".equals(fractal.getValue()));
         warp.setVisibility(m->custom() && noiseOn() && domain());warpAmplitude.setVisibility(m->warp.isVisible());
+        if(!placement) {
+            predictionTicks.setVisibility(m->arsenic());
+            missChance.setVisibility(m->"Arsenic Heuristics".equals(mode.getValue()));
+            for(Value<?> v:new Value<?>[]{preset,speedVariation,speedCurve,bezierStrength,bezierDuration,smartAim,presetTiming,
+                    heuristics,interpolateRotation,advancedPitch,randomMode,minSpeed,maxSpeed,interpolation,randomization,
+                    strength,noise,frequency,yawOffset,pitchOffset,radius,cellularDistance,cellularReturn,cellularJitter,
+                    fractal,gain,lacunarity,octaves,pingPong,weighted,warp,warpAmplitude,jitter,randomHitVec}) {
+                java.util.function.Predicate<Module> visible=v.getVisibility();
+                v.setVisibility(m->!arsenic() && (visible==null || visible.test(m)));
+            }
+        }
     }
+    public boolean arsenic() { return !placement && mode.getValue().startsWith("Arsenic "); }
     private boolean custom() { return "Benutzerdefiniert".equals(preset.getValue()); }
     private boolean timingEditable() { return placement?custom():custom() || "Aus".equals(preset.getValue()) || !presetTiming.getValue(); }
     private boolean noiseOn() { return randomization.getValue() && strength.getValue()>0 && !"Aus".equals(noise.getValue()); }
@@ -115,6 +130,10 @@ public final class RotationSettings {
         }
         // Placement randomizes a point on the actual face, never an angular offset away from it.
         if(placement) p.jitter=p.yawOffset=p.pitchOffset=0;
+        if(arsenic()) {
+            p.arsenic="Arsenic Lazy".equals(mode.getValue())?RotationProfile.ArsenicMode.LAZY:RotationProfile.ArsenicMode.HEURISTICS;
+            p.predictionTicks=f(predictionTicks);p.missChance=f(missChance)/100f;
+        }
         return p;
     }
     public static String canonicalName(String name) {
