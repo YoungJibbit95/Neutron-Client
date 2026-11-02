@@ -1,0 +1,126 @@
+name: Release bundle
+
+on:
+  push:
+    tags: ['v[0-9]*']
+  pull_request:
+    paths:
+      - 'pom.xml'
+      - '.github/workflows/release-bundle.yml'
+      - '.github/scripts/*.py'
+      - '.github/workflows/traffic-metrics.yml'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Bundle version (for example v1.0.0-alpha.1); does not publish a release'
+        default: 'v0.0.0-preview'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-bundle-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      RELEASE_VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version || format('v0.0.0-pr.{0}', github.event.pull_request.number) }}
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Validate version and release source
+        run: |
+          python -c "import sys; sys.path.insert(0, '.github/scripts'); from create_release_bundle import version_id; import os; print(version_id(os.environ['RELEASE_VERSION']))"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($env:GITHUB_REF_TYPE -eq 'tag') {
+            git merge-base --is-ancestor HEAD origin/main
+            if ($LASTEXITCODE -ne 0) { throw 'Release tags must point to a commit already on main' }
+          }
+
+      - name: Release tooling tests
+        run: python -m unittest discover -s .github/scripts -p 'test_*.py' -v
+
+      - name: Temurin 8u482
+        uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '8.0.482+8'
+          architecture: x64
+          check-latest: false
+
+      - name: Maven 3.9.15
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $zip = Join-Path $env:RUNNER_TEMP 'apache-maven-3.9.15-bin.zip'
+          Invoke-WebRequest 'https://archive.apache.org/dist/maven/maven-3/3.9.15/binaries/apache-maven-3.9.15-bin.zip' -OutFile $zip
+          $expected = '251c676eb88684d6dd86c666817979d256a335c31ad34ab0e1df17eeca1cd504a6c890e906a46d04e51cc7a4fb02f33a75971ef750558034e0a81c257be02267'
+          if ((Get-FileHash -LiteralPath $zip -Algorithm SHA512).Hash -ne $expected) { throw 'Maven checksum mismatch' }
+          Expand-Archive -LiteralPath $zip -DestinationPath $env:RUNNER_TEMP
+          "MAVEN_HOME=$(Join-Path $env:RUNNER_TEMP 'apache-maven-3.9.15')" >> $env:GITHUB_ENV
+
+      - name: Java 8 tests and complete release JAR
+        run: |
+          $started = (Get-Date).ToString('o')
+          & "$env:MAVEN_HOME/bin/mvn.cmd" -B -ntp '-Dstyle.color=never' -Prelease-bundle clean package
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & .github/scripts/check-java8-results.ps1 -Since $started
+
+      - name: Assemble JAR, launcher JSON and short changelog
+        run: |
+          python .github/scripts/create_release_bundle.py --tag $env:RELEASE_VERSION --repository $env:GITHUB_REPOSITORY
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Get-Content target/release-bundle/CHANGELOG.md >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Verify packaged Java 8 runtime in isolation
+        run: |
+          $info = Get-Content target/release-bundle/build-info.json -Raw | ConvertFrom-Json
+          $junit = Join-Path $env:USERPROFILE '.m2/repository/junit/junit/4.13.2/junit-4.13.2.jar'
+          $hamcrest = Join-Path $env:USERPROFILE '.m2/repository/org/hamcrest/hamcrest-core/1.3/hamcrest-core-1.3.jar'
+          & "$env:JAVA_HOME/bin/java.exe" "-Dneutron.release.jar=$($info.jar)" "-Dneutron.release.root=$PWD" -cp "target/test-classes;$($info.jar);$junit;$hamcrest" org.junit.runner.JUnitCore me.youngjibbit.release.PackagedRuntimeCheck
+          exit $LASTEXITCODE
+
+      - name: Upload complete bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: neutron-release-bundle
+          path: target/release-bundle/
+          if-no-files-found: error
+          retention-days: 14
+
+  draft-release:
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: neutron-release-bundle
+          path: release
+
+      - name: Create or refresh draft (never overwrite a published release)
+        shell: bash
+        run: |
+          if gh release view "$RELEASE_TAG" --json isDraft > release-state.json; then
+            python3 -c "import json; assert json.load(open('release-state.json'))['isDraft'], 'Published releases cannot be overwritten'"
+            gh release edit "$RELEASE_TAG" --notes-file release/CHANGELOG.md
+          else
+            gh release create "$RELEASE_TAG" --verify-tag --draft --title "Neutron ${RELEASE_TAG#v}" --notes-file release/CHANGELOG.md
+          fi
+          gh release upload "$RELEASE_TAG" release/*-bundle.zip release/Neutron-*/*.jar release/Neutron-*/*.json release/CHANGELOG.md release/SHA256SUMS.txt release/build-info.json --clobber

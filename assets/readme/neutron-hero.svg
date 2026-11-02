@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1360 365" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1360" height="365" viewBox="0 0 1360 365" role="img" aria-labelledby="title desc">
 <title id="title">Neutron Client</title><desc id="desc">Neutron is a modular Minecraft 1.8.9 client. Dark glass UI with magenta and orange PinkLemonade accents.</desc>
 <defs>
 <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="30%"><stop offset="0" stop-color="#FF00EA"/><stop offset=".56" stop-color="#FE2597"/><stop offset="1" stop-color="#FF6200"/></linearGradient>
@@ -23,7 +23,7 @@
 <text x="230" y="115" fill="#BAB6C7" font-size="15" letter-spacing="5" font-weight="700">MINECRAFT / JAVA EDITION / 1.8.9</text>
 <text x="220" y="194" fill="url(#accent)" font-size="89" font-weight="900" letter-spacing="7">NEUTRON</text>
 <text x="227" y="230" fill="#F7F2FB" font-size="24" font-weight="500">Build your experience.</text>
-<text x="227" y="258" fill="#AAA9BD" font-size="17">42 mapped modules  <tspan fill="#FF9ABD">/</tspan>  8 categories  <tspan fill="#FF9ABD">/</tspan>  Built around you</text>
+<text x="227" y="258" fill="#AAA9BD" font-size="17">Custom themes  <tspan fill="#FF9ABD">/</tspan>  HUD layouts  <tspan fill="#FF9ABD">/</tspan>  Keybinds</text>
 <rect x="229" y="283" width="119" height="27" rx="13.5" fill="#2C1436" stroke="#C64CB2" stroke-opacity=".55"/>
 <circle cx="243" cy="296.5" r="4" fill="#F938D3"/><text x="254" y="302" fill="#FFD8F5" font-size="12" font-weight="700" letter-spacing="1">DEV 2.2</text>
 <rect x="359" y="283" width="144" height="27" rx="13.5" fill="#2B1D1C" stroke="#DC7439" stroke-opacity=".55"/>

@@ -1,36 +1,42 @@
-# Neutron README · branding and traffic-badge notes
+# README assets
 
-## Brand direction
+The README keeps the dark PinkLemonade SVGs (`#FF00EA` / `#FF6200`). Graphics are
+brand illustrations, not game captures. All displayed assets use repository-relative
+paths, which also work for viewers of the private repository.
 
-The SVG and GIF assets were authored specifically for this README using the source-level default `PinkLemonade` theme (`#FF00EA` / `#FF6200`) and the client UI's dark-glass presentation. The hero's miniature Panel interface is **illustrative**, not an actual game capture. The GIF is an animated **branding concept**, not a demonstrated game session, anti-cheat test or measured performance result. Release screenshots should replace or supplement these graphics once native-window QA is complete.
+The header, feature panel and footer remain visible. The installation illustration
+and animated branding stay in `assets/readme/` for reuse; the shorter README omits
+them to keep downloads and setup easy to find.
 
-| Asset | Purpose |
-| :-- | :-- |
-| `assets/readme/neutron-hero.svg` | Repository hero and brand identity |
-| `assets/readme/install-flow.svg` | At-a-glance launcher installation steps |
-| `assets/readme/neutron-experience.svg` | Four feature pillars |
-| `assets/readme/neutron-motion.gif` | Lightweight animated brand visualization |
-| `assets/readme/neutron-footer.svg` | Closing brand mark |
-| `assets/readme/metrics/{views,clones}-14d.svg` | GitHub traffic in a **rolling 14-day window** |
+## Traffic badges
 
-SVGs use only local shapes, text and gradients; no external scripts, linked imagery or redistributed font files. The GIF is original and low-size; all image references in the README are repository-relative for display in a private repository.
+Views and clones sit directly below the header and link to the repository traffic
+page. Each SVG shows the total, unique count and last update date. The cards have
+explicit dimensions and separate text rows so large totals do not overlap.
 
-## Enable real GitHub repository views and clones
+The numbers cover GitHub's **rolling 14-day window**; they are not lifetime counts
+or README pixel hits. [GitHub traffic API](https://docs.github.com/en/rest/metrics/traffic).
 
-GitHub's repository traffic API provides the last **14 days** of views/clones (and unique visitors/cloners), not the complete lifetime number. These endpoints require **Administration: read** repository permissions, including for fine-grained tokens. [GitHub traffic API documentation](https://docs.github.com/en/rest/metrics/traffic).
+To refresh them daily:
 
-1. Create a **fine-grained personal access token** restricted to **this repository only**, granting **Administration: read**. Avoid additional permissions for the traffic-reading token. Store it as a GitHub Actions repository secret named `NEUTRON_TRAFFIC_TOKEN` (Settings → Secrets and variables → Actions). Never paste the token into README or commit it.
-2. Ensure the repository's Actions settings permit workflows to write **contents**, and that the main branch allows commits from the workflow identity (or replace direct push with a reviewed PR if branch protection requires it).
-3. Merge `.github/workflows/traffic-metrics.yml`, `.github/scripts/update_traffic_badges.py` and the two placeholder SVGs into the default branch.
-4. Run **Actions → Neutron · GitHub traffic badges → Run workflow**. If configured, it fetches the actual GitHub API totals and commits new image contents, thereafter refreshing daily. If no token is configured, the workflow leaves placeholders unchanged.
-5. Metrics are private to users with repository access while the repository is private. Do **not** replace them with public README-hit counters labeled “GitHub views”; those measure a different event.
+1. Create a fine-grained token restricted to `YoungJibbit95/Neutron-Client` with
+   **Administration: read**. Save it as the Actions secret `NEUTRON_TRAFFIC_TOKEN`.
+2. In **Settings → Actions → General → Workflow permissions**, allow Actions to
+   create pull requests. The workflow requests contents and pull-request write
+   permissions for its built-in token; the dedicated traffic token only reads stats.
+3. After the workflow is on `main`, run **Actions → Neutron · GitHub traffic badges**.
 
-If a token expires or API permissions change, the workflow fails without replacing the previous valid numbers. They may become stale; check the update date and workflow status. Avoid publishing private analytics if that is not intended.
+The workflow reads from `GITHUB_REPOSITORY`, updates both SVGs and opens or updates
+the `codex/readme-traffic` PR. It does not push directly to `main` or force-push.
+Merge the badge PR when desired. Missing secrets produce a visible warning; API
+errors fail the run and preserve the last valid files. Check the printed UTC date
+for freshness. Traffic remains visible only to people who can view this repository.
 
-## Release launch contract
+The current SVGs can also be refreshed locally with the same script and a dedicated
+token in the process environment. Never commit tokens or copy a broad personal
+credential into a repository secret.
 
-The README's two-file instructions become applicable **only after** a verified, matching `Neutron-1.8.9.jar` and `Neutron-1.8.9.json` are attached to a versioned Release. Before publishing, check the JSON `id`, launcher main class/arguments, libraries, assets, game directory, resource handling, and the actual JAR class/resource layout. `mvn package` alone does not prove the release artifact is launcher-ready.
+## Release files
 
-## Publishing
-
-Keep `README.md` in the repository root and preserve the paths above. The `design/`, `src/` and `LICENSE` links in the README refer to existing repository content and are **not** duplicated in this README-only package. Replace the placeholder traffic badges only with actual API data; change the release-status badge only after testing the full installation flow.
+See [Release bundles](RELEASES.md) for the JAR/JSON contract, generated changelog,
+checksums and publication steps. README download links point to `Neutron-Client`.
