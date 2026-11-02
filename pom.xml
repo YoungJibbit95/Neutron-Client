@@ -157,7 +157,7 @@
         <dependency>
             <groupId>com.squareup.okhttp3</groupId>
             <artifactId>okhttp</artifactId>
-            <version>4.10.0</version> <!-- Or the latest version -->
+            <version>5.5.1</version> <!-- Or the latest version -->
         </dependency>
 
         <dependency>
