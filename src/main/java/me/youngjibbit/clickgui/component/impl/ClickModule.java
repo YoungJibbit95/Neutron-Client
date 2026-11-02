@@ -96,6 +96,11 @@ public class ClickModule extends Component {
         me.youngjibbit.utils.font.TTFFontRenderer title = Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 20");
         title.drawString(ClickControlStyle.fit(title, module.getName(), bindingX - x - 18), x + 10, y + 6,
                 Theme.interpolateRGB(theme.isCustom()?theme.getTextColor().getRGB():0xfff0f1f5, theme.getPrimaryGradientRGB(), toggleProgress));
+        drawSettings(mouseX, mouseY);
+    }
+
+    /** Shared settings renderer for the panel and compact dropdown presentations. */
+    protected final void drawSettings(int mouseX, int mouseY) {
         if (!settingsClip.isEmpty()) {
             try (GuiClip ignored = GuiClip.push(settingsClip)) {
                 Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString("Settings", x + 12, y + height + 5,
@@ -109,6 +114,8 @@ public class ClickModule extends Component {
             }
         }
     }
+
+    protected final float getToggleProgress() { return toggleProgress; }
 
     @Override
     public float getHeight() { return height + settingsContentHeight * openProgress; }
@@ -143,7 +150,17 @@ public class ClickModule extends Component {
     public List<Sub<?>> presentationValues(){return java.util.Collections.unmodifiableList(values);}
     public boolean isOpen(){return open;}
     public void setOpen(boolean next){open=next;mouseReleased();if(!next)cancelInputs();}
-    public List<Sub<?>> focusableValues(){List<Sub<?>> result=new ArrayList<>();if(open)for(Sub<?> v:values)if(visible(v))result.add(v);return result;}
+    public List<Sub<?>> focusableValues() {
+        List<Sub<?>> result = new ArrayList<>();
+        if (!open) return result;
+        // Use the module reveal, not settingsClip: offscreen settings remain Tab destinations.
+        // The inherited header is 24px for Panel and 16px for Dropdown.
+        ClipRect reveal = new ClipRect(x + 1, y + height, width - 2, settingsContentHeight * openProgress);
+        for (Sub<?> value : values) {
+            if (visible(value) && !reveal.intersect(value.presentationBounds()).isEmpty()) result.add(value);
+        }
+        return result;
+    }
     public void cancelInputs(){for(Sub<?> v:values){v.mouseReleased();if(v instanceof ClickSlider)((ClickSlider)v).cancelInput();if(v instanceof ClickCombo)((ClickCombo)v).close();}}
     @Override public void keyTyped(char typedChar,int key){
         if(key==org.lwjgl.input.Keyboard.KEY_RIGHT)setOpen(true);

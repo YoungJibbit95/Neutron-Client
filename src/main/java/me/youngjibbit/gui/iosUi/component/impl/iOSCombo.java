@@ -3,7 +3,8 @@ package me.youngjibbit.gui.iosUi.component.impl;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.gui.iosUi.component.iOSComponent;
 import me.youngjibbit.utils.Theme;
-import me.youngjibbit.utils.input.MouseUtil;
+import me.youngjibbit.clickgui.utils.ClipRect;
+import me.youngjibbit.clickgui.utils.GuiClip;
 import me.youngjibbit.utils.animations.Animation;
 import me.youngjibbit.utils.animations.Direction;
 import me.youngjibbit.utils.animations.impl.EaseInOutQuad;
@@ -28,11 +29,11 @@ public class iOSCombo extends iOSComponent.Sub<ComboValue>
     public void drawScreen(int mouseX, int mouseY)
     {
         openAnimation.setDirection(open ? Direction.FORWARDS : Direction.BACKWARDS);
-        float openProgress = (UiEffects.motion()?openAnimation.getOutput().floatValue():open?1:0);
+        float openProgress = openProgress();
         Theme theme = Theme.resolve(Theme.getDefaultTheme());
         int accent = UiEffects.gradientAt(theme,UiEffects.Channel.BORDER,x,y);
-        float controlWidth = Math.min(72.0f, Math.max(54.0f, width - 168.0f));
-        float controlX = x + width - controlWidth - 10.0f;
+        float controlWidth = controlWidth();
+        float controlX = controlX();
         float controlY = y + 4.0f;
         float controlHeight = height - 7.0f;
 
@@ -53,25 +54,24 @@ public class iOSCombo extends iOSComponent.Sub<ComboValue>
                         y + (float) mc.fontRendererObj.FONT_HEIGHT / 2 + 3,
                         Color.white.getRGB());
 
-        if(openProgress > 0.01f)
+        ClipRect options = optionsBounds(0, openProgress);
+        if (!options.isEmpty())
         {
-            float optionPanelHeight = value.getOptions().length * OPTION_HEIGHT * openProgress;
-            float optionY = y + height + 1.0f;
-            UIUtils.drawRound(controlX, optionY, controlWidth, optionPanelHeight, 5, true, new Color(0, 0, 0, (int) (126 * openProgress)));
-
-            float i = 0.0f;
-            for(String option : value.getOptions())
-            {
-                if (i > optionPanelHeight + 1.0f) {
-                    break;
+            UIUtils.drawRound(options.x, options.y, options.width, options.height, 5, true,
+                    new Color(0, 0, 0, (int) (126 * openProgress)));
+            // Preserve the rounded panel's antialias fringe; option ink stays inside its reveal.
+            try (GuiClip ignored = GuiClip.pushTransformed(options)) {
+                float i = 0.0f;
+                for (String option : value.getOptions()) {
+                    if (i > options.height + 1.0f) break;
+                    Pulsar.INSTANCE.getFontManager()
+                            .getFont("Product-Sans-Regular 20").drawCenteredString(
+                                    label(option, options.width - 8, "Product-Sans-Regular 20"),
+                                    options.x + options.width / 2.0f,
+                                    options.y + 6.0f + i,
+                                    option.equals(value.getValue()) ? accent : new Color(235, 238, 246, 220).getRGB());
+                    i += OPTION_HEIGHT;
                 }
-                Pulsar.INSTANCE.getFontManager()
-                        .getFont("Product-Sans-Regular 20").drawCenteredString(
-                                label(option,controlWidth-8,"Product-Sans-Regular 20"),
-                                controlX + controlWidth / 2.0f,
-                                optionY + 6.0f + i,
-                                option.equals(value.getValue()) ? accent : new Color(235, 238, 246, 220).getRGB());
-                i += OPTION_HEIGHT;
             }
         }
     }
@@ -80,21 +80,13 @@ public class iOSCombo extends iOSComponent.Sub<ComboValue>
     public void mouseClicked(int mouseX, int mouseY, int mouse)
     {
         if(mouse != 0)return;
-        if(open)
-        {
-            float i = 0.0f;
-            float controlWidth = Math.min(72.0f, Math.max(54.0f, width - 168.0f));
-            float controlX = x + width - controlWidth - 10.0f;
-            for(String option : value.getOptions())
-            {
-                float adjustedY = y + Pulsar.INSTANCE.getIOS().getScrollOffset();
-                if(MouseUtil.isMouseOver(mouseX, mouseY, controlX, adjustedY + height + 1.0f + i, controlWidth, OPTION_HEIGHT))
-                {
-                    value.setValue(option);
-                    open = false;
-                    return;
-                }
-                i += OPTION_HEIGHT;
+        ClipRect options = optionsBounds(Pulsar.INSTANCE.getIOS().getScrollOffset(), openProgress());
+        if (open && options.contains(mouseX, mouseY)) {
+            int index = (int) ((mouseY - options.y) / OPTION_HEIGHT);
+            if (index >= 0 && index < value.getOptions().length) {
+                value.setValue(value.getOptions()[index]);
+                open = false;
+                return;
             }
         }
 
@@ -102,6 +94,24 @@ public class iOSCombo extends iOSComponent.Sub<ComboValue>
         {
             open = !open;
         }
+    }
+
+    private float controlWidth() {
+        return Math.min(72.0f, Math.max(54.0f, width - 168.0f));
+    }
+
+    private float controlX() {
+        return x + width - controlWidth() - 10.0f;
+    }
+
+    private float openProgress() {
+        return Math.max(0, Math.min(1, UiEffects.motion() ? openAnimation.getOutput().floatValue() : open ? 1 : 0));
+    }
+
+    /** Same local reveal for paint and input; scroll is applied only to pointer-space bounds. */
+    private ClipRect optionsBounds(float scrollOffset, float progress) {
+        float revealed = progress > 0.01f ? value.getOptions().length * OPTION_HEIGHT * progress : 0;
+        return new ClipRect(controlX(), y + height + 1.0f + scrollOffset, controlWidth(), revealed);
     }
 
     private String label(String reference,float width,String fontKey){
@@ -126,6 +136,6 @@ public class iOSCombo extends iOSComponent.Sub<ComboValue>
     @Override
     public float getHeight()
     {
-        return height + value.getOptions().length * OPTION_HEIGHT * (UiEffects.motion()?openAnimation.getOutput().floatValue():open?1:0);
+        return height + value.getOptions().length * OPTION_HEIGHT * openProgress();
     }
 }

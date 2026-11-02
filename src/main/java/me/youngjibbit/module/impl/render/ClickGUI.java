@@ -17,7 +17,7 @@ import org.lwjgl.input.Keyboard;
 public class ClickGUI  extends Module
 {
     private final CheckBoxValue headingGlow=new CheckBoxValue("Heading Glow",this,false);
-    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Panel", "iOS"}, 0);
+    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Panel", "iOS", "Dropdown"}, 0);
 
     public ClickGUI()
     {
@@ -34,7 +34,8 @@ public class ClickGUI  extends Module
     @Override
     public void onDisable()
     {
-        if (mc.currentScreen == Pulsar.INSTANCE.getPanel() || mc.currentScreen == Pulsar.INSTANCE.getIOS()) {
+        if (mc.currentScreen == Pulsar.INSTANCE.getPanel() || mc.currentScreen == Pulsar.INSTANCE.getIOS()
+                || mc.currentScreen == Pulsar.INSTANCE.getDropdown()) {
             mc.displayGuiScreen(null);
         }
         super.onDisable();
@@ -58,6 +59,8 @@ public class ClickGUI  extends Module
                 return Pulsar.INSTANCE.getPanel();
             case "iOS":
                 return Pulsar.INSTANCE.getIOS();
+            case "Dropdown":
+                return Pulsar.INSTANCE.getDropdown();
             default:
                 return Pulsar.INSTANCE.getPanel();
         }

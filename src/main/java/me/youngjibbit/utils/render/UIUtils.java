@@ -41,6 +41,13 @@ public class UIUtils
         drawGradientRound(x, y, width, height, radius, bottom, top, bottom, top);
     }
 
+    /** Accent ink follows shared gradient controls without replacing the inherited surface material. */
+    public static void drawDecorationGradientVertical(float x, float y, float width, float height, float radius, Color top, Color bottom) {
+        decorations++;
+        try { drawGradientVertical(x, y, width, height, radius, top, bottom); }
+        finally { decorations--; }
+    }
+
     public static void drawGradientCornerLR(float x, float y, float width, float height, float radius, Color topLeft, Color bottomRight)
     {
         Color mixedColor = ColorUtil.interpolateColorC(topLeft, bottomRight, .5f);

@@ -37,13 +37,17 @@ public class ThemeUiConsumerTest {
             iOSCombo combo=new iOSCombo(module.selectedTheme,10,10,220,24);
             int index=module.selectedTheme.getOptions().length-1;assertEquals(id,module.selectedTheme.getOptions()[index]);
             combo.mouseClicked(190,20,0);
+            me.youngjibbit.gui.Wave05UiInputTest.freeze(combo,"openAnimation",me.youngjibbit.utils.animations.Direction.FORWARDS,1000);
             combo.mouseClicked(190,10+24+1+index*22+11,1);
             assertEquals("BlackLight",module.selectedTheme.getValue());assertEquals(0,callbacks.get());
             combo.mouseClicked(190,10+24+1+index*22+11,0);
             assertEquals(id,module.selectedTheme.getValue());assertEquals(1,callbacks.get());
             assertEquals("GUI integration theme",ThemeSelectionValue.label(module.selectedTheme.getValue()));
             assertTrue(catalog.current().isCustom());assertFalse(module.isToggled());
-            callbacks.set(0);combo.mouseClicked(190,20,0);combo.mouseClicked(190,10+24+1+22,0);
+            callbacks.set(0);combo.mouseClicked(190,20,0);
+            me.youngjibbit.gui.Wave05UiInputTest.freeze(combo,"openAnimation",me.youngjibbit.utils.animations.Direction.FORWARDS,1000);
+            // Select the center of row zero; its bottom edge belongs to row one.
+            combo.mouseClicked(190,10+24+1+11,0);
             assertEquals("BlackLight",module.selectedTheme.getValue());assertEquals(1,callbacks.get());
         } finally {iosField.set(Pulsar.INSTANCE,old);}
     }
