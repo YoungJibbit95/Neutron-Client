@@ -101,7 +101,7 @@ public class Qa02ScreenMotionTest {
         java.nio.file.Path file=folder.newFolder().toPath().resolve("themes.json");ThemeCatalog catalog=new ThemeCatalog(new ThemeStore(file));Editor e=new Editor(catalog);e.resize(640,480);e.click(2);e.up();ClipRect save=e.box(3);for(int i=0;i<60;i++)e.step(.016f,midX(save),midY(save));assertFalse(java.nio.file.Files.exists(file));
         e.click(5);e.up();assertFalse(java.nio.file.Files.exists(file));e.click(3);e.up();assertTrue(java.nio.file.Files.exists(file));assertEquals(1,e.exits);String id=catalog.selectedReference();e.dispose();
         e=new Editor(catalog);e.resize(640,480);e.click(4);assertEquals(id,catalog.selectedReference());e.dispose();
-        e=new Editor(catalog);e.resize(640,480);e.click(6);assertNull(catalog.find(id));assertEquals(1,e.exits);e.dispose();
+        e=new Editor(catalog);e.resize(640,480);e.click(6);assertNotNull(catalog.find(id));assertEquals(0,e.exits);e.up();e.click(6);assertNull(catalog.find(id));assertEquals(1,e.exits);e.dispose();
     }
     @Test public void editorFocusWithoutBorderGlowAndVisualCaptureResetDoNotChangeBounds()throws Exception{
         c.border.setValue(false);c.glow.setValue(false);Editor e=new Editor(new ThemeCatalog(null));e.resize(480,320);e.key(Keyboard.KEY_TAB);e.step(0,-1,-1);assertTrue(((UiSpring[])get(e,"controlMotion"))[1].focused());ClipRect b=e.box(4);e.step(.1f,midX(b),midY(b));same(b,e.box(4));e.click(0);e.resize(367,245);assertEquals(-1,get(e,"visualPressed"));e.dispose();for(UiSpring state:(UiSpring[])get(e,"controlMotion"))assertEquals(0,state.amount(),0);

@@ -38,4 +38,36 @@ public class UiEffectsTest {
   settings.reducedMotion.setValue(true);clock.set(5000000000L);UiEffects.beginFrame();assertEquals(.3f,local.phase(),.00001);
  }
 
+
+ @Test public void categoryCoordinateDomainIsSharedAndRestoresAfterClose(){
+  settings.direction.setValue("Vertical");settings.gradientMotion.setValue("Static");
+  UiEffects.Gradient border=UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.BORDER);
+  assertEquals(.25,UiEffects.gradientPosition(border,10,25,100,100),1e-5);
+  try(UiEffects.GradientSpace column=UiEffects.gradientSpace(10,20,80,200)){
+   assertEquals(.5,UiEffects.gradientPosition(border,50,120,100,100),1e-5);
+   UiEffects.Gradient glow=UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.GLOW);
+   assertEquals(UiEffects.gradientPosition(border,50,120,100,100),UiEffects.gradientPosition(glow,50,120,100,100),0);
+   try(UiEffects.GradientSpace nested=UiEffects.gradientSpace(0,0,40,40)){
+    assertEquals(.5,UiEffects.gradientPosition(border,10,20,100,100),1e-5);
+   }
+   assertEquals(.5,UiEffects.gradientPosition(border,50,120,100,100),1e-5);
+  }
+  assertEquals(.25,UiEffects.gradientPosition(border,10,25,100,100),1e-5);
+ }
+ @Test public void categoryMappingKeepsExplicitDirectionModesAndFrozenClock(){
+  try(UiEffects.GradientSpace column=UiEffects.gradientSpace(20,30,100,200)){
+   settings.direction.setValue("Horizontal");settings.gradientMotion.setValue("Static");
+   UiEffects.Gradient horizontal=UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.BORDER);
+   assertEquals(.75,UiEffects.gradientPosition(horizontal,95,80,500,500),1e-5);
+   settings.direction.setValue("Up");
+   assertEquals(.75,UiEffects.gradientPosition(UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.BORDER),95,80,500,500),1e-5);
+   settings.gradientMotion.setValue("Solid");
+   assertEquals(0,UiEffects.gradientPosition(UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.BORDER),95,80,500,500),0);
+   settings.gradientMotion.setValue("Animated");advanceTo(1000000000L);
+   float phase=UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.GLOW).phase;
+   settings.ambientMotion.setValue(false);advanceTo(2000000000L);
+   assertEquals(phase,UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.GLOW).phase,0);
+  }
+ }
+
 }

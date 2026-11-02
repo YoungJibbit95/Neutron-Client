@@ -19,7 +19,7 @@ public class ThemeModelTest {
  static String id(){return "custom:"+UUID.randomUUID();}
  private String read(Path p)throws IOException{return new String(Files.readAllBytes(p),StandardCharsets.UTF_8);}
  @Test public void allLegacyPresetsKeepTheirNamesAndExplicitLocalColors(){
-  assertEquals(19,Theme.values().length);assertSame(Theme.SynthWave,Theme.valueOf("SynthWave"));assertEquals(0xff0077ff,Theme.SynthWave.getPrimaryGradientRGB());
+  assertEquals(20,Theme.values().length);assertSame(Theme.Neutron,Theme.values()[19]);assertSame(Theme.SynthWave,Theme.valueOf("SynthWave"));assertEquals(0xff0077ff,Theme.SynthWave.getPrimaryGradientRGB());
   assertEquals("Cotton_candy",Theme.themes[1]);Theme[] copy=Theme.values();copy[0]=null;assertNotNull(Theme.values()[0]);
   ThemeCatalog catalog=new ThemeCatalog(null);ThemeCatalog.install(catalog);catalog.select("sYnThWaVe");assertSame(Theme.SynthWave,Theme.getDefaultTheme());assertEquals(0xff0eff00,Theme.Neon.getPrimaryGradientRGB());
  }

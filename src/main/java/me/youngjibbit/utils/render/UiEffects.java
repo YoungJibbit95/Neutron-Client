@@ -9,6 +9,32 @@ import java.awt.Color;
 
 public final class UiEffects {
 
+
+    /** A component-local coordinate domain; palette, channel settings and clock remain global. */
+    private static final java.util.Deque<GradientSpace> gradientSpaces = new java.util.ArrayDeque<>();
+    public static final class GradientSpace implements AutoCloseable {
+        final float x,y,width,height;
+        private boolean closed;
+        private GradientSpace(float x,float y,float width,float height) {
+            this.x=x;this.y=y;this.width=Math.max(1,width);this.height=Math.max(1,height);
+            gradientSpaces.push(this);
+        }
+        @Override public void close() {
+            if(closed)return;
+            if(gradientSpaces.peek()!=this)throw new IllegalStateException("Gradient scope order");
+            gradientSpaces.pop();closed=true;
+        }
+    }
+    /** Bounds are GUI screen coordinates, independent of a column's scroll offset. */
+    public static GradientSpace gradientSpace(float x,float y,float width,float height) {
+        return new GradientSpace(x,y,width,height);
+    }
+    static GradientSpace gradientSpace(){return gradientSpaces.peek();}
+    public static float gradientPosition(Gradient gradient,float x,float y,float width,float height) {
+        GradientSpace space=gradientSpace();
+        return space==null?gradient.position(x,y,width,height):gradient.position(x-space.x,y-space.y,space.width,space.height);
+    }
+
     public enum Channel { TEXT, BORDER, GLOW }
     private static LongSupplier clock=System::nanoTime;
     private static long previous=-1;
@@ -74,6 +100,10 @@ public final class UiEffects {
         net.minecraft.client.Minecraft mc=net.minecraft.client.Minecraft.getMinecraft();
         shader.setUniformi("uiEnabled",options().configured?1:0);
         shader.setUniformf("uiResolution",mc.displayWidth,mc.displayHeight);
+        GradientSpace space=gradientSpace();
+        float scale=new net.minecraft.client.gui.ScaledResolution(mc).getScaleFactor();
+        shader.setUniformf("uiGradientBounds",space==null?0:space.x*scale,space==null?0:space.y*scale,
+                space==null?mc.displayWidth:space.width*scale,space==null?mc.displayHeight:space.height*scale);
         for(Channel channel:Channel.values()){
             Gradient g=override==null?gradient(theme,channel):override;String n=channel==Channel.TEXT?"uiText":channel==Channel.BORDER?"uiBorder":"uiGlow";
             shader.setUniformf(n,g.axis,options().gradients?g.mode:0,g.phase);
@@ -82,7 +112,7 @@ public final class UiEffects {
     public static int gradientColor(Theme theme,Channel channel,float x,float y){
         theme=theme(theme);
         net.minecraft.client.gui.ScaledResolution sr=new net.minecraft.client.gui.ScaledResolution(net.minecraft.client.Minecraft.getMinecraft());
-        Gradient g=scene()!=null&&scene().policy.gradient!=null?scene().policy.gradient:gradient(theme,channel);return Theme.interpolateRGB(theme.getPrimaryGradientRGB(),theme.getSecondaryGradientRGB(),options().gradients?g.position(x,y,sr.getScaledWidth(),sr.getScaledHeight()):0);
+        Gradient g=scene()!=null&&scene().policy.gradient!=null?scene().policy.gradient:gradient(theme,channel);return Theme.interpolateRGB(theme.getPrimaryGradientRGB(),theme.getSecondaryGradientRGB(),options().gradients?gradientPosition(g,x,y,sr.getScaledWidth(),sr.getScaledHeight()):0);
     }
     public static final class Gradient {
         public final int axis,mode;public final float phase,speed;

@@ -48,6 +48,7 @@ public final class DropdownGuiRenderCheck {
         void release() { mouseReleased(0, 0, 0); }
         void key(char c, int key) throws Exception { keyTyped(c, key); }
         void type(String text) throws Exception { for (char c : text.toCharArray()) key(c, Keyboard.KEY_NONE); }
+        void move(float x,float y){mouseClickMove((int)x,(int)y,0,10);}
         void scroll(float x, float y, int wheel) { scrollAt((int)x, (int)y, wheel); }
     }
 
@@ -69,12 +70,12 @@ public final class DropdownGuiRenderCheck {
             set(mc, "mcResourceManager", resources);
             set(mc, "mcLanguageManager", new LanguageManager(new IMetadataSerializer(), "en_US"));
             set(mc, "framebufferMc", new Framebuffer(mc.displayWidth, mc.displayHeight, true));
-            Pulsar.INSTANCE.fontManager = ClickGuiRenderCheck.minimalFonts();
+            Pulsar.INSTANCE.fontManager = ClickGuiRenderCheck.minimalFonts("Poppins-Regular 16","Poppins-Medium 16","icon1 16");
             set(Pulsar.INSTANCE, "mm", new ModuleManager());
             ClientSettings settings = ClientSettings.current();
-            settings.surface.setValue("Standard");
+            settings.surface.setValue("Blur");
             settings.reducedMotion.setValue(true);
-            Theme.setDefaultTheme(Theme.Cotton_candy);
+            Theme.setDefaultTheme(Theme.Neutron);
             Gui gui = new Gui();
             set(Pulsar.INSTANCE, "dropdown", gui);
             resize(gui, 1280, 720, 1);
@@ -87,6 +88,7 @@ public final class DropdownGuiRenderCheck {
             checkInputs(gui);
             checkSearch(gui);
             checkDragCollapse(gui);
+            checkAnimatedControls(gui,settings);
             checkSizes(gui);
             checkGradientMaster(gui, settings);
             checkMaterials(gui, settings);
@@ -95,6 +97,7 @@ public final class DropdownGuiRenderCheck {
             require(glGetError() == GL_NO_ERROR, "Dropdown leaked a GL error");
             context.check();
             gui.onGuiClosed();
+            ClickLibraryRenderCheck.run(mc);
             Pulsar.INSTANCE.fontManager.close();
             ArrayListSurface.releaseResources();
         }
@@ -163,7 +166,7 @@ public final class DropdownGuiRenderCheck {
         require(aim.getModule().isToggled() == before, "Toggle did not round trip");
         gui.click(aim.getX() + 30, aim.getY() + 8, 1);
         frame(gui, -1, -1);
-        require(aim.isOpen() && number(combat, "width") >= 210, "Settings must reveal at a readable width");
+        require(aim.isOpen() && number(combat, "width") <= 108, "Settings must keep the compact column width");
         ClickSlider slider = null;
         for (Component.Sub<?> value : aim.focusableValues()) if (value instanceof ClickSlider) { slider = (ClickSlider)value; break; }
         require(slider != null, "AimAssist production slider missing");
@@ -212,6 +215,43 @@ public final class DropdownGuiRenderCheck {
         gui.click(aim.getX() + 10, aim.getY() + 8, 1);
         frame(gui, -1, -1);
         require(!aim.isOpen() && aim.getHeight() == DropdownModule.ROW_HEIGHT, "Settings did not collapse");
+    }
+
+    private static void checkAnimatedControls(Gui gui,ClientSettings settings)throws Exception{
+        resize(gui,854,480,1);gui.key(' ',Keyboard.KEY_HOME);frame(gui,-1,-1);
+        Object combat=panel(gui,Category.Combat);
+        DropdownModule aim=row(combat,"AimAssist");
+        settings.reducedMotion.setValue(false);
+        float compact=number(combat,"width");
+        aim.setOpen(true);gui.layout(0);
+        me.youngjibbit.utils.animations.Animation opening=(me.youngjibbit.utils.animations.Animation)get(aim,"openAnimation");
+        opening.timerUtil.setTime(System.currentTimeMillis()-80);gui.layout(0);
+        float partial=aim.getHeight();require(partial>DropdownModule.ROW_HEIGHT,"Module opening must reveal content progressively");
+        require(number(combat,"width")==compact,"Opening settings must not overlap the next column");
+        frame(gui,-1,-1);snapshot("20-module-opening.png");
+        settings.reducedMotion.setValue(true);gui.layout(0);float full=aim.getHeight();require(full>partial,"Reduced motion snaps to complete settings");
+        ClickSlider slider=null;for(Component.Sub<?> value:aim.presentationValues())if(value instanceof ClickSlider){slider=(ClickSlider)value;break;}
+        require(slider!=null,"Real compact slider");
+        double old=slider.getValue().getValue();
+        float tx=methodNumber(slider,"trackX"),tw=methodNumber(slider,"trackWidth"),ty=methodNumber(slider,"trackY");
+        gui.click(tx+tw*.2f,ty,0);double clicked=slider.getValue().getValue();
+        frame(gui,(int)(tx+tw*.8f),(int)ty);
+        require(slider.getValue().getValue()==clicked,"Drawing a held slider must not write values");
+        gui.move(tx+tw*.8f,ty);require(slider.getValue().getValue()!=clicked,"Mouse drag event must reach value");
+        gui.release();slider.getValue().setValue(old);
+        settings.reducedMotion.setValue(false);gui.layout(0);
+        gui.scroll(number(combat,"x")+10,number(combat,"y")+30,-120);gui.layout(.016f);
+        require(number(combat,"scroll")<0&&number(combat,"scroll")>number(combat,"targetScroll"),"Wheel must interpolate inside one column");
+        float body=number(combat,"height");
+        gui.click(number(combat,"x")+20,number(combat,"y")+8,1);
+        me.youngjibbit.utils.animations.Animation reveal=(me.youngjibbit.utils.animations.Animation)get(combat,"reveal");
+        reveal.timerUtil.setTime(System.currentTimeMillis()-80);gui.layout(0);
+        require(number(combat,"height")>17&&number(combat,"height")<body,"Category must animate closed");
+        frame(gui,-1,-1);snapshot("21-category-closing.png");
+        settings.reducedMotion.setValue(true);gui.layout(0);
+        require(number(combat,"height")==17,"Reduced motion collapses category immediately");
+        gui.click(number(combat,"x")+20,number(combat,"y")+8,1);
+        aim.setOpen(false);gui.key(' ',Keyboard.KEY_HOME);frame(gui,-1,-1);
     }
 
     private static void checkSearch(Gui gui) throws Exception {
@@ -269,7 +309,7 @@ public final class DropdownGuiRenderCheck {
         frame(gui, -1, -1);
         gui.click(number(combat, "x") + 20, number(combat, "y") + 8, 1);
         frame(gui, -1, -1);
-        require(!(Boolean)get(combat, "open") && number(combat, "height") == 19, "Right-click header must collapse category");
+        require(!(Boolean)get(combat, "open") && number(combat, "height") == 17, "Right-click header must collapse category");
         gui.click(number(combat, "x") + 20, number(combat, "y") + 8, 1);
         gui.click(number(combat, "x") + 20, number(combat, "y") + 8, 0);
         frame(gui, -200, -200);
@@ -324,8 +364,9 @@ private static int sampleRamp(DropdownModule row, float position) {
     glDisable(GL_SCISSOR_TEST);
     glClearColor(.12f, .18f, .24f, 1);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    row.setGradientPosition(position);
-    row.drawScreen(-1, -1);
+    try(me.youngjibbit.utils.render.UiEffects.GradientSpace gradient=me.youngjibbit.utils.render.UiEffects.gradientSpace(20,24-position*200,108,200)){
+        row.drawScreen(-1,-1);
+    }
     glFinish();
     int scale = new ScaledResolution(mc).getScaleFactor();
     ByteBuffer pixel = BufferUtils.createByteBuffer(4);
@@ -360,7 +401,7 @@ private static int sampleRamp(DropdownModule row, float position) {
         settings.gradients.setValue(false);
         frame(gui, -1, -1);
         snapshot("08-effects-off.png");
-        settings.surface.setValue("Standard");
+        settings.surface.setValue("Blur");
         settings.blur.setValue(true);
         settings.glow.setValue(true);
         settings.border.setValue(true);
@@ -368,7 +409,7 @@ private static int sampleRamp(DropdownModule row, float position) {
         Theme.setDefaultTheme(Theme.Neon);
         frame(gui, -1, -1);
         snapshot("09-theme-neon.png");
-        Theme.setDefaultTheme(Theme.Cotton_candy);
+        Theme.setDefaultTheme(Theme.Neutron);
     }
 
     private static void checkLifecycle(Gui gui) throws Exception {
