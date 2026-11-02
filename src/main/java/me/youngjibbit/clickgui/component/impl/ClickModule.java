@@ -22,8 +22,8 @@ public class ClickModule extends Component {
     private final Module module;
     private final List<Sub<?>> values = new ArrayList<>();
     private boolean open;
-    private final DecelerateAnimation openAnimation = new DecelerateAnimation(220, 1, Direction.BACKWARDS);
-    private final DecelerateAnimation toggleAnimation = new DecelerateAnimation(180, 1, Direction.BACKWARDS);
+    private final DecelerateAnimation openAnimation = new me.youngjibbit.clickgui.utils.ClickAnimation(220, 1, Direction.BACKWARDS);
+    private final DecelerateAnimation toggleAnimation = new me.youngjibbit.clickgui.utils.ClickAnimation(180, 1, Direction.BACKWARDS);
     private float openProgress, toggleProgress, settingsContentHeight;
     private ClipRect settingsClip = new ClipRect(0, 0, 0, 0);
 
@@ -46,7 +46,7 @@ public class ClickModule extends Component {
         toggleAnimation.setDirection(module.isToggled() ? Direction.FORWARDS : Direction.BACKWARDS);
         openProgress = Math.max(0, Math.min(1, me.youngjibbit.utils.render.UiEffects.motion()?openAnimation.getOutput().floatValue():open?1:0));
         toggleProgress = Math.max(0, Math.min(1, me.youngjibbit.utils.render.UiEffects.motion()?toggleAnimation.getOutput().floatValue():module.isToggled()?1:0));
-        settingsContentHeight = 24;
+        settingsContentHeight = compactSettings() ? 4 : 24;
         for (Sub<?> value : values) {
             if (!visible(value)) continue;
             if (value instanceof ClickCombo) ((ClickCombo) value).updateAnimation();
@@ -54,20 +54,29 @@ public class ClickModule extends Component {
         }
     }
 
+    protected boolean compactSettings() { return false; }
+    @Override public void setWidth(float next) {
+        width=next;
+        for(Sub<?> value:values)value.setWidth(compactSettings()?width-4:width);
+    }
+    @Override public void mouseDragged(int mouseX,int mouseY) {
+        if(open)for(Sub<?> value:values)if(visible(value))value.mouseDragged(mouseX,mouseY);
+    }
+
     public void layout(float x, float y, float width, ClipRect parentClip) {
         updateComponent(x, y);
-        this.width = width;
+        setWidth(width);
         this.clip = parentClip;
         settingsClip = parentClip.intersect(new ClipRect(x + 1, y + height, width - 2, settingsContentHeight * openProgress));
-        float valueY = y + height + 20;
+        float valueY = y + height + (compactSettings() ? 2 : 20);
         for (Sub<?> value : values) {
             if (!visible(value)) {
                 value.setClip(new ClipRect(0, 0, 0, 0));
                 value.mouseReleased();
                 continue;
             }
-            value.updateComponent(x, valueY);
-            value.setWidth(width);
+            value.updateComponent(x + (compactSettings() ? 2 : 0), valueY);
+            value.setWidth(compactSettings() ? width - 4 : width);
             value.setClip(settingsClip);
             if (!open || settingsClip.intersect(new ClipRect(x, valueY, width, value.getHeight())).isEmpty()) value.mouseReleased();
             valueY += value.getHeight() + 1;
@@ -103,7 +112,8 @@ public class ClickModule extends Component {
     protected final void drawSettings(int mouseX, int mouseY) {
         if (!settingsClip.isEmpty()) {
             try (GuiClip ignored = GuiClip.push(settingsClip)) {
-                Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString("Settings", x + 12, y + height + 5,
+                if(compactSettings())me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x+1,y+height,width-2,settingsContentHeight,0,new Color(9,12,19,145));
+                if(!compactSettings())Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString("Settings", x + 12, y + height + 5,
                         new Color(180, 180, 185).getRGB());
                 for (Sub<?> value : values) {
                     if (!visible(value)) continue;

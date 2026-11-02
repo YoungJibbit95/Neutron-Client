@@ -29,7 +29,9 @@ public final class Theme {
     public static final Theme Flare=preset("Flare",16,new Color(255, 0, 0), new Color(245, 173, 49));
     public static final Theme Bonfire=preset("Bonfire",17,new Color(255, 128, 0, 255), new Color(255, 0, 0, 255));
     public static final Theme Rainbow=preset("Rainbow",18,new Color(255, 255, 255), new Color(255, 255, 255));
-    private static final Theme[] PRESETS={BlackLight,Cotton_candy,SynthWave,Retro,Cherry,BlackWhite,PinkLemonade,Purple,Void,Lavender,Berry,PurpleHaze,Vine,Neon,Descriptor,Grayscale,Flare,Bonfire,Rainbow};
+    /** Reference ClickGUI palette; appended so all existing preset positions remain stable. */
+    public static final Theme Neutron=new Theme("Neutron","Neutron",19,false,Arrays.asList(new Color(226,149,211),new Color(65,184,212)),true,false,.18f,new Color(35,36,42,225),new Color(246,245,250),new Color(226,149,211),.6f,7,.8f,.7f);
+    private static final Theme[] PRESETS={BlackLight,Cotton_candy,SynthWave,Retro,Cherry,BlackWhite,PinkLemonade,Purple,Void,Lavender,Berry,PurpleHaze,Vine,Neon,Descriptor,Grayscale,Flare,Bonfire,Rainbow,Neutron};
     public static final String[] themes=Arrays.stream(PRESETS).map(Theme::name).toArray(String[]::new);
     private final String id,displayName;
     private final java.util.List<Color> gradients;

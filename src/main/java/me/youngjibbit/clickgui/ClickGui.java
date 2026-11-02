@@ -150,7 +150,7 @@ public class ClickGui extends GuiScreen {
             if(!search.isEmpty()||searchFocus)font().drawString("x",searchBox.x+searchBox.width-14,textY(font(),"x",searchBox),0xffb8bec8);
             ClipRect themes=themeBounds();GuiStyle.panel(themes.x,themes.y,themes.width,themes.height,3,0,new Color(22,22,24));
             GuiStyle.feedback(themes,chromeMotion[1]);
-            font().drawString("Themes",themes.x+(themes.width-font().getWidth("Themes"))/2,textY(font(),"Themes",themes),theme.isCustom()?theme.getTextColor().getRGB():0xffd4d9e3);
+            font().drawString("Library",themes.x+(themes.width-font().getWidth("Library"))/2,textY(font(),"Library",themes),theme.isCustom()?theme.getTextColor().getRGB():0xffd4d9e3);
             float selectedY = y + HEADER + 4 + selectionOffset;
             GuiStyle.panel(x + 5, selectedY, SIDEBAR - 10, step - 4, 5, 1, new Color(11, 11, 12));
             UIUtils.drawRound(x + SIDEBAR - 16, selectedY + (step - 4) / 2 - 2, 4, 4, 2,
@@ -307,6 +307,11 @@ public class ClickGui extends GuiScreen {
         }
     }
 
+    @Override protected void mouseClickMove(int mouseX,int mouseY,int button,long elapsed) {
+        if(button==0 && !dragging && !resizing && binding==null && visualControl!=null)
+            visualControl.mouseDragged(mouseX,mouseY);
+    }
+
     @Override
     public void onGuiClosed() {
         resetMotion();
@@ -327,6 +332,7 @@ public class ClickGui extends GuiScreen {
             if(keyCode==Keyboard.KEY_TAB){((ClickSlider)focus).cancelInput();navigate(shiftDown()?-1:1);}else focus.keyTyped(typedChar,keyCode);return;
         }
         if(keyCode==Keyboard.KEY_T&&ctrlDown()){openThemeEditor();return;}
+        if(keyCode==Keyboard.KEY_O&&ctrlDown()){mc.displayGuiScreen(new ClickLibraryScreen(this,false));return;}
         if((keyCode==Keyboard.KEY_F&&ctrlDown())||(typedChar=='/'&&!searchFocus)){setFocus(null);searchFocus=true;return;}
         if(keyCode==Keyboard.KEY_TAB){navigate(shiftDown()?-1:1);return;}
         if(searchFocus){
@@ -355,8 +361,8 @@ public class ClickGui extends GuiScreen {
     protected ClipRect searchBounds(){return new ClipRect(x+SIDEBAR+8,y+6,width-SIDEBAR-104,24);}
     protected ClipRect themeBounds(){return new ClipRect(x+width-88,y+6,56,24);}
     private static float textY(TTFFontRenderer font,String text,ClipRect box){return box.y+(box.height-font.getHeight(text))/2;}
-    protected ThemeEditorScreen createThemeEditor(){return new ThemeEditorScreen(this,me.youngjibbit.theme.ThemeCatalog.global(),me.youngjibbit.theme.ThemeRuntime::select);}
-    protected void openThemeEditor(){mc.displayGuiScreen(createThemeEditor());}
+    protected ClickLibraryScreen createThemeLibrary(){return new ClickLibraryScreen(this,true);}
+    protected void openThemeEditor(){mc.displayGuiScreen(createThemeLibrary());}
     private List<Component> focusables(){List<Component> result=new ArrayList<>();for(ClickModule row:modules){result.add(row);result.addAll(row.focusableValues());}return result;}
     private void setFocus(Component next){if(focus!=next&&focus instanceof ClickSlider)((ClickSlider)focus).cancelInput();focus=next;searchFocus=false;}
     private void navigate(int direction){
