@@ -30,13 +30,19 @@ public final class AutoblockController {
     }
 
     public void update(boolean enabled, Mode mode, boolean pre, boolean post) {
+        update(enabled, mode, pre, post, false, 4);
+    }
+
+    public void update(boolean enabled, Mode mode, boolean pre, boolean post, boolean customFrequency, double frequency) {
         if (!playerReady.getAsBoolean()) { reset(); return; }
         if (!enabled || manualUse.getAsBoolean()) { release(); return; }
         if (mode == Mode.FAKE) { release(); return; }
         if (mode == Mode.WATCHDOG && pre && owned && tick.getAsInt()%4 == 0) release();
         if (mode == Mode.VERUS && pre) release();
         // Blocking is resumed after the attack, never immediately before the controller action.
-        if (post && !owned) { send.accept(true); owned=true; }
+        if (post && !owned && (!customFrequency || ClickRandomizer.blockAtTick(tick.getAsInt(), frequency))) {
+            send.accept(true); owned=true;
+        }
     }
 
     public void beforeAttack() { release(); }

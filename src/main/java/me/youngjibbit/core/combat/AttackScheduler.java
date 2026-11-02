@@ -53,13 +53,18 @@ public final class AttackScheduler {
     }
 
     public boolean tryAttack(long motion, boolean hitValidated, double minCps, double maxCps, BooleanSupplier action) {
+        double min = Math.max(.1, Math.min(minCps, maxCps));
+        double max = Math.max(min, Math.max(minCps, maxCps));
+        return tryAttack(motion, hitValidated, () -> (long) (1000 / cps.applyAsDouble(min, max)), action);
+    }
+
+    /** Sample one interval per accepted attack, never on every hit-check or catch-up step. */
+    public boolean tryAttack(long motion, boolean hitValidated, LongSupplier nextDelay, BooleanSupplier action) {
         if (controllerInFlight) return false;
         if (attemptedMotion == motion) return false;
         attemptedMotion = motion;
         if (!hitValidated || hasAttackThisTick()) return false;
-        double min = Math.max(.1, Math.min(minCps, maxCps));
-        double max = Math.max(min, Math.max(minCps, maxCps));
-        if (delay == 0) delay = Math.max(1, (long) (1000 / cps.applyAsDouble(min, max)));
+        if (delay == 0) delay = Math.max(1, nextDelay.getAsLong());
         if (lastAttackAt != Long.MIN_VALUE && clock.getAsLong() - lastAttackAt < delay) return false;
         lastAutoTick = tick;
         automatic = true;
@@ -68,7 +73,7 @@ public final class AttackScheduler {
             boolean attacked = action.getAsBoolean();
             if (attacked) {
                 recordControllerAttack();
-                delay = Math.max(1, (long) (1000 / cps.applyAsDouble(min, max)));
+                delay = Math.max(1, nextDelay.getAsLong());
             }
             return attacked;
         } finally { automatic = false; }
