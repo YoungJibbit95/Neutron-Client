@@ -349,7 +349,10 @@ public class ClickGui extends GuiScreen {
         if(keyCode==Keyboard.KEY_ESCAPE&&focus instanceof ClickCombo&&((ClickCombo)focus).isOpen()){((ClickCombo)focus).close();return;}
         if(keyCode==Keyboard.KEY_ESCAPE){
             for(ClickModule row:modules)row.cancelInputs();
-            Pulsar.INSTANCE.getMm().getModule(ClickGUI.class).setToggled(false);return;
+            Module owner=Pulsar.INSTANCE.getMm().getModule(ClickGUI.class);
+            if(owner!=null&&owner.isToggled())owner.setToggled(false);
+            else mc.displayGuiScreen(null);
+            return;
         }
         if(keyCode==Keyboard.KEY_UP||keyCode==Keyboard.KEY_DOWN){navigate(keyCode==Keyboard.KEY_UP?-1:1);return;}
         if(focus instanceof ClickModule&&keyCode==Keyboard.KEY_K){binding=(ClickModule)focus;return;}

@@ -371,19 +371,18 @@ public abstract class GuiScreen extends Gui implements GuiYesNoCallback {
     }
 
     public void handleInput() throws IOException {
-        if (Mouse.isCreated()) {
-            while(Mouse.next()) {
-                this.handleMouseInput();
-            }
+        while (this.mc.currentScreen == this && nextMouseEvent()) {
+            // Pages are composited away from their final hit regions during a slide.
+            // Drain pointer events until settled; keyboard Back/Escape can still interrupt.
+            if (!me.youngjibbit.gui.GuiTransitions.blocksPointerInput(this)) this.handleMouseInput();
         }
-
-        if (Keyboard.isCreated()) {
-            while(Keyboard.next()) {
-                this.handleKeyboardInput();
-            }
+        while (this.mc.currentScreen == this && nextKeyboardEvent()) {
+            this.handleKeyboardInput();
         }
-
     }
+
+    protected boolean nextMouseEvent() { return Mouse.isCreated() && Mouse.next(); }
+    protected boolean nextKeyboardEvent() { return Keyboard.isCreated() && Keyboard.next(); }
 
     public void handleMouseInput() throws IOException {
         int i = Mouse.getEventX() * this.width / this.mc.displayWidth;
