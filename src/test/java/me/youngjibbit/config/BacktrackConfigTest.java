@@ -12,6 +12,31 @@ import static org.junit.Assert.*;
 
 public class BacktrackConfigTest {
     @Rule public TemporaryFolder temporary = new TemporaryFolder();
+    @Test public void everyBacktrackModeRoundTripsAndMissingLegacyModeResetsDistance() throws Exception {
+        Backtrack back=new Backtrack();Path dir=temporary.newFolder().toPath();
+        ConfigManager config=new ConfigManager(dir,Collections.<Module>singletonList(back),()->false,message->{});
+        for(String mode:new String[]{"Distance","Timed","Pulse"}) {
+            back.getModeSetting("Backtrack Mode").setValue(mode);assertTrue(config.saveConfig("Mode"));
+            back.getModeSetting("Backtrack Mode").setValue("Distance");assertTrue(config.loadConfig("Mode"));
+            assertEquals(mode,back.getModeSetting("Backtrack Mode").getValue());
+        }
+        Files.write(dir.resolve("Legacy.json"),"{\"version\":2,\"modules\":{\"backtrack\":{\"networkVersion\":1,\"settings\":{\"delay\":70}}}}".getBytes(StandardCharsets.UTF_8));
+        for(String previous:new String[]{"Timed","Pulse"}) {
+            back.getModeSetting("Backtrack Mode").setValue(previous);
+            assertTrue(config.loadConfig("Legacy"));assertEquals("Distance",back.getModeSetting("Backtrack Mode").getValue());
+        }
+        assertEquals(70,back.getNumberSetting("Delay").getValue(),0);
+    }
+    @Test public void invalidConfigDoesNotResetCurrentModeOrOtherValues() throws Exception {
+        Backtrack back=new Backtrack();Path dir=temporary.newFolder().toPath();
+        ConfigManager config=new ConfigManager(dir,Collections.<Module>singletonList(back),()->false,message->{});
+        back.getModeSetting("Backtrack Mode").setValue("Pulse");back.getNumberSetting("Delay").setValue(80D);
+        String before=config.serialize();
+        for(String settings:new String[]{"\"delay\":-1", "\"backtrack_mode\":\"Unknown\"", "\"backtrack_mode\":\"Timed\",\"delay\":\"invalid\""}) {
+            Files.write(dir.resolve("Invalid.json"),("{\"version\":2,\"modules\":{\"backtrack\":{\"networkVersion\":1,\"settings\":{"+settings+"}}}}").getBytes(StandardCharsets.UTF_8));
+            assertFalse(config.loadConfig("Invalid"));assertEquals(before,config.serialize());
+        }
+    }
     @Test public void currentIdsAndOlderPartialConfigsKeepTheirValuesAndNewDefaults() throws Exception {
         Backtrack back = new Backtrack(); Path dir = temporary.newFolder().toPath();
         assertEquals("Attack", back.getModeSetting("target_source").getValue());

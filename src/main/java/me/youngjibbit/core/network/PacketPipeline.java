@@ -103,11 +103,13 @@ public final class PacketPipeline {
             if (!silent) post(selected, EventFlow.OUTBOUND, EventPhase.POST);
         };
         // Actions are dependency barriers: a hit/placement must never overtake withheld movement.
-        if (correction || !(selected instanceof C03PacketPlayer)) {
+        boolean movement = selected instanceof C03PacketPlayer;
+        boolean independentReply = selected instanceof C00PacketKeepAlive || selected instanceof C0FPacketConfirmTransaction;
+        if (correction || !movement && !independentReply) {
             CombatDiagnostics.packetStage(trace,selected,Stage.BARRIER);delays.barrier(EventFlow.OUTBOUND);
-        } else if (!silent && delays.defer(selected, EventFlow.OUTBOUND, apply)) {
+        } else if (movement && !silent && delays.defer(selected, EventFlow.OUTBOUND, apply)) {
             CombatDiagnostics.packetStage(trace,selected,Stage.HELD);return null;
-        } else if (silent) {
+        } else if (movement && silent) {
             CombatDiagnostics.packetStage(trace,selected,Stage.BARRIER);delays.barrier(EventFlow.OUTBOUND);
         }
         apply.run();
@@ -171,7 +173,8 @@ public final class PacketPipeline {
                         || selected instanceof S06PacketUpdateHealth && ((S06PacketUpdateHealth) selected).getHealth() > 0)) {
                     if (delays.defer(selected, EventFlow.INBOUND, apply)) return;
                 } else if (!(selected instanceof S00PacketKeepAlive)
-                        && !(selected instanceof S02PacketChat) && !(selected instanceof S03PacketTimeUpdate)) {
+                        && !(selected instanceof S02PacketChat) && !(selected instanceof S03PacketTimeUpdate)
+                        && !(selected instanceof S32PacketConfirmTransaction)) {
                     delays.barrier(EventFlow.INBOUND);
                 }
                 apply.run();
