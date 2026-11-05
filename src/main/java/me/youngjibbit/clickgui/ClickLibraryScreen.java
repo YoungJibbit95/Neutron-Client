@@ -101,13 +101,18 @@ public class ClickLibraryScreen extends GuiScreen {
         return names;
     }
     private String selected() { return themes ? selectedTheme : configs.selected(); }
+    private String visibleConfigSelection() {
+        String selected = configs.selected();
+        if (selected.isEmpty() || query.isEmpty()) return selected;
+        return selected.toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)) ? selected : "";
+    }
     private boolean enabled(int id) {
         if (id == 6 || id == 7 || id == 8 || id == 3) return true;
         if (themes) {
             Theme theme = catalog.find(selectedTheme);
             return theme != null && (id == 0 || !catalog.isReadOnly());
         }
-        return configs.available() && (id == 0 || !configs.selected().isEmpty());
+        return configs.available() && (id == 0 || !visibleConfigSelection().isEmpty());
     }
     private String label(int id) {
         if (id == 6) return "Configs"; if (id == 7) return "Themes"; if (id == 8) return "Done";
@@ -190,7 +195,8 @@ public class ClickLibraryScreen extends GuiScreen {
             text("Saved configs · " + configs.entries().size(),x+12,y+65,configListWidth(),ink);
             UIUtils.drawDecorationRound(detailsX()-8,y+64,1,h-96,0,UiEffects.color(ink,.12f));
             text("Selected config",detailsX(),y+66,detailsWidth(),UiEffects.alpha(ink,.72f));
-            text(configs.selected().isEmpty()?"Choose a config":configs.selected(),detailsX(),y+87,detailsWidth(),ink);
+            String visible = visibleConfigSelection();
+            text(visible.isEmpty() ? "Choose a config" : visible, detailsX(), y+87, detailsWidth(), ink);
             UIUtils.drawDecorationRound(detailsX(),y+181,detailsWidth(),1,0,UiEffects.color(ink,.12f));
             text("Save current setup",detailsX(),y+190,detailsWidth(),ink);
         } else text("Save current setup as",x+12,y+h-59,w-24,UiEffects.alpha(ink,.8f));
@@ -282,7 +288,15 @@ public class ClickLibraryScreen extends GuiScreen {
             if(ctrlDown()&&key==Keyboard.KEY_A){replace=true;return;}
             String value=focus==-1?query:name;
             if(key==Keyboard.KEY_BACK){value=replace?"":value.substring(0,Math.max(0,value.length()-1));replace=false;}
-            else if(key==Keyboard.KEY_RETURN||key==Keyboard.KEY_DOWN){if(focus==-3)activate(0);else{focus=-2;if(!items().isEmpty())select(0);}return;}
+            else if (key == Keyboard.KEY_RETURN || key == Keyboard.KEY_NUMPADENTER || key == Keyboard.KEY_DOWN) {
+                if (focus == -1) {
+                    focus = -2;
+                    if (!items().isEmpty()) select(0);
+                } else if (key != Keyboard.KEY_DOWN) {
+                    activate(0);
+                }
+                return;
+            }
             else if(c>=32&&c!=127&&(replace||value.length()<64)){value=replace?String.valueOf(c):value+c;replace=false;}
             else return;
             configs.cancel();message="";
