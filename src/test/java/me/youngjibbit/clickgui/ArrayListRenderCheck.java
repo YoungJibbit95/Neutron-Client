@@ -116,6 +116,16 @@ public final class ArrayListRenderCheck {
 
     static void checkModuleLayout() throws Exception {
         a.setToggled(true); render(); finishAnimations(); render(); BufferedImage single=capture();
+        a.info = "Pulse 100ms Q2";
+        Object plain = get(rows().get(0), "metrics");
+        require(("| " + a.getName()).equals(get(plain, "label")), "Existing layouts keep the short label");
+        hud.getBooleanSetting("Show Module Info").setValue(true);
+        render();
+        Object detailed = get(rows().get(0), "metrics");
+        require(("| " + a.getName() + " Pulse 100ms Q2").equals(get(detailed, "label")), "Missing module info");
+        require((float) get(detailed, "width") > (float) get(plain, "width"), "Status must contribute to row width");
+        a.info = "";
+        hud.getBooleanSetting("Show Module Info").setValue(false);
         b.setToggled(true); c.setToggled(true); render();
         progress(65); render(); BufferedImage entering=capture();
         finishAnimations(); render(); BufferedImage multiple=capture();

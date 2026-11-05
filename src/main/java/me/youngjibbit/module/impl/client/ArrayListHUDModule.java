@@ -44,6 +44,7 @@ public class ArrayListHUDModule extends Module {
     private final CheckBoxValue background = new CheckBoxValue("Background", this, true);
     private final CheckBoxValue blur = new CheckBoxValue("Blur", this, true);
     private final CheckBoxValue glow = new CheckBoxValue("Glow", this, true);
+    private final CheckBoxValue showModuleInfo = new CheckBoxValue("Show Module Info", this, false);
     private final CheckBoxValue showCombat = new CheckBoxValue("Show Combat", this, true);
     private final CheckBoxValue showMovement = new CheckBoxValue("Show Movement", this, true);
     private final CheckBoxValue showPlayer = new CheckBoxValue("Show Player", this, true);
@@ -238,7 +239,10 @@ public class ArrayListHUDModule extends Module {
     }
 
     private String getLabel(Module module) {
-        return "| " + module.getName();
+        String label = "| " + module.getName();
+        if (!showModuleInfo.getValue() || !module.isToggled()) return label;
+        String detail = module.getInfo();
+        return detail == null || detail.isEmpty() ? label : label + " " + detail;
     }
 
     private TTFFontRenderer getFontRenderer() {
