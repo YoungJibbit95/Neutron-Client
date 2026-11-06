@@ -23,6 +23,7 @@ import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.util.MovingObjectPosition;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
+import org.lwjgl.opengl.Display;
 import java.util.function.LongSupplier;
 
 @ModuleInfo(name = "WTap2", category = Category.Ghost)
@@ -57,11 +58,7 @@ public class WTap2 extends Module {
         lastActivation = 0L;
         releaseAt = 0L;
         mouseDown = false;
-        if (stapOwned && mc.thePlayer != null) {
-            KeyBinding.setKeyBindState(mc.gameSettings.keyBindForward.getKeyCode(), Keyboard.isKeyDown(mc.gameSettings.keyBindForward.getKeyCode()));
-            KeyBinding.setKeyBindState(mc.gameSettings.keyBindBack.getKeyCode(), Keyboard.isKeyDown(mc.gameSettings.keyBindBack.getKeyCode()));
-        }
-        stapOwned = false;
+        releaseStap(usableInput());
         super.onDisable();
     }
 
@@ -116,9 +113,17 @@ public class WTap2 extends Module {
         }
     });
 
-    @Subscribe private final Listener<WorldEvent> world = new Listener<>(event -> resetLegit());
+    @Subscribe private final Listener<WorldEvent> world = new Listener<>(event -> {
+        resetLegit(); releaseStap(false); mouseDown = false; spoofedSprint = false;
+    });
 
-    @Override public void onValueChange() { resetLegit(); }
+    @Override public void onValueChange() { resetLegit(); releaseStap(usableInput()); mouseDown = false; }
+
+    private boolean usableInput() {
+        return mc != null && mc.thePlayer != null && mc.theWorld != null
+                && mc.currentScreen == null && mc.inGameHasFocus
+                && (!Keyboard.isCreated() || Display.isActive());
+    }
 
     private boolean usableLegit() {
         return "Legit".equals(mode.getValue()) && mc != null && mc.thePlayer != null && mc.theWorld != null
@@ -143,11 +148,12 @@ public class WTap2 extends Module {
 
     @Subscribe
     private final Listener<TickEvent> tickEvent = new Listener<>(event -> {
-        if (!usableLegit()) resetLegit();
-        if (mc.thePlayer == null || mc.theWorld == null || !event.isPre()) {
-            return;
+        if (!event.isPre()) return;
+        if (!usableInput()) {
+            resetLegit(); releaseStap(false); mouseDown = false; spoofedSprint = false; return;
         }
-
+        if (!"STap".equals(mode.getValue())) releaseStap(true);
+        if (!usableLegit()) resetLegit();
         EntityLivingBase target = resolveTarget();
         switch (mode.getValue()) {
             case "STap":
@@ -171,6 +177,7 @@ public class WTap2 extends Module {
 
     private void applySpoof(boolean restorePhysicalKey) {
         if (mc.thePlayer == null || !"Spoof".equalsIgnoreCase(mode.getValue())) return;
+        if (!usableInput()) { spoofedSprint = false; return; }
 
         EntityLivingBase target = resolveTarget();
         if (target == null) {
@@ -195,7 +202,7 @@ public class WTap2 extends Module {
     }
 
     private void handleStap(EntityLivingBase target) {
-        boolean click = Mouse.isButtonDown(0);
+        boolean click = Mouse.isCreated() && Mouse.isButtonDown(0);
         boolean clickEdge = click && !mouseDown;
         mouseDown = click;
 
@@ -203,17 +210,38 @@ public class WTap2 extends Module {
             activateStapWindow();
         }
 
-        if (System.currentTimeMillis() < releaseAt) {
+        if (stapOwned && System.currentTimeMillis() < releaseAt) {
             KeyBinding.setKeyBindState(mc.gameSettings.keyBindForward.getKeyCode(), false);
             KeyBinding.setKeyBindState(mc.gameSettings.keyBindBack.getKeyCode(), true);
             return;
         }
 
-        KeyBinding.setKeyBindState(mc.gameSettings.keyBindForward.getKeyCode(), Keyboard.isKeyDown(mc.gameSettings.keyBindForward.getKeyCode()));
-        KeyBinding.setKeyBindState(mc.gameSettings.keyBindBack.getKeyCode(), Keyboard.isKeyDown(mc.gameSettings.keyBindBack.getKeyCode()));
+        releaseStap(true);
+    }
+
+    private void releaseStap(boolean restorePhysical) {
+        if (stapOwned && mc != null && mc.gameSettings != null) {
+            restoreKey(mc.gameSettings.keyBindForward, restorePhysical);
+            restoreKey(mc.gameSettings.keyBindBack, restorePhysical);
+        }
+        stapOwned = false;
+        releaseAt = 0L;
+    }
+
+    private void restoreKey(KeyBinding key, boolean restorePhysical) {
+        if (key == null) return;
+        int code = key.getKeyCode();
+        boolean down = false;
+        if (restorePhysical) {
+            if (code > 0 && code < Keyboard.KEYBOARD_SIZE && Keyboard.isCreated()) down = Keyboard.isKeyDown(code);
+            else if (code < 0 && code + 100 >= 0 && Mouse.isCreated()
+                    && code + 100 < Mouse.getButtonCount()) down = Mouse.isButtonDown(code + 100);
+        }
+        key.pressed = down;
     }
 
     private boolean canActivate(EntityLivingBase target) {
+        if (!usableInput()) return false;
         if (System.currentTimeMillis() - lastActivation < cooldownMs.getValue()) {
             return false;
         }
