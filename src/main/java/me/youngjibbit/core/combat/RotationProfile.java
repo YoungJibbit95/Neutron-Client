@@ -5,6 +5,9 @@ import me.youngjibbit.utils.math.FastNoiseLite;
 /** Per-call settings snapshot; speeds are degrees per 50 ms, offsets degrees, radius blocks, frequency Hz. */
 public final class RotationProfile {
     public enum Mode { BASIC, SMOOTH, ADVANCED }
+    public enum ArsenicMode { OFF, LAZY, HEURISTICS }
+    public ArsenicMode arsenic=ArsenicMode.OFF;
+    public float predictionTicks=1, missChance=.05f;
     public enum SpeedCurve { OFF, BEZIER }
     /** Independent opt-in; legacy randomization presets never enable or override it. */
     public SpeedCurve speedCurve=SpeedCurve.OFF;

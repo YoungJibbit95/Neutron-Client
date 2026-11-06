@@ -7,6 +7,7 @@ import me.youngjibbit.core.contract.AutomationEligibility.ModuleAction;
 import me.youngjibbit.core.network.PacketPipeline;
 import me.youngjibbit.core.observation.AutomatedActionAdmission;
 import me.youngjibbit.event.motion.EventMotion;
+import me.youngjibbit.event.motion.EventRotation;
 import me.youngjibbit.event.packet.EventPacket;
 import me.youngjibbit.event.packet.TickEvent;
 import me.youngjibbit.event.player.MovementInputEvent;
@@ -66,6 +67,13 @@ public class Velocity extends Module {
     });
 
     @Subscribe private final Listener<EventMotion> onMotion = new Listener<>(e -> {
+        if (e.isPre() && RuntimeServices.rotation().hasPreparedMovement()) return;
+        handleMotion(e);
+    });
+
+    @Subscribe private final Listener<EventRotation> prepareRotation = new Listener<>(preparation -> handleMotion(preparation.motion()));
+
+    private void handleMotion(EventMotion e) {
         if (!context() || !usable() || System.nanoTime() - expires >= 0) { clearReduction(); return; }
         RotationManager rotation = RuntimeServices.rotation();
         if (e.isPre()) {
@@ -103,7 +111,7 @@ public class Velocity extends Module {
                 } finally { attackingPlayer.rotationYaw = cameraYaw; attackingPlayer.rotationPitch = cameraPitch; }
             });
         }
-    });
+    }
 
     private boolean validHit(EntityLivingBase hit, float yaw, float pitch) {
         return context() && usable() && AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)

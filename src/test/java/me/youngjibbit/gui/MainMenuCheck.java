@@ -81,8 +81,8 @@ public final class MainMenuCheck {
     }
     static double verifyTitleGradient(Minecraft mc,Screen screen,BufferedImage image,String label)throws Exception{
         float[] panel=new float[3];String[] fields={"panelX","panelY","panelWidth"};for(int i=0;i<3;i++){Field f=MainMenu.class.getDeclaredField(fields[i]);f.setAccessible(true);panel[i]=f.getFloat(screen);}
-        me.youngjibbit.utils.font.TTFFontRenderer font=Pulsar.INSTANCE.fontManager.getFont("DmSansMedium 44");String name=Pulsar.INSTANCE.getName();
-        int left=(int)((panel[0]+(panel[2]-font.getWidth(name))/2)*2),top=(int)((panel[1]+9)*2),right=left+(int)(font.getWidth(name)*2),bottom=top+(int)(font.getHeight(name)*2);
+        me.youngjibbit.utils.font.TTFFontRenderer font=Pulsar.INSTANCE.fontManager.getFont("DmSansMedium 64");String name=Pulsar.INSTANCE.getName();
+        int left=(int)((panel[0]+(panel[2]-font.getWidth(name))/2)*2),top=(int)((panel[1]+10)*2),right=left+(int)(font.getWidth(name)*2),bottom=top+(int)(font.getHeight(name)*2);
         me.youngjibbit.utils.Theme theme=me.youngjibbit.utils.Theme.getDefaultTheme();java.awt.Color a=theme.getPrimaryGradientColor(),b=theme.getSecondaryGradientColor();
         double[] first={a.getRed(),a.getGreen(),a.getBlue()},delta={b.getRed()-a.getRed(),b.getGreen()-a.getGreen(),b.getBlue()-a.getBlue()};double norm=0;for(double d:delta)norm+=d*d;
         int count=0;double min=1,max=0,sum=0,error=0;

@@ -25,7 +25,7 @@ import static org.lwjgl.opengl.GL11.*;
  * Glyphs share padded atlases; a warmed string draws one batch per atlas run.
  */
 public class TTFFontRenderer implements AutoCloseable {
-    private static final int MAX_GLYPHS = 8192, MAX_PAGES = 32, PADDING = 2;
+    private static final int MAX_GLYPHS = 8192, MAX_PAGES = 32, PADDING = 8;
     private static final String CODES = "0123456789abcdefklmnor";
     private static final int[] COLORS = colors();
     private final Thread renderThread;
@@ -39,6 +39,8 @@ public class TTFFontRenderer implements AutoCloseable {
     private final int pageSize;
     private int measuredGlyphs;
     private volatile boolean closed;
+    private boolean textEffects=true;
+    TTFFontRenderer textEffects(boolean enabled){textEffects=enabled;return this;}
 
     public TTFFontRenderer(Font font) { this(font,Thread.currentThread()); }
     public TTFFontRenderer(Font font,Thread owner) { this(font,owner,true); }
@@ -160,6 +162,9 @@ public class TTFFontRenderer implements AutoCloseable {
         checkThread();
         if((color>>>24)==0)return (int)(x+getWidth(text));
         prepare(text);
+        int previousProgram=me.youngjibbit.utils.render.FontInk.begin(textEffects,shadow);
+        boolean halo=previousProgram>=0&&textEffects&&!shadow&&!TextEffects.isCapturing()&&me.youngjibbit.utils.render.FontInk.enabled();
+        float inset=halo?0:PADDING-2;
         Format format=new Format(color,shadow);
         float pen=x,baseline=y+ascent;
         int bound=-1;
@@ -190,7 +195,11 @@ public class TTFFontRenderer implements AutoCloseable {
                         glBegin(GL_QUADS);batch=true;bound=inkPage.texture;
                         if(RenderDiagnostics.enabled)RenderDiagnostics.fontBatches++;
                     }
-                    if(!glyph.empty)quad(pen+glyph.left/2f,baseline+glyph.top/2f,glyph.width/2f,glyph.height/2f,glyph.u,glyph.v,glyph.u2,glyph.v2);
+                    if(halo){
+                        GL13.glMultiTexCoord4f(GL13.GL_TEXTURE1,glyph.u,glyph.v,glyph.u2,glyph.v2);
+                        GL13.glMultiTexCoord2f(GL13.GL_TEXTURE2,1f/inkPage.size,1f/inkPage.size);
+                    }
+                    if(!glyph.empty)quad(pen+(glyph.left+inset)/2f,baseline+(glyph.top+inset)/2f,(glyph.width-inset*2)/2f,(glyph.height-inset*2)/2f,glyph.u+inset/inkPage.size,glyph.v+inset/inkPage.size,glyph.u2-inset/inkPage.size,glyph.v2-inset/inkPage.size);
                     if(format.underline||format.strike){
                         float uv=1.5f/inkPage.size;
                         if(format.underline)quad(pen,baseline+1,glyph.advance/2,.6f,uv,uv,uv,uv);
@@ -200,7 +209,7 @@ public class TTFFontRenderer implements AutoCloseable {
                 pen+=glyph.advance/2;
             }
             return Math.round(pen);
-        }finally{if(batch)glEnd();glPopAttrib();}
+        }finally{if(batch)glEnd();glPopAttrib();me.youngjibbit.utils.render.FontInk.end(previousProgram);}
     }
 
     /** Width and draw use the same codepoint/style/advance rules, including multiline text. */

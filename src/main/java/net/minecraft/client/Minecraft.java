@@ -951,6 +951,7 @@ public class Minecraft implements IThreadListener, IPlayerUsage
      */
     public void displayGuiScreen(GuiScreen guiScreenIn)
     {
+        me.youngjibbit.gui.GuiTransitions.beforeChange(this.currentScreen, guiScreenIn);
         if (this.currentScreen != null)
         {
             this.currentScreen.onGuiClosed();

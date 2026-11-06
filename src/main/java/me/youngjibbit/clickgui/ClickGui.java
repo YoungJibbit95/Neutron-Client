@@ -150,7 +150,7 @@ public class ClickGui extends GuiScreen {
             if(!search.isEmpty()||searchFocus)font().drawString("x",searchBox.x+searchBox.width-14,textY(font(),"x",searchBox),0xffb8bec8);
             ClipRect themes=themeBounds();GuiStyle.panel(themes.x,themes.y,themes.width,themes.height,3,0,new Color(22,22,24));
             GuiStyle.feedback(themes,chromeMotion[1]);
-            font().drawString("Library",themes.x+(themes.width-font().getWidth("Library"))/2,textY(font(),"Library",themes),theme.isCustom()?theme.getTextColor().getRGB():0xffd4d9e3);
+            font().drawString("Library",themes.x+(themes.width-font().getWidth("Library"))/2,textY(font(),"Library",themes),GuiStyle.ink(theme.isCustom()?theme.getTextColor().getRGB():0xffd4d9e3,chromeMotion[1]));
             float selectedY = y + HEADER + 4 + selectionOffset;
             GuiStyle.panel(x + 5, selectedY, SIDEBAR - 10, step - 4, 5, 1, new Color(11, 11, 12));
             UIUtils.drawRound(x + SIDEBAR - 16, selectedY + (step - 4) / 2 - 2, 4, 4, 2,
@@ -252,7 +252,7 @@ public class ClickGui extends GuiScreen {
         visualControl=null;visualChrome=-1;
         if(button==0&&binding==null&&!dragging&&!resizing){for(int i=0;i<chromeMotion.length;i++)if(chromeBounds(i).contains(mouseX,mouseY)){visualChrome=i;break;}if(visualChrome<0)visualControl=componentAt(mouseX,mouseY);}
         if(binding!=null)return;
-        if(button==0&&themeBounds().contains(mouseX,mouseY)){openThemeEditor();return;}
+        if(button==0&&themeBounds().contains(mouseX,mouseY)){openLibrary();return;}
         ClipRect searchBox=searchBounds();
         if(button==0&&searchBox.contains(mouseX,mouseY)){
             setFocus(null);searchFocus=true;
@@ -349,7 +349,10 @@ public class ClickGui extends GuiScreen {
         if(keyCode==Keyboard.KEY_ESCAPE&&focus instanceof ClickCombo&&((ClickCombo)focus).isOpen()){((ClickCombo)focus).close();return;}
         if(keyCode==Keyboard.KEY_ESCAPE){
             for(ClickModule row:modules)row.cancelInputs();
-            Pulsar.INSTANCE.getMm().getModule(ClickGUI.class).setToggled(false);return;
+            Module owner=Pulsar.INSTANCE.getMm().getModule(ClickGUI.class);
+            if(owner!=null&&owner.isToggled())owner.setToggled(false);
+            else mc.displayGuiScreen(null);
+            return;
         }
         if(keyCode==Keyboard.KEY_UP||keyCode==Keyboard.KEY_DOWN){navigate(keyCode==Keyboard.KEY_UP?-1:1);return;}
         if(focus instanceof ClickModule&&keyCode==Keyboard.KEY_K){binding=(ClickModule)focus;return;}
@@ -363,6 +366,7 @@ public class ClickGui extends GuiScreen {
     private static float textY(TTFFontRenderer font,String text,ClipRect box){return box.y+(box.height-font.getHeight(text))/2;}
     protected ClickLibraryScreen createThemeLibrary(){return new ClickLibraryScreen(this,true);}
     protected void openThemeEditor(){mc.displayGuiScreen(createThemeLibrary());}
+    protected void openLibrary(){mc.displayGuiScreen(new SideGuiScreen(this));}
     private List<Component> focusables(){List<Component> result=new ArrayList<>();for(ClickModule row:modules){result.add(row);result.addAll(row.focusableValues());}return result;}
     private void setFocus(Component next){if(focus!=next&&focus instanceof ClickSlider)((ClickSlider)focus).cancelInput();focus=next;searchFocus=false;}
     private void navigate(int direction){

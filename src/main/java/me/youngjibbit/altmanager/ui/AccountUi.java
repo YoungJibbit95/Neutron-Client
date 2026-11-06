@@ -61,7 +61,7 @@ public final class AccountUi {
             me.youngjibbit.gui.MainMenu.drawBackdrop(theme());
             // One shared surface captures blur/glow once; rows and controls remain sharp.
             surface.panel(r.x,r.y,r.width,r.height,11,theme(),true,true,true,7,.88f,.38f,()->{
-                round(new ClipRect(r.x+1,r.y+1,r.width-2,r.height-2),10,0xe912141c);
+                decoration(new ClipRect(r.x+1,r.y+1,r.width-2,r.height-2),10,0x4812141c);
                 content.run();
             });
         }

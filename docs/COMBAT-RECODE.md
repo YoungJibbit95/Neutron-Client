@@ -64,3 +64,8 @@ Server/AC acceptance requires a separate game session with logs. Automated tests
 verify client behavior and lifecycle contracts; they do not establish that every
 server configuration accepts packet delay or tick timing. No multiplayer
 acceptance or universal absence of flags is claimed.
+
+PR #26 subsequently passed its required Java 8 Windows CI on the updated main
+base and was merged on 2026-11-02. The maintainer explicitly deferred gameplay/AC
+acceptance until the following rotation/scaffold implementation is ready; it was
+not a gate for that authorized merge.

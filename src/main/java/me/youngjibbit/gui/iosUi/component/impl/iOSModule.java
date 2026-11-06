@@ -29,8 +29,8 @@ public class iOSModule extends iOSComponent
     private final List<iOSComponent.Sub<?>> VALUES = new ArrayList<>();
     private boolean open;
     private final PanelUtils panelUtils = new PanelUtils();
-    private final Animation toggleAnimation = new DecelerateAnimation(180, 1.0);
-    private final Animation openAnimation = new EaseInOutQuad(220, 1.0);
+    private final Animation toggleAnimation = new me.youngjibbit.clickgui.utils.ClickAnimation(180,1,Direction.BACKWARDS);
+    private final Animation openAnimation = new me.youngjibbit.clickgui.utils.ClickAnimation(220,1,Direction.BACKWARDS);
     Theme currentTheme = applyTheme();
     int[] outlineColors = getStaticOutlineGradientColors(currentTheme);
 
@@ -41,6 +41,8 @@ public class iOSModule extends iOSComponent
         this.addValues();
         this.toggleAnimation.setDirection(module.isToggled() ? Direction.FORWARDS : Direction.BACKWARDS);
         this.openAnimation.setDirection(Direction.BACKWARDS);
+        this.openAnimation.timerUtil.setTime(System.currentTimeMillis()-220);
+        this.toggleAnimation.timerUtil.setTime(System.currentTimeMillis()-180);
     }
 
     @Override
@@ -64,16 +66,16 @@ public class iOSModule extends iOSComponent
 
         if (open || openProgress > 0.05f)
         {
-            panelUtils.icon2("h", (int) (x + 214), (int) (y + 8), Theme.Rainbow);
+            panelUtils.icon2("h", (int) (x + 214), (int) (y + 8), currentTheme);
         } else {
-            panelUtils.icon2("i", (int) (x + 214), (int) (y + 8), Theme.Rainbow);
+            panelUtils.icon2("i", (int) (x + 214), (int) (y + 8), currentTheme);
         }
 
         Pulsar.INSTANCE.getFontManager().getFont("SFProText-Medium 22").drawString(
-                module.getName(),
+                me.youngjibbit.clickgui.utils.ClickControlStyle.fit(Pulsar.INSTANCE.fontManager.getFont("SFProText-Medium 22"),module.getName(),width-42),
                 x + 6,
                 y + (float) mc.fontRendererObj.FONT_HEIGHT / 2 + 2,
-                module.isToggled() ? interpolatedColor1 : new Color(235, 238, 246, 230).getRGB()
+                Theme.interpolateRGB(currentTheme.getTextColor().getRGB(),interpolatedColor1,toggleProgress)
         );
 
         if (openProgress > 0.01f)
@@ -82,7 +84,7 @@ public class iOSModule extends iOSComponent
             int i = 0;
             String desc = module.getDescription();
             int descAlpha = (int) (120 + 95 * openProgress);
-            Pulsar.INSTANCE.getFontManager().getFont("SFProText-Medium 17").drawString(desc, x + 7, y + (float) mc.fontRendererObj.FONT_HEIGHT / 2 + 18, new Color(188, 195, 210, descAlpha).getRGB());
+            Pulsar.INSTANCE.getFontManager().getFont("SFProText-Medium 17").drawString(me.youngjibbit.clickgui.utils.ClickControlStyle.fit(Pulsar.INSTANCE.fontManager.getFont("SFProText-Medium 17"),desc,width-24), x + 7, y + (float) mc.fontRendererObj.FONT_HEIGHT / 2 + 18, new Color(188, 195, 210, descAlpha).getRGB());
 
             for (Sub<?> value : VALUES)
             {

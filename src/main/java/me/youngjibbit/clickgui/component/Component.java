@@ -19,6 +19,7 @@ public abstract class Component implements MC
         presentation.step(dt,visible&&acceptsMouse(mx,my)&&presentationBounds().contains(mx,my),focused,pressed,visible,me.youngjibbit.module.impl.client.ClientSettings.current());
     }
     protected void drawFeedback(){me.youngjibbit.clickgui.utils.GuiStyle.feedback(presentationBounds(),presentation);}
+    protected int hoverInk(int base){return me.youngjibbit.clickgui.utils.GuiStyle.ink(base,presentation);}
 
     public Component(float x, float y, float width, float height) {
         this.x = x;

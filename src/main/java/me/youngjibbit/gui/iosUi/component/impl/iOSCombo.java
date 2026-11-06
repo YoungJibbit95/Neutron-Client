@@ -18,11 +18,12 @@ public class iOSCombo extends iOSComponent.Sub<ComboValue>
 {
     private static final float OPTION_HEIGHT = 22.0f;
     private boolean open;
-    private final Animation openAnimation = new EaseInOutQuad(170, 1.0, Direction.BACKWARDS);
+    private final Animation openAnimation = new me.youngjibbit.clickgui.utils.ClickAnimation(170,1,Direction.BACKWARDS);
 
     public iOSCombo(ComboValue value, float x, float y, float width, float height)
     {
         super(value, x, y, width, height);
+        openAnimation.timerUtil.setTime(System.currentTimeMillis()-170);
     }
 
     @Override
@@ -42,17 +43,17 @@ public class iOSCombo extends iOSComponent.Sub<ComboValue>
 
         Pulsar.INSTANCE.getFontManager()
                 .getFont("Poppins-Medium 20").drawString(
-                        UiEffects.settingLabel(value),
+                        me.youngjibbit.clickgui.utils.ClickControlStyle.fit(Pulsar.INSTANCE.fontManager.getFont("Poppins-Medium 20"),UiEffects.settingLabel(value),controlX-x-18),
                         x + 10,
                         y + (float) mc.fontRendererObj.FONT_HEIGHT / 2 + 2,
-                        new Color(235, 238, 246, 230).getRGB());
+                        theme.getTextColor().getRGB());
 
         Pulsar.INSTANCE.getFontManager()
                 .getFont("Product-Sans-Medium 20").drawCenteredString(
                         label(value.getValue(),controlWidth-8,"Product-Sans-Medium 20"),
                         controlX + controlWidth / 2.0f,
                         y + (float) mc.fontRendererObj.FONT_HEIGHT / 2 + 3,
-                        Color.white.getRGB());
+                        theme.getTextColor().getRGB());
 
         ClipRect options = optionsBounds(0, openProgress);
         if (!options.isEmpty())

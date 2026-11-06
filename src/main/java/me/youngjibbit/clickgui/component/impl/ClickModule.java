@@ -104,7 +104,7 @@ public class ClickModule extends Component {
         small.drawCenteredString(binding, bindingX + bindingWidth / 2, y + 7, conflicts > 0 ? 0xffffb975 : 0xffbec4d0);
         me.youngjibbit.utils.font.TTFFontRenderer title = Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 20");
         title.drawString(ClickControlStyle.fit(title, module.getName(), bindingX - x - 18), x + 10, y + 6,
-                Theme.interpolateRGB(theme.isCustom()?theme.getTextColor().getRGB():0xfff0f1f5, theme.getPrimaryGradientRGB(), toggleProgress));
+                hoverInk(Theme.interpolateRGB(theme.isCustom()?theme.getTextColor().getRGB():0xfff0f1f5, theme.getPrimaryGradientRGB(), toggleProgress)));
         drawSettings(mouseX, mouseY);
     }
 

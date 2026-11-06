@@ -52,7 +52,7 @@ final class RotationHudRenderCheck {
                 SessionInfoRenderCheck.require(before!=null&&before.headYaw==90&&before.headPitch==17,"Local body correction was not selected");
                 Vec3 position=mc.thePlayer.getLastReportedPosition();long sequence=rotations.getMotionSequence();
                 IngameHudRenderCheck.frame(IngameHudRenderCheck.cow);
-                SessionInfoRenderCheck.require(((java.util.List<?>)SessionInfoRenderCheck.get(IngameHudRenderCheck.glow,"entities")).contains(mc.thePlayer),"Glow did not capture the local third-person model");
+                SessionInfoRenderCheck.require(((java.util.Collection<?>)SessionInfoRenderCheck.get(IngameHudRenderCheck.glow,"entities")).contains(mc.thePlayer),"Glow did not capture the local third-person model");
                 ModelBiped model=(ModelBiped)((RendererLivingEntity<?>)mc.getRenderManager().getEntityRenderObject(mc.thePlayer)).getMainModel();
                 SessionInfoRenderCheck.require(Math.abs(model.bipedHead.rotateAngleX-Math.toRadians(17))<.0001,"Living renderer did not consume the accepted head pitch");
                 SessionInfoRenderCheck.require(RotationCorrections.renderPose(mc.thePlayer,0)==before,"Repeated model/glow passes advanced body smoothing within one frame");

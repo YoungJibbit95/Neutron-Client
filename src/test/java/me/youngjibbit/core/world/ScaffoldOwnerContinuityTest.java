@@ -31,6 +31,8 @@ public class ScaffoldOwnerContinuityTest {
         final ScaffoldClientFlowTest.Scene scene=ScaffoldClientFlowTest.prepare(f,.5,.48);
         final RotationManager rotation=f.runtime.getRotationManager();
         Run(String timing) throws Exception {
+            // Existing release-boundary cases exercise the configurable three-tick deadline.
+            f.scaffold.getNumberSetting("Return Ticks").setValue(3D);
             f.scaffold.getModeSetting("Randomization Style").setValue("Aus");
             f.scaffold.getModeSetting("Place Timing").setValue(timing);
             f.scaffold.onEnable();

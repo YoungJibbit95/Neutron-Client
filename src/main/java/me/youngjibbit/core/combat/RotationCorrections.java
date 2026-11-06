@@ -42,6 +42,11 @@ public final class RotationCorrections {
         RotationManager rotation = RuntimeServices.rotation();
         if (mc.getNetHandler()==null || !mc.getNetHandler().getNetworkManager().isChannelOpen()) return null;
         String owner = rotation.getConfirmedOwner(mc.thePlayer, mc.theWorld, mc.getNetHandler().getNetworkManager().getClientPackets());
+        if (RotationManager.isReleaseSource(owner)) {
+            RotationManager.ReleaseView release = rotation.getRotationRelease();
+            return release != null && owner.equals(release.releaseSource)
+                    ? new Selection(owner, rotation.getEffectiveYaw(), rotation.getEffectivePitch(), release.movement, release.body) : null;
+        }
         if ("aura".equals(owner)) {
             Aura aura = (Aura) modules.getModule(Aura.class);
             return aura == null ? null : select(rotation, "aura", aura.correctionEnabled(), aura.moveFixMode(), aura.bodyRotationMode());
@@ -60,7 +65,39 @@ public final class RotationCorrections {
     }
 
     public static void movement(PlayerMoveUpdateEvent event) {
-        applyMovement(current(), event);
+        applyMovement(currentMovement(), event);
+    }
+
+    static MoveFixController.Mode movementModeFor(String source) {
+        if (source == null) return MoveFixController.Mode.OFF;
+        if (RotationManager.isReleaseSource(source)) {
+            RotationManager.ReleaseView release = RuntimeServices.rotation().getRotationRelease();
+            return release != null && source.equals(release.releaseSource) ? release.movement : MoveFixController.Mode.OFF;
+        }
+        ModuleManager modules = Pulsar.INSTANCE.getMm();
+        if (modules == null) return MoveFixController.Mode.OFF;
+        if ("aura".equals(source)) {
+            Aura aura = (Aura) modules.getModule(Aura.class);
+            return aura != null && aura.correctionEnabled() ? aura.moveFixMode() : MoveFixController.Mode.OFF;
+        }
+        if ("scaffold".equals(source)) {
+            Scaffold scaffold = (Scaffold) modules.getModule(Scaffold.class);
+            return scaffold != null && scaffold.correctionEnabled() ? scaffold.moveFixMode() : MoveFixController.Mode.OFF;
+        }
+        if ("velocity".equals(source)) {
+            Velocity velocity = (Velocity) modules.getModule(Velocity.class);
+            return velocity != null && velocity.correctionEnabled() ? MoveFixController.Mode.SIMPLE : MoveFixController.Mode.OFF;
+        }
+        return MoveFixController.Mode.OFF;
+    }
+
+    private static Selection currentMovement() {
+        RotationManager.MovementRotation predicted = RuntimeServices.rotation().getPreparedMovement();
+        if (predicted != null) {
+            return predicted.source == null ? null : new Selection(predicted.source, predicted.yaw, predicted.pitch,
+                    predicted.mode, BodyRotationController.Mode.VANILLA);
+        }
+        return current();
     }
 
     /**
@@ -72,7 +109,7 @@ public final class RotationCorrections {
      * This is a read-only query and uses the same transform for every enabled mode.
      */
     public static float sprintForward(float cameraYaw, float rawStrafe, float rawForward) {
-        return correctedSprintForward(current(), cameraYaw, rawStrafe, rawForward);
+        return correctedSprintForward(currentMovement(), cameraYaw, rawStrafe, rawForward);
     }
 
     static float correctedSprintForward(Selection selected, float cameraYaw,
@@ -88,7 +125,7 @@ public final class RotationCorrections {
      * inputs must not be passed here: moveFlying corrects its own event exactly once.
      */
     public static float directMotionYaw(float cameraYaw, float cameraDirectionYaw, float strafe, float forward) {
-        Selection selected = current();
+        Selection selected = currentMovement();
         if (selected == null || selected.movement == MoveFixController.Mode.OFF) return cameraDirectionYaw;
         if (selected.movement == MoveFixController.Mode.ROTATION_BOUND
                 || selected.movement == MoveFixController.Mode.LEGACY_STRICT)
@@ -105,7 +142,7 @@ public final class RotationCorrections {
     }
 
     public static void jump(JumpFixEvent event) {
-        applyJump(current(), event);
+        applyJump(currentMovement(), event);
     }
 
     static void applyJump(Selection selected, JumpFixEvent event) {
@@ -116,6 +153,11 @@ public final class RotationCorrections {
     public static BodyRotationController.Pose renderPose(EntityLivingBase entity, float vanillaBodyYaw) {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc == null || entity != mc.thePlayer) return null;
+        RotationManager.ReleaseView release = RuntimeServices.rotation().getRotationRelease();
+        if (release != null && release.body != BodyRotationController.Mode.VANILLA) {
+            return BODY.sampleReturn(mc.thePlayer, mc.theWorld, release.identity, release.source,
+                    release.yaw, release.pitch, vanillaBodyYaw, release.progress);
+        }
         Selection selected = current();
         return BODY.sampleFrame(mc.getRenderFrameSequence(), mc.thePlayer, mc.theWorld, selected == null ? null : selected.owner,
                 selected == null ? BodyRotationController.Mode.VANILLA : selected.body,

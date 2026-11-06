@@ -4,6 +4,8 @@ uniform vec2 resolution, origin, extent;
 uniform vec4 first, second;
 uniform int style;
 uniform bool useShared;
+uniform int globalHalo;
+uniform vec4 globalFirst, globalSecond;
 // UI_GRADIENT
 uniform float phase, strength;
 void main(){
@@ -20,6 +22,8 @@ void main(){
  vec3 sharp=chroma>.08?intrinsic:tint*intrinsic;
  mask.a*=palette.a;
  vec4 glowPalette=uiEnabled&&useShared?mix(first,second,uiPosition(uiGlow)):palette;
+ if(globalHalo==1)glowPalette=palette;
+ if(globalHalo==2)glowPalette=mix(globalFirst,globalSecond,uiPosition(uiGlow));
  float glow=texture2D(halo,uv).a*strength*glowPalette.a*(1.0-mask.a);
  float alpha=mask.a+glow*(1.0-mask.a);
  gl_FragColor=vec4((sharp*mask.a+glowPalette.rgb*glow*(1.0-mask.a))/max(alpha,.00001),alpha);
