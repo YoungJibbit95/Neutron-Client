@@ -6,7 +6,6 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufOutputStream;
 import io.netty.util.ByteProcessor;
-import java.nio.channels.FileChannel;
 import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.EncoderException;
 import java.io.IOException;
@@ -14,6 +13,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
 import java.nio.channels.ScatteringByteChannel;
 import java.nio.charset.Charset;
@@ -1207,27 +1207,27 @@ public class PacketBuffer extends ByteBuf
     }
 
     @Override
-    public ByteBuf writeShortLE(int index)
+    public ByteBuf writeShortLE(int value)
     {
-        return this.buf.writeShortLE(index);
+        return this.buf.writeShortLE(value);
     }
 
     @Override
-    public ByteBuf writeMediumLE(int index)
+    public ByteBuf writeMediumLE(int value)
     {
-        return this.buf.writeMediumLE(index);
+        return this.buf.writeMediumLE(value);
     }
 
     @Override
-    public ByteBuf writeIntLE(int index)
+    public ByteBuf writeIntLE(int value)
     {
-        return this.buf.writeIntLE(index);
+        return this.buf.writeIntLE(value);
     }
 
     @Override
-    public ByteBuf writeLongLE(long index)
+    public ByteBuf writeLongLE(long value)
     {
-        return this.buf.writeLongLE(index);
+        return this.buf.writeLongLE(value);
     }
 
     @Override
