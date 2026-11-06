@@ -38,7 +38,7 @@ public class AuraMovementConsistencyTest {
     private final String method;
     public AuraMovementConsistencyTest(String method) { this.method=method; }
     @Test public void checkInFreshJvm() throws Exception { Wave2IsolatedCase.run(Checks.class,method); }
-    private static final class BeforePhysics extends RuntimeException { }
+    static final class BeforePhysics extends RuntimeException { }
     public static class Player extends RotationBehaviorHookTest.Player {
         FoodStats food;
         @Override public FoodStats getFoodStats() { return food; }
@@ -52,15 +52,15 @@ public class AuraMovementConsistencyTest {
         @Override public boolean isSpectator() { return false; }
         @Override public boolean isEntityAlive() { return !isDead; }
     }
-    private static final class Input extends MovementInput {
+    static final class Input extends MovementInput {
         float forward=1,strafe;
         @Override public void updatePlayerMoveState() {
             moveForward=forward*(sneak?.3f:1);moveStrafe=strafe*(sneak?.3f:1);
         }
     }
-    private static final class Run implements AutoCloseable {
+    static final class Run implements AutoCloseable {
         final Wave05AuraSelectionChecks.SelectionRun f=new Wave05AuraSelectionChecks.SelectionRun("Single");
-        final Player player=RotationBehaviorHookTest.bare(Player.class);
+        final Player player;
         final Input input=new Input();
         PlayerMoveUpdateEvent move;
         double jumpX,jumpZ;
@@ -69,6 +69,10 @@ public class AuraMovementConsistencyTest {
         Runnable beforeWalking=()->{};
         final Listener<PlayerMoveUpdateEvent> observeMove=new Listener<>(PlayerMoveUpdateEvent.class,e->move=e);
         Run(String mode) throws Exception {
+            this(mode,Player.class);
+        }
+        Run(String mode,Class<? extends Player> playerType) throws Exception {
+            player=RotationBehaviorHookTest.bare(playerType);
             for(Class<?> type=RotationBehaviorHookTest.Player.class;type!=Object.class;type=type.getSuperclass())
                 for(Field field:type.getDeclaredFields())if(!Modifier.isStatic(field.getModifiers())) {
                     field.setAccessible(true);field.set(player,field.get(f.local));
@@ -113,7 +117,10 @@ public class AuraMovementConsistencyTest {
             return sent.getYaw();
         }
         void remoteTarget() throws Exception {
-            Remote target=RotationBehaviorHookTest.bare(Remote.class);target.worldObj=f.run.scene;target.setEntityId(19);
+            remoteTarget(Remote.class);
+        }
+        void remoteTarget(Class<? extends Remote> type) throws Exception {
+            Remote target=RotationBehaviorHookTest.bare(type);target.worldObj=f.run.scene;target.setEntityId(19);
             target.inventory=new InventoryPlayer(target);target.posX=.5;target.posY=64;target.posZ=2;
             target.setEntityBoundingBox(new AxisAlignedBB(.2,64,1.7,.8,65.8,2.3));
             DataWatcher data=new DataWatcher(target);data.addObject(0,(byte)0);data.addObject(6,20F);
