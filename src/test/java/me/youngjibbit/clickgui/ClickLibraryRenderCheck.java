@@ -22,12 +22,14 @@ public final class ClickLibraryRenderCheck {
     private static Minecraft mc;
     private static final File OUT=new File("dropdown-preview");
     private static class Library extends ClickLibraryScreen {
-        GuiScreen opened;boolean ctrl;
+        GuiScreen opened;boolean ctrl,shift;
         Library(ConfigManager manager,ThemeCatalog catalog){super(null,false,manager,catalog);}
         @Override protected void open(GuiScreen screen){opened=screen;}
         @Override protected boolean ctrlDown(){return ctrl;}
+        @Override protected boolean shiftDown(){return shift;}
         void click(int id)throws Exception{ClipRect r=actionBounds(id);mouseClicked((int)(r.x+r.width/2),(int)(r.y+r.height/2),0);mouseReleased(0,0,0);}
         void name(String text)throws Exception{ClipRect r=nameBounds();mouseClicked((int)r.x+5,(int)r.y+8,0);ctrl=true;keyTyped('a',Keyboard.KEY_A);ctrl=false;type(text);}
+        void search(String text)throws Exception{ClipRect r=searchBounds();mouseClicked((int)r.x+5,(int)r.y+8,0);ctrl=true;keyTyped('a',Keyboard.KEY_A);ctrl=false;type(text);if(text.isEmpty())key(Keyboard.KEY_BACK);}
         void type(String text)throws Exception{for(char c:text.toCharArray())keyTyped(c,Keyboard.KEY_NONE);}
         void key(int key)throws Exception{keyTyped(' ',key);}
         void select(int index)throws Exception{
@@ -64,6 +66,7 @@ public final class ClickLibraryRenderCheck {
             require(Files.exists(data.resolve("configs/Throwaway.json")),"Delete cancellation");
             screen.click(2);screen.key(Keyboard.KEY_RETURN);require(!Files.exists(data.resolve("configs/Throwaway.json")),"Delete confirmation");
             screen.select(0);frame(screen);snapshot("14-configs-saved.png");
+            configLayouts(screen,actions,mc,catalog);
             screen.click(7);frame(screen);snapshot("15-themes.png");
             ClipRect firstSwatch=screen.itemBounds(0);int swatch=sample(firstSwatch.x+13,firstSwatch.y+12);
             boolean gradients=ClientSettings.current().gradients.getValue();String active=catalog.selectedReference();
@@ -97,6 +100,37 @@ public final class ClickLibraryRenderCheck {
             require(glGetError()==GL_NO_ERROR,"Library/editor GL state");
             System.out.println("PASS [Pbuffer/FBO]: actual config save/load/overwrite/delete/cancel, theme library/runtime, literal swatches, HSV-alpha draft/cancel/save, compact scrolling");
         }finally{catalog.cancelPreview();ThemeCatalog.install(previous);}
+    }
+    private static void configLayouts(Library screen,ConfigLibrary actions,Minecraft mc,ThemeCatalog catalog)throws Exception {
+        String longName="Long profile 012345678901234567890123456789012345678901234567890";
+        require(actions.save(longName),"Long valid names remain supported");
+        for(int i=0;i<18;i++)require(actions.save("Layout "+i),"Create scroll fixture");
+        for(int[] size:new int[][]{{854,480,1},{854,480,2},{1101,733,3},{320,224,1}}){
+            resize(screen,size[0],size[1],size[2]);frame(screen);
+            List<ClipRect> controls=new ArrayList<>();controls.add(screen.listBounds());controls.add(screen.searchBounds());controls.add(screen.nameBounds());
+            for(int id:new int[]{0,1,2,3,6,7,8})controls.add(screen.actionBounds(id));
+            require(screen.listBounds().height>=26,"Compact configs retain a full list row");
+            for(int i=0;i<controls.size();i++){
+                ClipRect a=controls.get(i);require(a.width>0&&a.height>0&&a.x>=0&&a.y>=0&&a.x+a.width<=screen.width&&a.y+a.height<=screen.height,"Config control inside viewport");
+                for(int j=i+1;j<controls.size();j++)require(a.intersect(controls.get(j)).isEmpty(),"Config list/fields/actions must not overlap");
+            }
+            screen.search("Long profile");screen.key(Keyboard.KEY_DOWN);frame(screen);
+            require(actions.selected().equals(longName),"Keyboard selects long result without loading");
+            snapshot("configs-layout-"+size[0]+"-scale"+size[2]+".png");
+            screen.search("No matching config");frame(screen);snapshot("configs-no-match-"+size[0]+"-scale"+size[2]+".png");
+            screen.search("");screen.key(Keyboard.KEY_TAB);require(((Integer)field(screen,"focus"))==3,"Search tabs to Refresh");
+            screen.key(Keyboard.KEY_TAB);require(((Integer)field(screen,"focus"))==-2,"Refresh tabs to list");
+            for(int id:new int[]{1,2,-3,0,8,6,7,-1}){screen.key(Keyboard.KEY_TAB);require(((Integer)field(screen,"focus"))==id,"Config focus order "+id);}
+            screen.shift=true;
+            for(int id:new int[]{7,6,8,0,-3,2,1,-2,3,-1}){screen.key(Keyboard.KEY_TAB);require(((Integer)field(screen,"focus"))==id,"Reverse config focus order "+id);}
+            screen.shift=false;
+            screen.key(Keyboard.KEY_DOWN);for(int i=0;i<30;i++)screen.key(Keyboard.KEY_DOWN);
+            int index=actions.entries().size()-1;ClipRect row=screen.itemBounds(index),list=screen.listBounds();
+            require(row.y>=list.y-.1f&&row.y+row.height<=list.y+list.height+.1f,"Keyboard reveals last config row");
+        }
+        Library unavailable=new Library(null,catalog);resize(unavailable,320,224,1);frame(unavailable);snapshot("configs-storage-unavailable.png");
+        require(!((ConfigLibrary)field(unavailable,"configs")).available(),"Unavailable storage keeps real state");unavailable.onGuiClosed();
+        resize(screen,854,480,1);screen.search("");
     }
     private static Object field(Object value,String name)throws Exception{
         for(Class<?> type=value.getClass();type!=null;type=type.getSuperclass())try{Field f=type.getDeclaredField(name);f.setAccessible(true);return f.get(value);}catch(NoSuchFieldException ignored){}

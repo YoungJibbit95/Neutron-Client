@@ -13,6 +13,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.junit.Assert.*;
 
 public class KnockbackRecodeTest {
+    @org.junit.BeforeClass public static void bootstrapItems() { net.minecraft.init.Bootstrap.register(); }
     private void hurt(ExploitHookFixture f) {
         Pulsar.BUS.post(new PacketReceiveEvent(new S19PacketEntityStatus(f.player, (byte) 2), f.pipe()));
     }
