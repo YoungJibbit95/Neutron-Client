@@ -38,6 +38,7 @@ public class WTap2 extends Module {
     private LongSupplier legitClock = () -> System.nanoTime() / 1_000_000L;
     private long lastLegitActivation = Long.MIN_VALUE;
     private EntityLivingBase candidate;
+    private String candidateMode;
     private Object legitPlayer, legitWorld;
     private PacketPipeline legitConnection;
     private long legitEpoch;
@@ -45,7 +46,8 @@ public class WTap2 extends Module {
     private boolean spoofedSprint;
     private long lastActivation;
     private long releaseAt;
-    private boolean mouseDown;
+    private PacketPipeline stapConnection;
+    private long stapEpoch;
 
     public WTap2() {
         this.setKey(Keyboard.KEY_0);
@@ -57,7 +59,6 @@ public class WTap2 extends Module {
         spoofedSprint = false;
         lastActivation = 0L;
         releaseAt = 0L;
-        mouseDown = false;
         releaseStap(usableInput());
         super.onDisable();
     }
@@ -65,6 +66,7 @@ public class WTap2 extends Module {
     @Subscribe
     private final Listener<AttackEvent> onAttack = new Listener<>(event -> {
         candidate = null;
+        candidateMode = null;
         if (mc.thePlayer == null || mc.theWorld == null || event == null || event.getTargetEntity() == null) {
             return;
         }
@@ -72,7 +74,7 @@ public class WTap2 extends Module {
         EntityLivingBase target = event.getTargetEntity();
         switch (mode.getValue()) {
             case "STap":
-                if (canActivate(target)) activateStapWindow();
+                if (!event.isCancelled() && canActivate(target)) captureCandidate(target, "STap");
                 break;
             case "Legit":
                 // Capture pre-attack eligibility only. Native successful sprint attacks have
@@ -81,11 +83,7 @@ public class WTap2 extends Module {
                         && mc.thePlayer.onGround && mc.thePlayer.isSprinting()
                         && inRange(target) && (lastLegitActivation == Long.MIN_VALUE
                         || legitClock.getAsLong() - lastLegitActivation >= cooldownMs.getValue())) {
-                    candidate = target;
-                    legitPlayer = mc.thePlayer;
-                    legitWorld = mc.theWorld;
-                    legitConnection = currentConnection();
-                    legitEpoch = legitConnection == null ? 0 : legitConnection.getContextVersion();
+                    captureCandidate(target, "Legit");
                 }
                 break;
             default:
@@ -95,8 +93,14 @@ public class WTap2 extends Module {
 
     @Subscribe private final Listener<AttackResultEvent> attackAccepted = new Listener<>(event -> {
         EntityLivingBase expected = candidate;
+        String expectedMode = candidateMode;
         candidate = null;
-        if (expected != null && event.getTargetEntity() == expected && validLegitContext()) {
+        candidateMode = null;
+        if (expected != null && event.getTargetEntity() == expected && "STap".equals(expectedMode)
+                && "STap".equals(mode.getValue()) && usableInput() && sameAttackContext()) {
+            activateStapWindow();
+        } else if (expected != null && event.getTargetEntity() == expected
+                && "Legit".equals(expectedMode) && validLegitContext()) {
             pendingTap = true;
             lastLegitActivation = legitClock.getAsLong();
         }
@@ -114,10 +118,17 @@ public class WTap2 extends Module {
     });
 
     @Subscribe private final Listener<WorldEvent> world = new Listener<>(event -> {
-        resetLegit(); releaseStap(false); mouseDown = false; spoofedSprint = false;
+        resetLegit(); releaseStap(false); spoofedSprint = false;
     });
 
-    @Override public void onValueChange() { resetLegit(); releaseStap(usableInput()); mouseDown = false; }
+    @Override public void onValueChange() { resetLegit(); releaseStap(usableInput()); }
+
+    private void captureCandidate(EntityLivingBase target, String selectedMode) {
+        candidate = target; candidateMode = selectedMode;
+        legitPlayer = mc.thePlayer; legitWorld = mc.theWorld;
+        legitConnection = currentConnection();
+        legitEpoch = legitConnection == null ? 0 : legitConnection.getContextVersion();
+    }
 
     private boolean usableInput() {
         return mc != null && mc.thePlayer != null && mc.theWorld != null
@@ -132,7 +143,11 @@ public class WTap2 extends Module {
     }
 
     private boolean validLegitContext() {
-        return usableLegit() && legitPlayer == mc.thePlayer && legitWorld == mc.theWorld
+        return usableLegit() && sameAttackContext();
+    }
+
+    private boolean sameAttackContext() {
+        return legitPlayer == mc.thePlayer && legitWorld == mc.theWorld
                 && legitConnection != null && legitConnection == currentConnection() && legitConnection.isActive()
                 && legitEpoch == legitConnection.getContextVersion();
     }
@@ -142,7 +157,7 @@ public class WTap2 extends Module {
     }
 
     private void resetLegit() {
-        candidate = null; pendingTap = tappedStep = false;
+        candidate = null; candidateMode = null; pendingTap = tappedStep = false;
         legitPlayer = legitWorld = null; legitConnection = null; lastLegitActivation = Long.MIN_VALUE;
     }
 
@@ -150,14 +165,13 @@ public class WTap2 extends Module {
     private final Listener<TickEvent> tickEvent = new Listener<>(event -> {
         if (!event.isPre()) return;
         if (!usableInput()) {
-            resetLegit(); releaseStap(false); mouseDown = false; spoofedSprint = false; return;
+            resetLegit(); releaseStap(false); spoofedSprint = false; return;
         }
         if (!"STap".equals(mode.getValue())) releaseStap(true);
         if (!usableLegit()) resetLegit();
-        EntityLivingBase target = resolveTarget();
         switch (mode.getValue()) {
             case "STap":
-                handleStap(target);
+                handleStap();
                 break;
             default:
                 break;
@@ -201,13 +215,11 @@ public class WTap2 extends Module {
         }
     }
 
-    private void handleStap(EntityLivingBase target) {
-        boolean click = Mouse.isCreated() && Mouse.isButtonDown(0);
-        boolean clickEdge = click && !mouseDown;
-        mouseDown = click;
-
-        if (clickEdge && target != null && canActivate(target)) {
-            activateStapWindow();
+    private void handleStap() {
+        if (stapOwned && (stapConnection == null || stapConnection != currentConnection()
+                || !stapConnection.isActive() || stapEpoch != stapConnection.getContextVersion())) {
+            releaseStap(false);
+            return;
         }
 
         if (stapOwned && System.currentTimeMillis() < releaseAt) {
@@ -225,6 +237,7 @@ public class WTap2 extends Module {
             restoreKey(mc.gameSettings.keyBindBack, restorePhysical);
         }
         stapOwned = false;
+        stapConnection = null;
         releaseAt = 0L;
     }
 
@@ -257,6 +270,9 @@ public class WTap2 extends Module {
     }
 
     private void activateStapWindow() {
+        // Only the accepted controller result reaches this point, for manual and Aura attacks.
+        stapConnection = currentConnection();
+        stapEpoch = stapConnection.getContextVersion();
         stapOwned = true;
         lastActivation = System.currentTimeMillis();
         releaseAt = lastActivation + durationMs.getValue().longValue();

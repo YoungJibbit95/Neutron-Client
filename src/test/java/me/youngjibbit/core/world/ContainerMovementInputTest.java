@@ -101,8 +101,9 @@ public class ContainerMovementInputTest {
                 s.keyBindBack=new KeyBinding("back",31,"test");
                 tap.getModeSetting("Mode").setValue("STap");
                 try {
-                    Pulsar.BUS.post(new AttackEvent(r.f.first));
-                    assertTrue("control: focused game permits STap",ScaffoldOwnerContinuityTest.field(WTap2.class,"stapOwned").getBoolean(tap));
+                    r.f.run.fixture.aura.setToggled(false);
+                    assertTrue(r.f.run.fixture.mc.playerController.tryAttackEntity(r.player,r.f.run.scene.getEntityByID(19),()->true));
+                    assertTrue("control: accepted attack in focused game permits STap",ScaffoldOwnerContinuityTest.field(WTap2.class,"stapOwned").getBoolean(tap));
                     ScaffoldOwnerContinuityTest.field(WTap2.class,"releaseAt").setLong(tap,Long.MAX_VALUE);
                     Pulsar.BUS.post(new TickEvent());
                     assertFalse(s.keyBindForward.pressed);assertTrue("active tap drives backwards",s.keyBindBack.pressed);
