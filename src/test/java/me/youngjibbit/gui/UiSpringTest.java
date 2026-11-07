@@ -5,6 +5,25 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class UiSpringTest {
+    @Test public void closedRevealSettlesAtZeroWithoutReappearing() {
+        ClientSettings c=new ClientSettings();c.motionIntensity.setValue("Expressive");UiSpring ui=new UiSpring();
+        for(int i=0;i<40;i++)ui.transition(1,.01f,c);
+        boolean closed=false;
+        for(int i=0;i<200;i++){
+            float value=ui.transition(0,.005f,c);
+            if(closed)assertEquals(0,value,0);
+            if(value==0)closed=true;
+        }
+        assertTrue(closed);
+    }
+    @Test public void revealReversesFromCurrentValueAndRespectsMotionSettings() {
+        ClientSettings c=new ClientSettings();UiSpring ui=new UiSpring();
+        float opening=ui.transition(1,.03f,c);
+        assertEquals(opening,ui.transition(0,0,c),0);
+        c.reducedMotion.setValue(true);ui.reset();
+        assertEquals(.5f,ui.transition(1,.06f,c),.00001f);
+        c.animations.setValue(false);assertEquals(0,ui.transition(0,0,c),0);
+    }
     @Test public void exactPresetAndLegacySpringParity() {
         ClientSettings c=new ClientSettings();
         for(String preset:c.motionIntensity.getOptions()){

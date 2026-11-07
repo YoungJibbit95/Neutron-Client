@@ -70,7 +70,11 @@ public final class ArrayListRenderCheck {
             manager.registerModule(a); manager.registerModule(b); manager.registerModule(c); manager.registerModule(hud);
             hud.getModeSetting("Font").setValue("Poppins"); hud.getModeSetting("Font Strength").setValue("Regular");
             Theme.setDefaultTheme(Theme.SynthWave);
-            checkEffects(); checkModuleLayout(); checkBatchAndState(); checkPaddingAndAnchors(); checkResizeAndModes();
+            if(args.length>0&&"metrics-only".equals(args[0])) {
+                checkMetricsCache();context.check();
+                System.out.println("PASS [Pbuffer/FBO only]: HUD metrics cache");return;
+            }
+            checkMetricsCache(); checkEffects(); checkModuleLayout(); checkBatchAndState(); checkPaddingAndAnchors(); checkResizeAndModes();
             require(glGetError()==GL_NO_ERROR,"OpenGL errors");
             context.check();
         }
@@ -79,6 +83,36 @@ public final class ArrayListRenderCheck {
 
     static ArrayListSurface.Shape shape() {
         return new ArrayListSurface.Shape(24,new float[]{30,54,78},new float[]{54,78,102},new float[]{190,145,100},3);
+    }
+    static void checkMetricsCache() throws Exception {
+        a.setToggled(true);render();finishAnimations();render();
+        Object stable=get(rows().get(0),"metrics");
+        for(int i=0;i<100;i++)require(stable==get(rows().get(0),"metrics"),"Stable HUD label was measured again in layout pass "+i);
+        hud.getBooleanSetting("Show Module Info").setValue(true);a.info="Pulse 100ms Q1";
+        Object q1=get(rows().get(0),"metrics");require(q1!=stable,"Info switch did not invalidate metrics");
+        a.info="Pulse 100ms Q0";Object q0=get(rows().get(0),"metrics");
+        require(q0!=q1&&((String)get(q0,"label")).endsWith("Q0"),"Live queue count remained stale");
+        require(q0==get(rows().get(0),"metrics"),"Unchanged queue count was measured again");
+        hud.getModeSetting("Font").setValue("Inter");Object inter=get(rows().get(0),"metrics");
+        require(inter!=q0&&get(inter,"renderer")!=get(q0,"renderer"),"Font change reused old metrics");
+        hud.getNumberSetting("Scale").setValue(1.35D);Object scaled=get(rows().get(0),"metrics");
+        require(scaled!=inter,"Scale change reused old metrics");
+        me.youngjibbit.utils.font.TTFFontRenderer renderer=(me.youngjibbit.utils.font.TTFFontRenderer)get(scaled,"renderer");
+        require(Math.abs((float)get(scaled,"width")-renderer.getWidth((String)get(scaled,"label"))*(float)get(scaled,"scale"))<.0001,"Cached width differs from glyph advances");
+        hud.getModeSetting("Font").setValue("Minecraft");
+        require(get(rows().get(0),"metrics")!=get(rows().get(0),"metrics"),"Resource-dependent Minecraft font must be measured fresh");
+        hud.getModeSetting("Font").setValue("Poppins");a.info="\u00a7kabc";
+        require(get(rows().get(0),"metrics")!=get(rows().get(0),"metrics"),"Obfuscated glyphs must be measured fresh");
+        a.info="";hud.getBooleanSetting("Show Module Info").setValue(false);hud.getNumberSetting("Scale").setValue(1D);
+        rows();mc.gameSettings.showDebugInfo=true;render();
+        require(((Map<?,?>)get(hud,"metricsCache")).isEmpty(),"Debug overlay retained metrics");
+        mc.gameSettings.showDebugInfo=false;render();
+        hud.getModeSetting("Mode").setValue("None");render();
+        require(((Map<?,?>)get(hud,"metricsCache")).isEmpty(),"Hidden HUD retained metrics");
+        hud.getModeSetting("Mode").setValue("Glass");render();hud.onDisable();
+        require(((Map<?,?>)get(hud,"metricsCache")).isEmpty(),"Disabled HUD retained metrics");
+        a.setToggled(false);hud.onDisable();
+        System.out.println("METRICS_CACHE: 0 new metrics in 100 stable layout passes; live label/font/scale invalidation verified");
     }
     static void checkEffects() throws Exception {
         ArrayListSurface surface=new ArrayListSurface();
@@ -116,6 +150,16 @@ public final class ArrayListRenderCheck {
 
     static void checkModuleLayout() throws Exception {
         a.setToggled(true); render(); finishAnimations(); render(); BufferedImage single=capture();
+        a.info = "Pulse 100ms Q2";
+        Object plain = get(rows().get(0), "metrics");
+        require(("| " + a.getName()).equals(get(plain, "label")), "Existing layouts keep the short label");
+        hud.getBooleanSetting("Show Module Info").setValue(true);
+        render();
+        Object detailed = get(rows().get(0), "metrics");
+        require(("| " + a.getName() + " Pulse 100ms Q2").equals(get(detailed, "label")), "Missing module info");
+        require((float) get(detailed, "width") > (float) get(plain, "width"), "Status must contribute to row width");
+        a.info = "";
+        hud.getBooleanSetting("Show Module Info").setValue(false);
         b.setToggled(true); c.setToggled(true); render();
         progress(65); render(); BufferedImage entering=capture();
         finishAnimations(); render(); BufferedImage multiple=capture();

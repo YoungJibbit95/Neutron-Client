@@ -44,6 +44,7 @@ public class ArrayListHUDModule extends Module {
     private final CheckBoxValue background = new CheckBoxValue("Background", this, true);
     private final CheckBoxValue blur = new CheckBoxValue("Blur", this, true);
     private final CheckBoxValue glow = new CheckBoxValue("Glow", this, true);
+    private final CheckBoxValue showModuleInfo = new CheckBoxValue("Show Module Info", this, false);
     private final CheckBoxValue showCombat = new CheckBoxValue("Show Combat", this, true);
     private final CheckBoxValue showMovement = new CheckBoxValue("Show Movement", this, true);
     private final CheckBoxValue showPlayer = new CheckBoxValue("Show Player", this, true);
@@ -66,6 +67,7 @@ public class ArrayListHUDModule extends Module {
 
     private final Map<String, DecelerateAnimation> visibilityAnimations = new HashMap<>();
     private final Map<String, Float> yPositions = new HashMap<>();
+    private final Map<String, Metrics> metricsCache = new HashMap<>();
     private final ArrayListSurface surface = new ArrayListSurface(this);
     private final me.youngjibbit.utils.render.TextEffects textEffects=new me.youngjibbit.utils.render.TextEffects();
     private final SliderValue positionX = new SliderValue("Position X",this,10.0,-16384,16384);
@@ -142,7 +144,7 @@ public class ArrayListHUDModule extends Module {
             if (!canBeRenderedInArrayList(module)) continue;
             renderable.add(module.getId());
             if (module.isToggled() || visibilityAnimations.containsKey(module.getId())) {
-                labels.add(new FrameLabel(module,new Metrics(getLabel(module),renderer,textScale)));
+                labels.add(new FrameLabel(module,metricsFor(module,getLabel(module),renderer,textScale)));
             }
         }
         visibilityAnimations.keySet().removeIf(id -> !renderable.contains(id));
@@ -172,6 +174,7 @@ public class ArrayListHUDModule extends Module {
                     animatedY+(rowHeight-label.metrics.height)/2,rectX,animatedY,rowWidth,rowHeight));
             rowY+=rowHeight;
         }
+        metricsCache.keySet().removeIf(id -> !renderable.contains(id) || !visibilityAnimations.containsKey(id));
         float maxProgress=0;for(ArrayRow row:rows)maxProgress=Math.max(maxProgress,row.progress);
         for(ArrayRow row:rows){float offset=pad(paddingTop)*maxProgress-pad(rowSpacing)/2*row.progress;row.rectY+=offset;row.textY+=offset;}
         return rows;
@@ -222,6 +225,22 @@ public class ArrayListHUDModule extends Module {
     }
 
     /** The same glyph advances drive measurement, sorting, clipping and drawing. No width fudge factor. */
+    private Metrics metricsFor(Module module,String label,TTFFontRenderer renderer,float textScale) {
+        String id=module.getId();
+        // Vanilla fonts may change on resource reload; obfuscated glyph widths vary each draw.
+        if(renderer==null || label.contains("\u00a7k") || label.contains("\u00a7K")) {
+            metricsCache.remove(id);
+            return new Metrics(label,renderer,textScale);
+        }
+        Metrics cached=metricsCache.get(id);
+        if(cached==null || !cached.label.equals(label) || cached.renderer!=renderer
+                || Float.compare(cached.scale,textScale)!=0) {
+            cached=new Metrics(label,renderer,textScale);
+            metricsCache.put(id,cached);
+        }
+        return cached;
+    }
+
     private static final class Metrics {
         final String label;
         final TTFFontRenderer renderer;
@@ -238,7 +257,10 @@ public class ArrayListHUDModule extends Module {
     }
 
     private String getLabel(Module module) {
-        return "| " + module.getName();
+        String label = "| " + module.getName();
+        if (!showModuleInfo.getValue() || !module.isToggled()) return label;
+        String detail = module.getInfo();
+        return detail == null || detail.isEmpty() ? label : label + " " + detail;
     }
 
     private TTFFontRenderer getFontRenderer() {
@@ -313,6 +335,7 @@ public class ArrayListHUDModule extends Module {
         stopDragging();frameShape=null;
         visibilityAnimations.clear();
         yPositions.clear();
+        metricsCache.clear();
         surface.close();textEffects.close();
     }
 
