@@ -16,6 +16,6 @@ public class MicrosoftBrowserUiBindingTest {
                 .redirectErrorStream(true).redirectOutput(log.toFile()).start();
         if(!child.waitFor(45,TimeUnit.SECONDS)){child.destroy();throw new AssertionError("Browser UI check timed out: "+log);}
         String output=new String(Files.readAllBytes(log),StandardCharsets.UTF_8);System.out.print(output);
-        assertEquals(output,0,child.exitValue());assertTrue(output,output.contains("OK (1 test)"));
+        assertEquals(output,0,child.exitValue());assertTrue(output,output.contains("OK (3 tests)"));
     }
 }
