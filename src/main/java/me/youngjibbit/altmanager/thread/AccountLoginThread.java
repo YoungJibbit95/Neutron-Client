@@ -52,6 +52,8 @@ public class AccountLoginThread extends Thread {
 
     @Override public void run() { if (attempt != null) attempt.run(); }
     public String getStatus() { return attempt == null ? "&eWaiting for login..." : attempt.getStatus(); }
+    public boolean isSetupRequired() { return attempt != null && attempt.isSetupRequired(); }
+    public AccountLoginThread retry() { return new AccountLoginThread(request, onSuccess); }
     public void cancelLogin() { if(attempt!=null)attempt.cancel(); }
     public static void cancelPending() { coordinator().invalidate(); }
 }

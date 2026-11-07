@@ -46,6 +46,22 @@ public class PackagedRuntimeCheck {
         }
     }
 
+    @Test public void javaFxSdkAndVendorNoticesSurvivePackaging() throws Exception {
+        try (JarFile jar = new JarFile(jar().toFile())) {
+            JarEntry sdk = jar.getJarEntry("neutron/runtime/javafx8-win-x64.zip");
+            assertNotNull("Bundled JavaFX SDK missing", sdk);
+            Set<String> entries = new HashSet<>();
+            try (java.util.zip.ZipInputStream zip = new java.util.zip.ZipInputStream(jar.getInputStream(sdk))) {
+                java.util.zip.ZipEntry entry;
+                while ((entry = zip.getNextEntry()) != null) entries.add(entry.getName());
+            }
+            String root = "zulu8.96.0.205-ca-fx-jre8.0.504-win_x64/";
+            for (String path : Arrays.asList("lib/ext/jfxrt.jar", "bin/glass.dll", "bin/jfxwebkit.dll", "OPENJFX_LICENSE", "OPENJFX_THIRD_PARTY_README"))
+                assertTrue("Missing SDK entry: " + path, entries.contains(root + path));
+            assertFalse("Do not bundle another JVM", entries.contains(root + "bin/server/jvm.dll"));
+        }
+    }
+
     @Test public void serviceProvidersAndLog4jIndexSurvivePackaging() throws Exception {
         try (JarFile jar = new JarFile(jar().toFile())) {
             assertNotNull(jar.getJarEntry("META-INF/org/apache/logging/log4j/core/config/plugins/Log4j2Plugins.dat"));
