@@ -692,6 +692,34 @@ public final class RotationManager {
     public float getEffectivePitch() { return effectivePitch; }
     public boolean hasEffectiveRotation() { return hasEffective; }
 
+    /** Scalar observation only: unlike authority getters, this never expires a lease or evaluates a predicate. */
+    public DiagnosticSnapshot diagnosticSnapshot() {
+        return new DiagnosticSnapshot(sequence, collecting, accepted, hasEffective, owner,
+                winner == null ? null : winner.source, winner == null ? 0 : winner.priority,
+                winner == null ? Float.NaN : winner.yaw, winner == null ? Float.NaN : winner.pitch,
+                effectiveYaw, effectivePitch, offeredSources.size(), rotationRelease != null);
+    }
+    public DiagnosticSnapshot diagnosticSnapshot(Object player,Object world,Object pipeline) {
+        return pipeline!=null&&connection.get()==pipeline&&motionPlayer.get()==player&&motionWorld.get()==world
+                ?diagnosticSnapshot():new DiagnosticSnapshot(sequence,false,false,false,null,null,0,
+                Float.NaN,Float.NaN,Float.NaN,Float.NaN,0,false);
+    }
+    public static final class DiagnosticSnapshot {
+        public final long sequence;
+        public final boolean collecting, accepted, hasEffective, returning;
+        public final String owner, requestedBy;
+        public final int priority, contenders;
+        public final float requestedYaw, requestedPitch, wireYaw, wirePitch;
+        DiagnosticSnapshot(long sequence, boolean collecting, boolean accepted, boolean hasEffective, String owner,
+                           String requestedBy, int priority, float requestedYaw, float requestedPitch,
+                           float wireYaw, float wirePitch, int contenders, boolean returning) {
+            this.sequence=sequence;this.collecting=collecting;this.accepted=accepted;this.hasEffective=hasEffective;
+            this.owner=owner;this.requestedBy=requestedBy;this.priority=priority;this.requestedYaw=requestedYaw;
+            this.requestedPitch=requestedPitch;this.wireYaw=wireYaw;this.wirePitch=wirePitch;
+            this.contenders=contenders;this.returning=returning;
+        }
+    }
+
     public boolean matchesEffective(float yaw, float pitch) {
         currentRotationRelease();
         return accepted && Math.abs(MathHelper.wrapAngleTo180_float(effectiveYaw-yaw)) < .001f

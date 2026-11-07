@@ -76,6 +76,7 @@ public class Nametags extends Module {
     private final Listener<Event2D> on2D = new Listener<>(e->
     {
         if(mc.theWorld==null||mc.thePlayer==null)return;
+        try(me.youngjibbit.core.diagnostics.RenderTimings.Scope timing=me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.scope("Nametags / labels")) {
         java.util.List<EntityPlayer> players=new java.util.ArrayList<>();for(Entity candidate:mc.theWorld.loadedEntityList)if(replacementCandidate(candidate,mc.getRenderManager()))players.add((EntityPlayer)candidate);if(players.isEmpty())return;
         currentTheme=Theme.getDefaultTheme();
         me.youngjibbit.utils.render.GuiShaderBloom.beginBatch();try{surfaces.withScene(currentTheme,()->{
@@ -141,6 +142,7 @@ public class Nametags extends Module {
             GlStateManager.popMatrix();
         }
         });}finally{me.youngjibbit.utils.render.GuiShaderBloom.flushBatch(2,2);}
+        }
     });
 
     /** Reads current world-camera matrices after the entity model matrix has been popped. */

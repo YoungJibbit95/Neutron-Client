@@ -27,8 +27,9 @@ public final class ArrayListSurface implements AutoCloseable {
     private static ShaderUtil shapeShader;
     private static boolean shaderFailed;
     private final UiEffects.LocalSurface local;
+    private final String diagnosticName;
     public ArrayListSurface(){this(null);}
-    public ArrayListSurface(me.youngjibbit.module.Module owner){local=owner==null?null:new UiEffects.LocalSurface(owner);owners.add(this);}
+    public ArrayListSurface(me.youngjibbit.module.Module owner){local=owner==null?null:new UiEffects.LocalSurface(owner);diagnosticName=owner==null?"Shared surfaces":owner.getName();owners.add(this);}
     private static ShaderUtil shader(){
         if(shapeShader==null&&!shaderFailed)try{shapeShader=new ShaderUtil("Flauxy/Shaders/arraylistSurface.frag");}catch(RuntimeException ex){shaderFailed=true;System.err.println("[UI] Surface shader unavailable; tinted contour fallback: "+ex.getMessage());}
         return shapeShader;
@@ -153,6 +154,13 @@ public final class ArrayListSurface implements AutoCloseable {
         render(new Shape(x,new float[]{y},new float[]{y+height},new float[]{x+width},UiEffects.radius(radius,width,height)),theme,true,true,true,.65f,5,.6f,.7f,false,-1,opacity,content);
     }
     private void render(Shape shape,Theme theme,boolean background,boolean blur,boolean glow,float glowAlpha,
+                        float blurRadius,float fillAlpha,float outlineAlpha,boolean gradientFill,int surfaceStyle,float opacity,Runnable text){
+        long timing=me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.surfaceStart();
+        try {
+            renderMeasured(shape,theme,background,blur,glow,glowAlpha,blurRadius,fillAlpha,outlineAlpha,gradientFill,surfaceStyle,opacity,text);
+        } finally { me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.surfaceEnd(diagnosticName,timing); }
+    }
+    private void renderMeasured(Shape shape,Theme theme,boolean background,boolean blur,boolean glow,float glowAlpha,
                         float blurRadius,float fillAlpha,float outlineAlpha,boolean gradientFill,int surfaceStyle,float opacity,Runnable text){
         theme=theme(theme);
         capturedClean=capturedSoft=0;

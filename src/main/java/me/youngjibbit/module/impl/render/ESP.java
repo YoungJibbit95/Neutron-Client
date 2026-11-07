@@ -98,7 +98,8 @@ public class ESP extends Module
     {
         if(mc.theWorld==null||mc.thePlayer==null)return;
         // Always scoped, including the no-FBO and inherited-scene fallbacks.
-        try (me.youngjibbit.utils.render.RenderState ignored = new me.youngjibbit.utils.render.RenderState()) {
+        try (me.youngjibbit.core.diagnostics.RenderTimings.Scope timing=me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.scope("ESP / world");
+             me.youngjibbit.utils.render.RenderState ignored = new me.youngjibbit.utils.render.RenderState()) {
         FloatBuffer worldModel = org.lwjgl.BufferUtils.createFloatBuffer(16);
         FloatBuffer worldProjection = org.lwjgl.BufferUtils.createFloatBuffer(16);
         GL11.glGetFloat(GL11.GL_MODELVIEW_MATRIX, worldModel);
