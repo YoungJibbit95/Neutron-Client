@@ -72,7 +72,7 @@ public final class TickbaseBudget {
     }
     public void reset() {credit=0;releasing=false;lastWithheld=false;remainder=0;}
     /** Lifecycle/enable boundaries require a fresh frame sample before withholding can resume. */
-    public void suspend() {reset();healthy=false;}
+    public void suspend() {reset();healthy=false;extraSteps=0;}
     public int getCredit() {return credit;}
     public boolean isReleasing() {return releasing;}
     public int getExtraSteps() {return extraSteps;}
