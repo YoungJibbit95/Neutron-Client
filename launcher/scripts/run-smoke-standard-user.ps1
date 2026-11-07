@@ -49,8 +49,9 @@ $code = 0
 try {
     __ENVIRONMENT__
     $env:NEUTRON_SMOKE_STANDARD_CHILD = '1'
-    [Environment]::SetEnvironmentVariable('NEUTRON_DATA_ROOT', $null, 'Process')
-    [Environment]::SetEnvironmentVariable('NEUTRON_OFFLINE', $null, 'Process')
+    Remove-Item -LiteralPath 'Env:\NEUTRON_DATA_ROOT' -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath 'Env:\NEUTRON_OFFLINE' -ErrorAction SilentlyContinue
+    if ([Environment]::GetEnvironmentVariables('Process').Contains('NEUTRON_DATA_ROOT') -or [Environment]::GetEnvironmentVariables('Process').Contains('NEUTRON_OFFLINE')) { throw 'Fixture environment overrides were not removed.' }
     if ([Security.Principal.WindowsIdentity]::GetCurrent().User.Value -ne '__SID__') { throw 'Wrong standard-user SID.' }
     $profile = [Environment]::ExpandEnvironmentVariables((Get-ItemProperty -LiteralPath 'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\ProfileList\__SID__').ProfileImagePath)
     if (-not [IO.Path]::IsPathRooted($profile) -or -not (Test-Path -LiteralPath $profile -PathType Container)) { throw 'The actual standard-user profile was not loaded.' }
