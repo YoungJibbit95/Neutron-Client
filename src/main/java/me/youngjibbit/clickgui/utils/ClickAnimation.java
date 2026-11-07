@@ -14,7 +14,8 @@ public final class ClickAnimation extends DecelerateAnimation {
         // Invert f(t)=1-(1-t)^2 rather than mirroring elapsed time. Mirroring a non-linear
         // curve jumps when the user reverses an opening/closing transition mid-flight.
         double time = next.forwards() ? 1 - Math.sqrt(1 - progress) : 1 - Math.sqrt(progress);
-        timerUtil.setTime(System.currentTimeMillis() - Math.round(duration * time));
+        // Keep retargeting on the timer's clock, including deterministic test clocks.
+        timerUtil.setTime(timerUtil.lastMS + timerUtil.getTime() - Math.round(duration * time));
         return this;
     }
 }

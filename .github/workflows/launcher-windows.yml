@@ -13,14 +13,6 @@ jobs:
       run:
         working-directory: launcher
         shell: pwsh
-    env:
-      TEMP: ${{ runner.temp }}\neutron-temp
-      TMP: ${{ runner.temp }}\neutron-temp
-      npm_config_cache: ${{ runner.temp }}\neutron-npm
-      NEUTRON_VITE_CACHE: ${{ runner.temp }}\neutron-vite
-      ELECTRON_CACHE: ${{ runner.temp }}\neutron-electron
-      ELECTRON_BUILDER_CACHE: ${{ runner.temp }}\neutron-builder
-      NEUTRON_PACKAGE_OUTPUT: ${{ runner.temp }}\neutron-installer
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -28,16 +20,31 @@ jobs:
       - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '26.3.1'
-      - run: New-Item -ItemType Directory -Force -Path $env:TEMP | Out-Null
+      - name: Isolated build directories
+        run: |
+          $directories = @{
+            TEMP = 'neutron-temp'; TMP = 'neutron-temp'; npm_config_cache = 'neutron-npm'
+            NEUTRON_VITE_CACHE = 'neutron-vite'; ELECTRON_CACHE = 'neutron-electron'
+            ELECTRON_BUILDER_CACHE = 'neutron-builder'; NEUTRON_PACKAGE_OUTPUT = 'neutron-installer'
+          }
+          foreach ($key in $directories.Keys) {
+            $directory = Join-Path $env:RUNNER_TEMP $directories[$key]
+            New-Item -ItemType Directory -Force -Path $directory | Out-Null
+            "$key=$directory" >> $env:GITHUB_ENV
+          }
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node scripts/build.mjs
       - run: node node_modules/vitest/vitest.mjs run
       - run: node scripts/package-windows.mjs
+      - name: Install, start, reinstall and uninstall the actual candidate
+        run: ./scripts/windows-installer-smoke.ps1
       - name: Installer checksum
         run: Get-ChildItem -Path (Join-Path $env:NEUTRON_PACKAGE_OUTPUT '*.exe') -File | Get-FileHash -Algorithm SHA256 | Format-Table -AutoSize
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: unsigned-windows-candidate
-          path: ${{ runner.temp }}\neutron-installer\*.exe
+          path: |
+            ${{ runner.temp }}\neutron-installer\*.exe
+            ${{ runner.temp }}\neutron-installer\installer-acceptance.json
           retention-days: 7
           if-no-files-found: error
