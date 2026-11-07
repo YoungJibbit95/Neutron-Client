@@ -21,6 +21,10 @@ updates:
       timezone: Europe/Berlin
     open-pull-requests-limit: 3
     labels: [dependencies]
+    ignore:
+      # ControllerEnvironment in this release requires Java 17. The client runs on Java 8.
+      - dependency-name: 'net.java.jinput:jinput'
+        versions: ['2.0.10']
     groups:
       compatible-updates:
         patterns: ['*']
