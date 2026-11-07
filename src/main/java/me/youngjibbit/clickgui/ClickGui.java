@@ -204,7 +204,7 @@ public class ClickGui extends GuiScreen {
         viewport = new ClipRect(x + SIDEBAR + 8, y + HEADER + CONTENT_HEADER + 4, width - SIDEBAR - 20, height - HEADER - CONTENT_HEADER - FOOTER - 8);
         float contentHeight = 0;
         for (ClickModule module : modules) {
-            module.updateAnimation();
+            module.updatePanelAnimation(delta);
             contentHeight += module.getHeight() + 4;
         }
         maxScroll = Math.max(0, contentHeight - 4 - viewport.height);
