@@ -19,10 +19,10 @@ public final class MicrosoftBrowserAuth {
     public static final String SETUP = "Microsoft sign-in is not configured. Add Neutron's registered application ID in Microsoft setup.";
     interface Browser { void open(URI uri) throws Exception; }
     static final class Endpoints {
-        final URI authorize, token, xbox, xsts, minecraft, profile;
-        Endpoints(String authorize, String token, String xbox, String xsts, String minecraft, String profile) {
+        final URI authorize, token, xbox, xsts, minecraft, profile, store;
+        Endpoints(String authorize, String token, String xbox, String xsts, String minecraft, String profile, String store) {
             this.authorize=URI.create(authorize); this.token=URI.create(token); this.xbox=URI.create(xbox);
-            this.xsts=URI.create(xsts); this.minecraft=URI.create(minecraft); this.profile=URI.create(profile);
+            this.xsts=URI.create(xsts); this.minecraft=URI.create(minecraft); this.profile=URI.create(profile); this.store=URI.create(store);
         }
     }
     private static final Endpoints LIVE = new Endpoints(
@@ -30,7 +30,8 @@ public final class MicrosoftBrowserAuth {
             "https://login.microsoftonline.com/consumers/oauth2/v2.0/token",
             "https://user.auth.xboxlive.com/user/authenticate", "https://xsts.auth.xboxlive.com/xsts/authorize",
             "https://api.minecraftservices.com/authentication/login_with_xbox",
-            "https://api.minecraftservices.com/minecraft/profile");
+            "https://api.minecraftservices.com/minecraft/profile",
+            "https://api.minecraftservices.com/entitlements/mcstore");
     private final Endpoints endpoints;
     private final Browser browser;
     private final String clientId;
@@ -80,33 +81,56 @@ public final class MicrosoftBrowserAuth {
                 JsonObject tokens=request(endpoints.token,"POST","application/x-www-form-urlencoded",
                         form(params("client_id",id,"grant_type","authorization_code","code",code,
                                 "redirect_uri",redirect,"code_verifier",verifier,"scope","xboxlive.signin")),null,"Microsoft");
-                String access=string(tokens,"access_token");
-                check(active);
-                JsonObject properties=new JsonObject();
-                properties.addProperty("AuthMethod","RPS"); properties.addProperty("SiteName","user.auth.xboxlive.com");
-                properties.addProperty("RpsTicket","d="+access);
-                JsonObject xbox=request(endpoints.xbox,"POST","application/json",
-                        envelope(properties,"http://auth.xboxlive.com").toString(),null,"Xbox Live");
-                String userHash=hash(xbox);
-                check(active);
-                properties=new JsonObject(); properties.addProperty("SandboxId","RETAIL");
-                JsonArray userTokens=new JsonArray(); userTokens.add(string(xbox,"Token")); properties.add("UserTokens",userTokens);
-                JsonObject xsts=request(endpoints.xsts,"POST","application/json",
-                        envelope(properties,"rp://api.minecraftservices.com/").toString(),null,"Xbox authorization");
-                if (!userHash.equals(hash(xsts))) throw unavailable("Xbox account claims did not match. The current session was retained.");
-                check(active);
-                JsonObject login=new JsonObject(); login.addProperty("identityToken","XBL3.0 x="+userHash+";"+string(xsts,"Token"));
-                JsonObject minecraft=request(endpoints.minecraft,"POST","application/json",login.toString(),null,"Minecraft Services");
-                String minecraftToken=string(minecraft,"access_token");
-                check(active);
-                JsonObject profile=request(endpoints.profile,"GET",null,null,minecraftToken,"Minecraft profile");
-                String name=string(profile,"name"), profileId=string(profile,"id");
-                if (!name.matches("[a-zA-Z0-9_]{1,16}") || !profileId.matches("[0-9a-fA-F]{32}"))
-                    throw unavailable("Minecraft returned an invalid Java profile. The current session was retained.");
-                check(active);
-                return new Session(name,profileId.toLowerCase(Locale.ROOT),minecraftToken,"mojang");
+                return exchangeXboxTicket("d="+string(tokens,"access_token"),false,active);
             } finally { synchronized (this) { callbacks.remove(callback); } }
         }
+    }
+
+    Session loginEmbedded(String access, BooleanSupplier active) throws Exception {
+        // The compatibility flow returns an MBI ticket. Only the desktop PKCE token needs the d= prefix.
+        return exchangeXboxTicket(access,true,active);
+    }
+
+    private Session exchangeXboxTicket(String ticket, boolean embedded, BooleanSupplier active) throws Exception {
+        check(active);
+        JsonObject properties=new JsonObject();
+        properties.addProperty("AuthMethod","RPS"); properties.addProperty("SiteName","user.auth.xboxlive.com");
+        properties.addProperty("RpsTicket",ticket);
+        JsonObject xbox=request(endpoints.xbox,"POST","application/json",
+                envelope(properties,"http://auth.xboxlive.com").toString(),null,"Xbox Live");
+        String userHash=hash(xbox);
+        check(active);
+        properties=new JsonObject(); properties.addProperty("SandboxId","RETAIL");
+        JsonArray userTokens=new JsonArray(); userTokens.add(string(xbox,"Token")); properties.add("UserTokens",userTokens);
+        JsonObject xsts=request(endpoints.xsts,"POST","application/json",
+                envelope(properties,"rp://api.minecraftservices.com/").toString(),null,"Xbox authorization");
+        if (!userHash.equals(hash(xsts))) throw unavailable("Xbox account claims did not match. The current session was retained.");
+        check(active);
+        JsonObject login=new JsonObject(); login.addProperty("identityToken","XBL3.0 x="+userHash+";"+string(xsts,"Token"));
+        JsonObject minecraft=request(endpoints.minecraft,"POST","application/json",login.toString(),null,"Minecraft Services");
+        String minecraftToken=string(minecraft,"access_token");
+        check(active);
+        if (embedded) {
+            JsonObject store=request(endpoints.store,"GET",null,null,minecraftToken,"Minecraft entitlements");
+            JsonElement items=store.get("items");
+            boolean ownsJava=false;
+            if (items!=null && items.isJsonArray()) {
+                for (JsonElement item : items.getAsJsonArray()) {
+                    if (item.isJsonObject() && new JsonPrimitive("game_minecraft").equals(item.getAsJsonObject().get("name"))) {
+                        ownsJava=true;
+                        break;
+                    }
+                }
+            }
+            if (!ownsJava) throw unavailable("Minecraft returned no Java entitlement for this account. The current session was retained.");
+            check(active);
+        }
+        JsonObject profile=request(endpoints.profile,"GET",null,null,minecraftToken,"Minecraft profile");
+        String name=string(profile,"name"), profileId=string(profile,"id");
+        if (!name.matches("[a-zA-Z0-9_]{1,16}") || !profileId.matches("[0-9a-fA-F]{32}"))
+            throw unavailable("Minecraft returned an invalid Java profile. The current session was retained.");
+        check(active);
+        return new Session(name,profileId.toLowerCase(Locale.ROOT),minecraftToken,"mojang");
     }
 
     private static JsonObject envelope(JsonObject properties,String relyingParty) {

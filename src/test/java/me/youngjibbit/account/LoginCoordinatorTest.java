@@ -137,6 +137,31 @@ public class LoginCoordinatorTest {
         assertSame(saved,manager.getLastAlt());
     }
 
+    @Test public void hyphenatedSavedProfileInstallsExactlyOnceAndKeepsItsLibraryRow() throws Exception {
+        Account saved = new Account("old@example.invalid", null, "OldName", Account.Provider.MICROSOFT);
+        saved.setMicrosoftProfileId("01234567-89AB-CDEF-0123-456789ABCDEF");
+        manager.addAccount(saved);
+        AtomicInteger installs = new AtomicInteger();
+        AtomicInteger exchanges = new AtomicInteger();
+        LoginCoordinator coordinator = new LoginCoordinator(manager, request -> {
+            exchanges.incrementAndGet();
+            return session("NewName");
+        }, clientQueue::add, (result, provider) -> {
+            installs.incrementAndGet();
+            current.set(result);
+        }, selected::set);
+        LoginCoordinator.Attempt attempt = coordinator.begin(new LoginRequest(saved, true, true), null);
+        worker(attempt);
+        worker(attempt);
+        drain();
+        assertEquals(attempt.getStatus(), "NewName", current.get().getUsername());
+        assertEquals(1, exchanges.get());
+        assertEquals(1, installs.get());
+        assertEquals(1, manager.getAccounts().size());
+        assertSame(saved, selected.get());
+        assertSame(saved, manager.getLastAlt());
+    }
+
     @Test public void browserCannotReplaceAKnownSavedProfileWithADifferentAccount() throws Exception {
         Account saved=new Account("saved@example.invalid", "legacy-password", "Saved", Account.Provider.MICROSOFT);
         saved.setMicrosoftProfileId("ffffffffffffffffffffffffffffffff");manager.addAccount(saved);
@@ -204,7 +229,7 @@ public class LoginCoordinatorTest {
     @Test public void realBackendOfflineAndUnavailableProviderPathsNeverNeedNetwork() throws Exception {
         String unused="http://127.0.0.1:1";
         AccountAuthenticator backend = new AccountAuthenticator(new MicrosoftBrowserAuth("",
-                new MicrosoftBrowserAuth.Endpoints(unused,unused,unused,unused,unused,unused),
+                new MicrosoftBrowserAuth.Endpoints(unused,unused,unused,unused,unused,unused,unused),
                 uri -> { throw new AssertionError("Unconfigured login must not open a browser"); },1));
         Session offline = backend.authenticate(request("Offline"));
         assertEquals("Offline", offline.getUsername()); assertNotNull(offline.getSessionType());
