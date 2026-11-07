@@ -32,7 +32,7 @@ public class ClickGui extends GuiScreen {
     private final me.youngjibbit.utils.render.ArrayListSurface themedSurface=new me.youngjibbit.utils.render.ArrayListSurface();
     private final me.youngjibbit.utils.render.TextEffects headingEffects=new me.youngjibbit.utils.render.TextEffects();
     private static final Category[] CATEGORIES = Category.values();
-    private static final float SIDEBAR = 102, HEADER = 36, CONTENT_HEADER = 24, FOOTER = 20, MARGIN = 8;
+    private static final float SIDEBAR = 102, HEADER = 36, CONTENT_HEADER = 24, FOOTER = 20, MARGIN = 8, CARD_GAP = 6;
     private float x, y, width = 450, height = 400;
     private float grabX, grabY, resizeWidth, resizeHeight;
     private boolean positioned, dragging, resizing;
@@ -152,17 +152,17 @@ public class ClickGui extends GuiScreen {
             GuiStyle.feedback(themes,chromeMotion[1]);
             font().drawString("Library",themes.x+(themes.width-font().getWidth("Library"))/2,textY(font(),"Library",themes),GuiStyle.ink(theme.isCustom()?theme.getTextColor().getRGB():0xffd4d9e3,chromeMotion[1]));
             float selectedY = y + HEADER + 4 + selectionOffset;
-            GuiStyle.panel(x + 5, selectedY, SIDEBAR - 10, step - 4, 5, 1, new Color(11, 11, 12));
-            UIUtils.drawRound(x + SIDEBAR - 16, selectedY + (step - 4) / 2 - 2, 4, 4, 2,
+            GuiStyle.panel(x + 5, selectedY, SIDEBAR - 10, step - 4, 6, 1, new Color(21, 21, 24));
+            UIUtils.drawDecorationRound(x + SIDEBAR - 16, selectedY + (step - 4) / 2 - 3, 3, 6, 1.5f,
                     theme.getPrimaryGradientColor());
             String[] icons = {"c", "f", "d", "d", "e", "t", "f", "a"};
             for (int i = 0; i < CATEGORIES.length; i++) {
                 float rowY = y + HEADER + 4 + i * step;
                 GuiStyle.feedback(chromeBounds(i+2),chromeMotion[i+2]);
                 String font = i == 2 || i == 4 || i == 6 ? "icon1 21" : "icon 21";
-                Pulsar.INSTANCE.getFontManager().getFont(font).drawString(icons[i], x + 9, rowY + (step-4-10)/2, i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffb6bdca);
+                Pulsar.INSTANCE.getFontManager().getFont(font).drawString(icons[i], x + 10, rowY + (step-4-10)/2, i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffc4cad5);
                 Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString(
-                        CATEGORIES[i].name(), x + 24, rowY + (step-4-10)/2, i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffb6bdca);
+                        CATEGORIES[i].name(), x + 26, rowY + (step-4-10)/2, i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffc4cad5);
             }
             String title=search.trim().isEmpty()?selectedCategory.name():"Search results";
             String count=modules.size()+(!search.trim().isEmpty()?(modules.size()==1?" result":" results"):(modules.size()==1?" module":" modules"));
@@ -205,16 +205,16 @@ public class ClickGui extends GuiScreen {
         float contentHeight = 0;
         for (ClickModule module : modules) {
             module.updatePanelAnimation(delta);
-            contentHeight += module.getHeight() + 4;
+            contentHeight += module.getHeight() + CARD_GAP;
         }
-        maxScroll = Math.max(0, contentHeight - 4 - viewport.height);
+        maxScroll = Math.max(0, contentHeight - (modules.isEmpty()?0:CARD_GAP) - viewport.height);
         targetScrollOffset = Math.max(-maxScroll, Math.min(0, targetScrollOffset));
         scrollOffset += (targetScrollOffset - scrollOffset) * me.youngjibbit.utils.render.UiEffects.response(delta,20);
         scrollOffset = Math.max(-maxScroll, Math.min(0, scrollOffset));
         float moduleY = viewport.y + scrollOffset;
         for (ClickModule module : modules) {
             module.layout(viewport.x + 1, moduleY + 1, viewport.width - 2, viewport);
-            moduleY += module.getHeight() + 4;
+            moduleY += module.getHeight() + CARD_GAP;
         }
         if(focus!=null&&!focusables().contains(focus)){
             Component replacement=null;
