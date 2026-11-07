@@ -1,5 +1,6 @@
 package me.youngjibbit.account;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import net.minecraft.util.Session;
 
@@ -39,6 +40,7 @@ public final class LoginCoordinator {
         private final long ticket;
         private final LoginRequest request;
         private final Runnable onSuccess;
+        private final AtomicBoolean started = new AtomicBoolean();
         private volatile String status = "&eWaiting for login...";
         private volatile boolean setupRequired;
 
@@ -57,7 +59,7 @@ public final class LoginCoordinator {
         public void cancel() { synchronized(LoginCoordinator.this) { if(isCurrent(ticket))invalidate(); } }
 
         @Override public void run() {
-            if (!isCurrent(ticket)) return;
+            if (!started.compareAndSet(false, true) || !isCurrent(ticket)) return;
             client.accept(() -> { if (isCurrent(ticket)) status = request.isBrowserLogin() ? "&6Preparing Microsoft sign-in. Complete the login window..." : "&6Logging in..."; });
             try {
                 Session session = authenticator.authenticate(request, () -> isCurrent(ticket));
@@ -83,17 +85,20 @@ public final class LoginCoordinator {
         private void complete(Session session) {
             if (!isCurrent(ticket)) return;
             Account account = request.getAccount();
-            if (request.requiresExistingAccount() && manager.getAccountById(account.getId()) == null) {
+            Account existing = request.requiresExistingAccount() ? manager.getAccountById(account.getId()) : null;
+            if (request.requiresExistingAccount() && existing == null) {
                 status = "&cLogin cancelled because the account was removed or reloaded.";
                 return;
             }
             if (request.isBrowserLogin()) {
-                if (account.getMicrosoftProfileId()!=null && !account.getMicrosoftProfileId().equalsIgnoreCase(session.getPlayerID())) {
+                String expected = account.getMicrosoftProfileId();
+                String liveProfile = existing == null ? null : existing.getMicrosoftProfileId();
+                if ((expected != null && !sameProfile(expected, session.getPlayerID()))
+                        || (liveProfile != null && !sameProfile(liveProfile, session.getPlayerID()))) {
                     status="&cA different Microsoft account was selected. The current session was retained.";
                     return;
                 }
-                account = new Account(session.getPlayerID(), null, session.getUsername(), Account.Provider.MICROSOFT);
-                account.setMicrosoftProfileId(session.getPlayerID());
+                account = liveProfile != null ? existing : new Account(session.getPlayerID(), null, session.getUsername(), Account.Provider.MICROSOFT);
             }
             if (request.shouldRemember()) {
                 try { manager.resolveAccount(account); }
@@ -109,7 +114,7 @@ public final class LoginCoordinator {
             }
             boolean duplicate = false;
             if (request.shouldRemember()) {
-                Account stored = manager.addAccount(account);
+                Account stored = account == existing ? existing : manager.addAccount(account);
                 duplicate = stored != account && !request.requiresExistingAccount();
                 account = stored;
             }
@@ -130,6 +135,12 @@ public final class LoginCoordinator {
                     : "&aLogged in. Existing saved credentials were retained." : "&aLogged in successfully.";
             if (onSuccess != null) onSuccess.run();
         }
+    }
+
+    private static boolean sameProfile(String stored, String received) {
+        if (stored.equalsIgnoreCase(received)) return true;
+        return stored.matches("(?i)[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+                && stored.replace("-", "").equalsIgnoreCase(received);
     }
 
     /** Only fixed, locally authored messages may be presented as provider setup errors. */
