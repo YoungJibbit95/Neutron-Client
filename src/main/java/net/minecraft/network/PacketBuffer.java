@@ -289,7 +289,14 @@ public class PacketBuffer extends ByteBuf
         }
         else
         {
-            String s = new String(this.readBytes(i).array(), Charsets.UTF_8);
+            if (i > this.readableBytes())
+            {
+                throw new IndexOutOfBoundsException("Encoded string exceeds readable bytes: " + i);
+            }
+
+            byte[] encoded = new byte[i];
+            this.readBytes(encoded);
+            String s = new String(encoded, Charsets.UTF_8);
 
             if (s.length() > maxLength)
             {

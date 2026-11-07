@@ -1,6 +1,8 @@
 package me.youngjibbit.core.network;
 
 import io.netty.buffer.ByteBuf;
+import io.netty.buffer.CompositeByteBuf;
+import io.netty.buffer.PooledByteBufAllocator;
 import io.netty.buffer.Unpooled;
 import io.netty.channel.embedded.EmbeddedChannel;
 import io.netty.util.ByteProcessor;
@@ -41,6 +43,102 @@ public class PacketBufferNettyTest {
             assertEquals(0x0102030405060708L, packet.readLong());
             assertEquals("Gr\u00fc\u00dfe", packet.readStringFromBuffer(20));
             assertFalse(packet.isReadable());
+        } finally { packet.release(); }
+    }
+
+    @Test public void utf8StringsReadFromHeapDirectPooledAndReadOnlySlices() {
+        String expected = "Gr\u00fc\u00dfe \ud83d\ude03";
+        byte[] utf8 = expected.getBytes(StandardCharsets.UTF_8);
+        for (boolean pooled : new boolean[]{false, true}) {
+            for (boolean direct : new boolean[]{false, true}) {
+                for (boolean readOnly : new boolean[]{false, true}) {
+                    ByteBuf backing = pooled
+                            ? (direct ? PooledByteBufAllocator.DEFAULT.directBuffer(64)
+                                      : PooledByteBufAllocator.DEFAULT.heapBuffer(64))
+                            : (direct ? Unpooled.directBuffer(64) : Unpooled.buffer(64));
+                    try {
+                        backing.writeShort(0xcafe);
+                        backing.writeByte(utf8.length);
+                        backing.writeBytes(utf8);
+                        backing.writeByte(0x5a);
+                        ByteBuf view = backing.slice(2, utf8.length + 2);
+                        if (readOnly) view = view.asReadOnly();
+                        PacketBuffer packet = new PacketBuffer(view);
+                        int references = backing.refCnt();
+                        assertEquals(direct, packet.isDirect());
+                        assertEquals(readOnly, packet.isReadOnly());
+                        assertEquals(expected, packet.readStringFromBuffer(expected.length()));
+                        assertEquals(utf8.length + 1, packet.readerIndex());
+                        assertEquals(utf8.length + 2, packet.writerIndex());
+                        assertEquals(0x5a, packet.readUnsignedByte());
+                        assertFalse(packet.isReadable());
+                        assertEquals("decoding must not retain or release the input", references, backing.refCnt());
+                        assertEquals("slice cursor must not consume the parent", 0, backing.readerIndex());
+                    } finally { backing.release(); }
+                    assertEquals(0, backing.refCnt());
+                }
+            }
+        }
+    }
+
+    @Test public void utf8StringMaySpanDirectCompositeComponents() {
+        byte[] first = {7, 0x47, 0x72, (byte) 0xc3};
+        byte[] second = {(byte) 0xbc, (byte) 0xc3, (byte) 0x9f, 0x65, 0x5a};
+        ByteBuf firstPart = Unpooled.directBuffer(first.length).writeBytes(first);
+        ByteBuf secondPart = Unpooled.directBuffer(second.length).writeBytes(second);
+        CompositeByteBuf composite = Unpooled.compositeBuffer();
+        try {
+            composite.addComponents(true, firstPart, secondPart);
+            PacketBuffer packet = new PacketBuffer(composite.asReadOnly());
+            assertFalse(packet.hasArray());
+            assertEquals("Gr\u00fc\u00dfe", packet.readStringFromBuffer(5));
+            assertEquals(8, packet.readerIndex());
+            assertEquals(0x5a, packet.readUnsignedByte());
+            assertEquals(1, firstPart.refCnt());
+            assertEquals(1, secondPart.refCnt());
+        } finally { composite.release(); }
+        assertEquals(0, firstPart.refCnt());
+        assertEquals(0, secondPart.refCnt());
+    }
+
+    @Test public void truncatedStringCannotReadInitializedBytesBeyondWriterIndex() {
+        ByteBuf backing = Unpooled.directBuffer(32);
+        try {
+            backing.writeByte(4);
+            backing.writeBytes(new byte[]{'a', 'b'});
+            backing.setByte(3, 'c');
+            backing.setByte(4, 'd');
+            PacketBuffer packet = new PacketBuffer(backing.asReadOnly());
+            try { packet.readStringFromBuffer(4); fail("read beyond the received payload"); }
+            catch (IndexOutOfBoundsException expected) { }
+            assertEquals("only the length prefix may be consumed", 1, packet.readerIndex());
+            assertEquals(3, packet.writerIndex());
+            assertEquals('a', packet.readUnsignedByte());
+            assertEquals(1, backing.refCnt());
+        } finally { backing.release(); }
+    }
+
+    @Test public void stringLengthGuardsRemainEffectiveForDirectBuffers() {
+        for (int invalidLength : new int[]{-1, 5}) {
+            PacketBuffer packet = new PacketBuffer(Unpooled.directBuffer(32));
+            try {
+                packet.writeVarIntToBuffer(invalidLength);
+                packet.writeByte(0x5a);
+                int prefix = PacketBuffer.getVarIntSize(invalidLength);
+                try { packet.readStringFromBuffer(1); fail("invalid encoded length accepted"); }
+                catch (io.netty.handler.codec.DecoderException expected) { }
+                assertEquals(prefix, packet.readerIndex());
+                assertEquals(0x5a, packet.readUnsignedByte());
+                assertEquals(1, packet.refCnt());
+            } finally { packet.release(); }
+        }
+        PacketBuffer packet = new PacketBuffer(Unpooled.directBuffer(32));
+        try {
+            packet.writeBytes(new byte[]{2, 'a', 'b', 0x5a});
+            try { packet.readStringFromBuffer(1); fail("decoded character limit ignored"); }
+            catch (io.netty.handler.codec.DecoderException expected) { }
+            assertEquals(3, packet.readerIndex());
+            assertEquals(0x5a, packet.readUnsignedByte());
         } finally { packet.release(); }
     }
 
