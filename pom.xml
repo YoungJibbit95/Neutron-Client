@@ -18,6 +18,25 @@
     <build>
         <plugins>
 
+            <!-- JavaFX 8 is distributed with platform natives, not as the Java 11+
+                 org.openjfx modules. Keep the verified runtime intact for every JAR. -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>javafx8-runtime</id><phase>generate-resources</phase><goals><goal>run</goal></goals>
+                        <configuration><target>
+                            <ant antfile="${project.basedir}/src/build/javafx8.xml" target="bundle">
+                                <property name="fx.cache" value="${settings.localRepository}/me/neutron/javafx8"/>
+                                <property name="fx.target" value="${project.build.directory}"/>
+                            </ant>
+                        </target></configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
