@@ -13,6 +13,7 @@ public class CustomEntityRenderer extends EntityRenderer {
 
     @Override
     protected void renderWorldOverlays(int pass, float partialTicks) {
+        if (!Pulsar.hasWorldOverlayListeners()) return;
         // This outer scope also restores the renderer if an event consumer fails.
         try (RenderState ignored = new RenderState()) {
             Pulsar.BUS.post(new Event3D(partialTicks, pass));

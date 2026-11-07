@@ -29,23 +29,69 @@ public final class GaussianBlur {
         }
     }
     public static void renderPass(Framebuffer output,int input,float dx,float dy,int radius,boolean glow,float exposure){
-        radius=Math.max(1,Math.min(127,radius));
-        try(RenderState state=new RenderState()){
-            state.screenSpace();output.bindFramebuffer(true);
-            GlStateManager.disableBlend();GlStateManager.disableCull();glDisable(GL_BLEND);glDisable(GL_CULL_FACE);
-            GlStateManager.colorMask(true,true,true,true);glColorMask(true,true,true,true);
-            GlStateManager.clearColor(0,0,0,0);glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT);
-            GlStateManager.setActiveTexture(GL13.GL_TEXTURE0);GL13.glActiveTexture(GL13.GL_TEXTURE0);
-            GlStateManager.enableTexture2D();glEnable(GL_TEXTURE_2D);GlStateManager.bindTexture(input);glBindTexture(GL_TEXTURE_2D,input);
-            ShaderUtil shader;
-            if(glow){if(halo==null)halo=new ShaderUtil("Flauxy/Shaders/glow.frag");shader=halo;}
-            else{if(scene==null)scene=new ShaderUtil("Flauxy/Shaders/gaussian.frag");shader=scene;}
-            shader.init();shader.setUniformi("textureIn",0);shader.setUniformf("texelSize",1f/output.framebufferWidth,1f/output.framebufferHeight);shader.setUniformf("direction",dx,dy);shader.setUniformf("radius",radius);
-            if(kernelRadius!=radius){weights.clear();float sum=0;for(int i=0;i<=radius;i++){float value=(float)Math.exp(-i*i/(2f*(radius/2f)*(radius/2f)));weights.put(value);sum+=i==0?value:2*value;}for(int i=0;i<=radius;i++)weights.put(i,weights.get(i)/sum);weights.flip();kernelRadius=radius;}
-            weights.rewind();GL20.glUniform1(shader.getUniform("weights"),weights);
-            if(glow){shader.setUniformi("avoidTexture",0);shader.setUniformf("color",1,1,1);shader.setUniformf("exposure",exposure);}
-            ShaderUtil.drawQuads();shader.unload();if(RenderDiagnostics.enabled)RenderDiagnostics.blurPasses++;
+        try (RenderState state = new RenderState()) {
+            state.screenSpace();
+            prepareGaussianOutput(output, input);
+            drawGaussian(output, dx, dy, radius, glow, exposure);
         }
+    }
+
+    /** The cleared mask has support only inside these top-left-origin pixel bounds. */
+    public static void renderMaskGlow(Framebuffer scratch, Framebuffer result, int mask, int radius, float exposure,
+                                      float left, float top, float right, float bottom) {
+        radius = Math.max(1, Math.min(127, radius));
+        // Include the linear-filter footprint and round outward at fractional GUI coordinates.
+        int x0 = Math.max(0, (int)Math.floor(left - radius - 2));
+        int x1 = Math.min(result.framebufferWidth, (int)Math.ceil(right + radius + 2));
+        int y0 = Math.max(0, (int)Math.floor(top - radius - 2));
+        int y1 = Math.min(result.framebufferHeight, (int)Math.ceil(bottom + radius + 2));
+        int width = Math.max(0, x1 - x0);
+        int height = Math.max(0, y1 - y0);
+
+        try (RenderState state = new RenderState()) {
+            state.screenSpace();
+            // Both targets match the mask size. Keep the full quad and its original UVs.
+            glScissor(x0, result.framebufferHeight - y1, width, height);
+            prepareGaussianOutput(scratch, mask);
+            glEnable(GL_SCISSOR_TEST);
+            drawGaussian(scratch, 1, 0, radius, true, exposure);
+            glDisable(GL_SCISSOR_TEST);
+            prepareGaussianOutput(result, scratch.framebufferTexture);
+            glEnable(GL_SCISSOR_TEST);
+            drawGaussian(result, 0, 1, radius, true, exposure);
+        }
+    }
+
+    private static void prepareGaussianOutput(Framebuffer output, int input) {
+        output.bindFramebuffer(true);
+        GlStateManager.disableBlend();
+        GlStateManager.disableCull();
+        glDisable(GL_BLEND);
+        glDisable(GL_CULL_FACE);
+        GlStateManager.colorMask(true, true, true, true);
+        glColorMask(true, true, true, true);
+        GlStateManager.clearColor(0, 0, 0, 0);
+        glClearColor(0, 0, 0, 0);
+        glClear(GL_COLOR_BUFFER_BIT);
+        GlStateManager.setActiveTexture(GL13.GL_TEXTURE0);
+        GL13.glActiveTexture(GL13.GL_TEXTURE0);
+        GlStateManager.enableTexture2D();
+        glEnable(GL_TEXTURE_2D);
+        GlStateManager.bindTexture(input);
+        glBindTexture(GL_TEXTURE_2D, input);
+    }
+
+    private static void drawGaussian(Framebuffer output, float dx, float dy, int radius, boolean glow, float exposure) {
+        radius = Math.max(1, Math.min(127, radius));
+        ShaderUtil shader;
+        if(glow){if(halo==null)halo=new ShaderUtil("Flauxy/Shaders/glow.frag");shader=halo;}
+        else{if(scene==null)scene=new ShaderUtil("Flauxy/Shaders/gaussian.frag");shader=scene;}
+        shader.init();shader.setUniformi("textureIn",0);shader.setUniformf("texelSize",1f/output.framebufferWidth,1f/output.framebufferHeight);shader.setUniformf("direction",dx,dy);shader.setUniformf("radius",radius);
+        if(kernelRadius!=radius){weights.clear();float sum=0;for(int i=0;i<=radius;i++){float value=(float)Math.exp(-i*i/(2f*(radius/2f)*(radius/2f)));weights.put(value);sum+=i==0?value:2*value;}for(int i=0;i<=radius;i++)weights.put(i,weights.get(i)/sum);weights.flip();kernelRadius=radius;}
+        weights.rewind();GL20.glUniform1(shader.getUniform("weights"),weights);
+        if(glow){shader.setUniformi("avoidTexture",0);shader.setUniformf("color",1,1,1);shader.setUniformf("exposure",exposure);}
+        ShaderUtil.drawQuads();shader.unload();if(RenderDiagnostics.enabled)RenderDiagnostics.blurPasses++;
+
     }
     public static void releaseResources(){if(scene!=null){scene.close();scene=null;}if(halo!=null){halo.close();halo=null;}if(kawase!=null){kawase.close();kawase=null;}kernelRadius=-1;}
 }

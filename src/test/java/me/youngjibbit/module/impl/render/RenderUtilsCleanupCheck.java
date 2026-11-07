@@ -56,6 +56,63 @@ public final class RenderUtilsCleanupCheck {
   int down=KawaseBloom.kawaseDown.getProgramId(),up=KawaseBloom.kawaseUp.getProgramId();RenderDiagnostics.reset();ESP visual=new ESP();for(int i=0;i<3;i++){visual.setToggled(true);visual.setToggled(false);}
   SessionInfoRenderCheck.require(KawaseBloom.kawaseDown.getProgramId()==down&&KawaseBloom.kawaseUp.getProgramId()==up&&RenderDiagnostics.programCreates==0,"ESP replaced the shared bloom owner");
  }
+    // The surface composite reads only halo alpha. Compare the entire attachment, including
+    // pixels belonging to the previous panel when the shared scratch buffers are reused.
+    private static void checkMaskGlow() {
+        try (RenderState guard = new RenderState()) {
+            int width = 257, height = 149;
+            Framebuffer mask = new Framebuffer(width, height, false);
+            Framebuffer scratch = new Framebuffer(width, height, false);
+            Framebuffer result = new Framebuffer(width, height, false);
+            try {
+                for (Framebuffer target : new Framebuffer[]{mask, scratch}) {
+                    target.setFramebufferFilter(GL_LINEAR);
+                    target.bindFramebufferTexture();
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, org.lwjgl.opengl.GL12.GL_CLAMP_TO_EDGE);
+                    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, org.lwjgl.opengl.GL12.GL_CLAMP_TO_EDGE);
+                }
+                int[][] cases = {{0, 0, 32, 19, 1}, {213, 125, 49, 31, 12}, {72, 49, 19, 9, 120}};
+                for (int[] box : cases) {
+                    int x = box[0], y = box[1], w = box[2], h = box[3], r = box[4];
+                    mask.bindFramebuffer(true);
+                    glDisable(GL_SCISSOR_TEST);
+                    glColorMask(true, true, true, true);
+                    glClearColor(0, 0, 0, 0);
+                    glClear(GL_COLOR_BUFFER_BIT);
+                    glEnable(GL_SCISSOR_TEST);
+                    glScissor(x, height - y - h, w, h);
+                    glClearColor(1, 1, 1, 1);
+                    glClear(GL_COLOR_BUFFER_BIT);
+                    GaussianBlur.renderPass(scratch, mask.framebufferTexture, 1, 0, r, true, 1.4f);
+                    GaussianBlur.renderPass(result, scratch.framebufferTexture, 0, 1, r, true, 1.4f);
+                    byte[] expected = readAlpha(result);
+                    mask.bindFramebuffer(true);
+                    GaussianBlur.renderMaskGlow(scratch, result, mask.framebufferTexture, r, 1.4f,
+                            x - .25f, y - .75f, x + w + .5f, y + h + .25f);
+                    SessionInfoRenderCheck.require(glIsEnabled(GL_SCISSOR_TEST)
+                            && glGetInteger(EXTFramebufferObject.GL_FRAMEBUFFER_BINDING_EXT) == mask.framebufferObject,
+                            "Bounded glow leaked caller state");
+                    SessionInfoRenderCheck.require(expected[(height - y - 1) * width + x] != 0
+                            && java.util.Arrays.equals(expected, readAlpha(result)), "Halo alpha differs at radius " + r);
+                }
+            } finally {
+                result.deleteFramebuffer();
+                scratch.deleteFramebuffer();
+                mask.deleteFramebuffer();
+            }
+        }
+    }
+
+    private static byte[] readAlpha(Framebuffer target) {
+        target.bindFramebuffer(true);
+        int pixels = target.framebufferWidth * target.framebufferHeight;
+        java.nio.ByteBuffer rgba = org.lwjgl.BufferUtils.createByteBuffer(pixels * 4);
+        glReadPixels(0, 0, target.framebufferWidth, target.framebufferHeight, GL_RGBA, GL_UNSIGNED_BYTE, rgba);
+        byte[] alpha = new byte[pixels];
+        for (int i = 0; i < pixels; i++) alpha[i] = rgba.get(i * 4 + 3);
+        return alpha;
+    }
+
  private static void checkStencil(){
   try(RenderState state=new RenderState()){
    Framebuffer small=new Framebuffer(96,64,true);int other=EXTFramebufferObject.glGenRenderbuffersEXT();
@@ -87,7 +144,7 @@ public final class RenderUtilsCleanupCheck {
   RenderDiagnostics.reset();Stream bad=new Stream("not GLSL"),good=new Stream("#version 120\nvoid main(){gl_Position=ftransform();}");
   try{new ShaderUtil(bad,good);throw new AssertionError("Invalid shader accepted");}catch(IllegalStateException expected){}
   SessionInfoRenderCheck.require(bad.closed&&good.closed&&RenderDiagnostics.programCreates==RenderDiagnostics.programDeletes&&RenderDiagnostics.shaderCompiles==RenderDiagnostics.shaderDeletes,"Failed shader ownership leak");
-  checkMenuResources();checkGaussian();checkStencil();
+  checkMenuResources();checkGaussian();checkMaskGlow();checkStencil();
   RenderDiagnostics.enabled=false;SessionInfoRenderCheck.require(glGetError()==GL_NO_ERROR,"Shader cleanup GL error");System.out.println("PASS: shader UV/dimensions, stream/program ownership, native/six menu resources and warm reuse, shared Gaussian state, stencil masks/resize/release");
  }
 }
