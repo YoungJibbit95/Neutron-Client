@@ -303,6 +303,13 @@ public class GuiAltManager extends GuiScreen {
         }
     }
     public void showStatus(String message) { if(loginThread!=null)loginThread.cancelLogin();loginThread=null;status=message; }
+    @Override public void updateScreen() {
+        if(loginThread!=null && loginThread.isSetupRequired()) {
+            AccountLoginThread previous=loginThread;
+            previous.cancelLogin();loginThread=null;status="Microsoft setup is required before browser sign-in.";
+            openScreen(new MicrosoftSetupScreen(this,()->{loginThread=previous.retry();loginThread.start();}));
+        }
+    }
     public void login(Account account) {
         if(account==null)return;selectedAccountId=account.getId();loginThread=new AccountLoginThread(account);loginThread.start();
     }
