@@ -1,6 +1,10 @@
 package me.youngjibbit.utils.render;
 
 import me.youngjibbit.event.render.Event3D;
+import me.zero.alpine.listener.Listener;
+import me.zero.alpine.bus.EventManager;
+import me.zero.alpine.bus.EventBus;
+import me.youngjibbit.event.render.WorldOverlaySubscriptions;
 import org.junit.Test;
 import java.nio.file.*;
 import java.nio.charset.StandardCharsets;
@@ -43,6 +47,31 @@ public class WorldOverlayContractTest {
         assertEquals(output,0,child.exitValue());System.out.print(output);
         }
     }
+    @Test public void onlyRegisteredWorldListenersRequireTheRenderGuard() {
+        WorldOverlaySubscriptions subscriptions =
+                new WorldOverlaySubscriptions();
+        EventBus bus = EventManager.builder()
+                .setName("world-overlay-test").setListenerListFactory(subscriptions).build();
+        int[] calls = {0};
+        Listener<Event3D> first =
+                new Listener<>(event -> calls[0]++);
+        Listener<Event3D> second =
+                new Listener<>(event -> calls[0]++);
+        Listener<String> other = new Listener<>(event -> {});
+        bus.subscribe(other);
+        assertFalse(subscriptions.hasListeners());
+        bus.subscribe(first);
+        bus.subscribe(first);
+        bus.subscribe(second);
+        bus.post(new Event3D(.5f));
+        assertEquals(2, calls[0]);
+        bus.unsubscribe(first);
+        bus.unsubscribe(first);
+        assertTrue(subscriptions.hasListeners());
+        bus.unsubscribe(second);
+        assertFalse(subscriptions.hasListeners());
+    }
+
     @Test public void eventCarriesEachActualEyeAndLegacyPartialTicks() {
         for(int pass=0;pass<3;pass++) {
             Event3D event=new Event3D(.37f,pass);

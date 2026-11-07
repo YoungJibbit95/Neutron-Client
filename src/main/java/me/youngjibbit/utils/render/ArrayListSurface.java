@@ -204,8 +204,11 @@ public final class ArrayListSurface implements AutoCloseable {
                 shader.init(); shader.setUniformi("maskPass",1);
                 ShaderUtil.drawQuads(shape.left-1,shape.top-1,shape.right-shape.left+2,shape.bottom-shape.top+2);
                 shader.unload();
-                GaussianBlur.renderPass(buffers[1],buffers[0].framebufferTexture,1,0,Math.min(120,Math.round(UiEffects.glowRadius(theme.isCustom()?theme.getGlowRadius():9)*sr.getScaleFactor())),true,1.4f);
-                GaussianBlur.renderPass(buffers[2],buffers[1].framebufferTexture,0,1,Math.min(120,Math.round(UiEffects.glowRadius(theme.isCustom()?theme.getGlowRadius():9)*sr.getScaleFactor())),true,1.4f);
+                int scale = sr.getScaleFactor();
+                int radius = Math.min(120, Math.round(UiEffects.glowRadius(theme.isCustom() ? theme.getGlowRadius() : 9) * scale));
+                GaussianBlur.renderMaskGlow(buffers[1], buffers[2], buffers[0].framebufferTexture, radius, 1.4f,
+                        (shape.left - 1) * scale, (shape.top - 1) * scale,
+                        (shape.right + 1) * scale, (shape.bottom + 1) * scale);
             }
             state.bindTarget();
             prepare();
