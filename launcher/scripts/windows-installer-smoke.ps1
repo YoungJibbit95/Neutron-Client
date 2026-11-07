@@ -7,8 +7,8 @@ if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hoste
 }
 $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
 if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
-    if ($env:NEUTRON_SMOKE_LIMITED_CHILD -eq '1') { throw 'Restricted CI child still has administrator privileges; refusing acceptance.' }
-    & (Join-Path $PSScriptRoot 'run-smoke-unelevated.ps1')
+    if ($env:NEUTRON_SMOKE_STANDARD_CHILD -eq '1') { throw 'Standard CI child has administrator privileges; refusing acceptance.' }
+    & (Join-Path $PSScriptRoot 'run-smoke-standard-user.ps1')
     return
 }
 $appGuid = '17d12e18-c0d2-5a05-b898-3c34ccfad7ff'
@@ -35,7 +35,8 @@ function Install-Candidate {
     $began = [datetime]::UtcNow
     # NSIS /D must be last and unquoted, including when the directory has spaces.
     $process = Start-Process -FilePath $installer[0].FullName -ArgumentList "/S /currentuser /D=$installed" -WindowStyle Hidden -Wait -PassThru
-    if ($process.ExitCode -ne 0 -or -not (Test-Path -LiteralPath $executable)) { throw 'NSIS installation failed.' }
+    $present = Test-Path -LiteralPath $executable
+    if ($process.ExitCode -ne 0 -or -not $present) { throw "NSIS installation failed: exit=$($process.ExitCode), exePresent=$present, target=$installed, elevated=$($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))." }
     $preparation = Get-Content -LiteralPath (Join-Path $data 'logs/installer-result.json') -Raw | ConvertFrom-Json
     $selectedState = Get-Content -LiteralPath (Join-Path $data 'state.json') -Raw | ConvertFrom-Json
     if ($preparation.phase -ne 'verified-before-activation' -or $preparation.selectedBuildId -ne $selectedState.selected -or [datetime]::Parse($preparation.completedAt).ToUniversalTime() -lt $began) {
@@ -44,7 +45,7 @@ function Install-Candidate {
     $expected = Join-Path $env:NEUTRON_PACKAGE_OUTPUT 'win-unpacked/resources/app.asar'
     if ((Get-FileHash -LiteralPath (Join-Path $installed 'resources/app.asar')).Hash -ne (Get-FileHash -LiteralPath $expected).Hash) { throw 'Installed application differs from the packaged candidate.' }
     $contract = Join-Path $installed 'resources/source-adapter/contract.json'
-    if ((Get-FileHash -LiteralPath $contract).Hash -ne (Get-FileHash -LiteralPath 'resources/source-adapter/contract.json').Hash) { throw 'Installed source contract differs from the reviewed candidate.' }
+    if ((Get-FileHash -LiteralPath $contract).Hash -ne (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../resources/source-adapter/contract.json')).Hash) { throw 'Installed source contract differs from the reviewed candidate.' }
     if ((Get-FileHash -LiteralPath $marker).Hash -ne $markerHash) { throw 'Installation modified personal data.' }
 }
 
@@ -137,4 +138,5 @@ while (Test-Path -LiteralPath $executable) {
 if (Test-Path -LiteralPath $uninstallKey) { throw 'Uninstaller left the application registration behind.' }
 if ((Get-FileHash -LiteralPath $marker).Hash -ne $markerHash) { throw 'Uninstaller removed personal data.' }
 $receipt.uninstall = 'passed; synthetic personal data retained'
-$receipt | ConvertTo-Json -Depth 5 | Tee-Object -FilePath (Join-Path $env:NEUTRON_PACKAGE_OUTPUT 'installer-acceptance.json')
+$evidence = if ($env:NEUTRON_ACCEPTANCE_OUTPUT) { $env:NEUTRON_ACCEPTANCE_OUTPUT } else { $env:NEUTRON_PACKAGE_OUTPUT }
+$receipt | ConvertTo-Json -Depth 5 | Tee-Object -FilePath (Join-Path $evidence 'installer-acceptance.json')
