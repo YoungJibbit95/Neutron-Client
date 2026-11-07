@@ -10,6 +10,7 @@ public final class GuiShaderBloom {
 
     private static final List<float[]> queuedRects = new ArrayList<>();
     private static int batchDepth;
+    private static final java.nio.IntBuffer clip = org.lwjgl.BufferUtils.createIntBuffer(16);
     private static boolean used,capturing;
     public static boolean isCapturing(){return capturing;}
     private static final List<Runnable> afterBatch = new ArrayList<>();
@@ -43,12 +44,12 @@ public final class GuiShaderBloom {
         }
 
         float[] bounds=ScreenRect.project(x,y,width,height);
-        java.nio.IntBuffer clip=org.lwjgl.BufferUtils.createIntBuffer(16);
-        org.lwjgl.opengl.GL11.glGetInteger(org.lwjgl.opengl.GL11.GL_SCISSOR_BOX,clip);
+        boolean clipped=org.lwjgl.opengl.GL11.glIsEnabled(org.lwjgl.opengl.GL11.GL_SCISSOR_TEST);
+        if(clipped)org.lwjgl.opengl.GL11.glGetInteger(org.lwjgl.opengl.GL11.GL_SCISSOR_BOX,clip);
         queuedRects.add(new float[]{bounds[0],bounds[1],bounds[2],bounds[3],
                 radius*Math.min(bounds[2]/width,bounds[3]/height),Float.intBitsToFloat(color),
-                org.lwjgl.opengl.GL11.glIsEnabled(org.lwjgl.opengl.GL11.GL_SCISSOR_TEST)?1:0,
-                clip.get(0),clip.get(1),clip.get(2),clip.get(3),fixedColor?1:0,exactGeometry?1:0});
+                clipped?1:0,
+                clipped?clip.get(0):0,clipped?clip.get(1):0,clipped?clip.get(2):0,clipped?clip.get(3):0,fixedColor?1:0,exactGeometry?1:0});
     }
 
     public static void flushBatch(int iterations, int offset) {
