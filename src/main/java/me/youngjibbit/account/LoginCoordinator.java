@@ -40,6 +40,7 @@ public final class LoginCoordinator {
         private final LoginRequest request;
         private final Runnable onSuccess;
         private volatile String status = "&eWaiting for login...";
+        private volatile boolean setupRequired;
 
         private Attempt(long ticket, LoginRequest request, Runnable onSuccess) {
             this.ticket = ticket;
@@ -51,11 +52,13 @@ public final class LoginCoordinator {
             return isCurrent(ticket) ? status : "&7Login superseded by a newer selection.";
         }
 
+        public boolean isSetupRequired() { return isCurrent(ticket) && setupRequired; }
+
         public void cancel() { synchronized(LoginCoordinator.this) { if(isCurrent(ticket))invalidate(); } }
 
         @Override public void run() {
             if (!isCurrent(ticket)) return;
-            client.accept(() -> { if (isCurrent(ticket)) status = request.isBrowserLogin() ? "&6Complete Microsoft sign-in in your browser..." : "&6Logging in..."; });
+            client.accept(() -> { if (isCurrent(ticket)) status = request.isBrowserLogin() ? "&6Preparing Microsoft sign-in. Complete the login window..." : "&6Logging in..."; });
             try {
                 Session session = authenticator.authenticate(request, () -> isCurrent(ticket));
                 if (session == null || session.getUsername() == null || !session.getUsername().matches("[a-zA-Z0-9_]{1,16}")
@@ -66,9 +69,13 @@ public final class LoginCoordinator {
                 client.accept(() -> complete(session));
             } catch (Exception failure) {
                 client.accept(() -> {
-                    if (isCurrent(ticket)) status = failure instanceof LoginUnavailableException
+                    if (isCurrent(ticket)) {
+                        setupRequired = failure instanceof LoginUnavailableException
+                                && ((LoginUnavailableException) failure).isSetupRequired();
+                        status = failure instanceof LoginUnavailableException
                             ? "&c" + ((LoginUnavailableException) failure).getUserMessage()
                             : "&cLogin failed. Check credentials or provider availability; the current session was retained.";
+                    }
                 });
             }
         }
@@ -128,7 +135,13 @@ public final class LoginCoordinator {
     /** Only fixed, locally authored messages may be presented as provider setup errors. */
     public static final class LoginUnavailableException extends Exception {
         private final String userMessage;
-        public LoginUnavailableException(String message) { userMessage = message; }
+        private final boolean setupRequired;
+        public LoginUnavailableException(String message) { this(message, false); }
+        public LoginUnavailableException(String message, boolean setupRequired) {
+            userMessage = message;
+            this.setupRequired = setupRequired;
+        }
         public String getUserMessage() { return userMessage; }
+        public boolean isSetupRequired() { return setupRequired; }
     }
 }
