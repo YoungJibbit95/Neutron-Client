@@ -74,6 +74,40 @@ public class WorldRendererTransparencySortTest {
         }
     }
 
+    @Test public void alreadyOrderedQuadsPreserveBufferAndSprites() throws Exception {
+        VertexFormat format = DefaultVertexFormats.field_181706_f;
+        int stride = format.func_181719_f();
+        Field spriteField = WorldRenderer.class.getDeclaredField("quadSprites");
+        spriteField.setAccessible(true);
+        Field unsafeField = sun.misc.Unsafe.class.getDeclaredField("theUnsafe");
+        unsafeField.setAccessible(true);
+        sun.misc.Unsafe unsafe = (sun.misc.Unsafe) unsafeField.get(null);
+        for (int count : new int[]{0, 1, 4}) for (boolean withSprites : new boolean[]{false, true}) {
+            int[] raw = new int[count * 4 * stride];
+            TextureAtlasSprite[] sprites = withSprites ? new TextureAtlasSprite[count] : null;
+            for (int q = 0; q < count; q++) {
+                if (withSprites) sprites[q] = (TextureAtlasSprite) unsafe.allocateInstance(TextureAtlasSprite.class);
+                float x = q < 2 ? 4.0f - q : 2.0f; // final two quads have a stable distance tie
+                for (int v = 0; v < 4; v++) {
+                    int offset = (q * 4 + v) * stride;
+                    raw[offset] = Float.floatToRawIntBits(x);
+                    raw[offset + 1] = 0;
+                    raw[offset + 2] = 0;
+                    raw[offset + 3] = 0x12340000 | q;
+                }
+            }
+            WorldRenderer renderer = new WorldRenderer(raw.length + 64);
+            renderer.setVertexState(renderer.new State(raw, format, sprites));
+            renderer.func_181674_a(0, 0, 0);
+            assertEquals(raw.length, renderer.rawIntBuffer.position());
+            assertEquals(renderer.rawIntBuffer.capacity(), renderer.rawIntBuffer.limit());
+            assertArrayEquals(raw, renderer.func_181672_a().getRawBuffer());
+            TextureAtlasSprite[] actual = (TextureAtlasSprite[]) spriteField.get(renderer);
+            if (!withSprites) assertNull(actual);
+            else for (int q = 0; q < count; q++) assertSame(sprites[q], actual[q]);
+        }
+    }
+
     private static void assertOrder(float[] values) {
         Integer[] expected = referenceOrder(values);
         long[] actual = new long[values.length];

@@ -108,6 +108,19 @@ public class WorldRenderer
             order[j] = quadSortKey(distance, j);
         }
 
+        boolean alreadyOrdered = true;
+        for (int j = 1; j < i; ++j)
+        {
+            if (order[j] < order[j - 1]) { alreadyOrdered = false; break; }
+        }
+
+        if (alreadyOrdered)
+        {
+            this.rawIntBuffer.limit(this.rawIntBuffer.capacity());
+            this.rawIntBuffer.position(this.func_181664_j());
+            return;
+        }
+
         Arrays.sort(order);
         BitSet bitset = new BitSet();
         int l = this.vertexFormat.getNextOffset();
