@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="neutron-javafx8" default="bundle">
+    <!-- Vendor metadata: https://api.azul.com/metadata/v1/zulu/packages/57856cfa-7552-4d0d-9c7a-218d39e541a8 -->
+    <property name="fx.name" value="zulu8.96.0.205-ca-fx-jre8.0.504-win_x64"/>
+    <property name="fx.sha256" value="a8710b6033d1d05cfaa637304be3ecf7945994a7a6eb0a8fdb8f8be98aabfcf7"/>
+    <target name="bundle">
+        <mkdir dir="${fx.cache}"/>
+        <get src="https://cdn.azul.com/zulu/bin/${fx.name}.zip" dest="${fx.cache}/${fx.name}.zip" skipexisting="true" retries="2" maxtime="180"/>
+        <checksum file="${fx.cache}/${fx.name}.zip" algorithm="SHA-256" property="fx.actual"/>
+        <fail message="JavaFX archive checksum mismatch. Remove the corrupt archive from the Maven cache and retry.">
+            <condition><not><equals arg1="${fx.actual}" arg2="${fx.sha256}"/></not></condition>
+        </fail>
+        <mkdir dir="${fx.target}/classes/neutron/runtime"/>
+        <!-- Preserve the vendor layout: NativeLibLoader resolves ../../bin from lib/ext/jfxrt.jar.
+             No JVM, Java launcher, account data or unrelated JRE classes are distributed. -->
+        <zip destfile="${fx.target}/classes/neutron/runtime/javafx8-win-x64.zip">
+            <zipfileset src="${fx.cache}/${fx.name}.zip">
+                <include name="${fx.name}/lib/ext/jfxrt.jar"/>
+                <include name="${fx.name}/bin/decora_sse.dll"/>
+                <include name="${fx.name}/bin/glass.dll"/>
+                <include name="${fx.name}/bin/javafx_*.dll"/>
+                <include name="${fx.name}/bin/prism_*.dll"/>
+                <include name="${fx.name}/bin/jfx*.dll"/>
+                <include name="${fx.name}/bin/fxplugins.dll"/>
+                <include name="${fx.name}/bin/glib-lite.dll"/>
+                <include name="${fx.name}/bin/gstreamer-lite.dll"/>
+                <include name="${fx.name}/bin/msvcp140*.dll"/>
+                <include name="${fx.name}/bin/vcruntime140*.dll"/>
+                <include name="${fx.name}/bin/ucrtbase.dll"/>
+                <include name="${fx.name}/bin/api-ms-win-*.dll"/>
+                <include name="${fx.name}/*LICENSE*"/>
+                <include name="${fx.name}/*NOTICE*"/>
+                <include name="${fx.name}/*DISCLAIMER*"/>
+                <include name="${fx.name}/*ASSEMBLY_EXCEPTION*"/>
+                <include name="${fx.name}/*THIRD_PARTY*"/>
+                <include name="${fx.name}/legal/**"/>
+            </zipfileset>
+        </zip>
+    </target>
+</project>

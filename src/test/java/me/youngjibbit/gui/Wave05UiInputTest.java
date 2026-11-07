@@ -61,6 +61,8 @@ public class Wave05UiInputTest {
     public static class Panel extends ClickGui {
         public void resize(int width,int height)throws Exception{((GuiScreen)this).width=width;((GuiScreen)this).height=height;initGui();layoutNow();}
         public void layoutNow()throws Exception{Method m=ClickGui.class.getDeclaredMethod("layoutModules",float.class);m.setAccessible(true);m.invoke(this,0f);}
+        public void settleReveal()throws Exception{Method m=ClickGui.class.getDeclaredMethod("layoutModules",float.class);m.setAccessible(true);for(int i=0;i<40;i++)m.invoke(this,.05f);}
+        public void drawZeroFrame()throws Exception{set(this,"lastFrame",Long.MAX_VALUE);drawScreen(-1,-1,0);}
         public void click(int x,int y,int button)throws Exception{mouseClicked(x,y,button);}
         public void key(int code)throws Exception{keyTyped(' ',code);}
         public void release(){mouseReleased(-1,-1,0);}
@@ -153,7 +155,8 @@ public class Wave05UiInputTest {
     @Test public void panelFullyRevealedKeyboardActionStillDispatchesOnce()throws Exception {
         Panel panel=new Panel();panel.resize(640,480);ClickModule row=panel.first();
         panel.click((int)row.getX()+12,(int)row.getY()+12,1);
-        freeze(row,"openAnimation",Direction.FORWARDS,1000);panel.layoutNow();
+        panel.settleReveal();
+        assertEquals("Module settings must be fully revealed",2,row.focusableValues().size());
         panel.key(Keyboard.KEY_TAB);panel.key(Keyboard.KEY_SPACE);panel.release();
         assertTrue(panelValue.check.getValue());assertEquals(1,panelValue.changes);
     }

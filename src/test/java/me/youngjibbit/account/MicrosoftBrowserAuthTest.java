@@ -216,8 +216,28 @@ public class MicrosoftBrowserAuthTest {
             MicrosoftBrowserAuth auth=new MicrosoftBrowserAuth("",new MicrosoftBrowserAuth.Endpoints(base+"/authorize",base+"/token",base+"/xbox",base+"/xsts",base+"/minecraft",base+"/profile"),uri->opened.set(true),2000);
             try{auth.login(()->true);fail();}catch(LoginCoordinator.LoginUnavailableException expected){
                 assertEquals(MicrosoftBrowserAuth.SETUP,expected.getUserMessage());
+                assertTrue(expected.isSetupRequired());
             }
             assertFalse(opened.get());assertTrue(services.calls.isEmpty());
+        }
+    }
+    @Test public void configuredIdIsResolvedAtLoginTimeAndBrowserFailuresGiveRecoveryGuidance() throws Exception {
+        String previous=System.getProperty("neutron.microsoft.clientId");
+        try(Services services=new Services()) {
+            String base="http://127.0.0.1:"+services.server.getAddress().getPort();
+            MicrosoftBrowserAuth configured=new MicrosoftBrowserAuth(null,new MicrosoftBrowserAuth.Endpoints(base+"/authorize",base+"/token",base+"/xbox",base+"/xsts",base+"/minecraft",base+"/profile"),uri->{
+                services.authorization.set(uri);callback(uri,"mock-code",null,null);
+            },2000);
+            System.setProperty("neutron.microsoft.clientId","  "+CLIENT+"  ");
+            assertEquals("BrowserPlayer",configured.login(()->true).getUsername());
+            MicrosoftBrowserAuth failing=services.auth(uri->{throw new IOException("raw-secret-browser-error");},2000);
+            try{failing.login(()->true);fail();}catch(LoginCoordinator.LoginUnavailableException expected){
+                assertTrue(expected.getUserMessage().contains("default browser"));
+                assertFalse(expected.getUserMessage().contains("raw-secret"));assertFalse(expected.isSetupRequired());
+            }
+            assertEquals(5,services.calls.size());assertClosed(services.authorization.get());
+        } finally {
+            if(previous==null)System.clearProperty("neutron.microsoft.clientId");else System.setProperty("neutron.microsoft.clientId",previous);
         }
     }
     @Test public void coordinatorAppliesOnMainThreadAndPersistsOnlyProfileMetadataWhileKeepingLegacyRecords() throws Exception {
