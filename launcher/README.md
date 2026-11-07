@@ -16,7 +16,7 @@ Desktop development requires an absolute `NEUTRON_DATA_ROOT` for isolated launch
 
 ## Current limitations
 
-Version 0.2.0 targets the requested stable release channel. The installer is unsigned; signing/SmartScreen reputation is not claimed. Only the exact installer that passes final acceptance may be published; see the current gates for executed and pending checks. No Linux/macOS support is claimed.
+Version 0.2.1 targets the requested stable release channel. The installer is unsigned; signing/SmartScreen reputation is not claimed. Only the exact installer that passes final acceptance may be published; see the current gates for executed and pending checks. No Linux/macOS support is claimed.
 
 ## Reviewed source builds
 

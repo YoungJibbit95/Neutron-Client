@@ -58,7 +58,7 @@ export const en: Record<CopyKey, string> = {
 export const dictionaries = { de, en };
 const liveCopy: Record<Locale, Partial<Record<CopyKey, string>>> = {
   de: {
-    prototype: 'Stable', development: 'Neutron 0.2.0', mockNotice: 'Neutron Alpha Â· Dein installierter Client startet lokal. Anmeldung im Client.',
+    prototype: 'Stable', development: 'Neutron 0.2.1', mockNotice: 'Neutron 0.2.1 · Dein installierter Client startet lokal. Anmeldung im Client.',
     setupButton: 'Neutron vollstÃ¤ndig einrichten', exampleFolder: 'AuswÃ¤hlen', setupEstimate: 'Downloads werden geprÃ¼ft. FÃ¼r Einrichtung und Build mindestens 3 GiB freien Platz einplanen.',
     storage: 'Spielverzeichnis', setupIntro: 'WÃ¤hle deinen Spielordner. Der gepinnte Neutron-Client und seine Laufzeit werden lokal vorbereitet. Danach startet Spielen ohne Build.', errorRam: 'WÃ¤hle eine ganze MiB-Zahl innerhalb der angezeigten RAM-Grenze.',
     progressHint: 'Eine vorhandene Version bleibt bis zur erfolgreichen PrÃ¼fung erhalten.', downloadProgress: 'Download lÃ¤uft',
@@ -72,7 +72,7 @@ const liveCopy: Record<Locale, Partial<Record<CopyKey, string>>> = {
     reportHint: 'Lokaler Diagnosebericht. Erkennbare Zugangsdaten und persÃ¶nliche Pfade werden entfernt. PrÃ¼fe den Text vor dem Teilen.', issueHint: 'Kopiere den geprÃ¼ften Bericht bei Bedarf. Es wird nichts automatisch verÃ¶ffentlicht.', exported: 'Logs exportiert',
   },
   en: {
-    prototype: 'Stable', development: 'Neutron 0.2.0', mockNotice: 'Neutron Alpha Â· Your installed client starts locally. Sign in inside the client.',
+    prototype: 'Stable', development: 'Neutron 0.2.1', mockNotice: 'Neutron 0.2.1 · Your installed client starts locally. Sign in inside the client.',
     setupButton: 'Complete Neutron setup', exampleFolder: 'Browse', setupEstimate: 'Downloads are verified. Allow at least 3 GiB free space for setup and builds.',
     storage: 'Game directory', setupIntro: 'Choose your game folder. The pinned Neutron client and runtime are prepared locally. Afterwards, Play starts without a build.', errorRam: 'Choose a whole MiB value within the displayed memory limit.',
     progressHint: 'An installed version is retained until verification succeeds.', downloadProgress: 'Downloading',

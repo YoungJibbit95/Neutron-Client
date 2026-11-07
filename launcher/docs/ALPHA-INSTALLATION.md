@@ -1,12 +1,12 @@
 # Windows x64 installation
 
-Version 0.2.0 targets the requested stable channel; prerelease metadata remains
+Version 0.2.1 targets the requested stable channel; prerelease metadata remains
 validated separately. The installer contains the launcher and an immutable source pin. It does
 not contain a combined Minecraft/OptiFine client JAR, Minecraft assets, accounts,
 worlds or developer build directories.
 
 On a fresh machine, installation needs internet and at least 3 GiB free space.
-This Alpha installs for the current Windows user only. Start it normally;
+This installer installs for the current Windows user only. Start it normally;
 elevated or all-users installation is refused before launcher files are replaced.
 The final NSIS step runs the installed launcher without opening a window. It
 installs the hash-pinned Temurin 8u482 / Maven 3.9.15 toolchain, retrieves official
@@ -49,10 +49,11 @@ inside Minecraft is a separate client concern.
 ## Packaging and publication
 
 The tracked `resources/release.json` contains the durable reviewed main commit
-`529ec4cd32a72751e188a74f1c8c5c5803cb8beb` and codeload SHA256
-`1f8167148165503f362374e900b3fecb4dbeb366c24cab19d24c6ba4f5fbc1bd`.
-The archive is 108,154,915 bytes. Its tree `41bc7bd9b99c1803762723b395cc53a76d0682d2`
-equals PR #81's fully tested head `3c917a4ec821743bc0668fe6f1d1be77c9b27d71`.
+`1411f04c612c58190b5bc7ead0854c901e7945e3` and codeload SHA256
+`317d6c2e5f0a5148123622b13849032de392901ac13ae9690a2e40df8df94e4b`.
+The archive is 108,214,843 bytes. Its tree `01e65c06f4d8a9b0023310fd07f1fac9798b956d`
+is the reviewed PR #88 final client: 1,152 native Java-8 tests without failures or
+skips, six isolated packaged-runtime checks, and five successful PR checks.
 CI and local packaging both check this same tracked pin; synthetic PR merge refs
 are never substituted. Future releases must review a new durable commit/archive
 hash and test evidence before changing the pin. Packaging rejects missing or
@@ -60,7 +61,7 @@ invalid metadata. Optional pin generation from explicit environment inputs refus
 to overwrite an existing file.
 
 Publish the exact EXE that passed installer acceptance, without rebuilding it.
-Publish under the separate `launcher-v0.2.0` tag so the full-client release
+Publish under the separate `launcher-v0.2.1` tag so the full-client release
 workflow is not triggered. Attach only the reviewed installer, SHA256 text and
 release metadata. Verify the downloaded asset against the local SHA256 after
 publication. The human authorized unsigned publication and subsequently requested
@@ -80,4 +81,4 @@ Automated source/process tests and an installer receipt do not establish visual
 acceptance. The final release report must state actual clean install, upgrade,
 offline/cache/corruption results and measured times, plus unobserved GUI, DPI,
 GPU-loss or client gameplay checks. No GUI control is authorized for the agent's
-current Alpha work.
+current release work.
