@@ -1056,6 +1056,7 @@ public class Minecraft implements IThreadListener, IPlayerUsage
     private void runGameLoop() throws IOException
     {
         renderFrameSequence++;
+        me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.frame();
         long i = System.nanoTime();
         this.mcProfiler.startSection("root");
 

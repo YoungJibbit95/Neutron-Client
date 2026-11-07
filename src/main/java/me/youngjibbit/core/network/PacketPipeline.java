@@ -130,6 +130,8 @@ public final class PacketPipeline {
             boolean previousBoundary = worldBoundary, previousCorrection = correction;
             worldBoundary = boundary;
             try {
+                me.youngjibbit.module.impl.render.Diagnostics.CorrectionProbe receivedCorrection = packet instanceof S08PacketPlayerPosLook
+                        ? me.youngjibbit.module.impl.render.Diagnostics.captureCorrection((S08PacketPlayerPosLook)packet,this,silent) : null;
                 // Corrections/lifecycle must discard obsolete movement before callbacks can release it.
                 if (packet instanceof S08PacketPlayerPosLook || packet instanceof S40PacketDisconnect
                         || packet instanceof S06PacketUpdateHealth && ((S06PacketUpdateHealth)packet).getHealth() <= 0) discardDelayed();
@@ -145,6 +147,9 @@ public final class PacketPipeline {
                     worldBoundary = true;
                 }
                 correction = selected instanceof S08PacketPlayerPosLook;
+                final me.youngjibbit.module.impl.render.Diagnostics.CorrectionProbe diagnosticCorrection = selected == packet ? receivedCorrection
+                        : selected instanceof S08PacketPlayerPosLook
+                        ? me.youngjibbit.module.impl.render.Diagnostics.captureCorrection((S08PacketPlayerPosLook)selected,this,silent) : null;
                 final long applicationScene = appliedScene;
                 BooleanSupplier entityIdentity = handler instanceof net.minecraft.client.network.NetHandlerPlayClient
                         ? ((net.minecraft.client.network.NetHandlerPlayClient) handler).captureEntityIdentity(selected) : () -> true;
@@ -164,6 +169,7 @@ public final class PacketPipeline {
                         () -> isActive() && handlerValid.getAsBoolean() && entityIdentity.getAsBoolean()
                                 && applicationScene == appliedScene, () -> {
                             positionApplied.run();
+                            me.youngjibbit.module.impl.render.Diagnostics.appliedCorrection(diagnosticCorrection);
                             appliedInbound.accept(selected);
                             if (!silent) post(selected, EventFlow.INBOUND, EventPhase.POST);
                         });

@@ -127,6 +127,25 @@ public final class PacketDelays {
             this.size = size; this.heldByOwner = heldByOwner; this.activeOwners = activeOwners; this.oldestAgeMs = oldestAgeMs;
         }
     }
+    /** Observes lease deadlines and direction queues without pumping, testing matchers or renewing leases. */
+    public synchronized Diagnostics diagnosticSnapshot() {
+        long now=clock.getAsLong(), oldest=0, remaining=0, configured=0;
+        int live=0;
+        for(Request request:requests.values()) if(now-request.expires<0) { live++; configured=Math.max(configured,request.delay); }
+        for(ArrayDeque<Entry> queue:queues.values()) for(Entry entry:queue) {
+            oldest=Math.max(oldest,Math.max(0,now-entry.created));
+            for(long deadline:entry.holds.values())remaining=Math.max(remaining,Math.max(0,deadline-now));
+        }
+        return new Diagnostics(queues.get(EventFlow.INBOUND).size(),queues.get(EventFlow.OUTBOUND).size(),live,
+                oldest/1000000L,remaining/1000000L,configured/1000000L);
+    }
+    public static final class Diagnostics {
+        public final int inbound, outbound, owners;
+        public final long oldestMs, remainingMs, configuredMs;
+        Diagnostics(int inbound,int outbound,int owners,long oldest,long remaining,long configured) {
+            this.inbound=inbound;this.outbound=outbound;this.owners=owners;oldestMs=oldest;remainingMs=remaining;configuredMs=configured;
+        }
+    }
     long now() { return clock.getAsLong(); }
     private static final class Request {
         final long delay,expires;final BiPredicate<Packet<?>,EventFlow> matches;

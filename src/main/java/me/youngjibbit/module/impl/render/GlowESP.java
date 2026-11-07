@@ -197,7 +197,8 @@ public class GlowESP extends Module
     public final Listener<Event2D> on2D = new Listener<>(e -> {
         if(mc.theWorld==null||mc.thePlayer==null)return;
         boolean oldGlint=renderGlint;
-        try(me.youngjibbit.utils.render.RenderState state=new me.youngjibbit.utils.render.RenderState()){
+        try(me.youngjibbit.core.diagnostics.RenderTimings.Scope timing=me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.scope("GlowESP / composite");
+            me.youngjibbit.utils.render.RenderState state=new me.youngjibbit.utils.render.RenderState()){
 
         currentTheme = Theme.resolve(Theme.getDefaultTheme());
         outlineColors = getStaticOutlineGradientColors(currentTheme);
