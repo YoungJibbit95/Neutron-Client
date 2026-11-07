@@ -27,12 +27,14 @@ public class BacktrackLagRangeControlTest {
                 assertTrue(f.controller.tryAttackEntity(f.player,enemy,()->true));f.drainOutbound();
                 f.receive(new S14PacketEntity.S15PacketEntityRelMove(7,(byte)16,(byte)0,(byte)0,true));
                 assertEquals(1,f.pipe().delays().size());assertEquals(96,enemy.serverPosX);
+                assertTrue("HUD must see held movement before another game tick", back.getInfo().endsWith("Q1"));
                 f.player.inventoryContainer=new Container(){@Override public boolean canInteractWith(EntityPlayer player){return true;}};
                 f.receive(new S32PacketConfirmTransaction(0,(short)12,false));
                 assertTrue("transaction reply remains immediate",f.connection.channel.readOutbound() instanceof C0FPacketConfirmTransaction);
                 assertEquals("independent confirmation must not release movement",1,f.pipe().delays().size());
                 assertEquals(96,enemy.serverPosX);
                 now.set(101_000_000L);f.pipe().pump();assertEquals(112,enemy.serverPosX);
+                assertTrue("A released packet must disappear from the HUD", back.getInfo().endsWith("Q0"));
             } finally { back.setToggled(false); }
         }
     }
@@ -44,6 +46,7 @@ public class BacktrackLagRangeControlTest {
                 ExploitHookFixture.Enemy enemy=f.enemy(7,6);Pulsar.BUS.post(new TickEvent());
                 C03PacketPlayer movement=new C03PacketPlayer(true);f.connection.network.sendPacket(movement);
                 assertEquals(1,f.pipe().delays().size());
+                assertTrue("HUD must include the movement sent after Tick PRE", lag.getInfo().endsWith("Q1"));
                 C0FPacketConfirmTransaction reply=new C0FPacketConfirmTransaction(0,(short)12,true);
                 f.connection.network.sendPacket(reply);
                 assertSame("acknowledgement is immediate, not preceded by a forced movement release",reply,f.connection.channel.readOutbound());
@@ -53,6 +56,7 @@ public class BacktrackLagRangeControlTest {
                 assertTrue(f.controller.tryAttackEntity(f.player,enemy,()->true));
                 assertSame("attack still publishes earlier movement first",movement,f.connection.channel.readOutbound());
                 assertTrue(f.connection.channel.readOutbound() instanceof C02PacketUseEntity);
+                assertTrue("An attack barrier releases the displayed hold", lag.getInfo().endsWith("Q0"));
             } finally { lag.setToggled(false); }
         }
     }

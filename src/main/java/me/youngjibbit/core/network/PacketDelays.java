@@ -25,8 +25,10 @@ public final class PacketDelays {
         Objects.requireNonNull(owner);Objects.requireNonNull(matches);
         if (closed) return;
         if (!requests.containsKey(owner) && requests.size() >= 32) throw new IllegalStateException("Too many packet delay owners");
-        requests.put(owner, new Request(Math.max(0,Math.min(MAX_DELAY_MS,delayMs))*1000000L,
-                clock.getAsLong()+LEASE_MS*1000000L, matches));
+        Request renewed = new Request(Math.max(0,Math.min(MAX_DELAY_MS,delayMs))*1000000L,
+                clock.getAsLong()+LEASE_MS*1000000L, matches);
+        Request previous = requests.put(owner, renewed);
+        if (previous != null) renewed.held = previous.held;
     }
     /** Evaluated after every PRE listener, against the final replacement packet. */
     public boolean defer(Packet<?> packet, EventFlow flow, Runnable apply) {
@@ -44,6 +46,7 @@ public final class PacketDelays {
             if (holds.isEmpty() && queue.isEmpty()) return false;
             if (size() >= MAX_PACKETS) throw new IllegalStateException("Packet delay queue refilled during capacity release");
             queue.add(new Entry(session,now,holds,apply));
+            for (Object owner : holds.keySet()) requests.get(owner).held++;
         }
         return true;
     }
@@ -59,8 +62,10 @@ public final class PacketDelays {
             long now=clock.getAsLong();
             Set<Object> expired=new HashSet<>();
             requests.forEach((owner,r)-> { if(now-r.expires>=0)expired.add(owner); });
-            expired.forEach(requests::remove);
-            queues.values().forEach(q->q.forEach(e->expired.forEach(e.holds::remove)));
+            if (!expired.isEmpty()) {
+                expired.forEach(requests::remove);
+                queues.values().forEach(q->q.forEach(e->expired.forEach(e.holds::remove)));
+            }
         }
         for(EventFlow flow:queues.keySet()) drain(flow,false);
     }
@@ -87,7 +92,9 @@ public final class PacketDelays {
             if(entry.session!=session) { queue.poll();continue; }
             boolean due=entry.holds.values().stream().allMatch(deadline->now-deadline>=0);
             if(!force && !due && now-entry.created<MAX_AGE_MS*1000000L)return null;
-            return queue.poll().apply;
+            queue.removeFirst();
+            for (Object owner : entry.holds.keySet()) requests.get(owner).held--;
+            return entry.apply;
         }
         return null;
     }
@@ -98,6 +105,11 @@ public final class PacketDelays {
     public synchronized void close() { closed=true;discard(); }
     public synchronized int size() { return queues.values().stream().mapToInt(ArrayDeque::size).sum(); }
     public synchronized boolean hasOwner(Object owner) { return requests.containsKey(owner); }
+    /** Current owner holds, or -1 after release, lease expiry or a session change. Never pumps. */
+    public synchronized int activeHeldCount(Object owner) {
+        Request request = requests.get(owner);
+        return request == null ? -1 : request.held;
+    }
     /** Metadata only: no packet payloads, names or chat content. Does not pump or release queues. */
     public synchronized Snapshot snapshot(Object owner) {
         long now = clock.getAsLong(), oldest = 0;
@@ -118,6 +130,7 @@ public final class PacketDelays {
     long now() { return clock.getAsLong(); }
     private static final class Request {
         final long delay,expires;final BiPredicate<Packet<?>,EventFlow> matches;
+        int held;
         Request(long delay,long expires,BiPredicate<Packet<?>,EventFlow> matches) {this.delay=delay;this.expires=expires;this.matches=matches;}
     }
     private static final class Entry {
