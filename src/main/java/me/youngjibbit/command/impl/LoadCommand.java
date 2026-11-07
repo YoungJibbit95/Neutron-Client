@@ -11,7 +11,7 @@ import java.util.Locale;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
-@CommandInfo(name = "config", usage = ".config <save/load/list> [name]",
+@CommandInfo(name = "config", usage = ".config <save/load/list> [name] | .config intave [module]",
         description = "Save and restore module configs", aliases = {"c", "cfg"})
 public final class LoadCommand extends Command {
     private final Supplier<ConfigManager> manager;
@@ -25,7 +25,10 @@ public final class LoadCommand extends Command {
         ConfigManager configs = manager.get();
         if (configs == null) throw new CommandException("Configs are not initialized.");
         String action = args[0].toLowerCase(Locale.ROOT);
-        if ("list".equals(action)) {
+        if ("intave".equals(action)) {
+            if (args.length > 2) throw new CommandException("Usage: .config intave [module]");
+            configs.applyIntavePreset(args.length == 2 ? args[1] : "");
+        } else if ("list".equals(action)) {
             if (configs.collectConfigs()) configs.message("Configs: " + ConfigManager.localConfigs.stream()
                     .map(LocalConfig::getName).collect(Collectors.joining(", ")));
         } else if ("load".equals(action) || "save".equals(action)) {

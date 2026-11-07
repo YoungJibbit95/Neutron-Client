@@ -8,6 +8,7 @@ import me.youngjibbit.core.network.PacketPipeline;
 import me.youngjibbit.core.observation.AutomatedActionAdmission;
 import me.youngjibbit.event.motion.EventMotion;
 import me.youngjibbit.event.motion.EventRotation;
+import me.youngjibbit.event.motion.KnockbackEvent;
 import me.youngjibbit.event.packet.EventPacket;
 import me.youngjibbit.event.packet.TickEvent;
 import me.youngjibbit.event.player.MovementInputEvent;
@@ -24,7 +25,7 @@ import net.minecraft.network.play.server.S12PacketEntityVelocity;
 /** Arsenic-inspired legit reduction; see docs/third-party/ARSENIC.md. */
 @ModuleInfo(name = "Velocity", description = "Reduces knockback through normal jumps and validated sprint hits", category = Category.Combat)
 public class Velocity extends Module {
-    public final ComboValue mode = new ComboValue("Mode", this, new String[]{"Legit"}, 0);
+    public final ComboValue mode = new ComboValue("Mode", this, new String[]{"Legit", "Legit Jumpreset", "Intave Reduce"}, 0);
     public final SliderValue reduceTicks = new SliderValue("Reduce Ticks", this, 2D, 1, 3, true);
     public final CheckBoxValue jumpReset = new CheckBoxValue("Jump Reset", this, true);
     private final CombatPacketState actions = new CombatPacketState();
@@ -35,6 +36,11 @@ public class Velocity extends Module {
     private boolean pendingJump;
     private EntityLivingBase target;
 
+    public Velocity() {
+        reduceTicks.setVisibility(m -> !"Legit Jumpreset".equals(mode.getValue()));
+        jumpReset.setVisibility(m -> "Legit".equals(mode.getValue()));
+    }
+
     @Override public void onEnable() { clear(); super.onEnable(); }
     @Override public void onDisable() { clear(); super.onDisable(); }
     @Override public void onValueChange() { if (actions != null) clear(); }
@@ -43,19 +49,30 @@ public class Velocity extends Module {
         if (!context() || !usable() || System.nanoTime() - expires >= 0) clearReduction();
     });
 
-    // POST proves application, including replacement/cancellation and delayed delivery.
     @Subscribe private final Listener<EventPacket> onPacket = new Listener<>(e -> {
         if (!e.isPost() || !context() || e.getPipeline() != connection) return;
         long now = System.nanoTime();
         if (e.isOutbound()) { actions.accepted(e.getPacket(), now); return; }
-        if (!(e.getPacket() instanceof S12PacketEntityVelocity) || !usable()) return;
+        if (!"Legit".equals(mode.getValue()) || !(e.getPacket() instanceof S12PacketEntityVelocity) || !usable()) return;
         S12PacketEntityVelocity velocity = (S12PacketEntityVelocity) e.getPacket();
         if (velocity.getEntityID() != mc.thePlayer.getEntityId() || velocity.getMotionY() <= 0) return;
-        remaining = reduceTicks.getValue().intValue();
-        expires = now + 250_000_000L;
-        pendingJump = jumpReset.getValue() && !JumpReset.isHandlingJumps()
-                && mc.thePlayer.onGround && mc.thePlayer.isSprinting();
+        arm(now);
     });
+
+    // The local handler emits POST only after setVelocity, including delayed S12 delivery.
+    @Subscribe private final Listener<KnockbackEvent> appliedImpulse = new Listener<>(e -> {
+        if (!e.isPost() || "Legit".equals(mode.getValue()) || !context() || !usable()) return;
+        if (e.getY() <= 0 || e.getX() == 0 && e.getZ() == 0) { clearReduction(); return; }
+        arm(System.nanoTime());
+    });
+
+    private void arm(long now) {
+        boolean jumpOnly = "Legit Jumpreset".equals(mode.getValue());
+        remaining = jumpOnly ? 0 : reduceTicks.getValue().intValue();
+        expires = now + 250_000_000L;
+        pendingJump = (jumpOnly || "Legit".equals(mode.getValue()) && jumpReset.getValue()) && !JumpReset.isHandlingJumps()
+                && mc.thePlayer.onGround && mc.thePlayer.isSprinting();
+    }
 
     @Subscribe private final Listener<MovementInputEvent> onInput = new Listener<>(e -> {
         boolean jump = pendingJump;
@@ -78,16 +95,20 @@ public class Velocity extends Module {
         RotationManager rotation = RuntimeServices.rotation();
         if (e.isPre()) {
             target = null;
-            if (remaining <= 0) { rotation.reset("velocity"); return; }
+            if (remaining <= 0 || !canReduce()) { rotation.reset("velocity"); return; }
             remaining--;
             Module aura = Pulsar.INSTANCE.getMm() == null ? null : Pulsar.INSTANCE.getMm().getModule(Aura.class);
             if (aura != null && aura.isToggled() || RuntimeServices.attackScheduler().hasAttackThisTick()) return;
             TargetingService.Options options = new TargetingService.Options();
             options.range = 3;
-            double farthest = -1;
-            for (EntityLivingBase candidate : RuntimeServices.targeting().collectTargets(options, TargetingService.SortMode.DISTANCE)) {
-                double distance = candidate.getDistanceSqToEntity(mc.thePlayer);
-                if (distance > farthest) { farthest = distance; target = candidate; }
+            if ("Intave Reduce".equals(mode.getValue())) {
+                target = RuntimeServices.targeting().getBestTarget(options, TargetingService.SortMode.DISTANCE);
+            } else {
+                double farthest = -1;
+                for (EntityLivingBase candidate : RuntimeServices.targeting().collectTargets(options, TargetingService.SortMode.DISTANCE)) {
+                    double distance = candidate.getDistanceSqToEntity(mc.thePlayer);
+                    if (distance > farthest) { farthest = distance; target = candidate; }
+                }
             }
             if (target == null) return;
             RotationProfile profile = new RotationProfile();
@@ -114,12 +135,15 @@ public class Velocity extends Module {
     }
 
     private boolean validHit(EntityLivingBase hit, float yaw, float pitch) {
-        return context() && usable() && AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)
+        return context() && usable() && canReduce() && AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)
                 && !mc.thePlayer.isUsingItem() && !actions.usingItem(System.nanoTime())
                 && hit != null && hit.worldObj == mc.theWorld && mc.theWorld.getEntityByID(hit.getEntityId()) == hit
                 && !hit.isDead && hit.isEntityAlive() && RuntimeServices.rotation().isOwner("velocity")
                 && RuntimeServices.rotation().matchesEffective(yaw, pitch)
                 && RuntimeServices.raycast().canHit(hit, yaw, pitch, 3, false);
+    }
+    private boolean canReduce() {
+        return !"Intave Reduce".equals(mode.getValue()) || mc.thePlayer.isSprinting();
     }
     public boolean correctionEnabled() { return isToggled() && context() && usable() && target != null; }
     private boolean usable() {

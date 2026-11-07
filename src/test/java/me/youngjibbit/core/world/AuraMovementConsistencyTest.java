@@ -1,6 +1,13 @@
 package me.youngjibbit.core.world;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.event.motion.KnockbackEvent;
+import me.youngjibbit.event.player.MovementInputEvent;
+import me.youngjibbit.module.impl.combat.Velocity;
+import me.youngjibbit.module.impl.movement.Speed;
+import me.youngjibbit.module.impl.player.NoSlow;
+import net.minecraft.item.ItemStack;
+import net.minecraft.init.Items;
 import me.youngjibbit.core.combat.*;
 import me.youngjibbit.event.player.PlayerMoveUpdateEvent;
 import me.zero.alpine.listener.Listener;
@@ -33,7 +40,7 @@ public class AuraMovementConsistencyTest {
                 {"neutronScaffoldMovement"},{"arsenicScaffoldMovement"},
                 {"visibleAimAssistMovement"},{"arsenicAimAssistMovement"},{"scaffoldSprintDisabled"},
                 {"wTapSprintMatchesPhysics"},{"scaffoldAutoJumpWithSprint"},{"scaffoldAutoJumpWithoutSprint"},
-                {"velocityMovement"}});
+                {"velocityMovement"},{"intaveReduceMotion"},{"legitJumpresetInput"},{"intaveBlockAndSwordPulse"},{"intaveWallAcceleration"}});
     }
     private final String method;
     public AuraMovementConsistencyTest(String method) { this.method=method; }
@@ -51,6 +58,10 @@ public class AuraMovementConsistencyTest {
         @Override public boolean isInvisible() { return false; }
         @Override public boolean isSpectator() { return false; }
         @Override public boolean isEntityAlive() { return !isDead; }
+    }
+    public static class SwordPlayer extends Player {
+        @Override public boolean isUsingItem() { return getItemInUse() != null; }
+        @Override public void setEating(boolean eating) { }
     }
     static final class Input extends MovementInput {
         float forward=1,strafe;
@@ -266,7 +277,7 @@ public class AuraMovementConsistencyTest {
         @Test public void scaffoldSprintDisabled() throws Exception {
             try(Run run=new Run("Einfach")) {
                 run.f.run.fixture.aura.setToggled(false);
-                run.player.inventory.mainInventory[3]=new net.minecraft.item.ItemStack(net.minecraft.init.Blocks.stone,64);
+                run.player.inventory.mainInventory[3]=new ItemStack(net.minecraft.init.Blocks.stone,64);
                 me.youngjibbit.module.impl.world.Scaffold scaffold=run.f.run.fixture.scaffold;
                 scaffold.setToggled(false);scaffold.getBooleanSetting("Sprint").setValue(false);scaffold.setToggled(true);
                 run.f.run.fixture.mc.gameSettings.keyBindSprint.pressed=true;
@@ -299,7 +310,7 @@ public class AuraMovementConsistencyTest {
         private void autoJump(boolean sprint) throws Exception {
             try(Run run=new Run("Einfach")) {
                 run.f.run.fixture.aura.setToggled(false);
-                run.player.inventory.mainInventory[3]=new net.minecraft.item.ItemStack(net.minecraft.init.Blocks.stone,64);
+                run.player.inventory.mainInventory[3]=new ItemStack(net.minecraft.init.Blocks.stone,64);
                 me.youngjibbit.module.impl.world.Scaffold scaffold=run.f.run.fixture.scaffold;
                 scaffold.setToggled(false);scaffold.getBooleanSetting("Sprint").setValue(sprint);
                 scaffold.getBooleanSetting("Auto Jump").setValue(true);scaffold.setToggled(true);
@@ -314,14 +325,118 @@ public class AuraMovementConsistencyTest {
             }
         }
         @SuppressWarnings("unchecked")
+        private void impulse(Run run) {
+            run.player.setVelocity(.4, .2, .2);
+            KnockbackEvent applied =
+                    new KnockbackEvent(.4, .2, .2);
+            applied.setEventPhase(me.zero.alpine.event.EventPhase.POST);
+            Pulsar.BUS.post(applied);
+        }
+
+        @Test public void intaveReduceMotion() throws Exception {
+            try (Run run = new Run("Einfach")) {
+                run.f.run.fixture.aura.setToggled(false);
+                run.remoteTarget();
+                Velocity velocity = new Velocity();
+                velocity.mode.setValue("Intave Reduce");
+                velocity.setToggled(true);
+                try {
+                    for (boolean sprint : new boolean[]{false, true}) {
+                        run.player.sprint = sprint;
+                        impulse(run);
+                        List<Object> packets = run.f.walk();
+                        assertEquals(sprint ? 1 : 0, packets.stream().filter(C02PacketUseEntity.class::isInstance).count());
+                        assertEquals(sprint ? .24 : .4, run.player.motionX, 1e-9);
+                        assertEquals(sprint ? .12 : .2, run.player.motionZ, 1e-9);
+                        assertEquals(.2, run.player.motionY, 1e-9);
+                    }
+                } finally { velocity.setToggled(false); }
+            }
+        }
+
+        @Test public void legitJumpresetInput() throws Exception {
+            try (Run run = new Run("Einfach")) {
+                run.f.run.fixture.aura.setToggled(false);
+                run.remoteTarget();
+                Velocity velocity = new Velocity();
+                velocity.mode.setValue("Legit Jumpreset");
+                velocity.setToggled(true);
+                try {
+                    run.player.sprint = run.player.onGround = true;
+                    impulse(run);
+                    for (boolean expected : new boolean[]{true, false}) {
+                        MovementInputEvent sample =
+                                new MovementInputEvent(0, 1, false, false);
+                        Pulsar.BUS.post(sample);
+                        assertEquals(expected, sample.isJump());
+                    }
+                    assertFalse(run.f.walk().stream().anyMatch(C02PacketUseEntity.class::isInstance));
+                } finally { velocity.setToggled(false); }
+            }
+        }
+
+        @Test public void intaveBlockAndSwordPulse() throws Exception {
+            try (Run run = new Run("Einfach", SwordPlayer.class)) {
+                run.remoteTarget();
+                ItemStack sword = new ItemStack(Items.iron_sword);
+                run.player.inventory.mainInventory[run.player.inventory.currentItem] = sword;
+                run.f.run.fixture.aura.getModeSetting("Autoblock Mode").setValue("Intave");
+                run.f.run.fixture.aura.getBooleanSetting("Autoblock").setValue(true);
+                assertTrue(run.f.walk().stream().anyMatch(C02PacketUseEntity.class::isInstance));
+                run.player.ticksExisted++;
+                List<Object> block = run.physical(false);
+                assertTrue(block.stream().anyMatch(C08PacketPlayerBlockPlacement.class::isInstance));
+                assertSame(sword, run.player.getItemInUse());
+                assertFalse(block.stream().anyMatch(C02PacketUseEntity.class::isInstance));
+                NoSlow noSlow = new NoSlow();
+                noSlow.getModeSetting("Mode").setValue("Intave Sword Pulse");
+                noSlow.setToggled(true);
+                try {
+                    run.f.run.fixture.mc.gameSettings.keyBindUseItem.pressed = true;
+                    assertFalse(run.physical(false).stream().anyMatch(C07PacketPlayerDigging.class::isInstance));
+                    run.player.clearItemInUse();
+                    run.player.setItemInUse(sword, sword.getMaxItemUseDuration() - 2);
+                    ScaffoldOwnerContinuityTest.Hooks hooks = new ScaffoldOwnerContinuityTest.Hooks();
+                    hooks.packet = e -> {
+                        if (e.isPre() && e.isOutbound() && e.getPacket() instanceof C07PacketPlayerDigging) e.cancel();
+                    };
+                    Pulsar.BUS.subscribe(hooks);
+                    try {
+                        assertFalse(run.physical(false).stream().anyMatch(C07PacketPlayerDigging.class::isInstance));
+                        assertTrue(run.player.isBlocking());
+                    } finally { Pulsar.BUS.unsubscribe(hooks); }
+                    assertTrue(run.physical(false).stream().anyMatch(C07PacketPlayerDigging.class::isInstance));
+                    assertFalse(run.player.isUsingItem());
+                } finally { noSlow.setToggled(false); }
+            }
+        }
+
+        @Test public void intaveWallAcceleration() throws Exception {
+            try (Run run = new Run("Einfach")) {
+                run.f.run.fixture.aura.setToggled(false);
+                Speed speed = new Speed();
+                speed.getModeSetting("Mode").setValue("Intave Momentum");
+                speed.setToggled(true);
+                try {
+                    run.player.onGround = true;
+                    for (boolean wall : new boolean[]{false, true}) {
+                        run.player.isCollidedHorizontally = wall;
+                        run.player.motionX = run.player.motionZ = 0;
+                        run.player.moveFlying(0, 1, .1F);
+                        assertEquals(wall ? .112 : .1, Math.hypot(run.player.motionX, run.player.motionZ), 1e-5);
+                    }
+                } finally { speed.setToggled(false); }
+            }
+        }
+
         @Test public void velocityMovement() throws Exception {
             try(Run run=new Run("Einfach")) {
                 run.f.run.fixture.aura.setToggled(false);run.target(-.5,2);
-                me.youngjibbit.module.impl.combat.Velocity velocity=new me.youngjibbit.module.impl.combat.Velocity();
+                Velocity velocity=new Velocity();
                 Map<Class<? extends me.youngjibbit.module.Module>,me.youngjibbit.module.Module> modules=
                         (Map<Class<? extends me.youngjibbit.module.Module>,me.youngjibbit.module.Module>)ScaffoldOwnerContinuityTest
                                 .field(me.youngjibbit.module.ModuleManager.class,"modulesByClass").get(Pulsar.INSTANCE.getMm());
-                modules.put(me.youngjibbit.module.impl.combat.Velocity.class,velocity);velocity.setToggled(true);
+                modules.put(Velocity.class,velocity);velocity.setToggled(true);
                 try {
                     me.youngjibbit.event.packet.EventPacket applied=new me.youngjibbit.event.packet.EventPacket(
                             new net.minecraft.network.play.server.S12PacketEntityVelocity(run.player.getEntityId(),.2,.2,0),
@@ -337,7 +452,7 @@ public class AuraMovementConsistencyTest {
         private void scaffold(String approach) throws Exception {
             try(Run run=new Run("Einfach")) {
                 run.f.run.fixture.aura.setToggled(false);
-                run.player.inventory.mainInventory[3] = new net.minecraft.item.ItemStack(net.minecraft.init.Blocks.stone,64);
+                run.player.inventory.mainInventory[3] = new ItemStack(net.minecraft.init.Blocks.stone,64);
                 me.youngjibbit.module.impl.world.Scaffold scaffold=run.f.run.fixture.scaffold;
                 scaffold.setToggled(false);scaffold.getModeSetting("Scaffold Approach").setValue(approach);scaffold.setToggled(true);
                 int accepted=0;
