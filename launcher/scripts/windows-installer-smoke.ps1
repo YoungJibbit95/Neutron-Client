@@ -37,6 +37,27 @@ $executable = Join-Path $installed 'Neutron Launcher.exe'
 $installer = @(Get-ChildItem -LiteralPath $env:NEUTRON_PACKAGE_OUTPUT -Filter '*.exe' -File)
 if ($installer.Count -ne 1) { throw 'Expected exactly one NSIS candidate.' }
 New-Item -ItemType Directory -Path $fixture, $data | Out-Null
+# Before NSIS, compare the exact packaged helper in the same ordinary account.
+# An empty isolated root must fail explicitly, without network or client launch.
+$probeData = Join-Path $fixture 'startup-probe'
+$probeError = Join-Path $probeData 'logs/installer-error.json'
+$probeExe = Join-Path $env:NEUTRON_PACKAGE_OUTPUT 'win-unpacked/Neutron Launcher.exe'
+$probeStderr = Join-Path $fixture 'startup-probe.stderr.log'
+$env:NEUTRON_DATA_ROOT = $probeData
+try {
+    $began = [datetime]::UtcNow
+    $probe = Start-Process -FilePath $probeExe -ArgumentList '--verify-alpha --enable-logging=stderr' -RedirectStandardOutput (Join-Path $fixture 'startup-probe.stdout.log') -RedirectStandardError $probeStderr -WindowStyle Hidden -PassThru
+    try { Wait-OwnedExecutable $probe $probeExe 45 }
+    finally {
+        if (Test-Path -LiteralPath $probeStderr) { Get-Content -LiteralPath $probeStderr -Tail 60 }
+        $trace = Join-Path $probeData 'logs/headless-startup.jsonl'
+        if (Test-Path -LiteralPath $trace) { Get-Content -LiteralPath $trace -Tail 30 }
+    }
+    if ($probe.ExitCode -ne 1 -or -not (Test-Path -LiteralPath $probeError)) { throw "Packaged empty-root probe failed: exit=$($probe.ExitCode), missing structured verification failure." }
+    $failure = Get-Content -LiteralPath $probeError -Raw | ConvertFrom-Json
+    if ($failure.error -notlike '*pinned Neutron client is not installed*' -or [datetime]::Parse($failure.date).ToUniversalTime() -lt $began) { throw 'Packaged empty-root probe produced the wrong or stale failure.' }
+    Write-Host 'Packaged startup probe passed: same standard account, fresh structured missing-client failure.'
+} finally { Remove-Item Env:NEUTRON_DATA_ROOT }
 $marker = Join-Path $data 'personal-data-fixture.txt'
 [IO.File]::WriteAllText($marker, 'synthetic settings/world marker; preserve on update and uninstall')
 $markerHash = (Get-FileHash -LiteralPath $marker).Hash

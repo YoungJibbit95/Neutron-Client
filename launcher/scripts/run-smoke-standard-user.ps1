@@ -78,7 +78,7 @@ try {
 } catch {
     $_ | Out-String | Add-Content -LiteralPath '__LOG__'
     $code = 1
-    foreach ($file in @('installer-error.json', 'build.log')) {
+    foreach ($file in @('headless-startup.jsonl', 'installer-error.json', 'build.log')) {
         $diagnostic = Join-Path $env:APPDATA ('Neutron Launcher/logs/' + $file)
         if (Test-Path -LiteralPath $diagnostic) {
             Get-Content -LiteralPath $diagnostic -Tail 45 | ForEach-Object { $_.Replace($env:USERPROFILE, '[CI_PROFILE]') } | Add-Content -LiteralPath '__LOG__'
