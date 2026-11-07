@@ -12,7 +12,7 @@ import static org.junit.Assert.*;
 
 public class BacktrackBehaviorHookTest {
     private Backtrack enable(AtomicLong now, ExploitHookFixture f) {
-        Backtrack module = new Backtrack(now::get, f.client);
+        Backtrack module = new Backtrack(now::get, f.client); module.getBooleanSetting("Only Aura").setValue(false);
         module.getModeSetting("Target Source").setValue("Attack / Cursor");
         module.getNumberSetting("Target Hold MS").setValue(350D);
         module.getModeSetting("Delay Mode").setValue("Range");

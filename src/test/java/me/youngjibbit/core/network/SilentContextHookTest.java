@@ -23,7 +23,7 @@ public class SilentContextHookTest {
     }
     @Test public void silentCorrectionNeedsFreshTickbaseEvidenceEvenWithTheSamePlayerWorldAndConnection() throws Exception {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
-            Tickbase tick=new Tickbase(()->0,f.client);tick.getBooleanSetting("Debug").setValue(true);tick.setToggled(true);
+            Tickbase tick=new Tickbase(()->0,f.client); tick.getBooleanSetting("Only Aura").setValue(false);tick.getBooleanSetting("Debug").setValue(true);tick.setToggled(true);
             try {
                 f.cursor(f.enemy(7,3));Tickbase.beginFrame(f.client,false,1,50);
                 Tickbase.runPlayerStep(f.player,()->true);assertEquals(1,tick.getDiagnostics().credit);
@@ -36,7 +36,7 @@ public class SilentContextHookTest {
     }
     @Test public void silentCorrectionDropsAnOldAttackLockInsteadOfOverridingFreshCursorEvidence() throws Exception {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
-            Backtrack back=new Backtrack(()->0,f.client);back.getModeSetting("Target Source").setValue("Attack / Cursor");
+            Backtrack back=new Backtrack(()->0,f.client); back.getBooleanSetting("Only Aura").setValue(false);back.getModeSetting("Target Source").setValue("Attack / Cursor");
             back.getBooleanSetting("Diagnostics").setValue(true);back.setToggled(true);
             try {
                 ExploitHookFixture.Enemy a=f.enemy(7,3),b=f.enemy(8,3);f.cursor(b);

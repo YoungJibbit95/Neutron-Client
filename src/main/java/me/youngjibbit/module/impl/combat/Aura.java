@@ -214,6 +214,15 @@ public class Aura extends Module {
         return options;
     }
 
+    /** Current selection, revalidated for dependent modules between Aura updates. */
+    public EntityLivingBase getActiveTarget() {
+        if (!usable() || worldContext != mc.theWorld || playerContext != mc.thePlayer || target == null
+                || target.worldObj != mc.theWorld || mc.theWorld.getEntityByID(target.getEntityId()) != target
+                || !mc.theWorld.loadedEntityList.contains(target)
+                || !RuntimeServices.targeting().isValidTarget(target, acquisitionOptions())) return null;
+        return target;
+    }
+
     @Subscribe
     private final Listener<TickEvent> onContextTick = new Listener<>(event -> {
         if (!usable()) clearCombat(mc == null || mc.thePlayer == null || mc.theWorld == null);

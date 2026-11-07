@@ -61,7 +61,7 @@ public class LegacyNetworkModuleBindingChecks {
         public void close(){for(Module module:enabled)module.setToggled(false);pipe.close();CombatTargetTracker.clear();f.mc.objectMouseOver=null;while(f.channel.readOutbound()!=null){}}
     }
     private boolean active(Module module) throws Exception {java.lang.reflect.Field field=module.getClass().getDeclaredField("delayOwner");field.setAccessible(true);return ((PingSpoofComponent.Owner)field.get(module)).isActive();}
-    private Backtrack back(Setup s){Backtrack back=new Backtrack(s.clock::get,(min,max)->max);back.getModeSetting("Target Source").setValue("Combat / Nearest");back.getModeSetting("Delay Mode").setValue("Fixed");back.getNumberSetting("Delay").setValue(125D);back.getNumberSetting("Min Range").setValue(3D);back.getNumberSetting("Cooldown Ticks").setValue(0D);return back;}
+    private Backtrack back(Setup s){Backtrack back=new Backtrack(s.clock::get,(min,max)->max); back.getBooleanSetting("Only Aura").setValue(false);back.getModeSetting("Target Source").setValue("Combat / Nearest");back.getModeSetting("Delay Mode").setValue("Fixed");back.getNumberSetting("Delay").setValue(125D);back.getNumberSetting("Min Range").setValue(3D);back.getNumberSetting("Cooldown Ticks").setValue(0D);return back;}
 
     @Test public void fixedBacktrackDelayAndMinimumDistanceReachTheActualReceiptQueue() throws Exception {
         try(Setup s=new Setup()) {
@@ -80,7 +80,7 @@ public class LegacyNetworkModuleBindingChecks {
     }
     @Test public void lagTickWindowsReleaseEveryMovementInOrderAndHonorSwingAndRangeControls() throws Exception {
         try(Setup s=new Setup()) {
-            LagRange lag=new LagRange(s.clock::get,(min,max)->max);lag.getModeSetting("Delay Mode").setValue("Ticks");lag.getNumberSetting("Window Ticks").setValue(2D);lag.getNumberSetting("Max Target Range").setValue(1D);lag.getNumberSetting("Preactivation").setValue(2D);lag.getBooleanSetting("Only Swinging").setValue(true);s.f.player.isSwingInProgress=true;s.enable(lag);s.tick(0);
+            LagRange lag=new LagRange(s.clock::get,(min,max)->max); lag.getBooleanSetting("Only Aura").setValue(false);lag.getModeSetting("Delay Mode").setValue("Ticks");lag.getNumberSetting("Window Ticks").setValue(2D);lag.getNumberSetting("Max Target Range").setValue(1D);lag.getNumberSetting("Preactivation").setValue(2D);lag.getBooleanSetting("Only Swinging").setValue(true);s.f.player.isSwingInProgress=true;s.enable(lag);s.tick(0);
             lag.getNumberSetting("Start Distance").setValue(0D);s.tick(0);
             List<Packet<?>> packets=Arrays.<Packet<?>>asList(new C03PacketPlayer.C04PacketPlayerPosition(1,64,.5,true),new C03PacketPlayer.C04PacketPlayerPosition(2,64,.5,true),new C03PacketPlayer.C04PacketPlayerPosition(3,64,.5,true));for(Packet<?> packet:packets)s.send(packet);
             assertTrue(s.sent.isEmpty());s.tick(7);assertTrue(s.sent.isEmpty());s.tick(8);assertEquals(packets,s.sent);assertEquals(3,s.f.player.getLastReportedPosition().xCoord,0);
@@ -93,7 +93,7 @@ public class LegacyNetworkModuleBindingChecks {
     @Test public void overlappingWindowsReleaseOnlyTheirOwnHoldsAndDiscardTheOldWorld() throws Exception {
         try(Setup s=new Setup()) {
             Backtrack back=back(s);back.getNumberSetting("Delay").setValue(200D);s.enable(back);
-            LagRange lag=new LagRange(s.clock::get,(min,max)->min);lag.getModeSetting("Delay Mode").setValue("Ticks");s.enable(lag);s.tick(0);
+            LagRange lag=new LagRange(s.clock::get,(min,max)->min); lag.getBooleanSetting("Only Aura").setValue(false);lag.getModeSetting("Delay Mode").setValue("Ticks");s.enable(lag);s.tick(0);
             lag.getNumberSetting("Start Distance").setValue(0D);s.tick(0);
             Packet<?> inbound=new S14PacketEntity.S15PacketEntityRelMove(7,(byte)32,(byte)0,(byte)0,true);s.receive(inbound);Packet<?> outbound=new C03PacketPlayer(true);s.send(outbound);
             assertTrue(s.applied.isEmpty());assertTrue(s.sent.isEmpty());s.tick(100);assertEquals(Collections.singletonList(outbound),s.sent);assertTrue(s.applied.isEmpty());assertTrue(active(back));
@@ -104,7 +104,7 @@ public class LegacyNetworkModuleBindingChecks {
     }
     @Test public void tickbaseCooldownSpendsOnlyEarnedStepsWithoutRewindingPoseOrChangingTheTimer() throws Exception {
         try(Setup s=new Setup()) {
-            Tickbase tick=new Tickbase(s.clock::get);tick.getNumberSetting("Charge Ticks").setValue(3D);tick.getNumberSetting("Min Charge").setValue(3D);tick.getNumberSetting("Release Speed").setValue(2D);tick.getNumberSetting("Delay").setValue(300D);tick.getBooleanSetting("Require Target").setValue(false);s.enable(tick);
+            Tickbase tick=new Tickbase(s.clock::get); tick.getBooleanSetting("Only Aura").setValue(false);tick.getNumberSetting("Charge Ticks").setValue(3D);tick.getNumberSetting("Min Charge").setValue(3D);tick.getNumberSetting("Release Speed").setValue(2D);tick.getNumberSetting("Delay").setValue(300D);tick.getBooleanSetting("Require Target").setValue(false);s.enable(tick);
             java.lang.reflect.Field field=Tickbase.class.getDeclaredField("budget");field.setAccessible(true);TickbaseBudget budget=(TickbaseBudget)field.get(tick);AtomicInteger simulation=new AtomicInteger();
             Vec3 before=s.f.player.getPositionVector();float yaw=s.f.player.rotationYaw;
             for(int i=0;i<5;i++){s.clock.set(i*50000000L);Tickbase.beginFrame(s.f.mc,false,1,50);Tickbase.runPlayerStep(s.f.player,()->{simulation.incrementAndGet();return true;});}
@@ -122,7 +122,7 @@ public class LegacyNetworkModuleBindingChecks {
             s.f.mc.theWorld.loadedEntityList.clear();s.f.mc.theWorld.loadedEntityList.add(target);
             Backtrack back=back(s);s.enable(back);s.tickTarget(target,0);s.receive(new S14PacketEntity.S15PacketEntityRelMove(8,(byte)32,(byte)0,(byte)0,true));assertFalse(active(back));
             back.getBooleanSetting(type==Animal.class?"Animals":"Mobs").setValue(true);s.tickTarget(target,1);s.receive(new S14PacketEntity.S15PacketEntityRelMove(8,(byte)32,(byte)0,(byte)0,true));assertTrue(active(back));back.setToggled(false);
-            LagRange lag=new LagRange(s.clock::get,(min,max)->max);lag.getBooleanSetting("Animals").setValue(false);lag.getBooleanSetting("Mobs").setValue(true);lag.getNumberSetting("Start Distance").setValue(0D);s.enable(lag);s.tickTarget(target,2);assertEquals(type==Mob.class,active(lag));
+            LagRange lag=new LagRange(s.clock::get,(min,max)->max); lag.getBooleanSetting("Only Aura").setValue(false);lag.getBooleanSetting("Animals").setValue(false);lag.getBooleanSetting("Mobs").setValue(true);lag.getNumberSetting("Start Distance").setValue(0D);s.enable(lag);s.tickTarget(target,2);assertEquals(type==Mob.class,active(lag));
             if(type==Animal.class){lag.getBooleanSetting("Animals").setValue(true);s.tickTarget(target,3);assertTrue(active(lag));}
         }
     }

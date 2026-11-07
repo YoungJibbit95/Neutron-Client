@@ -11,7 +11,7 @@ import static org.junit.Assert.*;
 public class BacktrackArsenicTest {
     @Test public void intaveDrainsHeldTargetMovementBeforeHurtFeedback() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
-            Backtrack back = new Backtrack(() -> 0L, f.client);
+            Backtrack back = new Backtrack(() -> 0L, f.client); back.getBooleanSetting("Only Aura").setValue(false);
             back.getModeSetting("Backtrack Mode").setValue("Intave");
             back.setToggled(true);
             try {
@@ -27,7 +27,7 @@ public class BacktrackArsenicTest {
     }
     @Test public void defaultRequiresAcceptedAttackAndReleasesWhenRealTargetComesCloser() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
-            AtomicLong now = new AtomicLong(); Backtrack back = new Backtrack(now::get, f.client);
+            AtomicLong now = new AtomicLong(); Backtrack back = new Backtrack(now::get, f.client); back.getBooleanSetting("Only Aura").setValue(false);
             back.getBooleanSetting("Diagnostics").setValue(true); back.setToggled(true);
             try {
                 ExploitHookFixture.Enemy enemy = f.enemy(7, 3); f.cursor(enemy); Pulsar.BUS.post(new TickEvent());

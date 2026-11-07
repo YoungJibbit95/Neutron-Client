@@ -34,7 +34,7 @@ public class PlayerStepHookTest {
         mc.thePlayer=player;mc.theWorld=world;mc.inGameHasFocus=true;mc.timer=new Timer(20,()->0);
         Field send=EntityPlayerSP.class.getDeclaredField("sendQueue");send.setAccessible(true);send.set(player,connection.play);
         connection.play.clientWorldController=world;
-        Tickbase module=new Tickbase(System::nanoTime,mc);CancelUpdate cancel=new CancelUpdate();
+        Tickbase module=new Tickbase(System::nanoTime,mc); module.getBooleanSetting("Only Aura").setValue(false);CancelUpdate cancel=new CancelUpdate();
         module.getBooleanSetting("Require Target").setValue(false);
         Field budgetField=Tickbase.class.getDeclaredField("budget");budgetField.setAccessible(true);TickbaseBudget budget=(TickbaseBudget)budgetField.get(module);
         Pulsar.BUS.subscribe(cancel);module.setToggled(true);

@@ -501,6 +501,8 @@ public class ConfigManager {
     private static void defaultSetting(Change change,String name,Object value) {Value<?> setting=change.module.getValueByName(name);if(setting!=null && !change.values.containsKey(setting))change.values.put(setting,value);}
     private static void migrateNetworkOptions(Plan plan,Change change) {
         String id=change.module.getId();
+        if (id.equals("backtrack") || id.equals("lagrange") || id.equals("tickbase"))
+            defaultSetting(change, "only_aura", true);
         if(id.equals("backtrack")) {
             defaultSetting(change,"delay_mode",change.legacyBacktrack?"Fixed":"Range");
             defaultSetting(change,"target_source",change.currentNetwork?"Attack / Cursor":change.legacyBacktrack?"Combat / Cursor":"Combat / Nearest");

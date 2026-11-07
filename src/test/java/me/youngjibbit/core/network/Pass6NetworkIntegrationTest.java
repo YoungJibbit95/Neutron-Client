@@ -19,7 +19,7 @@ public class Pass6NetworkIntegrationTest {
     }
     @Test public void historicalCombatAndExplicitNearestRemainDifferentFromAcceptedAttackSelection() throws Exception {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
-            Backtrack back=new Backtrack(()->0,f.client);back.getBooleanSetting("Diagnostics").setValue(true);back.setToggled(true);
+            Backtrack back=new Backtrack(()->0,f.client); back.getBooleanSetting("Only Aura").setValue(false);back.getBooleanSetting("Diagnostics").setValue(true);back.setToggled(true);
             try {
                 ExploitHookFixture.Enemy far=f.enemy(7,4),near=f.enemy(8,2.8);f.cursor(near);CombatTargetTracker.update(far,"aura");
                 back.getModeSetting("Target Source").setValue("Combat / Nearest");Pulsar.BUS.post(new TickEvent());assertEquals(7,back.getDiagnostics().targetId);assertEquals("combat",back.getDiagnostics().source);
@@ -31,7 +31,7 @@ public class Pass6NetworkIntegrationTest {
     }
     @Test public void fixedDelayUsesReceiptsFromBeforeAcquisitionWithoutASecondShadowOrRandomDraw() throws Exception {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
-            Backtrack back=new Backtrack(()->0,f.client,(min,max)->{throw new AssertionError("Fixed mode must not draw another delay");});
+            Backtrack back=new Backtrack(()->0,f.client,(min,max)->{throw new AssertionError("Fixed mode must not draw another delay");}); back.getBooleanSetting("Only Aura").setValue(false);
             back.getModeSetting("Target Source").setValue("Attack / Cursor");
             back.getModeSetting("Delay Mode").setValue("Fixed");back.getNumberSetting("Delay").setValue(125D);back.getBooleanSetting("Diagnostics").setValue(true);back.setToggled(true);
             Object other=new Object();
@@ -46,7 +46,7 @@ public class Pass6NetworkIntegrationTest {
     }
     @Test public void optedInLivingTargetsUseAcceptedAttacksAndExactEntityIdentity() throws Exception {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
-            AtomicLong now=new AtomicLong();Backtrack back=new Backtrack(now::get,f.client);back.getBooleanSetting("Diagnostics").setValue(true);
+            AtomicLong now=new AtomicLong();Backtrack back=new Backtrack(now::get,f.client); back.getBooleanSetting("Only Aura").setValue(false);back.getBooleanSetting("Diagnostics").setValue(true);
             back.getModeSetting("Delay Mode").setValue("Fixed");back.getNumberSetting("Delay").setValue(500D);back.setToggled(true);
             try {
                 Animal animal=AttackHookTest.bare(Animal.class);animal.worldObj=f.world;animal.setEntityId(9);animal.posX=3;animal.serverPosX=96;animal.hurtTime=4;animal.setEntityBoundingBox(new AxisAlignedBB(2.7,0,-.3,3.3,1.8,.3));f.world.entities.put(9,animal);f.world.loadedEntityList.add(animal);f.cursor(animal);

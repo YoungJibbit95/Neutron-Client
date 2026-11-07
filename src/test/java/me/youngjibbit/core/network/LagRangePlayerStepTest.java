@@ -21,7 +21,7 @@ public class LagRangePlayerStepTest {
     @Test public void withholdingRejectsUnpublishedDigLookButStillReleasesExistingDig() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             f.player.ticksExisted = 120; f.enemy(7, 3);
-            LagRange lag = new LagRange(() -> 0, (min, max) -> min); lag.setToggled(true);
+            LagRange lag = new LagRange(() -> 0, (min, max) -> min); lag.getBooleanSetting("Only Aura").setValue(false); lag.setToggled(true);
             try {
                 Pulsar.BUS.post(new TickEvent()); LagRange.beginFrame(f.client, false, 1, 50);
                 LagRange.runPlayerStep(f.player, () -> { fail("hurt target should allow an earned withheld body"); return true; });
@@ -43,7 +43,7 @@ public class LagRangePlayerStepTest {
             f.player.ticksExisted = 120; f.player.movementInput = new MovementInput();
             f.player.movementInput.moveForward = 1; f.player.rotationYaw = -90;
             ExploitHookFixture.Enemy enemy = f.enemy(7, 3);
-            LagRange lag = new LagRange(now::get, (min, max) -> min); lag.setToggled(true);
+            LagRange lag = new LagRange(now::get, (min, max) -> min); lag.getBooleanSetting("Only Aura").setValue(false); lag.setToggled(true);
             try {
                 Pulsar.BUS.post(new TickEvent());
                 for (int tick = 0; tick < 3; tick++) {
@@ -74,7 +74,7 @@ public class LagRangePlayerStepTest {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             f.player.ticksExisted = 120; f.enemy(7, 3);
             AtomicInteger bodies = new AtomicInteger();
-            LagRange lag = new LagRange(() -> 0, (min, max) -> min); lag.setToggled(true);
+            LagRange lag = new LagRange(() -> 0, (min, max) -> min); lag.getBooleanSetting("Only Aura").setValue(false); lag.setToggled(true);
             try {
                 Pulsar.BUS.post(new TickEvent()); LagRange.beginFrame(f.client, false, 1, 50);
                 f.connection.network.sendPacket(new C0APacketAnimation());

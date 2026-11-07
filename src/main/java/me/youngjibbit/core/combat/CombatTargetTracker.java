@@ -21,6 +21,15 @@ public final class CombatTargetTracker {
         return primaryTarget;
     }
 
+    /** Read Aura directly so cursor, manual attacks and AimAssist cannot authorize its dependants. */
+    public static EntityLivingBase getAuraTarget() {
+        me.youngjibbit.module.ModuleManager modules = me.youngjibbit.Pulsar.INSTANCE.getMm();
+        if (modules == null) return null;
+        me.youngjibbit.module.impl.combat.Aura aura =
+                (me.youngjibbit.module.impl.combat.Aura) modules.getModule(me.youngjibbit.module.impl.combat.Aura.class);
+        return aura == null ? null : aura.getActiveTarget();
+    }
+
     public static EntityLivingBase getPrimaryTarget(long maxAgeMs) {
         EntityLivingBase target = primaryTarget;
         if (target == null) {
