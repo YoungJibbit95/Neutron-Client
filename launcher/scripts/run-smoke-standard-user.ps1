@@ -51,9 +51,14 @@ try {
     [Environment]::SetEnvironmentVariable('NEUTRON_DATA_ROOT', $null, 'Process')
     [Environment]::SetEnvironmentVariable('NEUTRON_OFFLINE', $null, 'Process')
     if ([Security.Principal.WindowsIdentity]::GetCurrent().User.Value -ne '__SID__') { throw 'Wrong standard-user SID.' }
-    $env:APPDATA = [Environment]::GetFolderPath('ApplicationData')
-    $profile = [Environment]::GetFolderPath('UserProfile')
-    if (-not $env:APPDATA.StartsWith($profile + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Application data does not belong to the test profile.' }
+    $profile = [Environment]::ExpandEnvironmentVariables((Get-ItemProperty -LiteralPath 'HKLM:\Software\Microsoft\Windows NT\CurrentVersion\ProfileList\__SID__').ProfileImagePath)
+    if (-not [IO.Path]::IsPathRooted($profile) -or -not (Test-Path -LiteralPath $profile -PathType Container)) { throw 'The actual standard-user profile was not loaded.' }
+    $env:USERPROFILE = $profile
+    $env:HOMEDRIVE = [IO.Path]::GetPathRoot($profile).TrimEnd('\')
+    $env:HOMEPATH = $profile.Substring($env:HOMEDRIVE.Length)
+    $env:APPDATA = [Environment]::GetFolderPath('ApplicationData', 'Create')
+    $env:LOCALAPPDATA = [Environment]::GetFolderPath('LocalApplicationData', 'Create')
+    if (-not $env:APPDATA.StartsWith($profile + '\', [StringComparison]::OrdinalIgnoreCase) -or -not $env:LOCALAPPDATA.StartsWith($profile + '\', [StringComparison]::OrdinalIgnoreCase)) { throw "Application data does not belong to the loaded test profile: profile=$profile, roaming=$env:APPDATA, local=$env:LOCALAPPDATA." }
     $env:TEMP = '__ROOT__\temp'; $env:TMP = $env:TEMP
     New-Item -ItemType Directory -Path $env:TEMP | Out-Null
     Set-Location -LiteralPath '__WORKING__'
