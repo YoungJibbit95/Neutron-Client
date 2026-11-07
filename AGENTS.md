@@ -19,3 +19,9 @@
 - `.idea`, `target`, `test_run`, `run-local`, Assets, Konten und Welten sind lokale Daten und gehören nicht in neue Commits. Der vorhandene Ordner `test_run` wird direkt weiterverwendet; keine vollständige Kopie davon anlegen.
 - Java für Projekt, Maven-Runner und Client ist Temurin 8u482. IntelliJ-Konfiguration: `Neutron Client (Java 8)` beziehungsweise vorhandenes `Launch Pulsar`. Details in `docs/DEVELOPMENT-WORKFLOW.md`.
 - Abschluss: Hauptcheckout/Branch, Commit-SHA, PR-Link, Tests, entfernte Worktrees und verbleibende ungesicherte Änderungen nennen.
+
+# Auftrag für den Performance-Agenten
+
+- Optimiere Minecraft Java 1.8.9 und Neutron als gemeinsamen Client. Der Auftrag umfasst ausdrücklich auch schwer wartbare oder langsame Vanilla-Pfade, besonders dort, wo Neutrons Module und Renderer zusätzliche Arbeit auslösen.
+- Nutze die GPU für geeignete Renderarbeit und zusätzliche CPU-Kerne für unabhängige Berechnungen, wenn der gesamte Frame dadurch schneller oder gleichmäßiger wird. Berücksichtige dabei Datenübertragung, Synchronisation und die Bindung von Spielzustand und OpenGL-Kontext an ihre Threads.
+- Vergleiche denselben Ablauf vor und nach der Änderung. Belege die Wirkung möglichst anhand von Framezeiten und Lastverteilung im Client und prüfe Bildqualität, Eingabereaktion und Spielverhalten auf Regressionen. Weise Messungen an einzelnen Methoden als solche aus.
