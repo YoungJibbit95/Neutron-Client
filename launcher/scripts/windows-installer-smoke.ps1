@@ -32,7 +32,7 @@ if ((Test-Path -LiteralPath $uninstallKey) -or (Test-Path -LiteralPath $installK
 $runnerRoot = [IO.Path]::GetFullPath($env:RUNNER_TEMP)
 $fixture = Join-Path $runnerRoot "neutron-installer-smoke-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
 if (Test-Path -LiteralPath $fixture) { throw 'Acceptance fixture already exists.' }
-$installed = Join-Path $fixture 'Install PrÃ¼fung'
+$installed = Join-Path $fixture 'Install Prüfung'
 $executable = Join-Path $installed 'Neutron Launcher.exe'
 $installer = @(Get-ChildItem -LiteralPath $env:NEUTRON_PACKAGE_OUTPUT -Filter '*.exe' -File)
 if ($installer.Count -ne 1) { throw 'Expected exactly one NSIS candidate.' }
