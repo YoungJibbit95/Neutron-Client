@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "channel": "alpha",
-  "launcherVersion": "0.2.0-alpha.1",
+  "channel": "stable",
+  "launcherVersion": "0.2.0",
   "clientCommit": "529ec4cd32a72751e188a74f1c8c5c5803cb8beb",
   "sourceArchiveSha256": "1f8167148165503f362374e900b3fecb4dbeb366c24cab19d24c6ba4f5fbc1bd",
   "testedClientCommit": "529ec4cd32a72751e188a74f1c8c5c5803cb8beb"

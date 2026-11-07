@@ -1,4 +1,4 @@
-# Neutron Launcher — Windows x64 Alpha
+# Neutron Launcher — Windows x64
 
 Electron/React launcher with managed Java/Maven, verified Minecraft assets, commit-specific local client builds, persistent options and real process output. The installer prepares the pinned client before completing, so Play starts the local version without Maven. The four views share the Sunset Graphite theme and Neutron's Liquid Glass material, with a resizable console and opaque CSS fallback. Reduced motion and zero effects skip GPU allocation. See the [installation and release contract](docs/ALPHA-INSTALLATION.md).
 
@@ -16,7 +16,7 @@ Desktop development requires an absolute `NEUTRON_DATA_ROOT` for isolated launch
 
 ## Current limitations
 
-The user authorized an unsigned Windows x64 Alpha. Signing/SmartScreen reputation is not claimed. Only the exact installer that passes final acceptance may be published; see the current gates for executed and pending checks. No Linux/macOS support is claimed.
+Version 0.2.0 targets the requested stable release channel. The installer is unsigned; signing/SmartScreen reputation is not claimed. Only the exact installer that passes final acceptance may be published; see the current gates for executed and pending checks. No Linux/macOS support is claimed.
 
 ## Reviewed source builds
 

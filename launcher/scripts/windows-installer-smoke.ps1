@@ -6,6 +6,17 @@ if ($env:GITHUB_ACTIONS -ne 'true' -or $env:RUNNER_ENVIRONMENT -ne 'github-hoste
     throw 'Installer acceptance requires a disposable GitHub-hosted Windows runner.'
 }
 $principal = [Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent())
+function Wait-OwnedExecutable($process, [string]$executable, [int]$seconds) {
+    # -Wait also waits for unrelated long-lived descendants. The executable's
+    # real exit plus the receipt/state/file checks define each installer step.
+    if ($process.WaitForExit($seconds * 1000)) { return }
+    $identity = Get-CimInstance Win32_Process -Filter "ProcessId=$($process.Id)"
+    if ($identity -and $identity.ExecutablePath -eq $executable) {
+        & "$env:SystemRoot/System32/taskkill.exe" /PID $process.Id /T /F | Out-Null
+        $process.WaitForExit(10000) | Out-Null
+    }
+    throw "Timed out waiting for the owned executable: $executable."
+}
 if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     if ($env:NEUTRON_SMOKE_STANDARD_CHILD -eq '1') { throw 'Standard CI child has administrator privileges; refusing acceptance.' }
     & (Join-Path $PSScriptRoot 'run-smoke-standard-user.ps1')
@@ -34,7 +45,8 @@ $receipt = [ordered]@{ installerSha256 = (Get-FileHash -LiteralPath $installer[0
 function Install-Candidate {
     $began = [datetime]::UtcNow
     # NSIS /D must be last and unquoted, including when the directory has spaces.
-    $process = Start-Process -FilePath $installer[0].FullName -ArgumentList "/S /currentuser /D=$installed" -WindowStyle Hidden -Wait -PassThru
+    $process = Start-Process -FilePath $installer[0].FullName -ArgumentList "/S /currentuser /D=$installed" -WindowStyle Hidden -PassThru
+    Wait-OwnedExecutable $process $installer[0].FullName 1200
     $present = Test-Path -LiteralPath $executable
     if ($process.ExitCode -ne 0 -or -not $present) { throw "NSIS installation failed: exit=$($process.ExitCode), exePresent=$present, target=$installed, elevated=$($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))." }
     $preparation = Get-Content -LiteralPath (Join-Path $data 'logs/installer-result.json') -Raw | ConvertFrom-Json
@@ -49,7 +61,8 @@ function Install-Candidate {
     if ((Get-FileHash -LiteralPath $marker).Hash -ne $markerHash) { throw 'Installation modified personal data.' }
 }
 
-$allUsers = Start-Process -FilePath $installer[0].FullName -ArgumentList "/S /allusers /D=$installed" -WindowStyle Hidden -Wait -PassThru
+$allUsers = Start-Process -FilePath $installer[0].FullName -ArgumentList "/S /allusers /D=$installed" -WindowStyle Hidden -PassThru
+Wait-OwnedExecutable $allUsers $installer[0].FullName 60
 if ($allUsers.ExitCode -eq 0 -or (Test-Path -LiteralPath $executable)) { throw 'All-users Alpha installation was not refused.' }
 $receipt.allUsersRefusal = 'passed'
 Install-Candidate
@@ -61,7 +74,8 @@ if ($preparedReceipt.clientCommit -ne $pin.clientCommit -or $preparedReceipt.sou
     throw 'Installer did not finish preparing the exact pinned client.'
 }
 $receipt.clientPreparation = $preparedReceipt
-$offline = Start-Process -FilePath $executable -ArgumentList '--verify-alpha' -WindowStyle Hidden -Wait -PassThru
+$offline = Start-Process -FilePath $executable -ArgumentList '--verify-alpha' -WindowStyle Hidden -PassThru
+Wait-OwnedExecutable $offline $executable 120
 if ($offline.ExitCode -ne 0) { throw 'Installed client/runtime verification failed.' }
 $receipt.localVerification = Get-Content -LiteralPath (Join-Path $data 'logs/offline-verification.json') -Raw | ConvertFrom-Json
 $env:NEUTRON_DATA_ROOT = $data
@@ -93,7 +107,8 @@ $stateFile = Join-Path $data 'state.json'
 $savedState = [IO.File]::ReadAllBytes($stateFile)
 $savedHash = (Get-FileHash -LiteralPath $stateFile).Hash
 function Assert-FailedPreparation([string]$label) {
-    $attempt = Start-Process -FilePath $installer[0].FullName -ArgumentList "/S /currentuser /D=$installed" -WindowStyle Hidden -Wait -PassThru
+    $attempt = Start-Process -FilePath $installer[0].FullName -ArgumentList "/S /currentuser /D=$installed" -WindowStyle Hidden -PassThru
+    Wait-OwnedExecutable $attempt $installer[0].FullName 120
     if ($attempt.ExitCode -eq 0) { throw "$label unexpectedly reported installation success." }
     if ((Get-FileHash -LiteralPath $marker).Hash -ne $markerHash) { throw "$label changed personal fixture data." }
 }
@@ -128,7 +143,8 @@ $receipt.failureCases = 'invalid registry, denied receipt and corrupt offline ca
 $receipt.reinstall = 'passed; all launcher networking denied'
 $receipt.warmPreparation = Get-Content -LiteralPath $prepared -Raw | ConvertFrom-Json
 $uninstaller = Join-Path $installed 'Uninstall Neutron Launcher.exe'
-$process = Start-Process -FilePath $uninstaller -ArgumentList '/S /currentuser /KEEP_APP_DATA' -WindowStyle Hidden -Wait -PassThru
+$process = Start-Process -FilePath $uninstaller -ArgumentList '/S /currentuser /KEEP_APP_DATA' -WindowStyle Hidden -PassThru
+Wait-OwnedExecutable $process $uninstaller 120
 if ($process.ExitCode -ne 0) { throw 'NSIS uninstaller failed.' }
 $deadline = (Get-Date).AddSeconds(45)
 while (Test-Path -LiteralPath $executable) {

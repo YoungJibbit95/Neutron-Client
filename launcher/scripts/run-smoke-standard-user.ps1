@@ -14,7 +14,8 @@ $installerHash = (Get-FileHash -LiteralPath $candidate[0].FullName -Algorithm SH
 $asar = Join-Path $env:NEUTRON_PACKAGE_OUTPUT 'win-unpacked/resources/app.asar'
 $asarHash = (Get-FileHash -LiteralPath $asar -Algorithm SHA256).Hash
 $refused = Join-Path $env:RUNNER_TEMP "neutron-elevated-refused-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
-$denied = Start-Process -FilePath $candidate[0].FullName -ArgumentList "/S /currentuser /D=$refused" -WindowStyle Hidden -Wait -PassThru
+$denied = Start-Process -FilePath $candidate[0].FullName -ArgumentList "/S /currentuser /D=$refused" -WindowStyle Hidden -PassThru
+if (-not $denied.WaitForExit(60000)) { throw 'Elevated refusal did not exit in 60 seconds.' }
 if ($denied.ExitCode -eq 0 -or (Test-Path -LiteralPath (Join-Path $refused 'Neutron Launcher.exe')) -or (Test-Path -LiteralPath $existing)) {
     throw "Elevated installation was not refused before writing application/data (exit $($denied.ExitCode))."
 }
@@ -56,11 +57,22 @@ try {
     $env:USERPROFILE = $profile
     $env:HOMEDRIVE = [IO.Path]::GetPathRoot($profile).TrimEnd('\')
     $env:HOMEPATH = $profile.Substring($env:HOMEDRIVE.Length)
-    $env:APPDATA = [Environment]::GetFolderPath('ApplicationData', 'Create')
-    $env:LOCALAPPDATA = [Environment]::GetFolderPath('LocalApplicationData', 'Create')
+    # The bootstrap PowerShell may have cached the parent's KnownFolder values.
+    # This fresh disposable profile has no folder redirection. Set the complete
+    # user environment before spawning NSIS/Electron, and create its real paths.
+    $env:APPDATA = Join-Path $profile 'AppData/Roaming'
+    $env:LOCALAPPDATA = Join-Path $profile 'AppData/Local'
+    New-Item -ItemType Directory -Path $env:APPDATA, $env:LOCALAPPDATA -Force | Out-Null
     if (-not $env:APPDATA.StartsWith($profile + '\', [StringComparison]::OrdinalIgnoreCase) -or -not $env:LOCALAPPDATA.StartsWith($profile + '\', [StringComparison]::OrdinalIgnoreCase)) { throw "Application data does not belong to the loaded test profile: profile=$profile, roaming=$env:APPDATA, local=$env:LOCALAPPDATA." }
     $env:TEMP = '__ROOT__\temp'; $env:TMP = $env:TEMP
     New-Item -ItemType Directory -Path $env:TEMP | Out-Null
+    $probe = '__ROOT__\known-folders.ps1'
+    [IO.File]::WriteAllText($probe, '$ErrorActionPreference="Stop";[ordered]@{sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value;roaming=[Environment]::GetFolderPath("ApplicationData","Create");local=[Environment]::GetFolderPath("LocalApplicationData","Create")} | ConvertTo-Json | Set-Content -LiteralPath "__ROOT__\known-folders.json"')
+    $checked = Start-Process -FilePath (Join-Path $PSHOME 'pwsh.exe') -ArgumentList "-NoProfile -NonInteractive -WindowStyle Hidden -File `"$probe`"" -WorkingDirectory '__ROOT__' -WindowStyle Hidden -PassThru
+    if (-not $checked.WaitForExit(30000)) { throw 'Fresh KnownFolder process did not exit in 30 seconds.' }
+    if ($checked.ExitCode -ne 0) { throw 'Fresh standard-user KnownFolder probe failed.' }
+    $folders = Get-Content -LiteralPath '__ROOT__\known-folders.json' -Raw | ConvertFrom-Json
+    if ($folders.sid -ne '__SID__' -or $folders.roaming -ne $env:APPDATA -or $folders.local -ne $env:LOCALAPPDATA) { throw "Fresh child has wrong KnownFolders: roaming=$($folders.roaming), local=$($folders.local)." }
     Set-Location -LiteralPath '__WORKING__'
     & '__SCRIPT__' *> '__LOG__'
 } catch {
@@ -90,7 +102,23 @@ exit $code
     [IO.File]::WriteAllText($wrapper, $body)
     $credential = [pscredential]::new(($env:COMPUTERNAME + '\' + $name), $password)
     $child = Start-Process -FilePath (Join-Path $PSHOME 'pwsh.exe') -Credential $credential -LoadUserProfile -WorkingDirectory $root -ArgumentList "-NoProfile -NonInteractive -WindowStyle Hidden -File `"$wrapper`"" -WindowStyle Hidden -PassThru
-    if (-not $child.WaitForExit(45 * 60 * 1000)) {
+    $deadline = [datetime]::UtcNow.AddMinutes(35)
+    $previousTrace = ''
+    while (-not $child.WaitForExit(15000)) {
+        $testProfile = Get-ItemProperty -LiteralPath "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\ProfileList\$sid" -ErrorAction SilentlyContinue
+        if ($testProfile) {
+            $profilePath = [Environment]::ExpandEnvironmentVariables($testProfile.ProfileImagePath)
+            $active = @(Get-CimInstance Win32_Process | Where-Object {
+                ($_.ExecutablePath -and ($_.ExecutablePath.StartsWith($profilePath, [StringComparison]::OrdinalIgnoreCase) -or $_.ExecutablePath.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)))
+            } | ForEach-Object { "$($_.Name):$($_.ProcessId)" })
+            Write-Host ('Standard-user acceptance still active: ' + ($active -join ', '))
+            $buildLog = Join-Path $profilePath 'AppData/Roaming/Neutron Launcher/logs/build.log'
+            if (Test-Path -LiteralPath $buildLog) {
+                $trace = (Get-Content -LiteralPath $buildLog -Tail 3) -join "`n"
+                if ($trace -ne $previousTrace) { $trace.Replace($profilePath, '[CI_PROFILE]'); $previousTrace = $trace }
+            } else { Write-Host 'Waiting for standard-user installer/preparer startup.' }
+        }
+        if ([datetime]::UtcNow -lt $deadline) { continue }
         $owned = Get-CimInstance Win32_Process -Filter "ProcessId=$($child.Id)"
         if ($owned -and $owned.CommandLine -and $owned.CommandLine.Contains($wrapper)) {
             & "$env:SystemRoot/System32/taskkill.exe" /PID $child.Id /T /F | Out-Null

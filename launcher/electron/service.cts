@@ -92,7 +92,7 @@ export class LauncherService extends EventEmitter {
     const controller = new AbortController(); const group = this.createProcessGroup(); this.taskProcesses = group; this.task = controller; this.state.status = 'prepare'; this.state.error = null; this.changed();
     this.taskPromise = (async () => {
       let failure: unknown = null; let cancelled = false;
-      try { await work(controller.signal, group); try { await this.logs.flush(); } catch (error) { if (!this.alphaCommitted) throw error; console.error('Alpha is installed; diagnostic flush failed:', error); } }
+      try { await work(controller.signal, group); try { await this.logs.flush(); } catch (error) { if (!this.alphaCommitted) throw error; console.error('Neutron is installed; diagnostic flush failed:', error); } }
       catch (error) { failure = error; cancelled = controller.signal.aborted; this.state.error = cancelled ? 'Operation cancelled. Installed versions are unchanged.' : redact(String(error)); this.logs.add('build', this.state.error, cancelled ? 'warn' : 'error'); controller.abort(error); }
       finally {
         // Failed termination must not release the task/versions while a child
@@ -168,26 +168,26 @@ export class LauncherService extends EventEmitter {
   // Installer entry point: setup is complete only when this exact immutable
   // client and its full local runtime can pass verification without networking.
   async prepareAlpha() {
-    if (!this.alphaRelease) throw new Error('This package has no pinned Alpha release.');
+    if (!this.alphaRelease) throw new Error('This package has no pinned Neutron release.');
     if (this.registryError) throw new Error(this.registryError);
     await this.execute({ type: 'setup' }); await this.taskPromise;
-    if (!this.alphaCommitted || !this.alphaResult) throw new Error(this.state.error ?? 'Alpha preparation did not finish.');
+    if (!this.alphaCommitted || !this.alphaResult) throw new Error(this.state.error ?? 'Neutron preparation did not finish.');
     return this.alphaResult;
   }
   async verifyAlpha() {
-    if (!this.alphaRelease) throw new Error('This package has no pinned Alpha release.');
+    if (!this.alphaRelease) throw new Error('This package has no pinned Neutron release.');
     if (this.registryError) throw new Error(this.registryError);
     const record = this.state.builds.find(build => build.id === this.state.selected);
-    if (!this.state.setupComplete || !record || record.commit !== this.alphaRelease.clientCommit) throw new Error('The pinned Alpha client is not installed. Run setup again.');
+    if (!this.state.setupComplete || !record || record.commit !== this.alphaRelease.clientCommit) throw new Error('The pinned Neutron client is not installed. Run setup again.');
     return this.verifyAlphaRecord(record);
   }
   private async verifyAlphaRecord(record: BuildRecord) {
     const began = performance.now(); const release = this.alphaRelease!;
-    if (record.commit !== release.clientCommit) throw new Error('Unexpected Alpha client commit.');
+    if (record.commit !== release.clientCommit) throw new Error('Unexpected Neutron client commit.');
     const checked = await verifyDistribution(this.root, record);
-    if (checked.manifest.archiveSha256 !== release.sourceArchiveSha256) throw new Error('Installed Alpha source pin differs from this installer.');
+    if (checked.manifest.archiveSha256 !== release.sourceArchiveSha256) throw new Error('Installed Neutron source pin differs from this installer.');
     const clientJar = checked.manifest.classpath.find(item => item.path === 'neutron-client.jar');
-    if (!clientJar || !/^[a-f0-9]{64}$/.test(clientJar.sha256)) throw new Error('Installed Alpha client JAR is missing from its manifest.');
+    if (!clientJar || !/^[a-f0-9]{64}$/.test(clientJar.sha256)) throw new Error('Installed Neutron client JAR is missing from its manifest.');
     const [tools] = await Promise.all([verifyTools(this.root), verifyRuntime(this.root, checked.manifest.runtime)]);
     return { schemaVersion: 1, launcherVersion: release.launcherVersion, clientCommit: record.commit, selectedBuildId: record.id,
       sourceArchiveSha256: checked.manifest.archiveSha256, clientManifestSha256: record.manifestSha256,
@@ -201,7 +201,7 @@ export class LauncherService extends EventEmitter {
     const release = this.alphaRelease!;
     const requireCapacity = async () => {
       const capacity = await fs.statfs(this.root);
-      if (capacity.bavail * capacity.bsize < 3 * 1024 ** 3) throw new Error('At least 3 GiB free space is required to install or rebuild Alpha files.');
+      if (capacity.bavail * capacity.bsize < 3 * 1024 ** 3) throw new Error('At least 3 GiB free space is required to install or rebuild Neutron files.');
     };
     this.state.status = 'download'; this.changed();
     let tools: Awaited<ReturnType<typeof verifyTools>>;
@@ -214,8 +214,8 @@ export class LauncherService extends EventEmitter {
     const cached = await reusableDistribution(this.root, this.state.builds, release.clientCommit, this.adapter, runtime, signal);
     // Never accept a cache generated from another source archive for this pin.
     const reusable = cached && (await verifyDistribution(this.root, cached)).manifest.archiveSha256 === release.sourceArchiveSha256 ? cached : null;
-    if (reusable) this.logs.add('build', 'Pinned Alpha cache verified; no downloads or Maven build required.');
-    if (!reusable && process.env.NEUTRON_OFFLINE === '1') throw new Error('Offline setup needs an intact verified copy of the pinned Alpha. Connect to repair the cache. Previous version retained.');
+    if (reusable) this.logs.add('build', 'Pinned Neutron cache verified; no downloads or Maven build required.');
+    if (!reusable && process.env.NEUTRON_OFFLINE === '1') throw new Error('Offline setup needs an intact verified copy of the pinned Neutron. Connect to repair the cache. Previous version retained.');
     if (!reusable) await requireCapacity();
     const record = reusable ?? await buildDistribution(this.root, release.clientCommit, this.adapter, tools, runtime, signal,
       phase => { this.state.status = phase; this.changed(); },
@@ -236,7 +236,7 @@ export class LauncherService extends EventEmitter {
     catch (error) { this.state.builds = previous.builds; this.state.selected = previous.selected; this.runtime = previous.runtime; throw error; }
     finally { this.committing = false; }
     this.state.setupComplete = true; this.state.status = 'ready';
-    this.logs.add('build', 'Alpha installed and verified: ' + release.clientCommit + '. Play starts the local client without Maven. Previous versions and personal data retained.');
+    this.logs.add('build', 'Neutron installed and verified: ' + release.clientCommit + '. Play starts the local client without Maven. Previous versions and personal data retained.');
   }
   private requireWindows() { if (process.platform !== 'win32' || process.arch !== 'x64') throw new Error('This playtest supports Windows x64 only.'); }
   protected async prepareClient(record: BuildRecord, signal: AbortSignal, group: ProcessGroup): Promise<PreparedClient> {
@@ -330,7 +330,7 @@ export class LauncherService extends EventEmitter {
     this.closing = true; this.stopping = true; this.startController?.abort(new Error('Launcher closing.')); this.task?.abort(new Error('Launcher closing.'));
     try {
       await Promise.all([this.taskProcesses?.stop(), this.clientProcesses?.stop()]);
-      await this.taskPromise; if (!preserveRecoveredClient || !this.recovered) await this.stop(); await this.leaseWrite.catch(() => {}); try { await this.logs.flush(); } catch (error) { if (!this.alphaCommitted) throw error; console.error('Alpha is installed; diagnostic flush failed:', error); } await this.writes;
+      await this.taskPromise; if (!preserveRecoveredClient || !this.recovered) await this.stop(); await this.leaseWrite.catch(() => {}); try { await this.logs.flush(); } catch (error) { if (!this.alphaCommitted) throw error; console.error('Neutron is installed; diagnostic flush failed:', error); } await this.writes;
       if (this.timer) clearTimeout(this.timer); if (this.recoveryTimer) clearInterval(this.recoveryTimer);
     } catch (error) { this.closing = false; throw error; }
   }
