@@ -538,6 +538,25 @@ public class PlayerControllerMP
         }
     }
 
+    /** Synchronize module-driven sword use with the action that actually reached the transport. */
+    public boolean trySetSwordBlocking(EntityPlayerSP player, boolean block, java.util.function.BooleanSupplier eligible) {
+        final ItemStack sword = player.getHeldItem();
+        final World world = player.worldObj;
+        if (sword == null || !(sword.getItem() instanceof net.minecraft.item.ItemSword)) return false;
+        java.util.function.BooleanSupplier sameUse = () -> mc.thePlayer == player && mc.theWorld == world
+                && mc.playerController == this && !player.isDead && !isSpectatorMode()
+                && player.getHeldItem() == sword && (block ? !player.isUsingItem() : player.getItemInUse() == sword);
+        if (!sameUse.getAsBoolean() || !eligible.getAsBoolean()) return false;
+        syncCurrentPlayItem();
+        net.minecraft.network.Packet<?> action = block ? new C08PacketPlayerBlockPlacement(sword)
+                : new C07PacketPlayerDigging(C07PacketPlayerDigging.Action.RELEASE_USE_ITEM, BlockPos.ORIGIN, EnumFacing.DOWN);
+        if (netClientHandler.addToSendQueueGuarded(action, () -> sameUse.getAsBoolean() && eligible.getAsBoolean()) != action
+                || !sameUse.getAsBoolean()) return false;
+        if (block) sword.useItemRightClick(world, player);
+        else player.stopUsingItem();
+        return true;
+    }
+
     public EntityPlayerSP func_178892_a(World worldIn, StatFileWriter p_178892_2_)
     {
         return new EntityPlayerSP(this.mc, worldIn, this.netClientHandler, p_178892_2_);

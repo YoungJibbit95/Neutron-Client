@@ -9,6 +9,22 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.junit.Assert.*;
 
 public class BacktrackArsenicTest {
+    @Test public void intaveDrainsHeldTargetMovementBeforeHurtFeedback() throws Exception {
+        try (ExploitHookFixture f = new ExploitHookFixture()) {
+            Backtrack back = new Backtrack(() -> 0L, f.client);
+            back.getModeSetting("Backtrack Mode").setValue("Intave");
+            back.setToggled(true);
+            try {
+                ExploitHookFixture.Enemy enemy = f.enemy(7, 3);
+                assertTrue(f.controller.tryAttackEntity(f.player, enemy, () -> true));
+                f.receive(new S14PacketEntity.S15PacketEntityRelMove(7, (byte) 16, (byte) 0, (byte) 0, true));
+                assertEquals(1, f.pipe().delays().size());
+                f.receive(new S19PacketEntityStatus(enemy, (byte) 2));
+                assertEquals(0, f.pipe().delays().size());
+                assertEquals(112, enemy.serverPosX);
+            } finally { back.setToggled(false); }
+        }
+    }
     @Test public void defaultRequiresAcceptedAttackAndReleasesWhenRealTargetComesCloser() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             AtomicLong now = new AtomicLong(); Backtrack back = new Backtrack(now::get, f.client);

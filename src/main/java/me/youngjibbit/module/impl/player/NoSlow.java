@@ -2,6 +2,7 @@ package me.youngjibbit.module.impl.player;
 
 import me.youngjibbit.event.motion.EventMotion;
 import me.youngjibbit.event.motion.SlowdownEvent;
+import me.youngjibbit.event.player.MovementInputEvent;
 import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.ModuleInfo;
@@ -26,7 +27,7 @@ import net.minecraft.util.EnumFacing;
 @ModuleInfo(name = "NoSlow", category = Category.Player)
 public class NoSlow extends Module {
 
-    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Vanilla", "Intave", "Vulcan", "Reduced", "Polar", "Item Switch"}, 0);
+    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Vanilla", "Intave", "Vulcan", "Reduced", "Polar", "Item Switch", "Intave Sword Pulse"}, 0);
     private final SliderValue reduceX = new SliderValue("Reduce X", this, 100.0, 0, 100, true);
     private final SliderValue reduceZ = new SliderValue("Reduce Z", this, 100.0, 0, 100, true);
 
@@ -45,8 +46,23 @@ public class NoSlow extends Module {
     }
 
     @Subscribe
+    private final Listener<MovementInputEvent> swordPulse = new Listener<>(event -> {
+        if (!"Intave Sword Pulse".equals(mode.getValue()) || event.isCancelled()
+                || event.getForward() == 0 && event.getStrafe() == 0
+                || mc.thePlayer == null || mc.theWorld == null || mc.playerController == null
+                || mc.currentScreen != null || !mc.inGameHasFocus || !mc.gameSettings.keyBindUseItem.isKeyDown()
+                || !mc.thePlayer.isBlocking() || mc.thePlayer.getItemInUse() != mc.thePlayer.getHeldItem()
+                || mc.thePlayer.getItemInUseDuration() < 2) return;
+        // Release before this input is scaled. Holding use resumes via the normal right-click delay.
+        mc.playerController.trySetSwordBlocking(mc.thePlayer, false, () -> isToggled()
+                && "Intave Sword Pulse".equals(mode.getValue()) && mc.currentScreen == null && mc.inGameHasFocus
+                && me.youngjibbit.core.observation.AutomatedActionAdmission.mayAttempt(
+                        me.youngjibbit.core.contract.AutomationEligibility.ModuleAction.INVENTORY));
+    });
+
+    @Subscribe
     public final Listener<SlowdownEvent> onSlowdown = new Listener<>(event -> {
-        if (!shouldHandleSlowdown()) {
+        if ("Intave Sword Pulse".equals(mode.getValue()) || !shouldHandleSlowdown()) {
             return;
         }
 

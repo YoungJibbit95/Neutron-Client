@@ -1134,6 +1134,7 @@ public abstract class Entity implements ICommandSender
         if (this instanceof EntityPlayerSP && net.minecraft.client.Minecraft.getMinecraft()!=null
                 && this==net.minecraft.client.Minecraft.getMinecraft().thePlayer) {
             me.youngjibbit.core.combat.RotationCorrections.movement(playerMovementEvent);
+            me.youngjibbit.module.impl.movement.Speed.applyBoatAcceleration((EntityPlayerSP) this, playerMovementEvent);
             // Read only: observe final event inputs immediately before vanilla acceleration.
             me.youngjibbit.module.impl.client.CombatDiagnostics.observeMoveFlying((EntityPlayerSP) this,
                     originalStrafe, originalForward, originalYaw,

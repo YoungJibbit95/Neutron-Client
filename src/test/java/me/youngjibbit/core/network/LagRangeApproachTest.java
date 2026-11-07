@@ -17,6 +17,25 @@ public class LagRangeApproachTest {
     }
     private void tick(AtomicLong now, long millis) { now.set(millis * 1_000_000); Pulsar.BUS.post(new TickEvent()); }
 
+    @Test public void intaveHoldsOnlyWhileDistanceClosesOutsideStartRange() throws Exception {
+        try (ExploitHookFixture f = new ExploitHookFixture()) {
+            AtomicLong now = new AtomicLong(); clock(f, now);
+            LagRange lag = new LagRange(now::get, (min, max) -> max);
+            lag.getModeSetting("Delay Mode").setValue("Intave Approach");
+            lag.setToggled(true);
+            try {
+                f.enemy(7, 6); tick(now, 0);
+                f.connection.network.sendPacket(new C03PacketPlayer(true));
+                assertEquals(0, f.pipe().delays().size());
+                f.player.posX = .2; tick(now, 50);
+                f.connection.network.sendPacket(new C03PacketPlayer(true));
+                assertEquals(1, f.pipe().delays().size());
+                f.player.posX = 1; tick(now, 51);
+                assertEquals(0, f.pipe().delays().size());
+            } finally { lag.setToggled(false); }
+        }
+    }
+
     @Test public void approachingBuildsMonotoneOutboundDelayAndNeverHoldsEnemyMovement() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             AtomicLong now = new AtomicLong(); clock(f, now);

@@ -48,6 +48,35 @@ public class ConfigManager {
                 Pulsar.INSTANCE.getMm().getAllModules(),
                 () -> Minecraft.getMinecraft().theWorld != null && Minecraft.getMinecraft().thePlayer != null,
                 ConfigManager::report, System::nanoTime);
+        installBundledPlaytestConfigs();
+    }
+
+    /** Install versioned examples once. An existing file always belongs to the user. */
+    public boolean installBundledPlaytestConfigs() {
+        for (String name : new String[]{"HypeMC-Final-0.2.1", "Mineblaze-Final-0.2.1"}) {
+            Path destination = directory.resolve(name + ".json");
+            if (Files.exists(destination, LinkOption.NOFOLLOW_LINKS)) continue;
+            Path temporary = null;
+            try (InputStream resource = ConfigManager.class.getResourceAsStream("/neutron/configs/" + name + ".json")) {
+                if (resource == null) throw new IOException("Bundled configuration is missing: " + name);
+                Files.createDirectories(directory);
+                temporary = Files.createTempFile(directory, ".bundled-", ".tmp");
+                Files.copy(resource, temporary, StandardCopyOption.REPLACE_EXISTING);
+                try {
+                    Files.move(temporary, destination);
+                } catch (FileAlreadyExistsException existing) {
+                    // A concurrent installer/user won the filename. Keep their contents.
+                }
+            } catch (IOException failure) {
+                lastError = "Could not install bundled config " + name + ": " + failure.getMessage();
+                return false;
+            } finally {
+                if (temporary != null) {
+                    try { Files.deleteIfExists(temporary); } catch (IOException ignored) { }
+                }
+            }
+        }
+        return true;
     }
 
     // Explicit dependencies allow real module/value tests without starting Minecraft.
@@ -169,6 +198,41 @@ public class ConfigManager {
             return true;
         } catch (IOException | RuntimeException e) {
             fail("Config load failed", e);
+            messages.accept(lastError);
+            return false;
+        }
+    }
+
+    /** Apply only the bundled values. Bindings and module activation are user choices. */
+    public boolean applyIntavePreset(String selection) {
+        String id = selection == null ? "" : selection.toLowerCase(Locale.ROOT);
+        if ("autoblock".equals(id)) id = "aura";
+        if ("wtap".equals(id)) id = "wtap2";
+        try (InputStream input = ConfigManager.class.getResourceAsStream("/neutron/configs/Intave.json")) {
+            if (input == null) throw new IOException("Bundled Intave preset is missing.");
+            JsonObject settings;
+            try (JsonReader reader = new JsonReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
+                settings = object(readElement(reader, 0), "Intave settings");
+            }
+            if (!id.isEmpty() && !settings.has(id))
+                throw new IllegalArgumentException("Choose one of " + String.join(", ", settings.keySet()));
+            Plan plan = new Plan(settings);
+            for (Map.Entry<String, JsonElement> entry : settings.entrySet()) {
+                if (!id.isEmpty() && !id.equals(entry.getKey())) continue;
+                Module module = findModule(entry.getKey());
+                if (module == null) throw new IllegalArgumentException("Missing module: " + entry.getKey());
+                Change change = new Change(module);
+                parseSettings(plan, change, object(entry.getValue(), entry.getKey()));
+                plan.changes.add(change);
+            }
+            if (plan.unknown != 0) throw new IOException("Unknown bundled Intave setting.");
+            apply(plan, true);
+            if (initialized) markDirty();
+            lastError = "";
+            messages.accept("Intave preset applied to " + (id.isEmpty() ? "all preset modules" : id) + ".");
+            return true;
+        } catch (IOException | RuntimeException e) {
+            fail("Intave preset failed", e);
             messages.accept(lastError);
             return false;
         }
@@ -588,8 +652,12 @@ public class ConfigManager {
         change.values.put(value, decoded);
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
     private void apply(Plan plan) {
+        apply(plan, false);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private void apply(Plan plan, boolean settingsOnly) {
         if (applying) throw new IllegalStateException("Recursive config load is not allowed.");
         applying = true;
         try {
@@ -597,7 +665,8 @@ public class ConfigManager {
             for (Change change : plan.changes) {
                 change.desired = change.enabled != null ? change.enabled : pendingActivation.getOrDefault(change.module, change.module.isToggled());
                 if (canActivate && change.module.isToggled()) change.module.setToggled(false);
-                change.module.beginConfigUpdate();
+                if (settingsOnly) change.module.beginSettingsUpdate();
+                else change.module.beginConfigUpdate();
             }
             for (Change change : plan.changes) {
                 if (change.key != null) change.module.setKey(change.key);

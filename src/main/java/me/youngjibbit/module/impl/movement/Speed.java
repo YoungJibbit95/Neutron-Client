@@ -1,6 +1,12 @@
 package me.youngjibbit.module.impl.movement;
 
+import me.youngjibbit.core.movement.IntaveBoatSpeed;
+import me.youngjibbit.event.motion.KnockbackEvent;
 import me.youngjibbit.event.motion.EventMotion;
+import me.youngjibbit.event.packet.EventPacket;
+import me.youngjibbit.event.world.WorldEvent;
+import me.youngjibbit.event.player.MovementInputEvent;
+import me.youngjibbit.event.player.PlayerMoveUpdateEvent;
 import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.ModuleInfo;
@@ -12,12 +18,17 @@ import me.zero.alpine.listener.Listener;
 import me.zero.alpine.listener.Subscribe;
 import org.lwjgl.input.Keyboard;
 import net.minecraft.potion.Potion;
+import net.minecraft.client.entity.EntityPlayerSP;
+import net.minecraft.network.play.server.S08PacketPlayerPosLook;
+import net.minecraft.network.play.server.S27PacketExplosion;
 
 @ModuleInfo(name = "Speed", category = Category.Movement)
 public class Speed extends Module {
 
-    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"BMC", "Intave", "Polar", "Vulcan", "Vulcan2"}, 1);
+    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"BMC", "Intave", "Polar", "Vulcan", "Vulcan2", "Intave Momentum", "Intave Boat"}, 1);
     private final CheckBoxValue airSpeed = new CheckBoxValue("Air Speed", this, false);
+    private final IntaveBoatSpeed intaveBoat = new IntaveBoatSpeed();
+    private static Speed active;
 
     private int offGroundTicks;
     private int groundTicks;
@@ -26,24 +37,91 @@ public class Speed extends Module {
 
     public Speed() {
         setKey(Keyboard.KEY_C);
+        airSpeed.setVisibility(m -> !inputSpeedMode());
+        mode.setOnChange(selected -> {
+            if (isToggled() && inputSpeedMode()) {
+                resetMovementOverrides();
+                resetState();
+            }
+        });
     }
 
     @Override
     public void onEnable() {
         resetState();
+        intaveBoat.reset();
+        active = this;
         super.onEnable();
     }
 
     @Override
     public void onDisable() {
-        resetMovementOverrides();
+        if (active == this) active = null;
+        if (!inputSpeedMode()) resetMovementOverrides();
+        intaveBoat.reset();
+        info = "";
         resetState();
         super.onDisable();
     }
 
+    private boolean inputSpeedMode() {
+        return "Intave Momentum".equals(mode.getValue()) || "Intave Boat".equals(mode.getValue());
+    }
+
+    @Override public void onValueChange() {
+        if (intaveBoat != null) intaveBoat.reset();
+        info = "";
+    }
+
+    /** Final moveFlying consumer, after all listeners and the accepted rotation correction. */
+    public static void applyBoatAcceleration(EntityPlayerSP player, PlayerMoveUpdateEvent event) {
+        Speed speed = active;
+        if (speed == null || !"Intave Boat".equals(speed.mode.getValue()) || mc == null || player != mc.thePlayer) return;
+        speed.intaveBoat.apply(mc, event);
+        if (active == speed && "Intave Boat".equals(speed.mode.getValue()))
+            speed.info = "Boat: " + speed.intaveBoat.getReason();
+    }
+
+    @Subscribe private final Listener<WorldEvent> boatWorld = new Listener<>(event -> { intaveBoat.reset(); info = ""; });
+    @Subscribe private final Listener<KnockbackEvent> boatImpulse = new Listener<>(event -> {
+        if (event.isPost() && "Intave Boat".equals(mode.getValue())) intaveBoat.pauseForImpulse();
+    });
+    @Subscribe private final Listener<EventPacket> boatPacket = new Listener<>(event -> {
+        if (!event.isPost() || !event.isInbound() || !"Intave Boat".equals(mode.getValue())
+                || mc == null || mc.getNetHandler() == null
+                || event.getPipeline() != mc.getNetHandler().getNetworkManager().getClientPackets()) return;
+        if (event.getPacket() instanceof S08PacketPlayerPosLook) intaveBoat.pauseForImpulse();
+        else if (event.getPacket() instanceof S27PacketExplosion) {
+            S27PacketExplosion explosion = (S27PacketExplosion) event.getPacket();
+            if (explosion.func_149149_c() != 0 || explosion.func_149144_d() != 0 || explosion.func_149147_e() != 0)
+                intaveBoat.pauseForImpulse();
+        }
+    });
+
+    @Subscribe
+    private final Listener<MovementInputEvent> momentum = new Listener<>(event -> {
+        if (event.isCancelled() || event.isSneak() || event.getForward() <= 0 || !momentumReady()
+                || mc.thePlayer.isCollidedHorizontally || !mc.thePlayer.isSprinting()) return;
+        event.setJump(true);
+    });
+
+    @Subscribe private final Listener<PlayerMoveUpdateEvent> wallAcceleration = new Listener<>(event -> {
+        if (event.isCancelled() || !momentumReady() || !mc.thePlayer.isCollidedHorizontally
+                || event.getFriction() <= 0 || event.getForward() == 0 && event.getStrafe() == 0) return;
+        // Intave's collision branch widens horizontal tolerance. Let vanilla resolve the blocked axis.
+        event.setFriction(event.getFriction() + .012F);
+    });
+
+    private boolean momentumReady() {
+        return "Intave Momentum".equals(mode.getValue()) && mc.thePlayer != null && mc.theWorld != null
+                && mc.currentScreen == null && mc.inGameHasFocus && mc.thePlayer.onGround && mc.thePlayer.hurtTime == 0
+                && !mc.thePlayer.isSneaking() && !mc.thePlayer.isUsingItem() && !mc.thePlayer.isRiding()
+                && !mc.thePlayer.capabilities.isFlying && !mc.thePlayer.isOnLadder() && !PlayerUtil.inLiquid();
+    }
+
     @Subscribe
     private final Listener<EventMotion> onMotion = new Listener<>(event -> {
-        if (mc.thePlayer == null || mc.theWorld == null || !event.isPre()) {
+        if (mc.thePlayer == null || mc.theWorld == null || !event.isPre() || inputSpeedMode()) {
             return;
         }
 
