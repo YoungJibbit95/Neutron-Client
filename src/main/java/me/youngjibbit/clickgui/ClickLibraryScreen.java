@@ -246,6 +246,14 @@ public class ClickLibraryScreen extends GuiScreen {
         List<String> entries=items();if(index<0||index>=entries.size())return;
         if(themes)selectedTheme=entries.get(index);else{configs.select(entries.get(index));name=configs.selected();}
         focus=-2;message="";
+        revealItem(index);
+    }
+    private void revealItem(int index) {
+        if(index<0)return;
+        ClipRect row=itemBounds(index),viewport=listBounds();
+        if(row.y<viewport.y)scroll+=row.y-viewport.y;
+        else if(row.y+row.height>viewport.y+viewport.height)scroll+=row.y+row.height-viewport.y-viewport.height;
+        scroll=Math.max(0,scroll);targetScroll=scroll;
     }
     @Override protected void mouseClicked(int mx,int my,int button)throws IOException {
         if(button!=0)return;layout();
@@ -273,24 +281,26 @@ public class ClickLibraryScreen extends GuiScreen {
     protected boolean shiftDown(){return Keyboard.isCreated()&&isShiftKeyDown();}
     @Override protected void keyTyped(char c,int key)throws IOException {
         pressed=-99;
+        boolean enter=key==Keyboard.KEY_RETURN||key==Keyboard.KEY_NUMPADENTER;
         if(configs.pending()!=ConfigLibrary.Pending.NONE) {
             if(key==Keyboard.KEY_ESCAPE)configs.cancel();
-            else if(key==Keyboard.KEY_RETURN||key==Keyboard.KEY_NUMPADENTER)configs.confirm();
+            else if(enter)configs.confirm();
             return;
         }
         if(key==Keyboard.KEY_ESCAPE){open(parent);return;}
         if(key==Keyboard.KEY_TAB) {
             int[] order=themes?new int[]{6,7,-1,-2,0,1,2,3,8}:new int[]{6,7,-1,3,-2,1,2,-3,0,8};
             int current=0;for(int i=0;i<order.length;i++)if(order[i]==focus)current=i;
-            focus=order[(current+(shiftDown()?order.length-1:1))%order.length];replace=false;return;
+            focus=order[(current+(shiftDown()?order.length-1:1))%order.length];replace=false;
+            if(focus==-2)revealItem(items().indexOf(selected()));
+            return;
         }
         if(focus==-1||focus==-3) {
             if(ctrlDown()&&key==Keyboard.KEY_A){replace=true;return;}
             String value=focus==-1?query:name;
             if(key==Keyboard.KEY_BACK){value=replace?"":value.substring(0,Math.max(0,value.length()-1));replace=false;}
-            else if (key == Keyboard.KEY_RETURN || key == Keyboard.KEY_NUMPADENTER || key == Keyboard.KEY_DOWN) {
+            else if (enter || key == Keyboard.KEY_DOWN) {
                 if (focus == -1) {
-                    focus = -2;
                     if (!items().isEmpty()) select(0);
                 } else if (key != Keyboard.KEY_DOWN) {
                     activate(0);
@@ -308,11 +318,10 @@ public class ClickLibraryScreen extends GuiScreen {
             if(key==Keyboard.KEY_UP||key==Keyboard.KEY_DOWN||key==Keyboard.KEY_LEFT||key==Keyboard.KEY_RIGHT) {
                 int step=key==Keyboard.KEY_UP?-columns():key==Keyboard.KEY_DOWN?columns():key==Keyboard.KEY_LEFT?-1:1;
                 select(Math.max(0,Math.min(entries.size()-1,index+step)));
-                int next=items().indexOf(selected());if(next>=0){ClipRect r=itemBounds(next),v=listBounds();if(r.y<v.y)scroll=targetScroll=Math.max(0,scroll+r.y-v.y);else if(r.y+r.height>v.y+v.height)scroll=targetScroll=scroll+r.y+r.height-v.y-v.height;}
-            } else if(key==Keyboard.KEY_RETURN)activate(themes?0:1);
+            } else if(enter)activate(themes?0:1);
             return;
         }
-        if(key==Keyboard.KEY_RETURN||key==Keyboard.KEY_SPACE)activate(focus);
+        if(enter||key==Keyboard.KEY_SPACE)activate(focus);
     }
     @Override public void onGuiClosed() {
         pressed=-99;configs.cancel();surface.close();for(UiSpring state:motion)state.reset();
