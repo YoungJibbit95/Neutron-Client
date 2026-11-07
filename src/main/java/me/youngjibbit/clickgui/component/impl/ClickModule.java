@@ -95,8 +95,11 @@ public class ClickModule extends Component {
     public void drawScreen(int mouseX, int mouseY) {
         Theme theme = Theme.resolve(Theme.getDefaultTheme());
         boolean hover = isMouseOver(mouseX, mouseY);
-        GuiStyle.panel(x, y, width, getHeight(), 4, toggleProgress,
-                hover ? new Color(25, 25, 26) : new Color(17, 17, 18));
+        GuiStyle.panel(x, y, width, getHeight(), 6, toggleProgress,
+                hover ? new Color(29, 29, 32) : new Color(20, 20, 23));
+        // A quiet inner edge separates adjacent glass cards without another surface pass.
+        me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x + 9, y + 2, Math.max(0, width - 18), 1, .5f,
+                new Color(235, 239, 248, hover ? 35 : 20));
         if (module.isToggled()) {
             me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x + 4, y + 6, 2, height - 12, 1,
                     theme.getPrimaryGradientColor());
