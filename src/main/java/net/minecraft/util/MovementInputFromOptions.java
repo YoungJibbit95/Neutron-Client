@@ -1,6 +1,7 @@
 package net.minecraft.util;
 
 import net.minecraft.client.settings.GameSettings;
+import net.minecraft.client.Minecraft;
 
 public class MovementInputFromOptions extends MovementInput
 {
@@ -15,6 +16,13 @@ public class MovementInputFromOptions extends MovementInput
     {
         this.moveStrafe = 0.0F;
         this.moveForward = 0.0F;
+        this.jump = false;
+        this.sneak = false;
+
+        // Modules may restore key bindings after the screen-open event cleared them.
+        // A container or text/menu screen must never consume those as player movement.
+        Minecraft client = Minecraft.getMinecraft();
+        if (client != null && client.currentScreen != null) return;
 
         if (this.gameSettings.keyBindForward.isKeyDown())
         {

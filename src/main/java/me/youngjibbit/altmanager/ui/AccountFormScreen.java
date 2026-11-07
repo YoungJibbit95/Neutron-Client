@@ -54,7 +54,7 @@ public class AccountFormScreen extends GuiScreen {
             } else {
                 identity.draw("Offline username");
                 ClipRect p=password.bounds();button(p,"Sign in with Microsoft",x,y,true,true,false);
-                if(!small)text("Microsoft opens your default browser. No password is stored.",field.x,p.y+42,13,FAINT);
+                if(!small)text("Microsoft opens a sign-in window. No password is stored.",field.x,p.y+42,13,FAINT);
             }
             boolean enabled=mode==Mode.TOKEN?!token.value().trim().isEmpty():!identity.value().trim().isEmpty();
             button(submit,mode==Mode.ADD?"Add to library":"Sign in",x,y,true,enabled,false);
@@ -103,6 +103,13 @@ public class AccountFormScreen extends GuiScreen {
     }
     protected void submitMicrosoft() {
         login=new AccountLoginThread(LoginRequest.microsoftBrowser(mode!=Mode.DIRECT),null);login.start();
+    }
+    @Override public void updateScreen() {
+        if(login!=null && login.isSetupRequired()) {
+            AccountLoginThread previous=login;
+            previous.cancelLogin();login=null;status="Microsoft setup is required before browser sign-in.";
+            openScreen(new MicrosoftSetupScreen(this,()->{login=previous.retry();login.start();}));
+        }
     }
     @Override public void onGuiClosed() { if(login!=null)login.cancelLogin();ui.close();if(Keyboard.isCreated())Keyboard.enableRepeatEvents(false); }
 }

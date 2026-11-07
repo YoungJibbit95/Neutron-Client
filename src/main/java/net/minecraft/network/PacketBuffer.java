@@ -5,7 +5,7 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.ByteBufInputStream;
 import io.netty.buffer.ByteBufOutputStream;
-import io.netty.buffer.ByteBufProcessor;
+import io.netty.util.ByteProcessor;
 import io.netty.handler.codec.DecoderException;
 import io.netty.handler.codec.EncoderException;
 import java.io.IOException;
@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.channels.FileChannel;
 import java.nio.channels.GatheringByteChannel;
 import java.nio.channels.ScatteringByteChannel;
 import java.nio.charset.Charset;
@@ -288,7 +289,14 @@ public class PacketBuffer extends ByteBuf
         }
         else
         {
-            String s = new String(this.readBytes(i).array(), Charsets.UTF_8);
+            if (i > this.readableBytes())
+            {
+                throw new IndexOutOfBoundsException("Encoded string exceeds readable bytes: " + i);
+            }
+
+            byte[] encoded = new byte[i];
+            this.readBytes(encoded);
+            String s = new String(encoded, Charsets.UTF_8);
 
             if (s.length() > maxLength)
             {
@@ -887,22 +895,22 @@ public class PacketBuffer extends ByteBuf
         return this.buf.bytesBefore(p_bytesBefore_1_, p_bytesBefore_2_, p_bytesBefore_3_);
     }
 
-    public int forEachByte(ByteBufProcessor p_forEachByte_1_)
+    public int forEachByte(ByteProcessor p_forEachByte_1_)
     {
         return this.buf.forEachByte(p_forEachByte_1_);
     }
 
-    public int forEachByte(int p_forEachByte_1_, int p_forEachByte_2_, ByteBufProcessor p_forEachByte_3_)
+    public int forEachByte(int p_forEachByte_1_, int p_forEachByte_2_, ByteProcessor p_forEachByte_3_)
     {
         return this.buf.forEachByte(p_forEachByte_1_, p_forEachByte_2_, p_forEachByte_3_);
     }
 
-    public int forEachByteDesc(ByteBufProcessor p_forEachByteDesc_1_)
+    public int forEachByteDesc(ByteProcessor p_forEachByteDesc_1_)
     {
         return this.buf.forEachByteDesc(p_forEachByteDesc_1_);
     }
 
-    public int forEachByteDesc(int p_forEachByteDesc_1_, int p_forEachByteDesc_2_, ByteBufProcessor p_forEachByteDesc_3_)
+    public int forEachByteDesc(int p_forEachByteDesc_1_, int p_forEachByteDesc_2_, ByteProcessor p_forEachByteDesc_3_)
     {
         return this.buf.forEachByteDesc(p_forEachByteDesc_1_, p_forEachByteDesc_2_, p_forEachByteDesc_3_);
     }
@@ -1040,5 +1048,234 @@ public class PacketBuffer extends ByteBuf
     public boolean release(int p_release_1_)
     {
         return this.buf.release(p_release_1_);
+    }
+
+    // Netty 4.1/4.2 operations share the wrapped buffer's indices and reference count.
+    @Override
+    public boolean isReadOnly()
+    {
+        return this.buf.isReadOnly();
+    }
+
+    @Override
+    public ByteBuf asReadOnly()
+    {
+        return this.buf.asReadOnly();
+    }
+
+    @Override
+    public short getShortLE(int index)
+    {
+        return this.buf.getShortLE(index);
+    }
+
+    @Override
+    public int getUnsignedShortLE(int index)
+    {
+        return this.buf.getUnsignedShortLE(index);
+    }
+
+    @Override
+    public int getMediumLE(int index)
+    {
+        return this.buf.getMediumLE(index);
+    }
+
+    @Override
+    public int getUnsignedMediumLE(int index)
+    {
+        return this.buf.getUnsignedMediumLE(index);
+    }
+
+    @Override
+    public int getIntLE(int index)
+    {
+        return this.buf.getIntLE(index);
+    }
+
+    @Override
+    public long getUnsignedIntLE(int index)
+    {
+        return this.buf.getUnsignedIntLE(index);
+    }
+
+    @Override
+    public long getLongLE(int index)
+    {
+        return this.buf.getLongLE(index);
+    }
+
+    @Override
+    public int getBytes(int index, FileChannel channel, long position, int length) throws IOException
+    {
+        return this.buf.getBytes(index, channel, position, length);
+    }
+
+    @Override
+    public CharSequence getCharSequence(int index, int length, Charset charset)
+    {
+        return this.buf.getCharSequence(index, length, charset);
+    }
+
+    @Override
+    public ByteBuf setShortLE(int index, int value)
+    {
+        return this.buf.setShortLE(index, value);
+    }
+
+    @Override
+    public ByteBuf setMediumLE(int index, int value)
+    {
+        return this.buf.setMediumLE(index, value);
+    }
+
+    @Override
+    public ByteBuf setIntLE(int index, int value)
+    {
+        return this.buf.setIntLE(index, value);
+    }
+
+    @Override
+    public ByteBuf setLongLE(int index, long value)
+    {
+        return this.buf.setLongLE(index, value);
+    }
+
+    @Override
+    public int setBytes(int index, FileChannel channel, long position, int length) throws IOException
+    {
+        return this.buf.setBytes(index, channel, position, length);
+    }
+
+    @Override
+    public int setCharSequence(int index, CharSequence sequence, Charset charset)
+    {
+        return this.buf.setCharSequence(index, sequence, charset);
+    }
+
+    @Override
+    public short readShortLE()
+    {
+        return this.buf.readShortLE();
+    }
+
+    @Override
+    public int readUnsignedShortLE()
+    {
+        return this.buf.readUnsignedShortLE();
+    }
+
+    @Override
+    public int readMediumLE()
+    {
+        return this.buf.readMediumLE();
+    }
+
+    @Override
+    public int readUnsignedMediumLE()
+    {
+        return this.buf.readUnsignedMediumLE();
+    }
+
+    @Override
+    public int readIntLE()
+    {
+        return this.buf.readIntLE();
+    }
+
+    @Override
+    public long readUnsignedIntLE()
+    {
+        return this.buf.readUnsignedIntLE();
+    }
+
+    @Override
+    public long readLongLE()
+    {
+        return this.buf.readLongLE();
+    }
+
+    @Override
+    public ByteBuf readRetainedSlice(int length)
+    {
+        return this.buf.readRetainedSlice(length);
+    }
+
+    @Override
+    public CharSequence readCharSequence(int length, Charset charset)
+    {
+        return this.buf.readCharSequence(length, charset);
+    }
+
+    @Override
+    public int readBytes(FileChannel channel, long position, int length) throws IOException
+    {
+        return this.buf.readBytes(channel, position, length);
+    }
+
+    @Override
+    public ByteBuf writeShortLE(int value)
+    {
+        return this.buf.writeShortLE(value);
+    }
+
+    @Override
+    public ByteBuf writeMediumLE(int value)
+    {
+        return this.buf.writeMediumLE(value);
+    }
+
+    @Override
+    public ByteBuf writeIntLE(int value)
+    {
+        return this.buf.writeIntLE(value);
+    }
+
+    @Override
+    public ByteBuf writeLongLE(long value)
+    {
+        return this.buf.writeLongLE(value);
+    }
+
+    @Override
+    public int writeBytes(FileChannel channel, long position, int length) throws IOException
+    {
+        return this.buf.writeBytes(channel, position, length);
+    }
+
+    @Override
+    public int writeCharSequence(CharSequence sequence, Charset charset)
+    {
+        return this.buf.writeCharSequence(sequence, charset);
+    }
+
+    @Override
+    public ByteBuf retainedSlice()
+    {
+        return this.buf.retainedSlice();
+    }
+
+    @Override
+    public ByteBuf retainedSlice(int index, int length)
+    {
+        return this.buf.retainedSlice(index, length);
+    }
+
+    @Override
+    public ByteBuf retainedDuplicate()
+    {
+        return this.buf.retainedDuplicate();
+    }
+
+    @Override
+    public ByteBuf touch()
+    {
+        return this.buf.touch();
+    }
+
+    @Override
+    public ByteBuf touch(Object hint)
+    {
+        return this.buf.touch(hint);
     }
 }

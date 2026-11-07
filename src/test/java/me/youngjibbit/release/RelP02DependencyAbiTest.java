@@ -2,12 +2,17 @@ package me.youngjibbit.release;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.channel.*;
-import io.netty.util.concurrent.ImmediateEventExecutor;
+import io.netty.bootstrap.ServerBootstrap;
+import io.netty.channel.local.LocalAddress;
+import io.netty.channel.local.LocalChannel;
+import io.netty.channel.local.LocalServerChannel;
 import org.junit.Test;
 import javax.vecmath.*;
 import java.lang.reflect.*;
 import java.net.SocketAddress;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Callable;
 import static org.junit.Assert.*;
 
 /** Java8 ABI probes, also run against Assembly alone. No socket, DNS, device or game. */
@@ -37,55 +42,93 @@ public class RelP02DependencyAbiTest {
         catch (IllegalStateException expected) { assertTrue(expected.getMessage().contains("group")); }
     }
 
-    @Test public void bootstrapDeferredCallbacksLinkWithSyntheticChannels() throws Exception {
-        for (boolean deferred : new boolean[]{false, true}) {
-            for (boolean success : new boolean[]{false, true}) {
-                for (boolean local : new boolean[]{false, true}) callback(deferred, success, local);
+    @Test(timeout = 20000)
+    public void bootstrapImmediateAndDeferredRegistrationConnectThroughPublicApi() throws Exception {
+        EventLoopGroup serverGroup = new DefaultEventLoopGroup(1);
+        EventLoopGroup clientGroup = new DefaultEventLoopGroup(1);
+        Channel server = null;
+        try {
+            server = new ServerBootstrap().group(serverGroup).channel(LocalServerChannel.class)
+                    .childHandler(new ChannelInitializer<Channel>() {
+                        @Override protected void initChannel(Channel ch) { }
+                    }).bind(LocalAddress.ANY).sync().channel();
+            for (boolean deferred : new boolean[]{false, true}) {
+                for (boolean success : new boolean[]{false, true}) {
+                    for (boolean local : new boolean[]{false, true}) {
+                        connect(clientGroup, server.localAddress(), deferred, success, local);
+                    }
+                }
             }
+        } finally {
+            if (server != null) server.close().syncUninterruptibly();
+            clientGroup.shutdownGracefully(0, 1, TimeUnit.SECONDS).syncUninterruptibly();
+            serverGroup.shutdownGracefully(0, 1, TimeUnit.SECONDS).syncUninterruptibly();
         }
     }
 
-    private void callback(boolean deferred, boolean success, boolean local) throws Exception {
-        AtomicInteger connects = new AtomicInteger();
-        SocketAddress remoteAddress = new FixtureAddress(), localAddress = local ? new FixtureAddress() : null;
-        EventLoop loop = (EventLoop) Proxy.newProxyInstance(getClass().getClassLoader(), new Class[]{EventLoop.class}, (p, m, args) -> {
-            if (m.getName().equals("execute")) { ((Runnable) args[0]).run(); return null; }
-            if (m.getName().equals("inEventLoop")) return true;
-            throw new AssertionError("unexpected event loop call: " + m.getName());
-        });
-        Channel channel = (Channel) Proxy.newProxyInstance(getClass().getClassLoader(), new Class[]{Channel.class}, (p, m, args) -> {
-            if (m.getName().equals("eventLoop")) return loop;
-            if (m.getName().equals("connect")) {
-                assertSame(remoteAddress, args[0]);
-                assertEquals(local ? 3 : 2, args.length);
-                if (local) assertSame(localAddress, args[1]);
-                connects.incrementAndGet();
-                return ((ChannelPromise) args[args.length - 1]).setSuccess();
+    private void connect(EventLoopGroup group, SocketAddress serverAddress,
+                         boolean deferred, boolean success, boolean local) throws Exception {
+        Bootstrap bootstrap = new Bootstrap().group(group).channel(LocalChannel.class)
+                .handler(new ChannelInboundHandlerAdapter());
+        SocketAddress remote = success ? serverAddress : new LocalAddress("missing-" + java.util.UUID.randomUUID());
+        final LocalAddress localAddress = local ? new LocalAddress("client-" + java.util.UUID.randomUUID()) : null;
+        Callable<ChannelFuture> call = () -> localAddress == null
+                ? bootstrap.connect(remote) : bootstrap.connect(remote, localAddress);
+        CountDownLatch entered = new CountDownLatch(1);
+        CountDownLatch resume = new CountDownLatch(1);
+        ChannelFuture result = null;
+        try {
+            if (deferred) {
+                group.next().execute(() -> {
+                    entered.countDown();
+                    try {
+                        if (!resume.await(5, TimeUnit.SECONDS)) throw new AssertionError("registration was not resumed");
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                        throw new AssertionError(e);
+                    }
+                });
+                assertTrue("event loop did not enter fixture", entered.await(5, TimeUnit.SECONDS));
+                result = call.call();
+                assertFalse("registration must still be pending", result.isDone());
+                resume.countDown();
+            } else {
+                // Register from the event loop itself to exercise the immediate-registration path.
+                result = group.next().submit(call).get(5, TimeUnit.SECONDS);
             }
-            if (m.getName().equals("toString")) return "synthetic-no-transport-channel";
-            throw new AssertionError("unexpected channel call: " + m.getName());
-        });
-        Throwable failure = new IllegalStateException("synthetic-registration-failure");
-        ChannelPromise registration = new DefaultChannelPromise(channel, ImmediateEventExecutor.INSTANCE);
-        if (success) registration.setSuccess(); else registration.setFailure(failure);
-        ChannelPromise result = new DefaultChannelPromise(channel, ImmediateEventExecutor.INSTANCE);
-        if (deferred) {
-            Class<?> listener = Class.forName("io.netty.bootstrap.Bootstrap$1");
-            Constructor<?> ctor = listener.getDeclaredConstructor(Bootstrap.class, ChannelFuture.class, Channel.class,
-                    SocketAddress.class, SocketAddress.class, ChannelPromise.class);
-            ctor.setAccessible(true);
-            ((ChannelFutureListener) ctor.newInstance(new Bootstrap(), registration, channel, remoteAddress, localAddress, result)).operationComplete(registration);
-        } else {
-            Method dispatch = Bootstrap.class.getDeclaredMethod("doConnect0", ChannelFuture.class, Channel.class,
-                    SocketAddress.class, SocketAddress.class, ChannelPromise.class);
-            dispatch.setAccessible(true); dispatch.invoke(null, registration, channel, remoteAddress, localAddress, result);
+            assertTrue("connect did not complete", result.await(5, TimeUnit.SECONDS));
+            assertEquals(success, result.isSuccess());
+            assertEquals(success, result.channel().isActive());
+            if (success) {
+                assertEquals(serverAddress, result.channel().remoteAddress());
+                if (local) assertEquals(localAddress, result.channel().localAddress());
+            } else {
+                assertNotNull(result.cause());
+            }
+        } finally {
+            resume.countDown();
+            if (result != null) result.channel().close().syncUninterruptibly();
         }
-        assertTrue(result.isDone()); assertEquals(success, result.isSuccess());
-        assertEquals(success ? 1 : 0, connects.get());
-        if (!success) assertSame(failure, result.cause());
     }
 
-    private static final class FixtureAddress extends SocketAddress { private static final long serialVersionUID = 1L; }
+    @Test(timeout = 10000)
+    public void bootstrapPropagatesRegistrationFailureWithoutConnecting() throws Exception {
+        EventLoopGroup group = new DefaultEventLoopGroup(1);
+        final IllegalStateException failure = new IllegalStateException("synthetic-registration-failure");
+        ChannelFuture result = null;
+        try {
+            result = new Bootstrap().group(group).channelFactory(() -> new LocalChannel() {
+                @Override protected void doRegister(ChannelPromise promise) { promise.setFailure(failure); }
+            }).handler(new ChannelInboundHandlerAdapter()).connect(new LocalAddress("unused"));
+            assertTrue(result.await(5, TimeUnit.SECONDS));
+            assertFalse(result.isSuccess());
+            assertSame(failure, result.cause());
+            assertFalse(result.channel().isActive());
+        } finally {
+            if (result != null) result.channel().close().syncUninterruptibly();
+            group.shutdownGracefully(0, 1, TimeUnit.SECONDS).syncUninterruptibly();
+        }
+    }
 
     @Test public void soundCodecsConstructThroughTheRealReflectiveRegistry() throws Exception {
         // Unique fixture extensions avoid changing the application's ogg/wav registrations.

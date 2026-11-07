@@ -16,7 +16,7 @@ import java.util.function.BooleanSupplier;
 
 /** Public-client authorization code flow. Secrets remain in memory for this attempt only. */
 public final class MicrosoftBrowserAuth {
-    public static final String SETUP = "Set your own registered desktop app ID (pulsar.microsoft.clientId); register http://localhost/callback and check the Minecraft API review requirements.";
+    public static final String SETUP = "Microsoft sign-in is not configured. Add Neutron's registered application ID in Microsoft setup.";
     interface Browser { void open(URI uri) throws Exception; }
     static final class Endpoints {
         final URI authorize, token, xbox, xsts, minecraft, profile;
@@ -52,10 +52,13 @@ public final class MicrosoftBrowserAuth {
     }
 
     public Session login(BooleanSupplier active) throws Exception {
-        String id = clientId != null ? clientId : System.getProperty("pulsar.microsoft.clientId",
-                System.getenv("PULSAR_MICROSOFT_CLIENT_ID") == null ? "" : System.getenv("PULSAR_MICROSOFT_CLIENT_ID"));
-        if (!id.matches("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}"))
-            throw unavailable(SETUP);
+        String id;
+        try { id = clientId != null ? clientId.trim() : new MicrosoftAuthConfig().clientId(); }
+        catch (IOException failure) {
+            throw new LoginCoordinator.LoginUnavailableException("The Microsoft app configuration could not be read. Check Microsoft setup.", true);
+        }
+        if (!MicrosoftAuthConfig.valid(id))
+            throw new LoginCoordinator.LoginUnavailableException(SETUP, true);
         check(active);
         String verifier=random(64), state=random(32);
         String challenge=Base64.getUrlEncoder().withoutPadding().encodeToString(
@@ -68,7 +71,10 @@ public final class MicrosoftBrowserAuth {
                 Map<String,String> query = params("client_id",id,"response_type","code","redirect_uri",redirect,
                         "response_mode","query","scope","xboxlive.signin","state",state,
                         "code_challenge",challenge,"code_challenge_method","S256","prompt","select_account");
-                browser.open(URI.create(endpoints.authorize + "?" + form(query)));
+                try { browser.open(URI.create(endpoints.authorize + "?" + form(query))); }
+                catch (Exception failure) {
+                    throw unavailable("Could not open your default browser. Check the system browser settings and retry; the current session was retained.");
+                }
                 String code=callback.await(active, timeoutMillis);
                 check(active);
                 JsonObject tokens=request(endpoints.token,"POST","application/x-www-form-urlencoded",

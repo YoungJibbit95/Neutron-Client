@@ -12,6 +12,39 @@ import java.util.concurrent.atomic.*;
 import static org.junit.Assert.*;
 
 public class PacketDelayTest {
+    @Test public void hudCountsOnlyAnOwnersHoldsAcrossRenewalBarrierAndExpiry() {
+        AtomicLong now = new AtomicLong();
+        PacketDelays delays = new PacketDelays(now::get);
+        Object first = new Object(), second = new Object();
+        Packet<?> movement = new C03PacketPlayer(true);
+        Packet<?> follower = new C03PacketPlayer(false);
+        delays.request(first, 500, (packet, flow) -> packet == movement);
+        delays.request(second, 500, (packet, flow) -> packet == movement);
+        assertTrue(delays.defer(movement, EventFlow.INBOUND, () -> {}));
+        assertTrue(delays.defer(follower, EventFlow.INBOUND, () -> {}));
+        assertTrue(delays.defer(movement, EventFlow.OUTBOUND,
+                () -> assertEquals(1, delays.activeHeldCount(first))));
+        assertEquals(3, delays.size());
+        assertEquals(2, delays.activeHeldCount(first));
+        now.set(200_000_000L);
+        delays.request(first, 500, (packet, flow) -> true);
+        assertEquals(2, delays.activeHeldCount(first));
+        delays.barrier(EventFlow.OUTBOUND);
+        now.set(251_000_000L);
+        delays.pump();
+        assertEquals(-1, delays.activeHeldCount(second));
+        assertEquals(1, delays.activeHeldCount(first));
+        assertEquals(2, delays.size());
+        delays.release(first);
+        assertEquals(-1, delays.activeHeldCount(first));
+        assertEquals(0, delays.size());
+        delays.request(first, 500, (packet, flow) -> true);
+        assertEquals(0, delays.activeHeldCount(first));
+        delays.defer(movement, EventFlow.OUTBOUND, () -> fail("discard replayed a held packet"));
+        delays.discard();
+        assertEquals(-1, delays.activeHeldCount(first));
+    }
+
     private PacketPipeline pipeline(AtomicLong time, List<Packet<?>> accepted) {
         return new PacketPipeline(new PacketFlowTest.MainThread(),()->true,accepted::add,
                 error->{throw new AssertionError(error);},new PacketDelays(time::get));

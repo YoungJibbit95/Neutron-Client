@@ -116,18 +116,28 @@ public class TextureUtil
 
     public static void uploadTextureMipmap(int[][] p_147955_0_, int p_147955_1_, int p_147955_2_, int p_147955_3_, int p_147955_4_, boolean p_147955_5_, boolean p_147955_6_)
     {
+        if (p_147955_0_.length == 0) return;
+        // Filtering and wrapping belong to the bound texture, not to each mip level.
+        setTextureBlurMipmap(p_147955_5_, p_147955_0_.length > 1);
+        setTextureClamped(p_147955_6_);
+
         for (int i = 0; i < p_147955_0_.length; ++i)
         {
             int[] aint = p_147955_0_[i];
-            uploadTextureSub(i, aint, p_147955_1_ >> i, p_147955_2_ >> i, p_147955_3_ >> i, p_147955_4_ >> i, p_147955_5_, p_147955_6_, p_147955_0_.length > 1);
+            uploadTextureSubPixels(i, aint, p_147955_1_ >> i, p_147955_2_ >> i, p_147955_3_ >> i, p_147955_4_ >> i);
         }
     }
 
     private static void uploadTextureSub(int p_147947_0_, int[] p_147947_1_, int p_147947_2_, int p_147947_3_, int p_147947_4_, int p_147947_5_, boolean p_147947_6_, boolean p_147947_7_, boolean p_147947_8_)
     {
-        int i = 4194304 / p_147947_2_;
         setTextureBlurMipmap(p_147947_6_, p_147947_8_);
         setTextureClamped(p_147947_7_);
+        uploadTextureSubPixels(p_147947_0_, p_147947_1_, p_147947_2_, p_147947_3_, p_147947_4_, p_147947_5_);
+    }
+
+    private static void uploadTextureSubPixels(int p_147947_0_, int[] p_147947_1_, int p_147947_2_, int p_147947_3_, int p_147947_4_, int p_147947_5_)
+    {
+        int i = 4194304 / p_147947_2_;
         int j;
 
         for (int k = 0; k < p_147947_2_ * p_147947_3_; k += p_147947_2_ * j)

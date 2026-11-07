@@ -49,7 +49,12 @@ Extra player steps still require credit from actual withheld player-step bodies.
 Tickbase owns the scheduler when active. Fresh frame, multiplayer, movement,
 closing-distance and other existing checks continue to restrict spending.
 
-The short HUD suffix shows mode/activity, delay and queue count. `getStatus()`
+Enable **ArrayList → Show Module Info** to see Backtrack's mode, the active delay
+and the number of packets held by that module (for example, `Pulse 100ms Q2`).
+LagRange uses the same delay and queue display. Each frame reads the current
+owner count, including packets queued or released since the last game tick.
+The option defaults off. The detailed Diagnostics notifications work independently.
+`getStatus()`
 exposes the detailed reason without pumping or modifying the queue. Enabling
 Diagnostics uses the existing notification system for changed reasons, at most
 once per two seconds. LagRange additionally reports withheld/spent step counts

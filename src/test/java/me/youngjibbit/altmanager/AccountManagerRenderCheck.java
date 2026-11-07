@@ -105,6 +105,10 @@ public final class AccountManagerRenderCheck {
             require(Theme.getDefaultTheme().isCustom(),"Custom palette fixture did not activate the shared theme catalog");
             frame(library);snapshot("11-custom-theme.png");
             Form small=new Form(library,AccountFormScreen.Mode.ADD);resize(small,854,480,2);frame(small);snapshot("12-small-form.png");small.onGuiClosed();
+            MicrosoftSetupScreen setup=new MicrosoftSetupScreen(library,()->{throw new AssertionError("Render check must not start login");});
+            resize(setup,1280,960,2);frame(setup);snapshot("13-microsoft-setup.png");
+            resize(setup,854,480,2);frame(setup);snapshot("14-microsoft-setup-small.png");
+            resize(setup,1280,960,4);frame(setup);snapshot("15-microsoft-setup-scale4.png");setup.onGuiClosed();
             resize(library,1280,960,2);library.revealAccount(manager.getAccountById(a.getId()));frame(library);
             library.click(library.layout().remove);int before=manager.getAccounts().size();
             Method accept=GuiAltManager.class.getDeclaredMethod("confirmButton",boolean.class);accept.setAccessible(true);library.click((ClipRect)accept.invoke(library,true));
