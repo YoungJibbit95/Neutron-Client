@@ -156,7 +156,7 @@ function Test-NeutronStorage([string]$Root, [string]$Install, [string]$Control, 
     if ($state) {
         foreach($record in @($state.builds | Where-Object {$_.commit -ceq $Release.clientCommit})) {
             $manifest=Join-Path $Root ('versions/'+$record.id+'/launch-manifest.json')
-            if ([IO.File]::Exists($manifest) -and (Get-FileHash -LiteralPath $manifest -Algorithm SHA256).Hash -eq $record.manifestSha256) {
+            if ([IO.File]::Exists($manifest) -and (Get-NeutronFileHash $manifest) -ceq $record.manifestSha256) {
                 try { $content=[IO.File]::ReadAllText($manifest) | ConvertFrom-Json; if ($content.archiveSha256 -ceq $Release.sourceArchiveSha256) { $cached=$true } } catch { }
             }
         }

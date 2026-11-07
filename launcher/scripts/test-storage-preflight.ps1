@@ -14,26 +14,31 @@ function Assert-Rejected([scriptblock]$Run,[string]$Pattern) {
     try { & $Run | Out-Null } catch { if($_.Exception.Message -notlike ('*'+$Pattern+'*')){throw}; return }
     throw ('Expected rejection: '+$Pattern)
 }
-function Save-Json($File,$Value) { $Value | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath $File -Encoding UTF8 }
+function Save-Json($File,$Value) { [IO.File]::WriteAllText((Get-NeutronFsPath $File),($Value | ConvertTo-Json -Depth 12),[Text.UTF8Encoding]::new($false)) }
 function New-Profile([string]$Root) {
-    $null=[IO.Directory]::CreateDirectory((Join-Path $Root ('versions/'+$id)))
+    $null=[IO.Directory]::CreateDirectory((Get-NeutronFsPath (Join-Path $Root ('versions/'+$id))))
     $manifest=Join-Path $Root ('versions/'+$id+'/launch-manifest.json')
     Save-Json $manifest @{archiveSha256=$archive}
-    $state=@{schemaVersion=1;selected=$id;runtime=$null;builds=@(@{id=$id;commit=$pin;manifestSha256=(Get-FileHash $manifest).Hash.ToLowerInvariant();date=[datetime]::UtcNow.ToString('o');sizeMiB=1});options=@{ramMiB=2048;gameDir='F:\Separate Game';java='managed';javaPath='';width=1280;height=720;fullscreen=$false;jvmArgs=''};preferences=@{theme='ocean';locale='de';scale=100;effects=70;reducedMotion=$false}}
+    $state=@{schemaVersion=1;selected=$id;runtime=$null;builds=@(@{id=$id;commit=$pin;manifestSha256=(Get-NeutronFileHash $manifest);date=[datetime]::UtcNow.ToString('o');sizeMiB=1});options=@{ramMiB=2048;gameDir='F:\Separate Game';java='managed';javaPath='';width=1280;height=720;fullscreen=$false;jvmArgs=''};preferences=@{theme='ocean';locale='de';scale=100;effects=70;reducedMotion=$false}}
     Save-Json (Join-Path $Root 'state.json') $state
     [IO.File]::WriteAllText((Join-Path $Root 'personal.txt'),'keep my data')
 }
 try {
     New-Profile $control
-    $stateFile=Join-Path $control 'state.json'; $originalHash=(Get-FileHash $stateFile).Hash
+    $stateFile=Join-Path $control 'state.json'; $originalHash=(Get-NeutronFileHash $stateFile)
     $null=[IO.Directory]::CreateDirectory($app)
-    $exe=Join-Path $app 'Neutron Launcher.exe'; [IO.File]::WriteAllText($exe,'original EXE sentinel'); $exeHash=(Get-FileHash $exe).Hash
+    $exe=Join-Path $app 'Neutron Launcher.exe'; [IO.File]::WriteAllText($exe,'original EXE sentinel'); $exeHash=(Get-NeutronFileHash $exe)
     $newRelease=[pscustomobject]@{launcherVersion='0.2.2';clientCommit=('c'*40);sourceArchiveSha256=$archive}
     $script:testFreeBytes=[long](2.77GB)
     Assert-Rejected { Test-NeutronStorage $control $app $control $newRelease $false } 'At least 3 GiB'
-    Assert-True ((Get-FileHash $exe).Hash -eq $exeHash -and (Get-FileHash $stateFile).Hash -eq $originalHash) 'Low-space refusal changed original files'
+    Assert-True ((Get-NeutronFileHash $exe) -eq $exeHash -and (Get-NeutronFileHash $stateFile) -eq $originalHash) 'Low-space refusal changed original files'
     Assert-True (-not (Test-Path (Join-Path $control 'data-directory.txt'))) 'Low-space refusal committed a selector'
     Assert-True ((Test-NeutronStorage $control $app $control $release $false).CachedPinHint) 'Matching cache hint rejected under low space'
+    # NSIS uses 32-bit Windows PowerShell. Its optional provider cmdlet may be
+    # unavailable; production hashing must work entirely through .NET streams.
+    function Get-FileHash { throw 'Provider hash cmdlet deliberately unavailable' }
+    try { Assert-True ((Test-NeutronStorage $control $app $control $release $false).CachedPinHint) 'Cache hint depends on optional hash cmdlet' }
+    finally { Remove-Item Function:\Get-FileHash }
     $script:testFreeBytes=122GB
     $null=[IO.Directory]::CreateDirectory($copy)
     Assert-Rejected { Test-NeutronStorage $copy $app $control $release $false } 'existing profile'
@@ -73,16 +78,16 @@ try {
     Save-Json (Join-Path $logs 'installer-result.json') $receipt
     Assert-Rejected { Complete-NeutronStorage $copy $app $control $release $check $false } 'fresh committed receipt'
     $receipt.completedAt=[datetime]::UtcNow.ToString('o'); Save-Json (Join-Path $logs 'installer-result.json') $receipt
-    $pointer=Join-Path $control 'data-directory.txt'; [IO.File]::WriteAllText($pointer,$control,[Text.Encoding]::Unicode); $pointerHash=(Get-FileHash $pointer).Hash
+    $pointer=Join-Path $control 'data-directory.txt'; [IO.File]::WriteAllText($pointer,$control,[Text.Encoding]::Unicode); $pointerHash=(Get-NeutronFileHash $pointer)
     Complete-NeutronStorage $copy $app $control $release $check $true | Out-Null
-    Assert-True ((Get-FileHash $pointer).Hash -eq $pointerHash) 'Process override changed real selector'
+    Assert-True ((Get-NeutronFileHash $pointer) -eq $pointerHash) 'Process override changed real selector'
     [IO.File]::SetAttributes($pointer,[IO.FileAttributes]::ReadOnly)
     try { Assert-Rejected { Complete-NeutronStorage $copy $app $control $release $check $false } 'read-only' }
     finally { [IO.File]::SetAttributes($pointer,[IO.FileAttributes]::Normal) }
-    Assert-True ((Get-FileHash $pointer).Hash -eq $pointerHash) 'Failed selector commit changed old pointer'
+    Assert-True ((Get-NeutronFileHash $pointer) -eq $pointerHash) 'Failed selector commit changed old pointer'
     Complete-NeutronStorage $copy $app $control $release $check $false | Out-Null
     Assert-True ((Resolve-NeutronStorage $app $control) -eq $copy) 'Saved root did not survive re-resolution'
-    Assert-True ((Get-FileHash $stateFile).Hash -eq $originalHash -and (Get-FileHash $exe).Hash -eq $exeHash) 'Profile adoption changed original files'
+    Assert-True ((Get-NeutronFileHash $stateFile) -eq $originalHash -and (Get-NeutronFileHash $exe) -eq $exeHash) 'Profile adoption changed original files'
     $longSource=Join-Path $fixture ('Long Source '+('x'*35)); $shortCopy=Join-Path $fixture 'Short Copy'
     New-Profile $longSource; New-Profile $shortCopy
     [IO.File]::WriteAllBytes((Join-Path $shortCopy 'state.json'),[IO.File]::ReadAllBytes((Join-Path $longSource 'state.json')))
@@ -96,12 +101,12 @@ try {
     [IO.File]::WriteAllText((Get-NeutronFsPath $shortFile),'different long library bytes')
     Assert-Rejected { Assert-NeutronProfileCopy $longSource $shortCopy } 'incomplete or differs'
     $missing=Join-Path $fixture 'Lost Profile'
-    [IO.File]::WriteAllText($pointer,$missing,[Text.Encoding]::Unicode); $pointerHash=(Get-FileHash $pointer).Hash
+    [IO.File]::WriteAllText($pointer,$missing,[Text.Encoding]::Unicode); $pointerHash=(Get-NeutronFileHash $pointer)
     Assert-Rejected { Test-NeutronStorage $missing $app $control $release $false } 'existing profile'
     Assert-True (-not (Test-Path -LiteralPath $missing)) 'Missing saved profile was recreated'
     $null=[IO.Directory]::CreateDirectory($missing)
     Assert-Rejected { Test-NeutronStorage $missing $app $control $release $false } 'existing profile'
-    Assert-True ((Get-FileHash $pointer).Hash -eq $pointerHash -and (Get-FileHash $stateFile).Hash -eq $originalHash -and [IO.Directory]::GetFileSystemEntries($missing).Length -eq 0) 'Missing/empty profile refusal changed persistent files'
+    Assert-True ((Get-NeutronFileHash $pointer) -eq $pointerHash -and (Get-NeutronFileHash $stateFile) -eq $originalHash -and [IO.Directory]::GetFileSystemEntries($missing).Length -eq 0) 'Missing/empty profile refusal changed persistent files'
     Write-Host 'Storage preflight fixtures passed: low space, cache hint, complete/incomplete adoption, settings, invalid state, missing selected build, unsafe paths, links, stale receipt, override, read-only and atomic selector.'
 } finally {
     # Only the unique fixture created above. Remove the junction itself first.
