@@ -288,3 +288,10 @@ nav button { min-height: 44px; padding: 11px 12px; gap: 10px; }
 .app[data-reduced-motion='true'] .liquid-glass { display: none; }
 @media (max-width: 1040px) { .main { padding: 22px 22px 16px; } .launch-hero { padding: 22px; } .hero-heading h2 { font-size: 1.65em; } }
 @supports not (backdrop-filter: blur(8px)) { .launch-hero { background: var(--panel); } }
+
+/* The canvas samples its own clean/soft scene through Neutron's optical model.
+   Opaque CSS panels stay in place until WebGL successfully draws, and on loss. */
+.liquid-glass { inset: 0; width: 100%; height: 100%; }
+.main[data-glass='true'] .surface { background: transparent; backdrop-filter: none; border-color: transparent; }
+.main[data-glass='true'] .launch-hero::before { display: none; }
+.app[data-reduced-motion='true'] .main .surface { background: var(--panel); }

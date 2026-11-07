@@ -1,0 +1,29 @@
+import { afterEach, beforeEach, expect, test, vi } from 'vitest';
+import fs from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { assertUserInstallation } from '../electron/installation-context.cts';
+import { validateClient } from '../electron/validate-client.cts';
+const mocks = vi.hoisted(() => ({ run: vi.fn(), distribution: vi.fn(), runtime: vi.fn() }));
+vi.mock('../electron/processes.cts', () => ({ runProcess: mocks.run, childEnvironment: () => ({}) }));
+vi.mock('../electron/distribution.cts', () => ({ verifyDistribution: mocks.distribution }));
+vi.mock('../electron/minecraft.cts', () => ({ verifyRuntime: mocks.runtime }));
+let root: string;
+beforeEach(async () => { vi.resetAllMocks(); root = await fs.mkdtemp(path.join(os.tmpdir(), 'neutron-alpha-host-')); });
+afterEach(async () => { await fs.rm(root, { recursive: true, force: true }); });
+test.each([['USER', 0, true], ['ELEVATED', 0, false], ['', 1, false], ['unexpected', 0, false]])('installation context probe %s/%i permits only a successful ordinary token', async (output, code, accepted) => {
+  mocks.run.mockImplementation(async (_exe, _args, options) => { options.line(output); return code; });
+  const operation = assertUserInstallation(root, new AbortController().signal);
+  if (accepted) await expect(operation).resolves.toBeUndefined(); else await expect(operation).rejects.toThrow('without Run as administrator');
+});
+test('cached production package must pass Bootstrap without Maven or the personal profile', async () => {
+  mocks.distribution.mockResolvedValue({ manifest: { runtime: {}, entryPoint: 'me.neutron.launcher.ClientBootstrap', version: 'fixture' }, classpath: ['immutable-client.jar'] });
+  mocks.runtime.mockResolvedValue({ directory: root, manifest: { javaLibraries: ['lwjgl.jar', 'lwjgl-util.jar'] } });
+  mocks.run.mockResolvedValue(17);
+  const record = { id: 'fixture', commit: 'a'.repeat(40), date: new Date().toISOString(), sizeMiB: 1, manifestSha256: 'b'.repeat(64) };
+  const tools = { javaHome: root, mavenHome: 'must-not-run', toolchainId: 'fixture', files: [] };
+  await expect(validateClient(root, record, tools, new AbortController().signal)).rejects.toThrow('Bootstrap validation failed (exit 17)');
+  expect(mocks.run.mock.calls[0][1]).toContain('--validateOnly');
+  expect(mocks.run.mock.calls[0][1]).not.toContain('must-not-run');
+  expect(mocks.run.mock.calls[0][2].cwd).toContain(path.join(root, 'temp/bootstrap-'));
+});

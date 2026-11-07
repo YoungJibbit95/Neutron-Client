@@ -1,7 +1,7 @@
 {
   "name": "neutron-launcher",
-  "version": "0.1.0-playtest.5",
-  "description": "Neutron Windows x64 playtest launcher",
+  "version": "0.2.0-alpha.1",
+  "description": "Neutron Windows x64 Alpha launcher",
   "author": "Neutron Client",
   "license": "UNLICENSED",
   "private": true,
