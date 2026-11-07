@@ -32,7 +32,7 @@ if ((Test-Path -LiteralPath $uninstallKey) -or (Test-Path -LiteralPath $installK
 $runnerRoot = [IO.Path]::GetFullPath($env:RUNNER_TEMP)
 $fixture = Join-Path $runnerRoot "neutron-installer-smoke-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
 if (Test-Path -LiteralPath $fixture) { throw 'Acceptance fixture already exists.' }
-$installed = Join-Path $fixture 'Install Prüfung'
+$installed = Join-Path $fixture 'Install PrÃ¼fung'
 $executable = Join-Path $installed 'Neutron Launcher.exe'
 $installer = @(Get-ChildItem -LiteralPath $env:NEUTRON_PACKAGE_OUTPUT -Filter '*.exe' -File)
 if ($installer.Count -ne 1) { throw 'Expected exactly one NSIS candidate.' }
@@ -168,11 +168,12 @@ $process = Start-Process -FilePath $uninstaller -ArgumentList '/S /currentuser /
 Wait-OwnedExecutable $process $uninstaller 120
 if ($process.ExitCode -ne 0) { throw 'NSIS uninstaller failed.' }
 $deadline = (Get-Date).AddSeconds(45)
-while (Test-Path -LiteralPath $executable) {
-    if ((Get-Date) -gt $deadline) { throw 'Uninstaller left the installed executable behind.' }
+# NSIS starts a temporary uninstaller copy. Its parent can exit before that
+# copy finishes deleting files and registration; require both real outcomes.
+while ((Test-Path -LiteralPath $executable) -or (Test-Path -LiteralPath $uninstallKey)) {
+    if ((Get-Date) -gt $deadline) { throw "Uninstaller did not finish: executablePresent=$(Test-Path -LiteralPath $executable), registrationPresent=$(Test-Path -LiteralPath $uninstallKey)." }
     Start-Sleep -Milliseconds 250
 }
-if (Test-Path -LiteralPath $uninstallKey) { throw 'Uninstaller left the application registration behind.' }
 if ((Get-FileHash -LiteralPath $marker).Hash -ne $markerHash) { throw 'Uninstaller removed personal data.' }
 $receipt.uninstall = 'passed; synthetic personal data retained'
 $evidence = if ($env:NEUTRON_ACCEPTANCE_OUTPUT) { $env:NEUTRON_ACCEPTANCE_OUTPUT } else { $env:NEUTRON_PACKAGE_OUTPUT }
