@@ -16,6 +16,23 @@
     </properties>
 
     <build>
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+            </resource>
+            <!-- Keep the original classpath names for packs and launcher consumers. -->
+            <resource>
+                <directory>src/main/resources/assets/minecraft/Flauxy/Shaders</directory>
+                <targetPath>assets/minecraft/Tenacity/Shaders</targetPath>
+                <includes>
+                    <include>gradient.frag</include>
+                    <include>gradientMask.frag</include>
+                    <include>kawaseDown.frag</include>
+                    <include>kawaseUp.frag</include>
+                    <include>outline.frag</include>
+                </includes>
+            </resource>
+        </resources>
         <plugins>
 
             <!-- JavaFX 8 is distributed with platform natives, not as the Java 11+
