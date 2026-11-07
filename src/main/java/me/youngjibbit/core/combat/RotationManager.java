@@ -939,7 +939,13 @@ public final class RotationManager {
             for(double y:axisSamples(box.minY,box.maxY))
                 for(double z:axisSamples(box.minZ,box.maxZ))
                     candidates.add(new Vec3(x,y,z));
-        candidates.sort(Comparator.comparingDouble(point->{float[] a=angles(eyes,point);double dy=MathHelper.wrapAngleTo180_float(a[0]-yaw),dp=a[1]-pitch;return dy*dy+dp*dp;}));
+        // Score each point once; stable sorting preserves base/grid ordering on ties.
+        Map<Vec3,Double> scores = new java.util.IdentityHashMap<>();
+        for (Vec3 point : candidates) {
+            float[] a=angles(eyes,point);double dy=MathHelper.wrapAngleTo180_float(a[0]-yaw),dp=a[1]-pitch;
+            scores.put(point,dy*dy+dp*dp);
+        }
+        candidates.sort(Comparator.comparingDouble(scores::get));
         for(Vec3 candidate:candidates)if(hitsPoint(rays,feet,target,candidate,profile))return candidate;
         return null;
     }

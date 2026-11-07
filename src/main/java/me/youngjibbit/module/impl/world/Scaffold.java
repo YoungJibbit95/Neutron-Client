@@ -47,6 +47,9 @@ public class Scaffold extends Module {
     private final me.youngjibbit.core.world.ArsenicScaffoldController arsenicController=new me.youngjibbit.core.world.ArsenicScaffoldController();
     private final ComboValue approach=new ComboValue("Scaffold Approach",this,new String[]{"Neutron","Arsenic"},0);
     private final CheckBoxValue softArsenicMotion = new CheckBoxValue("Arsenic Soft Motion", this, false);
+    private final me.youngjibbit.core.world.ScaffoldSneakInterval sneakInterval = new me.youngjibbit.core.world.ScaffoldSneakInterval();
+    private long freshInputSequence;
+    private final SliderValue sneakAfterBlocks = new SliderValue("Sneak After Blocks", this, 0D, 0, 20, true);
     private final CheckBoxValue eagle=new CheckBoxValue("Eagle",this,true);
     private final SliderValue safety=new SliderValue("Safety",this,2D,0,3,false);
     private final SliderValue arsenicMinSpeed=new SliderValue("Arsenic Min Speed",this,180D,1,360,true);
@@ -121,7 +124,7 @@ public class Scaffold extends Module {
         this.setKey(Keyboard.KEY_G);
         roundRots.setVisibility(module->rotations.getValue());
         for(me.youngjibbit.value.Value<?> value:getValues()) {
-            if(value==approach || value==bodyRotation || value==itemSpoof || value==swing || value==swingMode
+            if(value==sneakAfterBlocks || value==approach || value==bodyRotation || value==itemSpoof || value==swing || value==swingMode
                     || value==placeDelay || value==placementDiagnostics || value==rotationReturn.enabled || value==rotationReturn.ticks)continue;
             if(value==softArsenicMotion || value==eagle || value==safety || value==arsenicMinSpeed || value==arsenicMaxSpeed) {
                 value.setVisibility(m->arsenic());continue;
@@ -132,10 +135,11 @@ public class Scaffold extends Module {
     }
     private boolean arsenic() { return "Arsenic".equals(approach.getValue()); }
     private boolean usesRotations() { return arsenic() || rotations.getValue(); }
-    @Override public void beginConfigUpdate() { super.beginConfigUpdate();approach.reset();softArsenicMotion.reset(); }
+    @Override public void beginConfigUpdate() { super.beginConfigUpdate();approach.reset();softArsenicMotion.reset();sneakAfterBlocks.reset(); }
     @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String name) { return super.getValueByName(name!=null && name.replace("_","").replace(" ","").equalsIgnoreCase("SameY")?"keep_y":name); }
     @Override public void onValueChange() {
         long generation = ++lifecycleGeneration;
+        sneakInterval.reset();
         releasePlacement();
         arsenicController.reset();
         // Module's callback has no changed-value argument; revalidate the actual owner conditions.
@@ -272,6 +276,7 @@ public class Scaffold extends Module {
     }
 
     private void suspendPlacement() {
+        sneakInterval.reset();
         arsenicController.reset();
         rememberAcceptedRotation();
         releasePlacement();
@@ -292,6 +297,7 @@ public class Scaffold extends Module {
     }
 
     private void clearState() {
+        sneakInterval.reset();
         arsenicController.reset();
         long generation = lifecycleGeneration;
         try { endRotation(); }
@@ -408,6 +414,7 @@ public class Scaffold extends Module {
             me.youngjibbit.core.world.ArsenicScaffoldController.Prepared prepared=arsenicController.prepare(contextRotation,eagle.getValue(),safety.getValue(),arsenicMinSpeed.getValue(),arsenicMaxSpeed.getValue(),softArsenicMotion.getValue());
             if(!continueMotion(sequence,generation))return;
             if(prepared==null)return;
+            if(prepared.target==null) { requestAcceptedHold(); return; }
             frameTarget=currentTarget=prepared.target;
             // World/geometry callbacks may disable or reconfigure this module during prepare.
             // Publish only after revalidating that exact lifecycle and scene.
@@ -461,11 +468,28 @@ public class Scaffold extends Module {
 
     /** Applied to freshly read movement input only; the physical/key-binding sneak state stays intact. */
     public static void applyDownwardsInput(MovementInput input) {
+        applyDownwardsInput(input, true);
+    }
+
+    public static void applyDownwardsInput(MovementInput input, boolean allowInterval) {
         Minecraft mc = Minecraft.getMinecraft();
         Scaffold scaffold = active;
         if (scaffold != null && scaffold.isToggled() && !scaffold.arsenic() && scaffold.validContext()
                 && scaffold.downwards.getValue() && mc.gameSettings.keyBindSneak.isKeyDown()
                 && scaffold.currentTarget != null && RuntimeServices.scaffoldPlacement().isValid(scaffold.currentTarget)) suppressSneak(input);
+        // This hook runs once after each fresh input read, after downwards suppression.
+        // Other owners (including physical input and Eagle) keep their sneak and slowdown.
+        if (allowInterval && input != null && scaffold != null && scaffold.isToggled()
+                && scaffold.sneakAfterBlocks.getValue() > 0) {
+            long generation = scaffold.lifecycleGeneration;
+            long sequence = scaffold.contextRotation == null ? -1 : scaffold.contextRotation.getMotionSequence();
+            if (!scaffold.continueMotion(sequence, generation)) return;
+            if (scaffold.sneakInterval.input(++scaffold.freshInputSequence) && !input.sneak) {
+                input.sneak = true;
+                input.moveForward *= .3f;
+                input.moveStrafe *= .3f;
+            }
+        }
     }
 
     public static void suppressSneak(MovementInput input) {
@@ -546,9 +570,12 @@ public class Scaffold extends Module {
                 diagnose(me.youngjibbit.core.world.ScaffoldPlacementService.Rejection.ROTATION);return false;
             }
         }
+        long placementGeneration = lifecycleGeneration;
         boolean placed = RuntimeServices.scaffoldPlacement().placeWithAuthority(target, rotation, pre, sequence,
                 placeDelay.getValue().longValue(), itemSpoof.getValue(), swing.getValue(), "Silent".equalsIgnoreCase(swingMode.getValue()),
                 rotationRequired ? "scaffold" : null, actionValid, sceneValid);
+        if (placed && sneakAfterBlocks.getValue() > 0 && continueMotion(sequence, placementGeneration))
+            sneakInterval.placed(sneakAfterBlocks.getValue().intValue());
         if (!placed) diagnose(RuntimeServices.scaffoldPlacement().getLastRejection());
         return placed;
     }

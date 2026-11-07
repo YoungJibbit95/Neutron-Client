@@ -938,7 +938,7 @@ public class EntityPlayerSP extends AbstractClientPlayer
             this.movementInput.jump = inputEvent.isJump();
             this.movementInput.sneak = inputEvent.isSneak();
         }
-        me.youngjibbit.module.impl.world.Scaffold.applyDownwardsInput(this.movementInput);
+        me.youngjibbit.module.impl.world.Scaffold.applyDownwardsInput(this.movementInput, !inputEvent.isCancelled());
         boolean noslowAllowSprint = false;
 
         if (this.isUsingItem() && !this.isRiding()) {

@@ -50,8 +50,31 @@ public class Aura extends Module {
     private Object worldContext, playerContext;
     private long lifecycleGeneration;
     private EntityLivingBase target;
-    private EntityLivingBase blockAfterHit;
-    private int blockTick;
+    private PendingBlock blockAfterHit;
+
+    /** An accepted hit may request one later use action, never new movement authority. */
+    private final class PendingBlock {
+        final EntityLivingBase hit;
+        final Object player = mc.thePlayer, world = mc.theWorld;
+        final RotationManager manager = RuntimeServices.rotation();
+        final me.youngjibbit.core.network.PacketPipeline pipeline;
+        final long epoch, generation = lifecycleGeneration;
+        final int dueTick = mc.thePlayer.ticksExisted + 1;
+        PendingBlock(EntityLivingBase hit, me.youngjibbit.core.network.PacketPipeline pipeline) {
+            this.hit = hit; this.pipeline = pipeline; this.epoch = pipeline.getContextVersion();
+        }
+        boolean current() {
+            return generation == lifecycleGeneration && player == mc.thePlayer && world == mc.theWorld
+                    && manager == RuntimeServices.rotation() && mc.getNetHandler() != null
+                    && pipeline == mc.getNetHandler().getNetworkManager().getClientPackets()
+                    && pipeline.isActive() && pipeline.getContextVersion() == epoch;
+        }
+    }
+    private PendingBlock capturePendingBlock(EntityLivingBase hit) {
+        if (hit == null || mc.getNetHandler() == null) return null;
+        me.youngjibbit.core.network.PacketPipeline pipeline = mc.getNetHandler().getNetworkManager().getClientPackets();
+        return pipeline == null || !pipeline.isActive() ? null : new PendingBlock(hit, pipeline);
+    }
     private final List<EntityLivingBase> targets = new ArrayList<>();
 
     private final AutoblockController autoblockController = new AutoblockController();
@@ -71,6 +94,7 @@ public class Aura extends Module {
     private final ClickTimingSettings clickTiming = new ClickTimingSettings(this, minCps, maxCps, true);
     private ClickRandomizer.Sample clickSample;
     private final SliderValue reach = new SliderValue("Reach", this, 3.0, 1.0, 6.0, false);
+    private final SliderValue aimRangeMargin = new SliderValue("Aim Range Margin", this, 0.0, 0.0, 3.0, false);
     private final SliderValue multiTargets = new SliderValue("Multi Targets", this, 3.0, 2.0, 6.0, true);
     private final SliderValue maxYawStep = new SliderValue("Yaw Speed", this, 28.0, 1.0, 90.0, true);
     private final SliderValue maxPitchStep = new SliderValue("Pitch Speed", this, 28.0, 1.0, 90.0, true);
@@ -93,6 +117,7 @@ public class Aura extends Module {
     public Aura() {
         this.setKey(Keyboard.KEY_R);
         bestHitVec.setVisibility(m->!rotationSettings.arsenic());
+        aimRangeMargin.setVisibility(m -> rotations.getValue());
         customBlockFrequency.setVisibility(m -> autoblock.getValue() && !"Fake".equals(autoblockMode.getValue())
                 && !"Intave".equals(autoblockMode.getValue()));
         blockFrequency.setVisibility(m -> customBlockFrequency.isVisible() && customBlockFrequency.getValue());
@@ -110,6 +135,7 @@ public class Aura extends Module {
         clickTiming.legacyDefaults();
         customBlockFrequency.setValue(false);
         blockFrequency.reset();
+        aimRangeMargin.reset();
         // Missing legacy keys cannot inherit activation; explicit incoming values apply afterward.
         rotationSettings.softArsenicMotion.reset();
         rotationSettings.hitpointVariation.reset();
@@ -178,12 +204,22 @@ public class Aura extends Module {
         return options;
     }
 
+    private double acquisitionRange() {
+        return reach.getValue() + (rotations.getValue() ? aimRangeMargin.getValue() : 0);
+    }
+
+    private TargetingService.Options acquisitionOptions() {
+        TargetingService.Options options = options();
+        options.range = acquisitionRange();
+        return options;
+    }
+
     @Subscribe
     private final Listener<TickEvent> onContextTick = new Listener<>(event -> {
         if (!usable()) clearCombat(mc == null || mc.thePlayer == null || mc.theWorld == null);
         else if (target != null && (target.worldObj != mc.theWorld
                 || !mc.theWorld.loadedEntityList.contains(target)
-                || !RuntimeServices.targeting().isValidTarget(target, options()))) {
+                || !RuntimeServices.targeting().isValidTarget(target, acquisitionOptions()))) {
             // TickEvent precedes entity movement: do not keep movefix on a lost target until PRE.
             clearCombat(false);
         }
@@ -196,11 +232,18 @@ public class Aura extends Module {
     private final Listener<AttackEvent> onAttack = new Listener<>(event -> autoblockController.beforeAttack());
 
     @Subscribe private final Listener<MovementInputEvent> blockInput = new Listener<>(event -> {
-        EntityLivingBase hit = blockAfterHit;
+        PendingBlock pending = blockAfterHit;
         blockAfterHit = null;
-        if (hit == null || event.isCancelled() || !usable() || mc.thePlayer.ticksExisted != blockTick) return;
+        if (pending == null || event.isCancelled() || !usable() || !pending.current()
+                || mc.thePlayer.ticksExisted != pending.dueTick) return;
+        EntityLivingBase hit = pending.hit;
+        RotationManager.MovementRotation prepared = pending.manager.getPreparedMovement();
+        // Prediction can veto a competing physical step, but cannot authorize an attack.
+        if (prepared == null || (rotations.getValue() ? !ROTATION_SOURCE.equals(prepared.source)
+                : prepared.source != null)) return;
         // A full movement separates the use and release. Vanilla releases on the next unheld use key.
-        mc.playerController.trySetSwordBlocking(mc.thePlayer, true, () -> usable() && autoblock.getValue()
+        mc.playerController.trySetSwordBlocking(mc.thePlayer, true, () -> usable() && pending.current()
+                && pending.manager.getPreparedMovement() == prepared && autoblock.getValue()
                 && "Intave".equals(autoblockMode.getValue()) && !mc.gameSettings.keyBindUseItem.isKeyDown()
                 && AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)
                 && worldContext == mc.theWorld && playerContext == mc.thePlayer
@@ -228,7 +271,7 @@ public class Aura extends Module {
             playerContext = mc.thePlayer;
             final long generation = lifecycleGeneration;
 
-            List<EntityLivingBase> collected = RuntimeServices.targeting().collectTargets(options(), mapSort(sortMode.getValue()));
+            List<EntityLivingBase> collected = RuntimeServices.targeting().collectTargets(acquisitionOptions(), mapSort(sortMode.getValue()));
             if (generation != lifecycleGeneration || !usable()) return;
             targets.clear();
             targets.addAll(collected);
@@ -244,7 +287,7 @@ public class Aura extends Module {
 
             if (target != null && rotations.getValue()) {
                 RotationManager rotationManager = RuntimeServices.rotation();
-                RotationProfile profile=rotationSettings.snapshot();profile.reach=reach.getValue().floatValue();profile.throughWalls=throughWalls.getValue();
+                RotationProfile profile=rotationSettings.snapshot();profile.reach=(float)acquisitionRange();profile.throughWalls=throughWalls.getValue();
                 float[] nextRotations = rotationManager.calculateRotations(
                         ROTATION_SOURCE,
                         event.getYaw(),
@@ -282,6 +325,9 @@ public class Aura extends Module {
                         : !rotationManager.isOwner("scaffold") && rotationManager.getRotationRelease() == null;
                 boolean hit = rotationManager.isMotionAccepted() && owns && validHit(selected, yaw, pitch) && !mc.thePlayer.isUsingItem();
                 CombatDiagnostics.opportunityResult(opportunity,Stage.HIT_CHECK,hit);
+                // Capture before callbacks: an accepted send can reconfigure or replace this lifecycle.
+                PendingBlock pending = hit && autoblock.getValue() && "Intave".equals(autoblockMode.getValue())
+                        ? capturePendingBlock(selected) : null;
                 attackAccepted=RuntimeServices.attackScheduler().tryAttack(rotationManager.getMotionSequence(), hit, () -> {
                     clickSample = clickTiming.sample();
                     return clickSample.delayMillis;
@@ -322,9 +368,9 @@ public class Aura extends Module {
                         : !rotationManager.isOwner("scaffold") && rotationManager.getRotationRelease() == null;
                 if (!AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)) return;
                 if ("Intave".equals(autoblockMode.getValue())) {
-                    if (autoblock.getValue() && attackAccepted) {
-                        blockAfterHit = selected;
-                        blockTick = mc.thePlayer.ticksExisted + 1;
+                    if (autoblock.getValue() && attackAccepted && pending != null && pending.current()
+                            && target == selected && blockOwns) {
+                        blockAfterHit = pending;
                     }
                     return;
                 }

@@ -48,6 +48,35 @@ public class ConfigManager {
                 Pulsar.INSTANCE.getMm().getAllModules(),
                 () -> Minecraft.getMinecraft().theWorld != null && Minecraft.getMinecraft().thePlayer != null,
                 ConfigManager::report, System::nanoTime);
+        installBundledPlaytestConfigs();
+    }
+
+    /** Install versioned examples once. An existing file always belongs to the user. */
+    public boolean installBundledPlaytestConfigs() {
+        for (String name : new String[]{"HypeMC-Final-0.2.1", "Mineblaze-Final-0.2.1"}) {
+            Path destination = directory.resolve(name + ".json");
+            if (Files.exists(destination, LinkOption.NOFOLLOW_LINKS)) continue;
+            Path temporary = null;
+            try (InputStream resource = ConfigManager.class.getResourceAsStream("/neutron/configs/" + name + ".json")) {
+                if (resource == null) throw new IOException("Bundled configuration is missing: " + name);
+                Files.createDirectories(directory);
+                temporary = Files.createTempFile(directory, ".bundled-", ".tmp");
+                Files.copy(resource, temporary, StandardCopyOption.REPLACE_EXISTING);
+                try {
+                    Files.move(temporary, destination);
+                } catch (FileAlreadyExistsException existing) {
+                    // A concurrent installer/user won the filename. Keep their contents.
+                }
+            } catch (IOException failure) {
+                lastError = "Could not install bundled config " + name + ": " + failure.getMessage();
+                return false;
+            } finally {
+                if (temporary != null) {
+                    try { Files.deleteIfExists(temporary); } catch (IOException ignored) { }
+                }
+            }
+        }
+        return true;
     }
 
     // Explicit dependencies allow real module/value tests without starting Minecraft.

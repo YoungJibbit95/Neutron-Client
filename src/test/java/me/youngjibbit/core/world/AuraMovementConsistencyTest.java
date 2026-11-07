@@ -40,7 +40,10 @@ public class AuraMovementConsistencyTest {
                 {"neutronScaffoldMovement"},{"arsenicScaffoldMovement"},
                 {"visibleAimAssistMovement"},{"arsenicAimAssistMovement"},{"scaffoldSprintDisabled"},
                 {"wTapSprintMatchesPhysics"},{"scaffoldAutoJumpWithSprint"},{"scaffoldAutoJumpWithoutSprint"},
-                {"velocityMovement"},{"intaveReduceMotion"},{"legitJumpresetInput"},{"intaveBlockAndSwordPulse"},{"intaveWallAcceleration"}});
+                {"velocityMovement"},{"intaveReduceMotion"},{"legitJumpresetInput"},{"intaveBlockAndSwordPulse"},{"intaveWallAcceleration"},
+                {"acquisitionMargin"},{"smartAcquisitionMargin"},{"marginConfigReset"},
+                {"pendingBlockCompetingOwner"},{"pendingBlockLostTarget"},{"pendingBlockCancelledTransport"},
+                {"pendingBlockReconfiguredDuringAcceptedAttack"},{"pendingBlockRespectsReachWithAimMargin"}});
     }
     private final String method;
     public AuraMovementConsistencyTest(String method) { this.method=method; }
@@ -143,6 +146,132 @@ public class AuraMovementConsistencyTest {
         @Override public void close() throws Exception { Pulsar.BUS.unsubscribe(observeMove);f.close(); }
     }
     public static class Checks {
+        private void acquisition(boolean smart) throws Exception {
+            try (Run run = new Run("Einfach")) {
+                run.f.run.scene.loadedEntityList.clear();run.f.run.scene.loadedEntityList.add(run.f.first);
+                run.target(1.5,4.2);
+                assertFalse(run.f.walk().stream().anyMatch(C02PacketUseEntity.class::isInstance));
+                assertNull(run.f.run.fixture.runtime.getRotationManager().getConfirmedOwner());
+                run.f.run.fixture.aura.getBooleanSetting("Smart Aim").setValue(smart);
+                run.f.run.fixture.aura.getNumberSetting("Aim Range Margin").setValue(2D);
+                for (int i=0;i<2;i++) {
+                    List<Object> packets=run.f.walk();
+                    assertEquals("aura",run.f.run.fixture.runtime.getRotationManager().getConfirmedOwner());
+                    assertFalse(packets.stream().anyMatch(C02PacketUseEntity.class::isInstance));
+                    assertFalse(packets.stream().anyMatch(C08PacketPlayerBlockPlacement.class::isInstance));
+                }
+                run.target(.5,2);
+                assertTrue(run.f.walk().stream().anyMatch(C02PacketUseEntity.class::isInstance));
+                run.f.run.fixture.aura.getBooleanSetting("Rotations").setValue(false);
+                run.target(1.5,4.2);
+                assertFalse(run.f.walk().stream().anyMatch(C02PacketUseEntity.class::isInstance));
+            }
+        }
+        @Test public void pendingBlockRespectsReachWithAimMargin() throws Exception {
+            for (boolean outsideReach : new boolean[]{false, true}) {
+                try (Run run = new Run("Einfach", SwordPlayer.class)) {
+                    run.remoteTarget();
+                    run.input.forward = 0;
+                    ItemStack sword = new ItemStack(Items.iron_sword);
+                    run.player.inventory.mainInventory[run.player.inventory.currentItem] = sword;
+                    me.youngjibbit.module.impl.combat.Aura aura = run.f.run.fixture.aura;
+                    aura.getNumberSetting("Reach").setValue(3D);
+                    aura.getNumberSetting("Aim Range Margin").setValue(2D);
+                    aura.getModeSetting("Autoblock Mode").setValue("Intave");
+                    aura.getBooleanSetting("Autoblock").setValue(true);
+                    run.f.run.fixture.mc.gameSettings.keyBindUseItem.pressed = false;
+                    EntityLivingBase target = (EntityLivingBase) run.f.run.scene.getEntityByID(19);
+                    List<Object> attack = run.f.walk();
+                    assertEquals(1L, attack.stream().filter(C02PacketUseEntity.class::isInstance).count());
+                    assertFalse(attack.stream().anyMatch(C08PacketPlayerBlockPlacement.class::isInstance));
+                    assertFalse(run.player.isUsingItem());
+                    assertNotNull(ScaffoldOwnerContinuityTest.field(
+                            me.youngjibbit.module.impl.combat.Aura.class, "blockAfterHit").get(aura));
+                    if (outsideReach) {
+                        target.posZ = target.lastTickPosZ = 4.5;
+                        target.setEntityBoundingBox(new AxisAlignedBB(.2, 64, 4.2, .8, 65.8, 4.8));
+                    }
+                    TargetingService targeting = new TargetingService();
+                    TargetingService.Options strict = new TargetingService.Options();
+                    strict.range = 3;
+                    TargetingService.Options acquisition = new TargetingService.Options();
+                    acquisition.range = 5;
+                    assertEquals(!outsideReach, targeting.isValidTarget(target, strict));
+                    assertTrue(targeting.isValidTarget(target, acquisition));
+                    run.player.ticksExisted++;
+                    List<Object> followup = run.physical(false);
+                    assertEquals("aura", run.f.run.fixture.runtime.getRotationManager().getConfirmedOwner());
+                    assertSame(target, ScaffoldOwnerContinuityTest.field(
+                            me.youngjibbit.module.impl.combat.Aura.class, "target").get(aura));
+                    assertFalse(followup.stream().anyMatch(C02PacketUseEntity.class::isInstance));
+                    assertEquals(outsideReach ? 0L : 1L, followup.stream()
+                            .filter(C08PacketPlayerBlockPlacement.class::isInstance).count());
+                    assertEquals(!outsideReach, run.player.isUsingItem());
+                    if (outsideReach) assertNull(run.player.getItemInUse());
+                    else assertSame(sword, run.player.getItemInUse());
+                }
+            }
+        }
+        @Test public void acquisitionMargin() throws Exception { acquisition(false); }
+        @Test public void smartAcquisitionMargin() throws Exception { acquisition(true); }
+        @Test public void marginConfigReset() throws Exception {
+            try (Run run=new Run("Einfach")) {
+                assertEquals(0,run.f.run.fixture.aura.getNumberSetting("Aim Range Margin").getValue(),0);
+                run.f.run.fixture.aura.getNumberSetting("Aim Range Margin").setValue(2D);
+                run.f.run.fixture.aura.beginConfigUpdate();
+                try { assertEquals(0,run.f.run.fixture.aura.getNumberSetting("Aim Range Margin").getValue(),0); }
+                finally { run.f.run.fixture.aura.endConfigUpdate(); }
+            }
+        }
+        public static class RotationVeto implements me.zero.alpine.listener.Subscriber {
+            RotationManager manager;
+            RotationVeto(RotationManager manager) { this.manager=manager; }
+            @me.zero.alpine.listener.Subscribe final Listener<me.youngjibbit.event.motion.EventRotation> rotation =
+                    new Listener<>(e -> manager.request("scaffold",100,e.motion().getYaw(),e.motion().getPitch()));
+        }
+        private void pendingBlock(int interruption) throws Exception {
+            try (Run run=new Run("Einfach",SwordPlayer.class)) {
+                run.remoteTarget();
+                run.player.inventory.mainInventory[run.player.inventory.currentItem]=new ItemStack(Items.iron_sword);
+                run.f.run.fixture.aura.getModeSetting("Autoblock Mode").setValue("Intave");
+                run.f.run.fixture.aura.getBooleanSetting("Autoblock").setValue(true);
+                assertTrue(run.f.walk().stream().anyMatch(C02PacketUseEntity.class::isInstance));
+                run.player.ticksExisted++;
+                RotationVeto veto=new RotationVeto(run.f.run.fixture.runtime.getRotationManager());
+                ScaffoldOwnerContinuityTest.Hooks hooks=new ScaffoldOwnerContinuityTest.Hooks();
+                hooks.packet=e->{if(e.isPre() && e.isOutbound() && e.getPacket() instanceof C08PacketPlayerBlockPlacement)e.cancel();};
+                if(interruption==0)Pulsar.BUS.subscribe(veto);
+                if(interruption==1)run.f.run.scene.loadedEntityList.clear();
+                if(interruption==2)Pulsar.BUS.subscribe(hooks);
+                try {
+                    List<Object> packets=run.physical(false);
+                    assertFalse(packets.stream().anyMatch(C08PacketPlayerBlockPlacement.class::isInstance));
+                    assertFalse(run.player.isUsingItem());
+                } finally { Pulsar.BUS.unsubscribe(veto);Pulsar.BUS.unsubscribe(hooks); }
+            }
+        }
+        @Test public void pendingBlockCompetingOwner() throws Exception { pendingBlock(0); }
+        @Test public void pendingBlockLostTarget() throws Exception { pendingBlock(1); }
+        @Test public void pendingBlockCancelledTransport() throws Exception { pendingBlock(2); }
+        @Test public void pendingBlockReconfiguredDuringAcceptedAttack() throws Exception {
+            try (Run run = new Run("Einfach", SwordPlayer.class)) {
+                run.remoteTarget();
+                run.player.inventory.mainInventory[run.player.inventory.currentItem] = new ItemStack(Items.iron_sword);
+                run.f.run.fixture.aura.getModeSetting("Autoblock Mode").setValue("Intave");
+                run.f.run.fixture.aura.getBooleanSetting("Autoblock").setValue(true);
+                ScaffoldOwnerContinuityTest.Hooks hooks = new ScaffoldOwnerContinuityTest.Hooks();
+                hooks.packet = e -> {
+                    if (e.isPost() && e.isOutbound() && e.getPacket() instanceof C02PacketUseEntity)
+                        run.f.run.fixture.aura.getNumberSetting("Yaw Speed").setValue(30D);
+                };
+                Pulsar.BUS.subscribe(hooks);
+                try { assertTrue(run.f.walk().stream().anyMatch(C02PacketUseEntity.class::isInstance)); }
+                finally { Pulsar.BUS.unsubscribe(hooks); }
+                run.player.ticksExisted++;
+                assertFalse(run.physical(false).stream().anyMatch(C08PacketPlayerBlockPlacement.class::isInstance));
+                assertFalse(run.player.isUsingItem());
+            }
+        }
         private void turn(String mode) throws Exception {
             try(Run run=new Run(mode)) {
                 run.f.walk();assertEquals(0,run.f.run.fixture.runtime.getRotationManager().getEffectiveYaw(),.1);
