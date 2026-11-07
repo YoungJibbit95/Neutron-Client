@@ -16,12 +16,34 @@ function Get-NeutronStoragePath([string]$Value, [string]$Install) {
     return $full
 }
 
+function Get-NeutronFsPath([string]$Path) {
+    # Windows PowerShell 5.1's providers cannot reliably hash/enumerate >260
+    # character library paths. Use extended local paths with .NET file APIs.
+    if ($Path.StartsWith('\\?\')) { return $Path }
+    return '\\?\'+$Path
+}
+
 function Assert-NeutronNoLinks([string]$Path) {
-    for ($current=$Path; $current; $current=[IO.Path]::GetDirectoryName($current)) {
-        $item = Get-Item -LiteralPath $current -Force -ErrorAction SilentlyContinue
-        if ($item -and ($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) { throw ('Linked launcher storage is not allowed: '+$current) }
-        if ($current -eq [IO.Path]::GetPathRoot($current)) { break }
+    $current=$Path.TrimEnd('\')
+    while ($current.Length -ge 2) {
+        try {
+            $attributePath=if($current.Length -eq 2){$current+'\'}else{$current}
+            $attributes=[IO.File]::GetAttributes((Get-NeutronFsPath $attributePath))
+            if ($attributes -band [IO.FileAttributes]::ReparsePoint) { throw ('Linked launcher storage is not allowed: '+$current) }
+        } catch {
+            $cause=$_.Exception
+            while($cause.InnerException){$cause=$cause.InnerException}
+            if ($cause -isnot [IO.FileNotFoundException] -and $cause -isnot [IO.DirectoryNotFoundException]) { throw }
+        }
+        if ($current.Length -le 3) { break }
+        $current=$current.Substring(0,[math]::Max(3,$current.LastIndexOf('\')))
     }
+}
+
+function Get-NeutronFileHash([string]$Path) {
+    $stream=[IO.File]::OpenRead((Get-NeutronFsPath $Path)); $sha=[Security.Cryptography.SHA256]::Create()
+    try { return [BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-','').ToLowerInvariant() }
+    finally { $stream.Dispose(); $sha.Dispose() }
 }
 
 function Read-NeutronProfile([string]$Root) {
@@ -72,6 +94,7 @@ function Read-NeutronProfile([string]$Root) {
 function Resolve-NeutronStorage([string]$Install, [string]$Control) {
     Assert-NeutronNoLinks $Control
     $pointer=Join-Path $Control 'data-directory.txt'
+    Assert-NeutronNoLinks $pointer
     if ([IO.File]::Exists($pointer)) {
         $bytes=[IO.File]::ReadAllBytes($pointer)
         if ($bytes.Length -lt 2 -or $bytes.Length -gt 2048 -or $bytes.Length % 2) { throw 'The saved data location is invalid. Select the complete existing data folder in setup.' }
@@ -88,11 +111,13 @@ function Get-NeutronFreeBytes([string]$Root) {
 }
 
 function Get-NeutronProfileFiles([string]$Root, [string]$Relative='') {
-    foreach($item in @(Get-ChildItem -LiteralPath (Join-Path $Root $Relative) -Force)) {
-        if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'A copied data folder must not contain links.' }
-        if (-not $Relative -and $item.Name -in @('temp','logs','work','maven-repository','maven-user','cache','candidates','session','crashes','data-directory.txt','.neutron-storage-v1')) { continue }
-        $name=if($Relative){Join-Path $Relative $item.Name}else{$item.Name}
-        if($item.PSIsContainer){Get-NeutronProfileFiles $Root $name}else{$name}
+    foreach($entry in [IO.Directory]::EnumerateFileSystemEntries((Get-NeutronFsPath (Join-Path $Root $Relative)))) {
+        $attributes=[IO.File]::GetAttributes($entry)
+        if ($attributes -band [IO.FileAttributes]::ReparsePoint) { throw 'A copied data folder must not contain links.' }
+        $leaf=$entry.Substring($entry.LastIndexOf('\')+1)
+        if (-not $Relative -and $leaf -in @('temp','logs','work','maven-repository','maven-user','cache','candidates','session','crashes','data-directory.txt','.neutron-storage-v1')) { continue }
+        $name=if($Relative){Join-Path $Relative $leaf}else{$leaf}
+        if($attributes -band [IO.FileAttributes]::Directory){Get-NeutronProfileFiles $Root $name}else{$name}
     }
 }
 
@@ -104,7 +129,7 @@ function Assert-NeutronProfileCopy([string]$Original, [string]$Copy) {
     foreach($name in @(Get-NeutronProfileFiles $Original)) {
         $from=Join-Path $Original $name; $to=Join-Path $Copy $name
         Assert-NeutronNoLinks $to
-        if (-not [IO.File]::Exists($to) -or (Get-FileHash -LiteralPath $from -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $to -Algorithm SHA256).Hash) {
+        if (-not [IO.File]::Exists((Get-NeutronFsPath $to)) -or (Get-NeutronFileHash $from) -cne (Get-NeutronFileHash $to)) {
             throw ('The selected data copy is incomplete or differs from the original: '+$name+'. Close Neutron and copy the complete data folder again while retaining the original. Separately configured game folders are not moved.')
         }
     }

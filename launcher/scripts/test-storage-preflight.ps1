@@ -83,6 +83,18 @@ try {
     Complete-NeutronStorage $copy $app $control $release $check $false | Out-Null
     Assert-True ((Resolve-NeutronStorage $app $control) -eq $copy) 'Saved root did not survive re-resolution'
     Assert-True ((Get-FileHash $stateFile).Hash -eq $originalHash -and (Get-FileHash $exe).Hash -eq $exeHash) 'Profile adoption changed original files'
+    $longSource=Join-Path $fixture ('Long Source '+('x'*35)); $shortCopy=Join-Path $fixture 'Short Copy'
+    New-Profile $longSource; New-Profile $shortCopy
+    [IO.File]::WriteAllBytes((Join-Path $shortCopy 'state.json'),[IO.File]::ReadAllBytes((Join-Path $longSource 'state.json')))
+    $relative='libraries\'+('n'*(270-$longSource.Length-'libraries\'.Length-'\library.jar'.Length-1))+'\library.jar'
+    $longFile=Join-Path $longSource $relative; $shortFile=Join-Path $shortCopy $relative
+    Assert-True ($longFile.Length -gt 260 -and $shortFile.Length -lt 260) 'Long-path fixture does not cross MAX_PATH'
+    $null=[IO.Directory]::CreateDirectory((Get-NeutronFsPath (Split-Path $longFile)))
+    $null=[IO.Directory]::CreateDirectory((Get-NeutronFsPath (Split-Path $shortFile)))
+    [IO.File]::WriteAllText((Get-NeutronFsPath $longFile),'long library bytes'); [IO.File]::WriteAllText((Get-NeutronFsPath $shortFile),'long library bytes')
+    Assert-NeutronProfileCopy $longSource $shortCopy
+    [IO.File]::WriteAllText((Get-NeutronFsPath $shortFile),'different long library bytes')
+    Assert-Rejected { Assert-NeutronProfileCopy $longSource $shortCopy } 'incomplete or differs'
     $missing=Join-Path $fixture 'Lost Profile'
     [IO.File]::WriteAllText($pointer,$missing,[Text.Encoding]::Unicode); $pointerHash=(Get-FileHash $pointer).Hash
     Assert-Rejected { Test-NeutronStorage $missing $app $control $release $false } 'existing profile'
@@ -96,5 +108,6 @@ try {
     $owned=[IO.Path]::GetFullPath($fixture)
     if(-not $owned.StartsWith([IO.Path]::GetFullPath([IO.Path]::GetTempPath()),[StringComparison]::OrdinalIgnoreCase) -or (Split-Path $owned -Leaf) -notlike 'neutron-preflight-*'){throw 'Unsafe fixture cleanup'}
     $junction=Join-Path $owned 'Linked'; if(Test-Path -LiteralPath $junction){[IO.Directory]::Delete($junction)}
-    Remove-Item -LiteralPath $owned -Recurse -Force
+    # .NET extended paths also remove only our synthetic MAX_PATH fixture.
+    [IO.Directory]::Delete((Get-NeutronFsPath $owned),$true)
 }
