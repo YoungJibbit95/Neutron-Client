@@ -39,6 +39,27 @@ public class ArsenicScaffoldFlowTest {
         scene.motionTime.addAndGet(50_000_000L);f.runtime.getScaffoldPlacementService().beginTick();ScaffoldClientFlowTest.ordinaryWalking(f);
         int count=0;Object sent;while((sent=f.channel.readOutbound())!=null)if(sent instanceof C08PacketPlayerBlockPlacement)count++;return count;
     }
+    @Test public void optionalSoftStartDelaysPlacementUntilItsAcceptedRayReachesTheFace() throws Exception {
+        try (RotationBehaviorHookTest.Fixture f = new RotationBehaviorHookTest.Fixture()) {
+            Scene scene = prepare(f);
+            assertNotNull("Scaffold needs an opt-in soft start", f.scaffold.getBooleanSetting("Arsenic Soft Motion"));
+            f.scaffold.getBooleanSetting("Arsenic Soft Motion").setValue(true);
+            f.player.rotationYaw = 90;
+            f.scaffold.onEnable();
+            try {
+                assertEquals(0, step(f, scene));
+                float yaw = f.runtime.getRotationManager().getEffectiveYaw();
+                float pitch = f.runtime.getRotationManager().getEffectivePitch();
+                assertTrue(Math.abs(MathHelper.wrapAngleTo180_float(yaw - 90)) <= 2.5f);
+                assertTrue(Math.abs(pitch - f.player.rotationPitch) <= 1.5f);
+                int placed = 0;
+                for (int i = 0; i < 70 && placed == 0; i++) placed += step(f, scene);
+                assertEquals(1, placed);
+                assertEquals(Blocks.stone, scene.getBlockState(new BlockPos(0,63,0)).getBlock());
+            } finally { f.scaffold.onDisable(); }
+        }
+    }
+
     @Test public void predictiveCorePlacesThroughAcceptedWalkingAndNativeController() throws Exception {
         try(RotationBehaviorHookTest.Fixture f=new RotationBehaviorHookTest.Fixture()) {
             Scene scene=prepare(f);f.scaffold.onEnable();

@@ -46,6 +46,7 @@ public class Scaffold extends Module {
     private final TowerController towerController = new TowerController();
     private final me.youngjibbit.core.world.ArsenicScaffoldController arsenicController=new me.youngjibbit.core.world.ArsenicScaffoldController();
     private final ComboValue approach=new ComboValue("Scaffold Approach",this,new String[]{"Neutron","Arsenic"},0);
+    private final CheckBoxValue softArsenicMotion = new CheckBoxValue("Arsenic Soft Motion", this, false);
     private final CheckBoxValue eagle=new CheckBoxValue("Eagle",this,true);
     private final SliderValue safety=new SliderValue("Safety",this,2D,0,3,false);
     private final SliderValue arsenicMinSpeed=new SliderValue("Arsenic Min Speed",this,180D,1,360,true);
@@ -122,7 +123,7 @@ public class Scaffold extends Module {
         for(me.youngjibbit.value.Value<?> value:getValues()) {
             if(value==approach || value==bodyRotation || value==itemSpoof || value==swing || value==swingMode
                     || value==placeDelay || value==placementDiagnostics || value==rotationReturn.enabled || value==rotationReturn.ticks)continue;
-            if(value==eagle || value==safety || value==arsenicMinSpeed || value==arsenicMaxSpeed) {
+            if(value==softArsenicMotion || value==eagle || value==safety || value==arsenicMinSpeed || value==arsenicMaxSpeed) {
                 value.setVisibility(m->arsenic());continue;
             }
             java.util.function.Predicate<Module> visible=value.getVisibility();
@@ -131,7 +132,7 @@ public class Scaffold extends Module {
     }
     private boolean arsenic() { return "Arsenic".equals(approach.getValue()); }
     private boolean usesRotations() { return arsenic() || rotations.getValue(); }
-    @Override public void beginConfigUpdate() { super.beginConfigUpdate();approach.reset(); }
+    @Override public void beginConfigUpdate() { super.beginConfigUpdate();approach.reset();softArsenicMotion.reset(); }
     @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String name) { return super.getValueByName(name!=null && name.replace("_","").replace(" ","").equalsIgnoreCase("SameY")?"keep_y":name); }
     @Override public void onValueChange() {
         long generation = ++lifecycleGeneration;
@@ -145,7 +146,7 @@ public class Scaffold extends Module {
                     () -> lifecycleGeneration == generation && contextRotation == RuntimeServices.rotation());
             if (generation != lifecycleGeneration) return;
         }
-        if (!rotationReturn.enabled.getValue()) RuntimeServices.rotation().cancelScaffoldRelease();
+        if (!rotationReturn.enabled.getValue() && !(arsenic() && softArsenicMotion.getValue())) RuntimeServices.rotation().cancelScaffoldRelease();
         if (end) endRotation();
     }
 
@@ -169,7 +170,7 @@ public class Scaffold extends Module {
         try {
             RotationManager rotation = contextRotation;
             if (usesRotations() && rotation != null && rotation == RuntimeServices.rotation())
-                rotationReturn.begin(rotation, "scaffold", moveFixMode(), bodyRotationMode(), () -> lifecycleGeneration == generation);
+                rotationReturn.begin(rotation, "scaffold", moveFixMode(), bodyRotationMode(), arsenic() && softArsenicMotion.getValue(), () -> lifecycleGeneration == generation);
         } finally {
             if (generation == lifecycleGeneration) {
                 try { clearState(); }
@@ -404,7 +405,7 @@ public class Scaffold extends Module {
         if(event.isPre()) {
             if(frameSequence==sequence)return;
             frameTarget=currentTarget=null;frameSequence=sequence;framePre=false;downwardsState=false;
-            me.youngjibbit.core.world.ArsenicScaffoldController.Prepared prepared=arsenicController.prepare(contextRotation,eagle.getValue(),safety.getValue(),arsenicMinSpeed.getValue(),arsenicMaxSpeed.getValue());
+            me.youngjibbit.core.world.ArsenicScaffoldController.Prepared prepared=arsenicController.prepare(contextRotation,eagle.getValue(),safety.getValue(),arsenicMinSpeed.getValue(),arsenicMaxSpeed.getValue(),softArsenicMotion.getValue());
             if(!continueMotion(sequence,generation))return;
             if(prepared==null)return;
             frameTarget=currentTarget=prepared.target;

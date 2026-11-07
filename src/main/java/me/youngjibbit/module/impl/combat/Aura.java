@@ -107,6 +107,8 @@ public class Aura extends Module {
         customBlockFrequency.setValue(false);
         blockFrequency.reset();
         // Missing legacy keys cannot inherit activation; explicit incoming values apply afterward.
+        rotationSettings.softArsenicMotion.reset();
+        rotationSettings.hitpointVariation.reset();
         rotationSettings.speedCurve.reset();
         if(rotationSettings.arsenic())rotationSettings.mode.reset();
     }
@@ -115,9 +117,9 @@ public class Aura extends Module {
         if (rotationReturn == null) return;
         final long generation = ++lifecycleGeneration;
         final RotationManager manager = RuntimeServices.rotation();
-        if (!rotationReturn.enabled.getValue()) manager.cancelRotationRelease(ROTATION_SOURCE);
+        if (!rotationReturn.enabled.getValue() && !softArsenic()) manager.cancelRotationRelease(ROTATION_SOURCE);
         if (isToggled() && !rotations.getValue()) {
-            rotationReturn.begin(manager, ROTATION_SOURCE, moveFixMode(), bodyRotationMode(),
+            rotationReturn.begin(manager, ROTATION_SOURCE, moveFixMode(), bodyRotationMode(), softArsenic(),
                     () -> generation == lifecycleGeneration && manager == RuntimeServices.rotation());
             if (generation == lifecycleGeneration && manager == RuntimeServices.rotation()) manager.reset(ROTATION_SOURCE);
         }
@@ -130,11 +132,15 @@ public class Aura extends Module {
         clearCombat(false);
     }
 
+    private boolean softArsenic() {
+        return rotationSettings.arsenic() && rotationSettings.softArsenicMotion.getValue();
+    }
+
     private void clearCombat(boolean worldChanged) {
         final long generation = ++lifecycleGeneration;
         final RotationManager manager = RuntimeServices.rotation();
-        if (worldChanged) manager.cancelRotationRelease(ROTATION_SOURCE);
-        else rotationReturn.begin(manager, ROTATION_SOURCE, moveFixMode(), bodyRotationMode(),
+        if (worldChanged || (softArsenic() && (mc == null || mc.currentScreen != null || !mc.inGameHasFocus))) manager.cancelRotationRelease(ROTATION_SOURCE);
+        else rotationReturn.begin(manager, ROTATION_SOURCE, moveFixMode(), bodyRotationMode(), softArsenic(),
                 () -> generation == lifecycleGeneration && manager == RuntimeServices.rotation());
         if (generation != lifecycleGeneration || manager != RuntimeServices.rotation()) return;
         target = null;
@@ -234,7 +240,7 @@ public class Aura extends Module {
                 } else { clearCombat(false);return; }
             } else if (target != null) {
                 RotationManager manager = RuntimeServices.rotation();
-                rotationReturn.begin(manager, ROTATION_SOURCE, moveFixMode(), bodyRotationMode(),
+                rotationReturn.begin(manager, ROTATION_SOURCE, moveFixMode(), bodyRotationMode(), softArsenic(),
                         () -> generation == lifecycleGeneration && usable());
                 if (generation != lifecycleGeneration || !usable()) return;
                 // Preserve our own stop; an unrelated camera-target intent still preempts Scaffold.

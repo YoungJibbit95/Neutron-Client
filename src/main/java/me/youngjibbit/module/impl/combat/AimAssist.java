@@ -60,19 +60,29 @@ public class AimAssist extends Module {
                 && mc.inGameHasFocus && mc.getRenderViewEntity()==mc.thePlayer && mc.thePlayer.isEntityAlive()
                 && !mc.thePlayer.isDead && !mc.thePlayer.isSpectator() && !mc.thePlayer.isRiding();
     }
-    private void clearAim() {
-        target=null;RuntimeServices.rotation().reset(ROTATION_SOURCE);CombatTargetTracker.clear(ROTATION_SOURCE);
+    private void clearAim(boolean allowStop) {
+        RotationManager manager = RuntimeServices.rotation();
+        if (allowStop && rotationSettings.arsenic() && rotationSettings.softArsenicMotion.getValue()) {
+            if (target != null) manager.beginVisibleAssistStop();
+        } else {
+            manager.cancelVisibleAssistStop();
+        }
+        target = null;
+        manager.reset(ROTATION_SOURCE);
+        CombatTargetTracker.clear(ROTATION_SOURCE);
     }
-    @Override public void onEnable() { clearAim();super.onEnable(); }
+    @Override public void onEnable() { clearAim(false);super.onEnable(); }
     @Override public void beginConfigUpdate() {
         super.beginConfigUpdate();
         // Missing legacy keys cannot inherit activation; explicit incoming values apply afterward.
+        rotationSettings.softArsenicMotion.reset();
         rotationSettings.speedCurve.reset();
         if(rotationSettings.arsenic())rotationSettings.mode.reset();
     }
-    @Override public void onDisable() { clearAim();super.onDisable(); }
-    @Subscribe private final Listener<WorldEvent> world=new Listener<>(event->clearAim());
-    @Subscribe private final Listener<TickEvent> context=new Listener<>(event->{if(!usable() || (target!=null && !validTarget(target,options())))clearAim();});
+    @Override public void onDisable() { clearAim(true);super.onDisable(); }
+    @Subscribe private final Listener<WorldEvent> world=new Listener<>(event->clearAim(false));
+    @Subscribe private final Listener<TickEvent> context=new Listener<>(event->{if (!usable()) clearAim(false);
+        else if (target != null && !validTarget(target, options())) clearAim(true);});
 
     private TargetingService.Options options() {
         TargetingService.Options options=new TargetingService.Options();
@@ -94,20 +104,20 @@ public class AimAssist extends Module {
     @Subscribe private final Listener<EventRotation> prepareRotation = new Listener<>(preparation -> handleMotion(preparation.motion()));
 
     private void handleMotion(EventMotion event) {
-        if(!usable()) { clearAim();return; }
+        if(!usable()) { clearAim(false);return; }
         if(!event.isPre()) return;
         RotationManager rotationManager = RuntimeServices.rotation();
         String confirmed=rotationManager.getConfirmedOwner();
-        if("aura".equals(confirmed) || "scaffold".equals(confirmed)) { clearAim();return; }
+        if("aura".equals(confirmed) || "scaffold".equals(confirmed)) { clearAim(false);return; }
 
         TargetingService.Options options=options();
 
-        target = RuntimeServices.targeting().getBestTarget(options, mapSort(sortMode.getValue()));
-        if (target == null) {
-            RuntimeServices.rotation().reset(ROTATION_SOURCE);
-            CombatTargetTracker.clear("aimassist");
+        EntityLivingBase next = RuntimeServices.targeting().getBestTarget(options, mapSort(sortMode.getValue()));
+        if (next == null) {
+            clearAim(true);
             return;
         }
+        target = next;
         CombatTargetTracker.update(target, "aimassist");
 
         RotationProfile profile=rotationSettings.snapshot();profile.reach=aimRange.getValue().floatValue();profile.throughWalls=throughWalls.getValue();
@@ -121,7 +131,7 @@ public class AimAssist extends Module {
         );
 
         if (targetRotations == null) {
-            clearAim();
+            clearAim(false);
             return;
         }
         EntityLivingBase selected=target;
