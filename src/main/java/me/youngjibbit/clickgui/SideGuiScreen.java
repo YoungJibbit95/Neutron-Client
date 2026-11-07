@@ -76,8 +76,15 @@ public class SideGuiScreen extends GuiScreen {
                 try(GuiClip clip=GuiClip.push(window())){
                     Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Bold 28").drawString("Neutron",x+12,y+12,ink);
                     if(w>380)text("Library",x+104,y+17,100,UiEffects.alpha(ink,.7f));
-                    for(int i=0;i<6;i++){ClipRect b=tabBounds(i);tabs[i].step(dt,b.contains(mx,my),navFocus==i,false,true,ClientSettings.current());float a=Math.max(0,tabs[i].amount());GuiStyle.panel(b.x,b.y,b.width,b.height,3,i==0?.65f:a*.65f,new Color(20,23,31));GuiStyle.feedback(b,tabs[i]);text(i==5?"x":TABS[i],b.x+6,b.y+6,b.width-12,Theme.interpolateRGB(ink,theme.getPrimaryGradientRGB(),a*.4f));}
-                    ClipRect search=searchBounds();GuiStyle.panel(search.x,search.y,search.width,search.height,4,searchFocus?.75f:.1f,new Color(15,18,25));
+                    for (int i = 0; i < tabs.length; i++) {
+                        ClipRect b = tabBounds(i);
+                        tabs[i].stepForInput(dt,b.contains(mx,my),navFocus==i,false,true,ClientSettings.current());
+                        b = GuiStyle.buttonBounds(b,tabs[i]);
+                        UIUtils.drawRound(b.x,b.y,b.width,b.height,3,new Color(20,23,31));
+                        GuiStyle.feedback(b,tabs[i]);
+                        text(i==5?"x":TABS[i],b.x+6,b.y+6,b.width-12,GuiStyle.ink(ink,tabs[i]));
+                    }
+                    ClipRect search=searchBounds();GuiStyle.panel(search.x,search.y,search.width,search.height,4,searchFocus && showsKeyboardFocus()?.75f:.1f,new Color(15,18,25));
                     text(query.isEmpty()?"Search modules and settings":query+(searchFocus?"_":""),search.x+8,search.y+7,search.width-16,query.isEmpty()?UiEffects.alpha(ink,.65f):ink);
                     // A persistent text backing keeps the moving star from washing out labels.
                     ClipRect listArea=listBounds();int luminance=(ink>>16&255)*299+(ink>>8&255)*587+(ink&255)*114;
@@ -90,7 +97,7 @@ public class SideGuiScreen extends GuiScreen {
                             float active=m==selected?1:r.contains(mx,my)?.4f:.04f;
                             GuiStyle.panel(r.x,r.y,r.width,r.height,3,active,new Color(20,23,30));
                             UIUtils.drawDecorationRound(r.x+1,r.y+1,r.width-2,r.height-2,2,textBacking);
-                            if(listFocus&&m==selected){
+                            if(listFocus&&m==selected&&showsKeyboardFocus()){
                                 UIUtils.drawDecorationRound(r.x+3,r.y+4,1,r.height-8,.5f,new Color(ink,true));
                                 UIUtils.drawDecorationRound(r.x+r.width-4,r.y+4,1,r.height-8,.5f,new Color(ink,true));
                             }
@@ -105,7 +112,7 @@ public class SideGuiScreen extends GuiScreen {
                     }
                     scrollbar(listBounds(),scroll,results.size()*30);
                     if(editor!=null)scrollbar(detailBounds(),detailScroll,editor.getHeight());
-                    text(binding?"Press key · Esc cancels · Delete removes":"Tab: focus · K: bind · Ctrl+F: search",x+12,y+h-16,w-24,UiEffects.alpha(ink,.7f));
+                    text(binding?"Press key Â· Esc cancels Â· Delete removes":"Tab: focus Â· K: bind Â· Ctrl+F: search",x+12,y+h-16,w-24,UiEffects.alpha(ink,.7f));
                 }
             });
         }

@@ -77,14 +77,12 @@ public class MainMenu extends GuiScreen {
         small.drawString(version,panelX+(panelWidth-small.getWidth(version))/2,panelY+header-13,new Color(165,169,180).getRGB());
         // The base contour never moves. Only its inset and label lift/scale inside it.
         for(int i=0;i<9;i++){
-            ClipRect r=actionBounds(i);float lift=preset.lift(hover[i]),scale=preset.scale(hover[i]);
+            ClipRect r=actionBounds(i);float lift=UiEffects.motion()?preset.lift(hover[i]):0,scale=UiEffects.motion()?preset.scale(hover[i]):1;
             boolean active=keyboardFocus&&i==focus,held=i==pressed;float amount=Math.max(0,Math.min(1,hover[i]));
             int ink=theme.isCustom()?theme.getTextColor().getRGB():Color.WHITE.getRGB();
             float halo=preset.glow(hover[i])*(theme.isCustom()?theme.getGlowStrength():1);
             if(halo>0)UiEffects.drawGlow(r.x+3,r.y+3,r.width-6,r.height-6,4,theme.getPrimaryGradientRGB(),halo,2,2);
             UIUtils.drawRound(r.x,r.y,r.width,r.height,4,theme.isCustom()?theme.getBackground():new Color(16,20,29,245));
-            UIUtils.drawRoundOutline(r.x,r.y,r.width,r.height,4,active?1.1f:held?.8f:.45f,new Color(0,0,0,0),
-                    UiEffects.accent(theme.getPrimaryGradientRGB(),held?.9f:active?.8f:.25f+amount*.35f));
             if(active){
                 // An inset bracket survives Global Border/Glow OFF and is not a color-only focus cue.
                 UIUtils.drawRound(r.x+5,r.y+r.height/2-4,2,8,1,new Color(ink,true));
@@ -101,7 +99,7 @@ public class MainMenu extends GuiScreen {
             }
             drawLabel(i<5||i==8?button:small,text,r,lift,scale,Theme.interpolateRGB(ink,theme.getPrimaryGradientRGB(),amount*.32f));
         }
-        if(width>480){String hint="Tab to navigate · Enter to select";small.drawString(hint,12,height-18,new Color(180,185,199).getRGB());}
+        if(width>480){String hint="Tab to navigate Â· Enter to select";small.drawString(hint,12,height-18,new Color(180,185,199).getRGB());}
     }
     private static void drawLabel(TTFFontRenderer font,String text,ClipRect r,float lift,float scale,int ink){
         float w=font.getWidth(text),h=font.getHeight(text);
@@ -109,6 +107,10 @@ public class MainMenu extends GuiScreen {
         fit=Math.max(.1f,fit);
         float y=Math.max(r.y+2,Math.min(r.y+r.height-h*fit-2,r.y+(r.height-h*fit)/2-lift));
         glPushMatrix();try{glTranslatef(r.x+r.width/2,y,0);glScalef(fit,fit,1);font.drawString(text,-w/2,0,ink);}finally{glPopMatrix();}
+    }
+    @Override public void handleMouseInput() throws IOException {
+        keyboardFocus = false;
+        super.handleMouseInput();
     }
     @Override protected void mouseClicked(int mouseX,int mouseY,int button)throws IOException{
         if(button!=0)return;keyboardFocus=false;layout();for(int i=0;i<9;i++)if(hit(actionBounds(i),mouseX,mouseY)){focus=i;pressed=i;return;}

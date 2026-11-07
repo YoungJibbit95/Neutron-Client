@@ -28,6 +28,25 @@ public class ClickModule extends Component {
     private float openProgress, toggleProgress, settingsContentHeight;
     private ClipRect settingsClip = new ClipRect(0, 0, 0, 0);
 
+    private boolean panelStyle;
+    private static final float PANEL_TOP = 8, PANEL_BOTTOM = 8, PANEL_GAP = 3;
+
+    public static ClickModule forPanel(Module module, float width) {
+        ClickModule row = new ClickModule(module, 0, 0, width, 24);
+        row.panelStyle = true;
+        for (Sub<?> value : row.values) value.usePanelStyle();
+        return row;
+    }
+
+    private float settingsTop() {
+        if (panelStyle) return PANEL_TOP;
+        return compactSettings() ? 2 : 20;
+    }
+
+    private float valueGap() {
+        return panelStyle ? PANEL_GAP : 1;
+    }
+
     public ClickModule(Module module, float x, float y, float width, float height) {
         super(x, y, width, height);
         this.module = module;
@@ -47,11 +66,11 @@ public class ClickModule extends Component {
         toggleAnimation.setDirection(module.isToggled() ? Direction.FORWARDS : Direction.BACKWARDS);
         openProgress = Math.max(0, Math.min(1, me.youngjibbit.utils.render.UiEffects.motion()?openAnimation.getOutput().floatValue():open?1:0));
         toggleProgress = Math.max(0, Math.min(1, me.youngjibbit.utils.render.UiEffects.motion()?toggleAnimation.getOutput().floatValue():module.isToggled()?1:0));
-        settingsContentHeight = compactSettings() ? 4 : 24;
+        settingsContentHeight = settingsTop() + (panelStyle ? PANEL_BOTTOM : compactSettings() ? 2 : 4);
         for (Sub<?> value : values) {
             if (!visible(value)) continue;
             if (value instanceof ClickCombo) ((ClickCombo) value).updateAnimation();
-            settingsContentHeight += value.getHeight() + 1;
+            settingsContentHeight += value.getHeight() + valueGap();
         }
     }
 
@@ -76,7 +95,7 @@ public class ClickModule extends Component {
         setWidth(width);
         this.clip = parentClip;
         settingsClip = parentClip.intersect(new ClipRect(x + 1, y + height, width - 2, settingsContentHeight * openProgress));
-        float valueY = y + height + (compactSettings() ? 2 : 20);
+        float valueY = y + height + settingsTop();
         for (Sub<?> value : values) {
             if (!visible(value)) {
                 value.setClip(new ClipRect(0, 0, 0, 0));
@@ -87,7 +106,7 @@ public class ClickModule extends Component {
             value.setWidth(compactSettings() ? width - 4 : width);
             value.setClip(settingsClip);
             if (!open || settingsClip.intersect(new ClipRect(x, valueY, width, value.getHeight())).isEmpty()) value.mouseReleased();
-            valueY += value.getHeight() + 1;
+            valueY += value.getHeight() + valueGap();
         }
     }
 
@@ -95,6 +114,11 @@ public class ClickModule extends Component {
     public void drawScreen(int mouseX, int mouseY) {
         Theme theme = Theme.resolve(Theme.getDefaultTheme());
         boolean hover = isMouseOver(mouseX, mouseY);
+        if (panelStyle) {
+            drawPanelHeader(theme, hover);
+            drawSettings(mouseX, mouseY);
+            return;
+        }
         GuiStyle.panel(x, y, width, getHeight(), 6, toggleProgress,
                 hover ? new Color(29, 29, 32) : new Color(20, 20, 23));
         // A quiet inner edge separates adjacent glass cards without another surface pass.
@@ -109,18 +133,55 @@ public class ClickModule extends Component {
                 x + width - 17, y + 7, (theme.isCustom()?theme.getTextColor().getRGB():Color.WHITE.getRGB()));
         String binding=module.getKey()==0?"-":org.lwjgl.input.Keyboard.getKeyName(module.getKey());
         if(binding==null)binding="?";
-        int conflicts=0;for(Module other:Pulsar.INSTANCE.getMm().getAllModules())if(other!=module&&module.getKey()!=0&&module.getKey()==other.getKey())conflicts++;
-        if(conflicts>0)binding+=" !";
+        boolean conflict = keyConflict();
+        if(conflict)binding+=" !";
         me.youngjibbit.utils.font.TTFFontRenderer small=Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 18");
         binding = ClickControlStyle.fit(small, binding, Math.max(16, Math.min(64, width * .25f)));
         float bindingWidth = Math.max(20, small.getWidth(binding) + 10);
         float bindingX = x + width - 28 - bindingWidth;
-        GuiStyle.panel(bindingX, y + 4, bindingWidth, 16, 3, conflicts > 0 ? .5f : .05f, new Color(30, 32, 37));
-        small.drawCenteredString(binding, bindingX + bindingWidth / 2, y + 7, conflicts > 0 ? 0xffffb975 : 0xffbec4d0);
+        GuiStyle.panel(bindingX, y + 4, bindingWidth, 16, 3, conflict ? .5f : .05f, new Color(30, 32, 37));
+        small.drawCenteredString(binding, bindingX + bindingWidth / 2, y + 7, conflict ? 0xffffb975 : 0xffbec4d0);
         me.youngjibbit.utils.font.TTFFontRenderer title = Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 20");
         title.drawString(ClickControlStyle.fit(title, module.getName(), bindingX - x - 20), x + 12, y + 6,
                 hoverInk(Theme.interpolateRGB(theme.isCustom()?theme.getTextColor().getRGB():0xfff0f1f5, theme.getPrimaryGradientRGB(), toggleProgress)));
         drawSettings(mouseX, mouseY);
+    }
+
+    private boolean keyConflict() {
+        if (module.getKey() == 0) return false;
+        for (Module other : Pulsar.INSTANCE.getMm().getAllModules())
+            if (other != module && other.getKey() == module.getKey()) return true;
+        return false;
+    }
+
+    private void drawPanelHeader(Theme theme, boolean hover) {
+        // Module hover stays anchored, even while the settings below grow or scroll.
+        int text = theme.getTextColor().getRGB();
+        float over = Math.max(0, Math.min(1, getPresentation().amount()));
+        int base = theme.isCustom() ? theme.getBackground().getRGB() : 0xff17181d;
+        int fill = Theme.interpolateRGB(base, text, over * .045f);
+        GuiStyle.panel(x, y, width, getHeight(), 6, .09f + toggleProgress * .17f, new Color(fill, true));
+        float dotX = x + 10, dotY = y + height / 2 - 2;
+        if (module.isToggled())
+            me.youngjibbit.utils.render.UIUtils.drawDecorationRound(dotX, dotY, 4, 4, 2, theme.getPrimaryGradientColor());
+        if (getPresentation().keyboardFocused())
+            Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString("â€º", x + 3, y + 6, text);
+
+        me.youngjibbit.utils.font.TTFFontRenderer title = Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18");
+        float right = x + width - 28;
+        if (module.getKey() != 0) {
+            String key = org.lwjgl.input.Keyboard.getKeyName(module.getKey());
+            if (key == null) key = "?";
+            boolean conflict = keyConflict();
+            if (conflict) key += " !";
+            key = ClickControlStyle.fit(title, key, Math.min(60, width / 4));
+            right -= title.getWidth(key);
+            title.drawString(key, right, y + 6, conflict ? 0xffffb975 : me.youngjibbit.utils.render.UiEffects.alpha(text, .72f));
+        }
+        int titleInk = Theme.interpolateRGB(text, theme.getPrimaryGradientRGB(), toggleProgress * .34f);
+        title.drawString(ClickControlStyle.fit(title, module.getName(), right - x - 24), x + 19, y + 6, titleInk);
+        Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString(openProgress > .5f ? "h" : "i",
+                x + width - 17, y + 7, me.youngjibbit.utils.render.UiEffects.alpha(text, hover || open ? .95f : .62f));
     }
 
     /** Shared settings renderer for the panel and compact dropdown presentations. */
@@ -128,7 +189,14 @@ public class ClickModule extends Component {
         if (!settingsClip.isEmpty()) {
             try (GuiClip ignored = GuiClip.push(settingsClip)) {
                 if(compactSettings())me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x+1,y+height,width-2,settingsContentHeight,0,new Color(9,12,19,145));
-                if(!compactSettings())Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString("Settings", x + 12, y + height + 5,
+                if (panelStyle) {
+                    Theme theme = Theme.resolve(Theme.getDefaultTheme());
+                    me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x + 7, y + height + 2,
+                            width - 14, settingsContentHeight - 4, 5,
+                            me.youngjibbit.utils.render.UiEffects.accent(theme.getBackground().getRGB(), .34f));
+                    me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x + 13, y + height + 2,
+                            width - 26, .7f, 0, me.youngjibbit.utils.render.UiEffects.accent(theme.getTextColor().getRGB(), .16f));
+                } else if(!compactSettings())Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString("Settings", x + 12, y + height + 5,
                         new Color(180, 180, 185).getRGB());
                 for (Sub<?> value : values) {
                     if (!visible(value)) continue;

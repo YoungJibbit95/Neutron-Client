@@ -218,7 +218,7 @@ public class DropdownGui extends GuiScreen {
         ClipRect r = toolbarBounds();
         toolbarSurface.panel(r.x, r.y, r.width, r.height, 4, theme, true, true, true, 8, .88f, .8f, () -> {
             ClipRect s = searchBounds();
-            GuiStyle.panel(s.x, s.y, s.width, s.height, 3, searchFocus ? 1 : 0, new Color(22, 22, 26));
+            GuiStyle.panel(s.x, s.y, s.width, s.height, 3, searchFocus && showsKeyboardFocus() ? 1 : 0, new Color(22, 22, 26));
             try (GuiClip ignored = GuiClip.push(new ClipRect(s.x + 5, s.y, s.width - 18, s.height))) {
                 String text = search.isEmpty() && !searchFocus ? "/ Search modules" : search + (searchFocus ? "_" : "");
                 font().drawString(ClickControlStyle.fit(font(), text, s.width - 22), s.x + 5, s.y + 4, ink(theme));
@@ -234,7 +234,8 @@ public class DropdownGui extends GuiScreen {
 
     private void button(ClipRect r, String text, Theme theme,int index,int mouseX,int mouseY,float dt) {
         toolbarMotion[index].step(dt,r.contains(mouseX,mouseY),false,false,binding==null,me.youngjibbit.module.impl.client.ClientSettings.current());
-        GuiStyle.panel(r.x, r.y, r.width, r.height, 3, .25f, new Color(22, 22, 26));
+        r = GuiStyle.buttonBounds(r, toolbarMotion[index]);
+        UIUtils.drawRound(r.x, r.y, r.width, r.height, 3, new Color(22, 22, 26));
         GuiStyle.feedback(r,toolbarMotion[index]);
         font().drawCenteredString(text, r.x + r.width / 2, r.y + 4, ink(theme));
     }

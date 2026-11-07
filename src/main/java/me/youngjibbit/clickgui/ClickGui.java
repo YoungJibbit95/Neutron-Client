@@ -61,7 +61,7 @@ public class ClickGui extends GuiScreen {
     private void resetMotion(){visualControl=null;visualChrome=-1;for(me.youngjibbit.gui.UiSpring state:chromeMotion)state.reset();for(List<ClickModule> rows:moduleCache.values())for(ClickModule row:rows){row.getPresentation().reset();for(Component.Sub<?> value:row.presentationValues())value.getPresentation().reset();}}
     protected void advanceMotion(float dt,int mx,int my){
         boolean available=!dragging&&!resizing&&binding==null;
-        for(int i=0;i<chromeMotion.length;i++)chromeMotion[i].step(dt,available&&chromeBounds(i).contains(mx,my),i==0&&searchFocus,i==visualChrome,available,me.youngjibbit.module.impl.client.ClientSettings.current());
+        for(int i=0;i<chromeMotion.length;i++)chromeMotion[i].stepForInput(dt,available&&chromeBounds(i).contains(mx,my),i==0&&searchFocus,i==visualChrome,available,me.youngjibbit.module.impl.client.ClientSettings.current());
         for(List<ClickModule> rows:moduleCache.values())for(ClickModule row:rows){
             boolean present=available&&modules.contains(row);
             boolean visible=present&&!viewport.intersect(row.presentationBounds()).isEmpty();
@@ -140,7 +140,7 @@ public class ClickGui extends GuiScreen {
             Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString("o", x + width - 21, y + 13,
                     theme.getSecondaryGradientRGB());
             ClipRect searchBox=searchBounds();
-            GuiStyle.panel(searchBox.x,searchBox.y,searchBox.width,searchBox.height,3,searchFocus?1:0,new Color(22,22,24));
+            GuiStyle.panel(searchBox.x,searchBox.y,searchBox.width,searchBox.height,3,searchFocus && showsKeyboardFocus()?1:0,new Color(22,22,24));
             GuiStyle.feedback(searchBox,chromeMotion[0]);
             try(GuiClip ignored=GuiClip.push(new ClipRect(searchBox.x+8,searchBox.y,searchBox.width-28,searchBox.height))){
                 String shown=search.isEmpty()&&!searchFocus?width<380?"Search...":"Search modules...":search+(searchFocus?"_":"");
@@ -148,17 +148,19 @@ public class ClickGui extends GuiScreen {
                 font().drawString(shown,searchBox.x+8,textY(font(),"Search",searchBox),searchFocus?0xffffffff:0xffa4a9b3);
             }
             if(!search.isEmpty()||searchFocus)font().drawString("x",searchBox.x+searchBox.width-14,textY(font(),"x",searchBox),0xffb8bec8);
-            ClipRect themes=themeBounds();GuiStyle.panel(themes.x,themes.y,themes.width,themes.height,3,0,new Color(22,22,24));
+            ClipRect themes = GuiStyle.buttonBounds(themeBounds(), chromeMotion[1]);
+            UIUtils.drawRound(themes.x,themes.y,themes.width,themes.height,3,new Color(22,22,24));
             GuiStyle.feedback(themes,chromeMotion[1]);
             font().drawString("Library",themes.x+(themes.width-font().getWidth("Library"))/2,textY(font(),"Library",themes),GuiStyle.ink(theme.isCustom()?theme.getTextColor().getRGB():0xffd4d9e3,chromeMotion[1]));
             float selectedY = y + HEADER + 4 + selectionOffset;
-            GuiStyle.panel(x + 5, selectedY, SIDEBAR - 10, step - 4, 6, 1, new Color(21, 21, 24));
-            UIUtils.drawDecorationRound(x + SIDEBAR - 16, selectedY + (step - 4) / 2 - 3, 3, 6, 1.5f,
-                    theme.getPrimaryGradientColor());
+            UIUtils.drawDecorationRound(x + 5, selectedY, SIDEBAR - 10, step - 4, 6,
+                    me.youngjibbit.utils.render.UiEffects.accent(theme.getPrimaryGradientRGB(), .18f));
             String[] icons = {"c", "f", "d", "d", "e", "t", "f", "a"};
             for (int i = 0; i < CATEGORIES.length; i++) {
                 float rowY = y + HEADER + 4 + i * step;
-                GuiStyle.feedback(chromeBounds(i+2),chromeMotion[i+2]);
+                ClipRect category = GuiStyle.buttonBounds(chromeBounds(i+2), chromeMotion[i+2]);
+                rowY += category.y - chromeBounds(i+2).y;
+                GuiStyle.feedback(category,chromeMotion[i+2]);
                 String font = i == 2 || i == 4 || i == 6 ? "icon1 21" : "icon 21";
                 Pulsar.INSTANCE.getFontManager().getFont(font).drawString(icons[i], x + 10, rowY + (step-4-10)/2, i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffc4cad5);
                 Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString(
@@ -186,12 +188,6 @@ public class ClickGui extends GuiScreen {
                     if (!viewport.intersect(new ClipRect(module.getX(), module.getY(), module.getWidth(), module.getHeight())).isEmpty()) {
                         module.drawScreen(dragging || resizing ? -1 : mouseX, dragging || resizing ? -1 : mouseY);
                     }
-                }
-            }
-            if(focus!=null&&!searchFocus&&binding==null){
-                try(GuiClip ignored=GuiClip.push(viewport)){
-                    float fh=24;
-                    UIUtils.drawRound(focus.getX()+2,focus.getY()+2,2,fh-4,1,theme.getSecondaryGradientColor());
                 }
             }
             drawTooltip(mouseX,mouseY);
@@ -236,7 +232,7 @@ public class ClickGui extends GuiScreen {
     }
 
     private List<ClickModule> categoryModules(Category category){
-        return moduleCache.computeIfAbsent(category,key->{List<ClickModule> result=new ArrayList<>();for(Module module:Pulsar.INSTANCE.getMm().getModules(key))result.add(new ClickModule(module,0,0,width-SIDEBAR-12,24));return result;});
+        return moduleCache.computeIfAbsent(category,key->{List<ClickModule> result=new ArrayList<>();for(Module module:Pulsar.INSTANCE.getMm().getModules(key))result.add(ClickModule.forPanel(module, width - SIDEBAR - 12));return result;});
     }
     private void setupModules(){
         modules.clear();String query=search.trim().toLowerCase(Locale.ROOT);
