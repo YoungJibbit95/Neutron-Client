@@ -190,9 +190,9 @@ public final class Wave05UiRenderCheck {
         panel.setWorldAndResolution(mc,sr.getScaledWidth(),sr.getScaledHeight());panel.layoutNow();
         ClickModule row=panel.first();
         panel.click((int)row.getX()+12,(int)row.getY()+12,1);freeze(row,"openAnimation",Direction.FORWARDS,0);panel.layoutNow();
-        save(frame(()->panel.drawScreen(-1,-1,0)),"panel-zero-reveal-before-input");
+        save(frame(panel::drawZeroFrame),"panel-zero-reveal-before-input");
         panelValue.changes=0;panel.key(Keyboard.KEY_TAB);panel.key(Keyboard.KEY_SPACE);panel.release();
-        save(frame(()->panel.drawScreen(-1,-1,0)),"panel-zero-reveal-after-input");
+        save(frame(panel::drawZeroFrame),"panel-zero-reveal-after-input");
         record("panel-hidden-checkbox-callbacks",panelValue.changes);
         check(!panelValue.check.getValue()&&panelValue.changes==0,"Panel keyboard activated invisible checkbox");
         panel.onGuiClosed();

@@ -19,6 +19,14 @@ public final class UiSpring {
         return amount;
     }
     public float amount(){return amount;}
+    /** Reversible presentation transition sharing the configured motion policy. */
+    public float transition(float target,float seconds,ClientSettings settings){
+        preset=MenuMotion.resolve(settings);
+        amount=spring.step(target,seconds,settings==null||settings.animations.getValue(),settings!=null&&settings.reducedMotion.getValue(),preset);
+        // A closing reveal must not reappear after the spring crosses zero.
+        if(target==0 && amount<=0){spring.reset();amount=0;}
+        return amount;
+    }
     public float lift(){return preset.lift(amount);}
     public float scale(){return preset.scale(amount);}
     public float glow(){return preset.glow(amount);}

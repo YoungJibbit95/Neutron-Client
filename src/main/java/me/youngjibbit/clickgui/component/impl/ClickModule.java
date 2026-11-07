@@ -24,6 +24,7 @@ public class ClickModule extends Component {
     private boolean open;
     private final DecelerateAnimation openAnimation = new me.youngjibbit.clickgui.utils.ClickAnimation(220, 1, Direction.BACKWARDS);
     private final DecelerateAnimation toggleAnimation = new me.youngjibbit.clickgui.utils.ClickAnimation(180, 1, Direction.BACKWARDS);
+    private final me.youngjibbit.gui.UiSpring panelReveal = new me.youngjibbit.gui.UiSpring();
     private float openProgress, toggleProgress, settingsContentHeight;
     private ClipRect settingsClip = new ClipRect(0, 0, 0, 0);
 
@@ -52,6 +53,13 @@ public class ClickModule extends Component {
             if (value instanceof ClickCombo) ((ClickCombo) value).updateAnimation();
             settingsContentHeight += value.getHeight() + 1;
         }
+    }
+
+    /** Panel-only reveal; the compact Dropdown retains its existing timing. */
+    public void updatePanelAnimation(float seconds) {
+        updateAnimation();
+        openProgress = Math.max(0, Math.min(1.08f, panelReveal.transition(open ? 1 : 0, seconds,
+                me.youngjibbit.module.impl.client.ClientSettings.current())));
     }
 
     protected boolean compactSettings() { return false; }
@@ -89,6 +97,10 @@ public class ClickModule extends Component {
         boolean hover = isMouseOver(mouseX, mouseY);
         GuiStyle.panel(x, y, width, getHeight(), 4, toggleProgress,
                 hover ? new Color(25, 25, 26) : new Color(17, 17, 18));
+        if (module.isToggled()) {
+            me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x + 4, y + 6, 2, height - 12, 1,
+                    theme.getPrimaryGradientColor());
+        }
         drawFeedback();
         Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString(openProgress > 0.5f ? "h" : "i",
                 x + width - 17, y + 7, (theme.isCustom()?theme.getTextColor().getRGB():Color.WHITE.getRGB()));
@@ -103,7 +115,7 @@ public class ClickModule extends Component {
         GuiStyle.panel(bindingX, y + 4, bindingWidth, 16, 3, conflicts > 0 ? .5f : .05f, new Color(30, 32, 37));
         small.drawCenteredString(binding, bindingX + bindingWidth / 2, y + 7, conflicts > 0 ? 0xffffb975 : 0xffbec4d0);
         me.youngjibbit.utils.font.TTFFontRenderer title = Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 20");
-        title.drawString(ClickControlStyle.fit(title, module.getName(), bindingX - x - 18), x + 10, y + 6,
+        title.drawString(ClickControlStyle.fit(title, module.getName(), bindingX - x - 20), x + 12, y + 6,
                 hoverInk(Theme.interpolateRGB(theme.isCustom()?theme.getTextColor().getRGB():0xfff0f1f5, theme.getPrimaryGradientRGB(), toggleProgress)));
         drawSettings(mouseX, mouseY);
     }

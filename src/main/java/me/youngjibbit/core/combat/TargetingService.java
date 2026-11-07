@@ -116,6 +116,20 @@ public final class TargetingService {
             return false;
         }
 
+        // These decisions need no distance calculation or line-of-sight raycast.
+        if (entity.isInvisible() && !options.invisibles) {
+            return false;
+        }
+        if (entity instanceof EntityPlayer) {
+            if (!options.players) return false;
+        } else if (entity instanceof EntityAnimal) {
+            if (!options.animals) return false;
+        } else if (entity instanceof EntityMob) {
+            if (!options.mobs) return false;
+        } else {
+            return false;
+        }
+
         net.minecraft.util.Vec3 eyes = mc.thePlayer.getPositionEyes(1.0F);
         float border = entity.getCollisionBorderSize();
         net.minecraft.util.AxisAlignedBB box = entity.getEntityBoundingBox().expand(border, border, border);
@@ -135,14 +149,7 @@ public final class TargetingService {
             return false;
         }
 
-        if (entity.isInvisible() && !options.invisibles) {
-            return false;
-        }
-
         if (entity instanceof EntityPlayer) {
-            if (!options.players) {
-                return false;
-            }
             if (!options.sameTeam
                     && mc.thePlayer.getTeam() != null
                     && ((EntityPlayer) entity).getTeam() != null
@@ -152,15 +159,7 @@ public final class TargetingService {
             return true;
         }
 
-        if (entity instanceof EntityAnimal) {
-            return options.animals;
-        }
-
-        if (entity instanceof EntityMob) {
-            return options.mobs;
-        }
-
-        return false;
+        return true;
     }
 
     /** Multi keeps the selected member until an actual attack, then cycles within the configured limit. */

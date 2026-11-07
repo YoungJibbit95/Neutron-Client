@@ -20,7 +20,7 @@ public class NativeDependencyTest {
                 Collections.list(loader.getResources("com/sun/jna/platform/win32/Kernel32.class")).size());
         java.lang.reflect.Field version = Native.class.getField("VERSION");
         version.setAccessible(true); // Declared on JNA's package-private Version interface.
-        assertEquals("5.13.0", version.get(null));
+        assertEquals("5.19.1", version.get(null));
         CentralProcessor processor = new SystemInfo().getHardware().getProcessor();
         assertTrue(processor.getLogicalProcessorCount() > 0);
         assertFalse(processor.getProcessorIdentifier().getName().trim().isEmpty());
