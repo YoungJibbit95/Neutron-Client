@@ -279,7 +279,12 @@
         <dependency>
             <groupId>com.github.oshi</groupId>
             <artifactId>oshi-core</artifactId>
-            <version>6.4.5</version>
+            <version>7.7.3</version>
+            <!-- OSHI 7 uses JPMS variants; retain the existing single JNA 5.19.1 pair. -->
+            <exclusions>
+                <exclusion><groupId>net.java.dev.jna</groupId><artifactId>jna-jpms</artifactId></exclusion>
+                <exclusion><groupId>net.java.dev.jna</groupId><artifactId>jna-platform-jpms</artifactId></exclusion>
+            </exclusions>
         </dependency>
 
         <dependency>
