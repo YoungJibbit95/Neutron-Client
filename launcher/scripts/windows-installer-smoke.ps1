@@ -170,8 +170,8 @@ if ($process.ExitCode -ne 0) { throw 'NSIS uninstaller failed.' }
 $deadline = (Get-Date).AddSeconds(45)
 # NSIS starts a temporary uninstaller copy. Its parent can exit before that
 # copy finishes deleting files and registration; require both real outcomes.
-while ((Test-Path -LiteralPath $executable) -or (Test-Path -LiteralPath $uninstallKey)) {
-    if ((Get-Date) -gt $deadline) { throw "Uninstaller did not finish: executablePresent=$(Test-Path -LiteralPath $executable), registrationPresent=$(Test-Path -LiteralPath $uninstallKey)." }
+while ((Test-Path -LiteralPath $executable) -or (Test-Path -LiteralPath $uninstallKey) -or (Test-Path -LiteralPath $installKey)) {
+    if ((Get-Date) -gt $deadline) { throw "Uninstaller did not finish: executablePresent=$(Test-Path -LiteralPath $executable), uninstallRegistrationPresent=$(Test-Path -LiteralPath $uninstallKey), installRegistrationPresent=$(Test-Path -LiteralPath $installKey)." }
     Start-Sleep -Milliseconds 250
 }
 if ((Get-FileHash -LiteralPath $marker).Hash -ne $markerHash) { throw 'Uninstaller removed personal data.' }
