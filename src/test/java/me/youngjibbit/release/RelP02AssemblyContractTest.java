@@ -16,6 +16,13 @@ public class RelP02AssemblyContractTest {
         assertNotNull(auth.getMethod("createUserAuthentication", com.mojang.authlib.Agent.class));
     }
 
+    @Test public void jinputControllerApiLoadsOnJava8() throws Exception {
+        ClassLoader loader = getClass().getClassLoader();
+        Class<?> environment = Class.forName("net.java.games.input.ControllerEnvironment", false, loader);
+        Class<?> controller = Class.forName("net.java.games.input.Controller", false, loader);
+        assertEquals(controller, environment.getMethod("getControllers").getReturnType().getComponentType());
+    }
+
     @Test public void log4jDiscoversRealPluginsAndSlf4jBinding() {
         org.apache.logging.log4j.core.config.plugins.util.PluginManager plugins =
                 new org.apache.logging.log4j.core.config.plugins.util.PluginManager("Core");
