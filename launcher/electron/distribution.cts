@@ -12,6 +12,7 @@ import type { Tools } from './toolchain.cjs';
 import type { Runtime } from './minecraft.cjs';
 import type { BuildRecord, LaunchOptions } from './contracts.cjs';
 import { seedLegacyDependencies } from './legacy-dependencies.cjs';
+import { adaptSource } from './source-adapter.cjs';
 
 export const repository = 'YoungJibbit95/Neutron-Client';
 const entryPoint = 'me.neutron.launcher.ClientBootstrap';
@@ -37,6 +38,7 @@ export async function reusableDistribution(root: string, builds: BuildRecord[], 
   return null;
 }
 export async function prepareSource(root: string, commit: string, adapter: string, signal: AbortSignal) {
+  signal.throwIfAborted();
   if (!/^[a-f0-9]{40}$/.test(commit)) throw new Error('Invalid source commit.');
   const work = await owned(root, 'work', commit + '-' + randomUUID()); await fs.mkdir(work, { recursive: true });
   const archive = path.join(work, 'source.zip'); const cached = await owned(root, 'cache', 'source-' + commit + '.zip'); const receipt = cached + '.json'; let reused = false;
@@ -52,19 +54,10 @@ export async function prepareSource(root: string, commit: string, adapter: strin
     if (!name.startsWith(prefix)) throw new Error('Unexpected source archive root.');
     const relative = name.slice(prefix.length); return relative === 'pom.xml' || relative.startsWith('src/') ? relative : null;
   });
-  // Apply only the reviewed packaging adapter to the known upstream POM. Any
-  // future dependency/build change must be reviewed instead of silently patched.
-  const pom = path.join(source, 'pom.xml');
-  const normalized = (await fs.readFile(pom, 'utf8')).replace(/\r\n/g, '\n').trimEnd() + '\n';
-  if (createHash('sha256').update(normalized).digest('hex') !== '5fc71918162988da5bcfc761e9fcc97febc82e84665793e5ba1203cb96e8a432') throw new Error('Upstream build configuration changed. A launcher adapter update is required.');
-  await fs.copyFile(path.join(adapter, 'pom.xml'), pom);
-  for (const [name, relative] of [['ClientBootstrap.java', 'src/main/java/me/neutron/launcher/ClientBootstrap.java'], ['ClientBootstrapTest.java', 'src/test/java/me/neutron/launcher/ClientBootstrapTest.java']]) {
-    const target = path.join(source, relative); await fs.mkdir(path.dirname(target), { recursive: true });
-    try { await fs.copyFile(path.join(adapter, name), target, 1); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error; if (await hash(target) !== await hash(path.join(adapter, name))) throw new Error('Upstream bootstrap conflicts with reviewed adapter.'); }
-  }
+  const upstream = await adaptSource(source, adapter, signal);
   const adapterHash = createHash('sha256');
   for (const name of await files(adapter)) adapterHash.update(name + ':' + await hash(path.join(adapter, name)) + '\n');
-  const snapshot = { commit, archiveSha256: await hash(archive), adapterSha256: adapterHash.digest('hex'), files: [] as { path: string; sha256: string }[] };
+  const snapshot = { commit, archiveSha256: await hash(archive), adapterSha256: adapterHash.digest('hex'), upstream, files: [] as { path: string; sha256: string }[] };
   for (const name of await files(source)) snapshot.files.push({ path: name, sha256: await hash(path.join(source, name)) });
   await atomicJson(path.join(work, 'source-snapshot.json'), snapshot); return { work, source, snapshot };
 }
