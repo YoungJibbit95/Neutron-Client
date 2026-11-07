@@ -163,7 +163,7 @@ public class AuraMovementConsistencyTest {
             }
         }
         @Test public void simpleTurn() throws Exception { turn("Einfach"); }
-        @Test public void preciseTurn() throws Exception { turn("PrÃ¤zise"); }
+        @Test public void preciseTurn() throws Exception { turn("Präzise"); }
         @Test public void boundTurn() throws Exception { turn("Rotationsgebunden"); }
         @Test public void legacyRoundedTurn() throws Exception { turn("Legacy Rounded"); }
         @Test public void legacyStrictTurn() throws Exception { turn("Legacy Strict"); }
