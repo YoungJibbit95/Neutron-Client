@@ -56,11 +56,21 @@ try {
     $env:USERPROFILE = $profile
     $env:HOMEDRIVE = [IO.Path]::GetPathRoot($profile).TrimEnd('\')
     $env:HOMEPATH = $profile.Substring($env:HOMEDRIVE.Length)
-    $env:APPDATA = [Environment]::GetFolderPath('ApplicationData', 'Create')
-    $env:LOCALAPPDATA = [Environment]::GetFolderPath('LocalApplicationData', 'Create')
+    # The bootstrap PowerShell may have cached the parent's KnownFolder values.
+    # This fresh disposable profile has no folder redirection. Set the complete
+    # user environment before spawning NSIS/Electron, and create its real paths.
+    $env:APPDATA = Join-Path $profile 'AppData/Roaming'
+    $env:LOCALAPPDATA = Join-Path $profile 'AppData/Local'
+    New-Item -ItemType Directory -Path $env:APPDATA, $env:LOCALAPPDATA -Force | Out-Null
     if (-not $env:APPDATA.StartsWith($profile + '\', [StringComparison]::OrdinalIgnoreCase) -or -not $env:LOCALAPPDATA.StartsWith($profile + '\', [StringComparison]::OrdinalIgnoreCase)) { throw "Application data does not belong to the loaded test profile: profile=$profile, roaming=$env:APPDATA, local=$env:LOCALAPPDATA." }
     $env:TEMP = '__ROOT__\temp'; $env:TMP = $env:TEMP
     New-Item -ItemType Directory -Path $env:TEMP | Out-Null
+    $probe = '__ROOT__\known-folders.ps1'
+    [IO.File]::WriteAllText($probe, '$ErrorActionPreference="Stop";[ordered]@{sid=[Security.Principal.WindowsIdentity]::GetCurrent().User.Value;roaming=[Environment]::GetFolderPath("ApplicationData","Create");local=[Environment]::GetFolderPath("LocalApplicationData","Create")} | ConvertTo-Json | Set-Content -LiteralPath "__ROOT__\known-folders.json"')
+    $checked = Start-Process -FilePath (Join-Path $PSHOME 'pwsh.exe') -ArgumentList "-NoProfile -NonInteractive -WindowStyle Hidden -File `"$probe`"" -WorkingDirectory '__ROOT__' -WindowStyle Hidden -Wait -PassThru
+    if ($checked.ExitCode -ne 0) { throw 'Fresh standard-user KnownFolder probe failed.' }
+    $folders = Get-Content -LiteralPath '__ROOT__\known-folders.json' -Raw | ConvertFrom-Json
+    if ($folders.sid -ne '__SID__' -or $folders.roaming -ne $env:APPDATA -or $folders.local -ne $env:LOCALAPPDATA) { throw "Fresh child has wrong KnownFolders: roaming=$($folders.roaming), local=$($folders.local)." }
     Set-Location -LiteralPath '__WORKING__'
     & '__SCRIPT__' *> '__LOG__'
 } catch {

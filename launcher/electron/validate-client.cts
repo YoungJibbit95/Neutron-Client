@@ -22,6 +22,6 @@ export async function validateClient(root: string, record: BuildRecord, tools: T
     '--nativesDir', path.join(runtime.directory, 'natives'), '--assetIndex', '1.8', '--version', client.manifest.version,
     '--username', 'NeutronPlayer', '--validateOnly',
   ], { cwd: temporary, env: childEnvironment(tools.javaHome, temporary), signal, group, line: () => {} });
-  if (code !== 0) throw new Error('Cached Alpha Bootstrap validation failed (exit ' + code + '). Previous version retained.');
+  if (code !== 0) throw new Error('Cached Neutron Bootstrap validation failed (exit ' + code + '). Previous version retained.');
   signal.throwIfAborted();
 }

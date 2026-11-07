@@ -9,5 +9,5 @@ export async function assertUserInstallation(temporary: string, signal: AbortSig
   const code = await runProcess(powershell, ['-NoProfile', '-NonInteractive', '-Command',
     '$p=[Security.Principal.WindowsPrincipal]::new([Security.Principal.WindowsIdentity]::GetCurrent());if($p.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)){"ELEVATED"}else{"USER"}'],
   { cwd: temporary, env: childEnvironment('', temporary), signal, group, line: line => { result += line.trim(); } });
-  if (code !== 0 || result !== 'USER') throw new Error('Run Alpha setup normally in your own Windows account, without Run as administrator. Elevated client preparation is refused.');
+  if (code !== 0 || result !== 'USER') throw new Error('Run Neutron setup normally in your own Windows account, without Run as administrator. Elevated client preparation is refused.');
 }
