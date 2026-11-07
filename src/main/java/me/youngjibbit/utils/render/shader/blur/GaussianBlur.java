@@ -17,16 +17,23 @@ public final class GaussianBlur {
     /** Scene-only selection. Caller retains snapshot and two full-size ping-pong targets. */
     public static void renderScene(Framebuffer scratch,Framebuffer result,int input,float radius){
         if(scratch.framebufferTexture==input||result.framebufferTexture==input||scratch==result)throw new IllegalArgumentException("Scene blur requires distinct input and outputs");
-        if(!UiEffects.options().kawase){int r=Math.max(1,Math.min(127,Math.round(radius)));renderPass(scratch,input,1,0,r,false,1);renderPass(result,scratch.framebufferTexture,0,1,r,false,1);return;}
-        int passes=2*UiEffects.options().quality;
-        for(int i=0;i<passes;i++){Framebuffer target=(i&1)==0?scratch:result;kawasePass(target,input,Math.max(.5f,radius*(i+1)/passes*.45f));input=target.framebufferTexture;}
+        // No callbacks occur between these owned passes: preserve the caller once per scene.
+        try(RenderState state=new RenderState()){
+            state.screenSpace();
+            if(!UiEffects.options().kawase){
+                int r=Math.max(1,Math.min(127,Math.round(radius)));
+                prepareGaussianOutput(scratch,input);drawGaussian(scratch,1,0,r,false,1);
+                prepareGaussianOutput(result,scratch.framebufferTexture);drawGaussian(result,0,1,r,false,1);
+                return;
+            }
+            int passes=2*UiEffects.options().quality;
+            for(int i=0;i<passes;i++){Framebuffer target=(i&1)==0?scratch:result;kawasePass(target,input,Math.max(.5f,radius*(i+1)/passes*.45f));input=target.framebufferTexture;}
+        }
     }
     private static void kawasePass(Framebuffer output,int input,float offset){
-        try(RenderState state=new RenderState()){
-            state.screenSpace();output.bindFramebuffer(true);GlStateManager.disableBlend();glDisable(GL_BLEND);GlStateManager.disableCull();glDisable(GL_CULL_FACE);GlStateManager.colorMask(true,true,true,true);glColorMask(true,true,true,true);
-            GlStateManager.setActiveTexture(GL13.GL_TEXTURE0);GL13.glActiveTexture(GL13.GL_TEXTURE0);GlStateManager.enableTexture2D();glEnable(GL_TEXTURE_2D);GlStateManager.bindTexture(input);glBindTexture(GL_TEXTURE_2D,input);
-            if(kawase==null)kawase=new ShaderUtil("Flauxy/Shaders/kawaseScene.frag");kawase.init();kawase.setUniformi("textureIn",0);kawase.setUniformf("stepSize",offset/output.framebufferWidth,offset/output.framebufferHeight);ShaderUtil.drawQuads();kawase.unload();if(RenderDiagnostics.enabled)RenderDiagnostics.blurPasses++;
-        }
+        output.bindFramebuffer(true);GlStateManager.disableBlend();glDisable(GL_BLEND);GlStateManager.disableCull();glDisable(GL_CULL_FACE);GlStateManager.colorMask(true,true,true,true);glColorMask(true,true,true,true);
+        GlStateManager.setActiveTexture(GL13.GL_TEXTURE0);GL13.glActiveTexture(GL13.GL_TEXTURE0);GlStateManager.enableTexture2D();glEnable(GL_TEXTURE_2D);GlStateManager.bindTexture(input);glBindTexture(GL_TEXTURE_2D,input);
+        if(kawase==null)kawase=new ShaderUtil("Flauxy/Shaders/kawaseScene.frag");kawase.init();kawase.setUniformi("textureIn",0);kawase.setUniformf("stepSize",offset/output.framebufferWidth,offset/output.framebufferHeight);ShaderUtil.drawQuads();kawase.unload();if(RenderDiagnostics.enabled)RenderDiagnostics.blurPasses++;
     }
     public static void renderPass(Framebuffer output,int input,float dx,float dy,int radius,boolean glow,float exposure){
         try (RenderState state = new RenderState()) {

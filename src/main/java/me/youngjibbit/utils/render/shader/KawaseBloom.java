@@ -68,44 +68,7 @@ public class KawaseBloom {
     }
 
     public static Framebuffer drawArraylistFramebuffer(List<float[]> rects) {
-        if(me.youngjibbit.utils.render.RenderDiagnostics.enabled)me.youngjibbit.utils.render.RenderDiagnostics.maskPasses++;
-        ensureBloomFramebuffer();
-
-        bloomFramebuffer.framebufferClear();
-        bloomFramebuffer.bindFramebuffer(false);
-
-        GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
-        GL11.glPushMatrix();
-        RenderUiUtils.prepare2D3();
-
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        GlStateManager.disableAlpha();
-        GlStateManager.disableLighting();
-        GlStateManager.disableDepth();
-
-        for (float[] rect : rects) {
-            if(rect.length>6 && rect[6]>0){GL11.glEnable(GL11.GL_SCISSOR_TEST);GL11.glScissor((int)rect[7],(int)rect[8],(int)rect[9],(int)rect[10]);}
-            else GL11.glDisable(GL11.GL_SCISSOR_TEST);
-            float x = rect[0];
-            float y = rect[1];
-            float width = rect[2];
-            float height = rect[3];
-            int radius = (int) rect[4];
-            int color = Float.floatToRawIntBits(rect[5]);
-
-            Color c = new Color(color, true);
-            GL11.glColor4f(c.getRed() / 255f, c.getGreen() / 255f, c.getBlue() / 255f, c.getAlpha() / 255f);
-
-            if(rect.length>12&&rect[12]>0)UIUtils.drawWorldMaskRound(x,y,width,height,radius,c);else UIUtils.drawRound(x, y, width, height, radius, c);
-        }
-
-        RenderUiUtils.release2D3();
-        GL11.glPopMatrix();
-        GL11.glPopAttrib();
-
-        bloomFramebuffer.unbindFramebuffer();
-        return bloomFramebuffer;
+        return drawRectsToFramebuffer(rects);
     }
 
     public static void renderBlur(int framebufferTexture, int iterations, int offset) {
@@ -258,36 +221,20 @@ public class KawaseBloom {
         // Setup OpenGL state for 2D rendering
         GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
         GL11.glPushMatrix();
-        RenderUiUtils.prepare2D3();
-
-        GL11.glEnable(GL11.GL_BLEND);
-        GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        GlStateManager.disableAlpha();
-        GlStateManager.disableLighting();
-        GlStateManager.disableDepth();
-
-        for (float[] rect : rects) {
-            if(rect.length>6 && rect[6]>0){GL11.glEnable(GL11.GL_SCISSOR_TEST);GL11.glScissor((int)rect[7],(int)rect[8],(int)rect[9],(int)rect[10]);}
-            else GL11.glDisable(GL11.GL_SCISSOR_TEST);
-            float x = rect[0];
-            float y = rect[1];
-            float width = rect[2];
-            float height = rect[3];
-            int radius = (int) rect[4];
-            int color = Float.floatToRawIntBits(rect[5]); // Recover int color stored as float
-
-            Color c = new Color(color, true);
-            GL11.glColor4f(c.getRed() / 255f, c.getGreen() / 255f, c.getBlue() / 255f, c.getAlpha() / 255f);
-
-            if(rect.length>12&&rect[12]>0)UIUtils.drawWorldMaskRound(x,y,width,height,radius,c);else UIUtils.drawRound(x, y, width, height, radius, c);
+        try {
+            RenderUiUtils.prepare2D3();
+            GL11.glEnable(GL11.GL_BLEND);
+            GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+            GlStateManager.disableAlpha();
+            GlStateManager.disableLighting();
+            GlStateManager.disableDepth();
+            UIUtils.drawBloomMaskRects(rects);
+        } finally {
+            RenderUiUtils.release2D3();
+            GL11.glPopMatrix();
+            GL11.glPopAttrib();
+            bloomFramebuffer.unbindFramebuffer();
         }
-
-        // Restore GL state
-        RenderUiUtils.release2D3();
-        GL11.glPopMatrix();
-        GL11.glPopAttrib();
-
-        bloomFramebuffer.unbindFramebuffer();
         return bloomFramebuffer;
     }
 

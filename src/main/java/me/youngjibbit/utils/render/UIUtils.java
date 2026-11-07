@@ -22,6 +22,7 @@ public class UIUtils
     public static ShaderUtil roundedOutlineShader = new ShaderUtil("roundRectOutline");
     private static ShaderUtil roundedTexturedShader = new ShaderUtil("roundRectTexture");
     private static ShaderUtil roundedGradientShader = new ShaderUtil("roundedRectGradient");
+    private static final ScreenRect.Projection bloomProjection = new ScreenRect.Projection();
 
 
     private static void ensureShaders(){if(roundedShader==null)roundedShader=new ShaderUtil("roundedRect");if(roundedOutlineShader==null)roundedOutlineShader=new ShaderUtil("roundRectOutline");if(roundedTexturedShader==null)roundedTexturedShader=new ShaderUtil("roundRectTexture");if(roundedGradientShader==null)roundedGradientShader=new ShaderUtil("roundedRectGradient");}
@@ -94,6 +95,14 @@ public class UIUtils
     {
         ensureShaders();
         try(RenderState state=new RenderState()){
+            drawRoundContents(x, y, width, height, radius, blur, color, null, null);
+            }
+    }
+
+
+    private static void drawRoundContents(float x, float y, float width, float height, float radius,
+                                          boolean blur, Color color, ScreenRect.Projection projection,
+                                          ScaledResolution resolution) {
         RenderUiUtils.resetColor();
         GLUtil.startBlend();
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -101,14 +110,39 @@ public class UIUtils
         roundedShader.init();UiEffects.upload(roundedShader,UiEffects.theme(me.youngjibbit.utils.Theme.getDefaultTheme()));
         UiEffects.uploadMaterial(roundedShader,material(width,height,radius,color));
 
-        setupRoundedRectUniforms(x, y, width, height, radius, roundedShader);
+        setupRoundedRectUniforms(x, y, width, height, radius, roundedShader, projection, resolution);
         roundedShader.setUniformi("blur", blur ? 1 : 0);
         roundedShader.setUniformf("color", color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f, (Blur.isCapturing()?1f:color.getAlpha() / 255f));
 
         ShaderUtil.drawQuads(x - 1, y - 1, width + 2, height + 2);
         roundedShader.unload();
         GLUtil.endBlend();
+    }
+
+    /** Draws packed bloom masks only; matrices and viewport stay fixed throughout this list. */
+    public static void drawBloomMaskRects(java.util.List<float[]> rects) {
+        if (rects.isEmpty()) return;
+        ensureShaders();
+        try (RenderState state = new RenderState()) {
+            // This render-thread-only list has no callbacks or intervening transform changes.
+            ScreenRect.Projection projection = bloomProjection;
+            projection.capture();
+            ScaledResolution resolution = new ScaledResolution(Minecraft.getMinecraft());
+            for (float[] rect : rects) {
+                if (rect.length > 6 && rect[6] > 0) {
+                    glEnable(GL_SCISSOR_TEST);
+                    glScissor((int)rect[7], (int)rect[8], (int)rect[9], (int)rect[10]);
+                } else glDisable(GL_SCISSOR_TEST);
+                boolean exact = rect.length > 12 && rect[12] > 0;
+                if (exact) { decorations++; exactGeometry++; }
+                try {
+                    drawRoundContents(rect[0], rect[1], rect[2], rect[3], (int)rect[4], false,
+                            new Color(Float.floatToRawIntBits(rect[5]), true), projection, resolution);
+                } finally {
+                    if (exact) { exactGeometry--; decorations--; }
+                }
             }
+        }
     }
 
 
@@ -175,9 +209,15 @@ public class UIUtils
     private static boolean material(float width,float height,float radius,Color fill){return sceneMasks>0||decorations==0&&width>8&&height>8&&radius<Math.min(width,height)/2&&fill.getAlpha()>64;}
     private static void setupRoundedRectUniforms(float x, float y, float width, float height, float radius, ShaderUtil roundedTexturedShader)
     {
-        ScaledResolution sr = new ScaledResolution(Minecraft.getMinecraft());
+        setupRoundedRectUniforms(x, y, width, height, radius, roundedTexturedShader, null, null);
+    }
+
+    private static void setupRoundedRectUniforms(float x, float y, float width, float height, float radius,
+                                                 ShaderUtil roundedTexturedShader, ScreenRect.Projection projection,
+                                                 ScaledResolution resolution) {
+        ScaledResolution sr = resolution == null ? new ScaledResolution(Minecraft.getMinecraft()) : resolution;
         radius=exactGeometry==0?UiEffects.radius(radius,width,height):Math.max(0,Math.min(radius,Math.min(width,height)/2));
-        float[] rect=ScreenRect.project(x,y,width,height);
+        float[] rect=projection == null ? ScreenRect.project(x,y,width,height) : projection.project(x,y,width,height);
         float scale=sr.getScaleFactor();
         roundedTexturedShader.setUniformf("location",rect[0]*scale,Minecraft.getMinecraft().displayHeight-(rect[1]+rect[3])*scale);
         roundedTexturedShader.setUniformf("rectSize",rect[2]*scale,rect[3]*scale);
