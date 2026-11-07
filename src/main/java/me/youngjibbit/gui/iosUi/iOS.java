@@ -46,6 +46,7 @@ public class iOS extends GuiScreen
     public float scrollOffset = 0;
     private float maxScroll;
     private final me.youngjibbit.utils.render.ArrayListSurface surface=new me.youngjibbit.utils.render.ArrayListSurface();
+    private final me.youngjibbit.utils.render.ScreenRect.Projection sidebarProjection=new me.youngjibbit.utils.render.ScreenRect.Projection();
     private float targetScroll;
     private boolean scrolling;
     Theme currentTheme = applyTheme();
@@ -158,6 +159,7 @@ public class iOS extends GuiScreen
         Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 18").drawString("Library",library.x+12,library.y+3,currentTheme.getTextColor().getRGB());
         drawGlowingDot();
 
+        sidebarProjection.capture();
         icon1("c", (int) (x + 5), (int) (y + 27), currentTheme);
         /*MOVEMENT*/icon1("f", (int) (x + 5), (int) (y + 44), currentTheme);
         /*PLAYER*/icon2("d", (int) (x + 5), (int) (y + 62), currentTheme);
@@ -387,7 +389,8 @@ public class iOS extends GuiScreen
             char currentChar = text.charAt(i);
             double charOffset = (double) i / (double) text.length();
 
-            int color = me.youngjibbit.utils.render.UiEffects.gradientColor(Theme.resolve(theme),me.youngjibbit.utils.render.UiEffects.Channel.TEXT,me.youngjibbit.utils.render.ScreenRect.project(currentX,y,1,1)[0],me.youngjibbit.utils.render.ScreenRect.project(currentX,y,1,1)[1]);
+            float[] projected = sidebarProjection.project(currentX, y, 1, 1);
+            int color = me.youngjibbit.utils.render.UiEffects.gradientColor(Theme.resolve(theme), me.youngjibbit.utils.render.UiEffects.Channel.TEXT, projected[0], projected[1]);
 
 
             String tmpStr = String.valueOf(currentChar);
@@ -405,7 +408,8 @@ public class iOS extends GuiScreen
             char currentChar = text.charAt(i);
             double charOffset = (double) i / (double) text.length();
 
-            int color = me.youngjibbit.utils.render.UiEffects.gradientColor(Theme.resolve(theme),me.youngjibbit.utils.render.UiEffects.Channel.TEXT,me.youngjibbit.utils.render.ScreenRect.project(currentX,y,1,1)[0],me.youngjibbit.utils.render.ScreenRect.project(currentX,y,1,1)[1]);
+            float[] projected = sidebarProjection.project(currentX, y, 1, 1);
+            int color = me.youngjibbit.utils.render.UiEffects.gradientColor(Theme.resolve(theme), me.youngjibbit.utils.render.UiEffects.Channel.TEXT, projected[0], projected[1]);
 
 
             String tmpStr = String.valueOf(currentChar);
