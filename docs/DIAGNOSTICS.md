@@ -7,6 +7,10 @@ packets, queue leases or module settings.
 
 ## Layout and settings
 
+- Choose **Display Mode** in module settings or use the mode button in `.diag edit`.
+  **Text** is the default. **Simple** plots frame intervals, last transmitted yaw/pitch,
+  reported ping and correction events over the last 30 seconds. Gaps in the ping
+  trace mean a reading was unavailable. Both displays use the same layout and capture.
 - Open chat and drag a widget with the left mouse button, or use `.diag edit`.
 - Scroll over a widget in chat/the editor to inspect overflowing details. Other
   wheel events continue to scroll chat normally.

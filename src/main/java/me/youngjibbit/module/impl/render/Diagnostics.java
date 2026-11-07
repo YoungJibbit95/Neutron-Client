@@ -36,6 +36,8 @@ import static org.lwjgl.opengl.GL11.*;
 @ModuleInfo(name="Diagnostics", description="Movable render, rotation, network and possible setback diagnostics", category=Category.Render)
 public final class Diagnostics extends Module {
     private static Diagnostics active;
+    final ComboValue displayMode = new ComboValue("Display Mode", this, "Text", new String[]{"Text", "Simple"});
+    private final Deque<Integer> pingHistory = new ArrayDeque<>();
     private final CheckBoxValue performanceWidget=new CheckBoxValue("Performance Widget",this,true);
     private final CheckBoxValue rotationWidget=new CheckBoxValue("Rotation Widget",this,true);
     private final CheckBoxValue networkWidget=new CheckBoxValue("Network Widget",this,true);
@@ -75,6 +77,7 @@ public final class Diagnostics extends Module {
     private WeakReference<Object> world=new WeakReference<>(null), player=new WeakReference<>(null), connection=new WeakReference<>(null);
 
     public Diagnostics() {
+        displayMode.setOnChange(mode -> restoreConfiguredPositions());
         rotationUser.setVisibility(m->rotationWidget.getValue()); rotationDeveloper.setVisibility(m->rotationWidget.getValue());
         networkValues.setVisibility(m->networkWidget.getValue()); flagDeveloper.setVisibility(m->flagWidget.getValue());
         notifications.setVisibility(m->flagDetector.getValue()); consoleFlags.setVisibility(m->flagDetector.getValue());
@@ -125,6 +128,7 @@ public final class Diagnostics extends Module {
         if(active==this&&RenderTimings.INSTANCE.isEnabled())RenderTimings.INSTANCE.enable(mc.mcProfiler);
         corrections.clear();renderSnapshot=RenderTimings.Snapshot.EMPTY;rotation=null;queue=null;network=values=Collections.emptyList();
         cachedPanels=null;
+        pingHistory.clear();
         ping=-1;sampledAt=loggedAt=notifiedAt=lastPaint=0;notified=false;
         world.clear();player.clear();connection.clear();cancelDrag();
     }
@@ -158,6 +162,9 @@ public final class Diagnostics extends Module {
         queue=pipe==null?null:pipe.delays().diagnosticSnapshot();
         NetworkPlayerInfo info=mc.thePlayer==null||mc.getNetHandler()==null?null:mc.getNetHandler().getPlayerInfo(mc.thePlayer.getUniqueID());
         ping=info==null?-1:Math.max(0,info.getResponseTime());
+        // Both displays use this same half-second observation. Preserve missing samples as gaps.
+        if (pingHistory.size() == 60) pingHistory.removeFirst();
+        pingHistory.addLast(ping);
         List<String> states=new ArrayList<>(), settings=new ArrayList<>();
         if(Pulsar.INSTANCE.getMm()!=null)for(Module module:Pulsar.INSTANCE.getMm().getAllModules())
             if(module.isToggled()&&module.getCategory()==Category.Exploit) {
@@ -269,6 +276,10 @@ public final class Diagnostics extends Module {
 
     List<Panel> panels() {
         if(cachedPanels!=null)return cachedPanels;
+        if ("Simple".equals(displayMode.getValue())) {
+            cachedPanels = simplePanels();
+            return cachedPanels;
+        }
         List<Panel> panels=new ArrayList<>();
         if(performanceWidget.getValue()) {
             Panel p=new Panel(widgets[0],"Performance",MinecraftFps()+" FPS");
@@ -322,6 +333,40 @@ public final class Diagnostics extends Module {
         }
         cachedPanels=panels;return panels;
     }
+    private List<Panel> simplePanels() {
+        List<Panel> panels = new ArrayList<>(4);
+        if (performanceWidget.getValue()) {
+            double[] frames = renderSnapshot.frameMilliseconds;
+            String latest = frames.length == 0 ? "No samples" : fmt(frames[frames.length - 1]) + " ms";
+            Panel p = new Panel(widgets[0], "Frame interval", latest);
+            p.plot = (theme, font, ink) -> DiagnosticsPlots.series(frames, 16.7, theme, font, ink, "Frames");
+            panels.add(p);
+        }
+        if (rotationWidget.getValue()) {
+            boolean available = rotation != null && rotation.hasEffective;
+            float yaw = available ? rotation.wireYaw : Float.NaN;
+            float pitch = available ? rotation.wirePitch : Float.NaN;
+            Panel p = new Panel(widgets[1], "Wire rotation", available ? Math.round(yaw) + "\u00b0 / " + Math.round(pitch) + "\u00b0" : "No sample");
+            p.plot = (theme, font, ink) -> DiagnosticsPlots.direction(yaw, pitch, theme, font, ink);
+            panels.add(p);
+        }
+        if (networkWidget.getValue()) {
+            double[] samples = pingHistory.stream().mapToDouble(Integer::doubleValue).toArray();
+            Panel p = new Panel(widgets[2], "Reported ping", ping < 0 ? "No sample" : ping + " ms");
+            p.plot = (theme, font, ink) -> DiagnosticsPlots.series(samples, 50, theme, font, ink, "Samples");
+            panels.add(p);
+        }
+        if (flagWidget.getValue()) {
+            List<CorrectionHistory.Entry> entries = corrections.snapshot();
+            long now = System.nanoTime();
+            boolean enabled = flagDetector.getValue();
+            Panel p = new Panel(widgets[3], "Corrections", enabled ? "Last 30 s" : "Detector off");
+            p.plot = (theme, font, ink) -> DiagnosticsPlots.timeline(entries, now, theme, font, ink);
+            panels.add(p);
+        }
+        return panels;
+    }
+
     private static int MinecraftFps(){return net.minecraft.client.Minecraft.getDebugFPS();}
     private static String shortSection(String path){String p=path.replace("root/render/gameRenderer", "render");return p.length()>32?"..."+p.substring(p.length()-29):p;}
     static String fmt(double value){return Double.isFinite(value)?String.format(Locale.ROOT,"%.1f",value):"--";}
@@ -345,7 +390,7 @@ public final class Diagnostics extends Module {
         p.visibleRows=Math.min(p.lines.size(),rotationDeveloper.getValue()&&p.widget==widgets[1]||flagDeveloper.getValue()&&p.widget==widgets[3]||networkValues.getValue()&&p.widget==widgets[2]?12:7);
         p.widget.scroll=Math.max(0,Math.min(p.widget.scroll,p.lines.size()-p.visibleRows));
         p.widget.maxScroll=p.lines.size()-p.visibleRows;
-        p.height=38+p.visibleRows*15+(p.graph==null?0:31);
+        p.height=p.plot == null ? 38+p.visibleRows*15+(p.graph==null?0:31) : DiagnosticsPlots.HEIGHT;
         p.scale=(float)Math.max(.01,Math.min(scale.getValue(),Math.min((sw-8)/252.0,(sh-8)/(double)p.height)));
         if(p.widget.defaultPosition()) {
             // Untouched widgets form a responsive two-column grid. A drag or exact position opts that widget out.
@@ -375,6 +420,10 @@ public final class Diagnostics extends Module {
                 int muted=Theme.interpolateRGB(ink,theme.getPrimaryGradientRGB(),.22f)|0xff000000;
                 heading.drawString(p.title,9,7,ink);
                 small.drawString(p.status,243-small.getWidth(p.status),10,muted);
+                if (p.plot != null) {
+                    p.plot.draw(theme, small, muted);
+                    return;
+                }
                 UIUtils.drawGradientHorizontal(9,23,234,1,.5f,theme.getPrimaryGradientColor(),theme.getSecondaryGradientColor());
                 float yy=29;
                 for(Line line:p.lines.subList(w.scroll,Math.min(p.lines.size(),w.scroll+p.visibleRows))) {
@@ -431,6 +480,7 @@ public final class Diagnostics extends Module {
     }
     final class Panel {
         final Widget widget;final String title,status;final List<Line> lines=new ArrayList<>();
+        DiagnosticsPlots.Plot plot;
         String footer="";double[] graph;float scale;int height,visibleRows;
         Panel(Widget w,String title,String status){widget=w;this.title=title;this.status=status;}
         void line(String label,String value){lines.add(new Line(label,value,-1));}
