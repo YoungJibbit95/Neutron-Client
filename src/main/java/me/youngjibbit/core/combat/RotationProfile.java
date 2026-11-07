@@ -7,6 +7,15 @@ public final class RotationProfile {
     public enum Mode { BASIC, SMOOTH, ADVANCED }
     public enum ArsenicMode { OFF, LAZY, HEURISTICS }
     public ArsenicMode arsenic=ArsenicMode.OFF;
+    public boolean softArsenicMotion;
+    public enum HitpointNoise {
+        CALM(.45, .25), BALANCED(.85, .48), DYNAMIC(1.4, .8);
+        final double rate, extent;
+        HitpointNoise(double rate, double extent) { this.rate = rate; this.extent = extent; }
+    }
+    public HitpointNoise hitpointNoise = HitpointNoise.CALM;
+    public float hitpointSpeed = 1, hitpointStrength;
+
     public float predictionTicks=1, missChance=.05f;
     public enum SpeedCurve { OFF, BEZIER }
     /** Independent opt-in; legacy randomization presets never enable or override it. */

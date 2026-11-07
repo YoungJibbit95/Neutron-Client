@@ -4,6 +4,7 @@ import me.youngjibbit.core.arsenic.geometry.Box;
 import me.youngjibbit.core.arsenic.scaffold.ScaffoldCore;
 import me.youngjibbit.core.arsenic.scaffold.ScaffoldWorld;
 import me.youngjibbit.core.bootstrap.RuntimeServices;
+import me.youngjibbit.core.combat.ArsenicMotionCurve;
 import me.youngjibbit.core.combat.RotationCorrections;
 import me.youngjibbit.core.combat.RotationManager;
 import me.youngjibbit.core.combat.RotationSensitivity;
@@ -22,6 +23,7 @@ public final class ArsenicScaffoldController {
     private ScaffoldCore core=new ScaffoldCore(ScaffoldCore.Tuning.best(),new Random());
     private long preparedSequence=Long.MIN_VALUE,postSequence=Long.MIN_VALUE;
     private float yawMomentum,pitchMomentum;
+    private ArsenicMotionCurve softCurve;
 
     public static final class Prepared {
         public final PlacementTarget target;
@@ -29,9 +31,13 @@ public final class ArsenicScaffoldController {
         private Prepared(PlacementTarget target,float yaw,float pitch) { this.target=target;this.yaw=yaw;this.pitch=pitch; }
     }
 
-    public void reset() { core=new ScaffoldCore(ScaffoldCore.Tuning.best(),new Random());preparedSequence=postSequence=Long.MIN_VALUE;yawMomentum=pitchMomentum=0; }
+    public void reset() { softCurve=null;core=new ScaffoldCore(ScaffoldCore.Tuning.best(),new Random());preparedSequence=postSequence=Long.MIN_VALUE;yawMomentum=pitchMomentum=0; }
 
-    public Prepared prepare(RotationManager rotations,boolean eagle,double safety,double minSpeed,double maxSpeed) {
+    public Prepared prepare(RotationManager rotations, boolean eagle, double safety, double minSpeed, double maxSpeed) {
+        return prepare(rotations, eagle, safety, minSpeed, maxSpeed, false);
+    }
+
+    public Prepared prepare(RotationManager rotations,boolean eagle,double safety,double minSpeed,double maxSpeed,boolean softMotion) {
         if(preparedSequence==rotations.getMotionSequence())return null;
         preparedSequence=rotations.getMotionSequence();
         Minecraft mc=Minecraft.getMinecraft();
@@ -41,10 +47,20 @@ public final class ArsenicScaffoldController {
         ScaffoldCore.Rotation aim=core.rotate(in,world);
         if(!rotations.canUseRotation("scaffold",true))yawMomentum=pitchMomentum=0;
         float yawError=MathHelper.wrapAngleTo180_float(aim.yaw-in.silentYaw),pitchError=aim.pitch-in.silentPitch;
-        yawMomentum=momentum(yawMomentum,yawError,aim.speed,120);
-        pitchMomentum=momentum(pitchMomentum,pitchError,aim.speed*.65f,60);
-        float yawStep=Math.signum(yawError)*Math.min(Math.abs(yawError),yawMomentum);
-        float pitchStep=Math.signum(pitchError)*Math.min(Math.abs(pitchError),pitchMomentum);
+        float yawStep, pitchStep;
+        if (softMotion) {
+            if (softCurve == null || !rotations.canUseRotation("scaffold", true))
+                softCurve = new ArsenicMotionCurve(new Random());
+            float[] delta = softCurve.advance(yawError, pitchError, aim.speed, aim.speed * .65f);
+            yawStep = delta[0];
+            pitchStep = delta[1];
+        } else {
+            softCurve = null;
+            yawMomentum=momentum(yawMomentum,yawError,aim.speed,120);
+            pitchMomentum=momentum(pitchMomentum,pitchError,aim.speed*.65f,60);
+            yawStep=Math.signum(yawError)*Math.min(Math.abs(yawError),yawMomentum);
+            pitchStep=Math.signum(pitchError)*Math.min(Math.abs(pitchError),pitchMomentum);
+        }
         float[] next=rotations.applyGcd(in.silentYaw+yawStep,in.silentPitch+pitchStep,in.silentYaw,in.silentPitch);
         ScaffoldCore.Target target=core.target();
         if(target==null)return new Prepared(null,next[0],next[1]);

@@ -18,6 +18,14 @@ public final class RotationReturnSettings {
 
     public boolean begin(RotationManager manager, String source, MoveFixController.Mode movement,
                          BodyRotationController.Mode body, BooleanSupplier valid) {
-        return enabled.getValue() && manager.beginRotationRelease(source, ticks.getValue().intValue(), movement, body, valid);
+        return begin(manager, source, movement, body, false, valid);
+    }
+
+    public boolean begin(RotationManager manager, String source, MoveFixController.Mode movement,
+                         BodyRotationController.Mode body, boolean softArsenic, BooleanSupplier valid) {
+        if (!enabled.getValue() && !softArsenic) return false;
+        int duration = ticks.getValue().intValue();
+        if (softArsenic) duration += java.util.concurrent.ThreadLocalRandom.current().nextInt(-1, 2);
+        return manager.beginRotationRelease(source, duration, movement, body, valid);
     }
 }

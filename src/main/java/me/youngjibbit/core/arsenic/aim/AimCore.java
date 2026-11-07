@@ -85,6 +85,9 @@ public final class AimCore {
         public double minX, minY, minZ, maxX, maxY, maxZ;
         public double targetDX, targetDZ;
         public int targetId;
+        // Optional destination in the current box, supplied by the client adapter.
+        public float hitpointWeight;
+        public double hitX, hitY, hitZ;
         public float curYaw, curPitch;
         public float maxSpeed, budgetTicks;
     }
@@ -352,6 +355,11 @@ public final class AimCore {
     public float[] heuristicStep(Input in) {
         double cx = (in.minX + in.maxX) * 0.5, cz = (in.minZ + in.maxZ) * 0.5;
         double cy = in.minY + (in.maxY - in.minY) * driftY;
+        if (in.hitpointWeight > 0) {
+            cx += (in.hitX - cx) * in.hitpointWeight;
+            cy += (in.hitY - cy) * in.hitpointWeight;
+            cz += (in.hitZ - cz) * in.hitpointWeight;
+        }
         if (in.targetId != hTarget) {
             hTarget = in.targetId;
             hCount = 0;

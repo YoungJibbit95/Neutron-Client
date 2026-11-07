@@ -33,6 +33,49 @@ public class ArsenicRotationIntegrationTest {
             assertArrayEquals(new float[]{17,3},r.calculateRotations("aura",130,-50,target,false,p,false),0);
         }
     }
+    @Test public void softVisibleStopDecaysOnlyTheAssistDeltaAndYieldsToGuiOrAnotherOwner() throws Exception {
+        for (boolean openGui : new boolean[]{true, false}) {
+            try (RotationBehaviorHookTest.Fixture f = new RotationBehaviorHookTest.Fixture()) {
+                setup(f);
+                AtomicLong time = new AtomicLong();
+                RotationManager manager = new RotationManager(time::get, 84);
+                RotationProfile profile = ArsenicAimTrajectoryTest.profile(RotationProfile.ArsenicMode.LAZY);
+                profile.softArsenicMotion = true;
+                manager.beginMotion(f.player, f.world, 0, 0);
+                float[] pose = manager.calculateRotations("aimassist", 0, 0, enemy(), false, profile, true);
+                manager.requestVisible("aimassist", 10, pose[0], pose[1], 0, 0, () -> true);
+                EventMotion event = new EventMotion(0, 0, 0, 0, 0, true);
+                manager.resolve(event);
+                manager.finishMotion(event.getYaw(), event.getPitch(), true);
+                assertTrue(Math.abs(f.player.rotationYaw) > .15);
+                manager.beginVisibleAssistStop();
+                manager.reset("aimassist");
+                float previousStep = Math.abs(f.player.rotationYaw);
+                for (int tick = 1; tick <= 2; tick++) {
+                    time.addAndGet(50_000_000);
+                    f.player.rotationYaw += 4; // Real mouse input remains additive.
+                    float camera = f.player.rotationYaw;
+                    manager.beginMotion(f.player, f.world, camera, f.player.rotationPitch);
+                    event = new EventMotion(0, 0, 0, camera, f.player.rotationPitch, true);
+                    manager.resolve(event);
+                    float step = Math.abs(f.player.rotationYaw - camera);
+                    assertTrue("release step " + tick, step > 0 && step < previousStep);
+                    previousStep = step;
+                    float applied = f.player.rotationYaw;
+                    manager.resolve(event);
+                    assertEquals(applied, f.player.rotationYaw, 0);
+                    manager.finishMotion(event.getYaw(), event.getPitch(), true);
+                }
+                float camera = f.player.rotationYaw;
+                manager.beginMotion(f.player, f.world, camera, f.player.rotationPitch);
+                if (openGui) f.mc.currentScreen = new net.minecraft.client.gui.GuiScreen() { };
+                else manager.request("scaffold", RotationManager.SCAFFOLD_PRIORITY, 90, 20);
+                manager.resolve(new EventMotion(0, 0, 0, camera, f.player.rotationPitch, true));
+                assertEquals(camera, f.player.rotationYaw, 0);
+            }
+        }
+    }
+
     @Test public void visibleAssistancePreservesLaterMouseInputAndLosesToScaffold() throws Exception {
         try(RotationBehaviorHookTest.Fixture f=new RotationBehaviorHookTest.Fixture()) {
             setup(f);RotationManager r=new RotationManager(()->0,84);RotationBehaviorHookTest.Player target=enemy();
