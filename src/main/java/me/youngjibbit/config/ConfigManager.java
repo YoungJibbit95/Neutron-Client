@@ -53,7 +53,7 @@ public class ConfigManager {
 
     /** Install versioned examples once. An existing file always belongs to the user. */
     public boolean installBundledPlaytestConfigs() {
-        for (String name : new String[]{"HypeMC-Final-0.2.1", "Mineblaze-Final-0.2.1"}) {
+        for (String name : new String[]{"HypeMC-Final-0.2.1", "Mineblaze-Final-0.2.1", "PredictionAC"}) {
             Path destination = directory.resolve(name + ".json");
             if (Files.exists(destination, LinkOption.NOFOLLOW_LINKS)) continue;
             Path temporary = null;

@@ -1,0 +1,350 @@
+{
+  "version": 2,
+  "profile": "PredictionAC",
+  "description": "Moderate combat and cautious Scaffold with reduced visual effects. Polar/server acceptance and frame-time measurements are pending. Aura and Scaffold start disabled; existing keybinds are preserved.",
+  "modules": {
+    "aimassist": {
+      "enabled": false,
+      "rotationVersion": 2,
+      "settings": {}
+    },
+    "aura": {
+      "enabled": false,
+      "rotationVersion": 2,
+      "settings": {
+        "players": true,
+        "animals": false,
+        "mobs": false,
+        "invisibles": false,
+        "teams": false,
+        "through_walls": false,
+        "mode": "Single",
+        "sort_mode": "Range",
+        "min_cps": 10.0,
+        "max_cps": 13.0,
+        "click_randomization_enabled": true,
+        "click_randomization_mode": "Pi",
+        "click_randomization_amount": 2.0,
+        "click_debugging": false,
+        "reach": 3.0,
+        "multi_targets": 2.0,
+        "yaw_speed": 42.0,
+        "pitch_speed": 20.0,
+        "jitter": 0.1,
+        "rotations": true,
+        "best_aim_vec": true,
+        "random_hit_vec": true,
+        "smart_aim": false,
+        "stop_on_target": false,
+        "preset_timing": false,
+        "heuristics": true,
+        "interpolate_rotation": true,
+        "advanced_pitch": true,
+        "random_mode": "Noise",
+        "rot_mode": "Arsenic Heuristics",
+        "arsenic_soft_motion": true,
+        "hitpoint_variation": true,
+        "hitpoint_profile": "Ausgewogen",
+        "hitpoint_speed": 0.65,
+        "hitpoint_strength": 0.4,
+        "prediction_ticks": 1.0,
+        "miss_chance": 5.0,
+        "randomization_style": "Benutzerdefiniert",
+        "speed_variation": 0.22,
+        "speed_curve": "Bezier",
+        "bezier_strength": 0.25,
+        "bezier_duration": 338.0,
+        "min_speed": 95.0,
+        "max_speed": 124.0,
+        "interpolation": 2.19,
+        "randomization": true,
+        "noise_strength": 0.3,
+        "noise_mode": "OpenSimplex2S",
+        "frequency": 0.75,
+        "yaw_offset": 0.1,
+        "pitch_offset": 0.06,
+        "hit_vec_radius": 0.12,
+        "cellular_distance_mode": "EuclideanSq",
+        "cellular_return_mode": "Distance",
+        "cellular_jitter": 1.0,
+        "fractal_mode": "FBm",
+        "gain": 0.45,
+        "lacunarity": 2.0,
+        "octaves": 2.0,
+        "ping_pong_strength": 2.0,
+        "weighted_strength": 0.1,
+        "domain_warp_mode": "OpenSimplex2",
+        "domain_warp_amp": 0.0,
+        "raycast": true,
+        "movefix": "Einfach",
+        "body_rotation": "Natürlich",
+        "smooth_rotation_stop": true,
+        "return_ticks": 7.0,
+        "autoblock": false,
+        "autoblock_mode": "Fake",
+        "custom_block_frequency": false,
+        "block_frequency": 4.0,
+        "aim_range_margin": 0.25
+      }
+    },
+    "velocity": {
+      "enabled": false,
+      "settings": {
+        "mode": "Legit",
+        "reduce_ticks": 2.0,
+        "jump_reset": true
+      }
+    },
+    "backtrack": {
+      "enabled": true,
+      "networkVersion": 1,
+      "settings": {
+        "backtrack_mode": "Pulse",
+        "render": "Off",
+        "active_on_hit": true,
+        "active_on_no_hit": true,
+        "release_on_velocity": true,
+        "acquire_range": 3.25,
+        "min_ms": 20.0,
+        "max_ms": 45.0,
+        "delay_mode": "Range",
+        "delay": 250.0,
+        "animals": false,
+        "mobs": false,
+        "target_source": "Attack",
+        "target_hold_ms": 250.0,
+        "min_server_distance": 2.2,
+        "min_distance_gain": 0.08,
+        "diagnostics": false,
+        "cooldown_ticks": 10.0,
+        "max_hurt_time": 10.0,
+        "require_mouse_pressed": false,
+        "require_weapon": true,
+        "only_aura": true
+      }
+    },
+    "lagrange": {
+      "enabled": false,
+      "networkVersion": 1,
+      "settings": {
+        "only_aura": true,
+        "min_ms": 15.0,
+        "max_ms": 35.0,
+        "max_target_range": 3.0,
+        "start_distance": 3.5,
+        "dispatch_on_hit": true,
+        "delay_mode": "MS",
+        "preactivation": 0.0,
+        "only_swinging": true,
+        "animals": false,
+        "mobs": false,
+        "speed_up": false,
+        "slow_down": true,
+        "dodge": false,
+        "safety_margin_ms": 100.0,
+        "diagnostics": false
+      }
+    },
+    "wtap2": {
+      "enabled": false,
+      "settings": {
+        "mode": "Legit",
+        "duration_(ms)": 51.0,
+        "cooldown_(ms)": 421.0,
+        "min_distance": 1.2,
+        "max_distance": 3.6
+      }
+    },
+    "speed": {
+      "enabled": false,
+      "settings": {
+        "mode": "Polar",
+        "air_speed": false
+      }
+    },
+    "noslow": {
+      "enabled": false,
+      "settings": {
+        "mode": "Vanilla",
+        "reduce_x": 100.0,
+        "reduce_z": 100.0
+      }
+    },
+    "diagnostics": {
+      "enabled": true,
+      "settings": {
+        "display_mode": "Simple",
+        "performance_widget": false,
+        "rotation_widget": false,
+        "network_widget": false,
+        "flag_widget": false,
+        "rotation_user_details": false,
+        "rotation_developer_details": false,
+        "network_values": false,
+        "flag_detector": true,
+        "flag_developer_details": false,
+        "setback_notifications": true,
+        "performance_console": false,
+        "rotation_console": false,
+        "network_console": false,
+        "console_active_values": false,
+        "flag_console": false,
+        "console_interval_ms": 2000.0,
+        "notification_cooldown_ms": 3000.0,
+        "widget_scale": 1.0,
+        "animate_meters": false,
+        "background": true,
+        "blur": false,
+        "glow": false,
+        "effects_source": "Global",
+        "local_rectangle_substance": "Legacy",
+        "performance_x": 12.0,
+        "performance_y": 14.0,
+        "rotation_x": 340.0,
+        "rotation_y": 4.0,
+        "network_x": 12.0,
+        "network_y": 174.0,
+        "flags_x": 704.0,
+        "flags_y": 380.0
+      }
+    },
+    "scaffold": {
+      "enabled": false,
+      "settings": {
+        "scaffold_approach": "Arsenic",
+        "arsenic_soft_motion": true,
+        "eagle": true,
+        "safety": 2.0,
+        "arsenic_min_speed": 90.0,
+        "arsenic_max_speed": 150.0,
+        "place_timing": "Post",
+        "rotations": true,
+        "movefix": "Einfach",
+        "body_rotation": "Natürlich",
+        "smooth_rotation_stop": true,
+        "return_ticks": 8.0,
+        "rotation_mode": "Back",
+        "round_rots": false,
+        "yaw_speed": 44.0,
+        "pitch_speed": 24.0,
+        "jitter": 0.0,
+        "random_hit_vec": true,
+        "rotation_smoothing": "Smooth",
+        "randomization_style": "Benutzerdefiniert",
+        "speed_variation": 0.16,
+        "min_speed": 30.0,
+        "max_speed": 48.0,
+        "interpolation": 5.0,
+        "randomization": true,
+        "noise_strength": 0.35,
+        "noise_mode": "OpenSimplex2S",
+        "frequency": 0.75,
+        "yaw_offset": 0.0,
+        "pitch_offset": 0.0,
+        "hit_vec_radius": 0.06,
+        "cellular_distance_mode": "EuclideanSq",
+        "cellular_return_mode": "Distance",
+        "cellular_jitter": 1.0,
+        "fractal_mode": "FBm",
+        "gain": 0.45,
+        "lacunarity": 2.0,
+        "octaves": 2.0,
+        "ping_pong_strength": 2.0,
+        "weighted_strength": 0.1,
+        "domain_warp_mode": "OpenSimplex2",
+        "domain_warp_amp": 0.0,
+        "place_delay": 100.0,
+        "timer": 1.0,
+        "sprint": false,
+        "keep_y": false,
+        "downwards": false,
+        "item_spoof": true,
+        "swing": true,
+        "swing_mode": "Client",
+        "auto_jump": false,
+        "tower": false,
+        "tower_mode": "Vanilla",
+        "placement_diagnostics": false,
+        "sneak_after_blocks": 1.0
+      }
+    },
+    "tickbase": {
+      "enabled": false,
+      "networkVersion": 1,
+      "settings": {
+        "only_aura": true
+      }
+    },
+    "morekb": {
+      "enabled": false,
+      "settings": {}
+    },
+    "client_settings": {
+      "enabled": false,
+      "settings": {
+        "surface_style": "Standard",
+        "global_blur": false,
+        "global_glow": false,
+        "text_glow": "Off",
+        "shared_gradients": false,
+        "gradient_motion": "Static",
+        "ambient_motion": false,
+        "notification_design": "Dark"
+      }
+    },
+    "arraylist_hud": {
+      "enabled": true,
+      "settings": {
+        "mode": "Compact",
+        "font": "Minecraft",
+        "effects_source": "Global",
+        "blur": false,
+        "glow": false,
+        "show_module_info": false
+      }
+    },
+    "targethud": {
+      "enabled": true,
+      "settings": {
+        "mode": "Basic",
+        "effects_source": "Global"
+      }
+    },
+    "glowesp": {
+      "enabled": false,
+      "settings": {}
+    },
+    "2d_esp": {
+      "enabled": false,
+      "settings": {}
+    },
+    "nametags": {
+      "enabled": false,
+      "settings": {}
+    },
+    "breadcrumbs": {
+      "enabled": false,
+      "settings": {}
+    },
+    "jumpcircle": {
+      "enabled": false,
+      "settings": {}
+    },
+    "chinahat": {
+      "enabled": false,
+      "settings": {}
+    },
+    "keystrokes": {
+      "enabled": false,
+      "settings": {}
+    },
+    "armorhud": {
+      "enabled": false,
+      "settings": {}
+    },
+    "session_info": {
+      "enabled": false,
+      "settings": {}
+    }
+  }
+}
