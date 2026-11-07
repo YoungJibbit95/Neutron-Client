@@ -13,7 +13,7 @@ import static org.junit.Assert.*;
 
 public class TickbaseBehaviorHookTest {
     private Tickbase enable(AtomicLong now, ExploitHookFixture f) {
-        Tickbase tick = new Tickbase(now::get, f.client); assertNull(tick.getDiagnostics());
+        Tickbase tick = new Tickbase(now::get, f.client); tick.getBooleanSetting("Only Aura").setValue(false); assertNull(tick.getDiagnostics());
         tick.getBooleanSetting("Debug").setValue(true); tick.getNumberSetting("Charge Ticks").setValue(2.0);
         tick.getNumberSetting("Min Charge").setValue(1.0); tick.getNumberSetting("Release Speed").setValue(2.0);
         tick.setToggled(true); return tick;
@@ -112,7 +112,7 @@ public class TickbaseBehaviorHookTest {
     @Test public void simultaneousRealBacktrackLagRangeAndTickbaseShareQueuesWithoutSpendingForeignHolds() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             AtomicLong now = new AtomicLong(); Tickbase tick = enable(now, f);
-            Backtrack back = new Backtrack(now::get, f.client); LagRange lag = new LagRange();
+            Backtrack back = new Backtrack(now::get, f.client); back.getBooleanSetting("Only Aura").setValue(false); LagRange lag = new LagRange(); lag.getBooleanSetting("Only Aura").setValue(false);
             back.getModeSetting("Target Source").setValue("Attack / Cursor");
             back.getModeSetting("Delay Mode").setValue("Range");
             lag.getNumberSetting("Start Distance").setValue(0D);

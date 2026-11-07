@@ -20,7 +20,7 @@ public class LagRangeApproachTest {
     @Test public void intaveHoldsOnlyWhileDistanceClosesOutsideStartRange() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             AtomicLong now = new AtomicLong(); clock(f, now);
-            LagRange lag = new LagRange(now::get, (min, max) -> max);
+            LagRange lag = new LagRange(now::get, (min, max) -> max); lag.getBooleanSetting("Only Aura").setValue(false);
             lag.getModeSetting("Delay Mode").setValue("Intave Approach");
             lag.setToggled(true);
             try {
@@ -39,7 +39,7 @@ public class LagRangeApproachTest {
     @Test public void approachingBuildsMonotoneOutboundDelayAndNeverHoldsEnemyMovement() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             AtomicLong now = new AtomicLong(); clock(f, now);
-            LagRange lag = new LagRange(now::get, (min, max) -> 500);
+            LagRange lag = new LagRange(now::get, (min, max) -> 500); lag.getBooleanSetting("Only Aura").setValue(false);
             lag.getNumberSetting("Min MS").setValue(500D); lag.setToggled(true);
             try {
                 ExploitHookFixture.Enemy enemy = f.enemy(7, 6); tick(now, 0);
@@ -60,7 +60,7 @@ public class LagRangeApproachTest {
     @Test public void attackFlushesMovementBeforeActionAndRetreatOrTargetLossReleases() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             AtomicLong now = new AtomicLong(); clock(f, now);
-            LagRange lag = new LagRange(now::get, (min, max) -> max); lag.setToggled(true);
+            LagRange lag = new LagRange(now::get, (min, max) -> max); lag.getBooleanSetting("Only Aura").setValue(false); lag.setToggled(true);
             try {
                 ExploitHookFixture.Enemy enemy = f.enemy(7, 6); tick(now, 0);
                 C03PacketPlayer move = new C03PacketPlayer(true); f.connection.network.sendPacket(move);

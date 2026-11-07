@@ -21,7 +21,7 @@ public class BacktrackLagRangeControlTest {
     @Test public void transactionIsAnsweredImmediatelyWithoutFlushingBacktrackMovement() throws Exception {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
             AtomicLong now=new AtomicLong();clock(f,now);
-            Backtrack back=new Backtrack(now::get,f.client);back.setToggled(true);
+            Backtrack back=new Backtrack(now::get,f.client); back.getBooleanSetting("Only Aura").setValue(false);back.setToggled(true);
             try {
                 ExploitHookFixture.Enemy enemy=f.enemy(7,3);
                 assertTrue(f.controller.tryAttackEntity(f.player,enemy,()->true));f.drainOutbound();
@@ -41,7 +41,7 @@ public class BacktrackLagRangeControlTest {
     @Test public void controlRepliesDoNotFlushLagRangeButAttackStillDoes() throws Exception {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
             AtomicLong now=new AtomicLong();clock(f,now);
-            LagRange lag=new LagRange(now::get,(min,max)->500);lag.setToggled(true);
+            LagRange lag=new LagRange(now::get,(min,max)->500); lag.getBooleanSetting("Only Aura").setValue(false);lag.setToggled(true);
             try {
                 ExploitHookFixture.Enemy enemy=f.enemy(7,6);Pulsar.BUS.post(new TickEvent());
                 C03PacketPlayer movement=new C03PacketPlayer(true);f.connection.network.sendPacket(movement);
@@ -63,7 +63,7 @@ public class BacktrackLagRangeControlTest {
     @Test public void distanceNeedsGainButTimedAndPulseCanHoldStationaryTargetMovement() throws Exception {
         for(String mode:new String[]{"Distance","Timed","Pulse"})
             try(ExploitHookFixture f=new ExploitHookFixture()) {
-                AtomicLong now=new AtomicLong();clock(f,now);Backtrack back=new Backtrack(now::get,f.client);
+                AtomicLong now=new AtomicLong();clock(f,now);Backtrack back=new Backtrack(now::get,f.client); back.getBooleanSetting("Only Aura").setValue(false);
                 back.getModeSetting("Backtrack Mode").setValue(mode);back.setToggled(true);
                 try {
                     ExploitHookFixture.Enemy enemy=f.enemy(7,3);
@@ -78,7 +78,7 @@ public class BacktrackLagRangeControlTest {
     @Test public void pulseReleasesTheWholeBatchWhileTimedKeepsItsLaterPacketDeadline() throws Exception {
         for(String mode:new String[]{"Timed","Pulse"})
             try(ExploitHookFixture f=new ExploitHookFixture()) {
-                AtomicLong now=new AtomicLong();clock(f,now);Backtrack back=new Backtrack(now::get,f.client);
+                AtomicLong now=new AtomicLong();clock(f,now);Backtrack back=new Backtrack(now::get,f.client); back.getBooleanSetting("Only Aura").setValue(false);
                 back.getModeSetting("Backtrack Mode").setValue(mode);back.setToggled(true);
                 try {
                     ExploitHookFixture.Enemy enemy=f.enemy(7,3);
@@ -101,7 +101,7 @@ public class BacktrackLagRangeControlTest {
     }
     @Test public void pulseExpiryOnReceiptWithoutTickReleasesBatchAndStartsCooldown() throws Exception {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
-            AtomicLong now=new AtomicLong();clock(f,now);Backtrack back=new Backtrack(now::get,f.client);
+            AtomicLong now=new AtomicLong();clock(f,now);Backtrack back=new Backtrack(now::get,f.client); back.getBooleanSetting("Only Aura").setValue(false);
             back.getModeSetting("Backtrack Mode").setValue("Pulse");back.setToggled(true);
             try {
                 ExploitHookFixture.Enemy enemy=f.enemy(7,3);
@@ -123,8 +123,8 @@ public class BacktrackLagRangeControlTest {
     }
     @Test public void activationStatusExplainsMissingAttackAndImpossibleDistanceWindow() throws Exception {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
-            AtomicLong now=new AtomicLong();Backtrack back=new Backtrack(now::get,f.client);
-            LagRange lag=new LagRange(now::get,(min,max)->min);
+            AtomicLong now=new AtomicLong();Backtrack back=new Backtrack(now::get,f.client); back.getBooleanSetting("Only Aura").setValue(false);
+            LagRange lag=new LagRange(now::get,(min,max)->min); lag.getBooleanSetting("Only Aura").setValue(false);
             lag.getNumberSetting("Max Target Range").setValue(3D);lag.getNumberSetting("Start Distance").setValue(5D);
             back.setToggled(true);lag.setToggled(true);
             try {

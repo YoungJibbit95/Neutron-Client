@@ -28,7 +28,7 @@ public class LagRangeImpulseSafetyTest {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
             f.world.entities.put(1,f.player);f.player.ticksExisted=120;f.enemy(7,3);
             AtomicLong now=new AtomicLong();AtomicInteger bodies=new AtomicInteger();
-            LagRange lag=new LagRange(now::get,(min,max)->min);lag.setToggled(true);
+            LagRange lag=new LagRange(now::get,(min,max)->min); lag.getBooleanSetting("Only Aura").setValue(false);lag.setToggled(true);
             try {
                 Pulsar.BUS.post(new TickEvent());LagRange.beginFrame(f.client,false,1,50);
                 velocity(f);
@@ -49,7 +49,7 @@ public class LagRangeImpulseSafetyTest {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
             f.world.entities.put(1,f.player);f.enemy(7,6);
             AtomicLong now=new AtomicLong();BacktrackLagRangeControlTest.clock(f,now);
-            LagRange lag=new LagRange(now::get,(min,max)->min);lag.setToggled(true);
+            LagRange lag=new LagRange(now::get,(min,max)->min); lag.getBooleanSetting("Only Aura").setValue(false);lag.setToggled(true);
             try {
                 Pulsar.BUS.post(new TickEvent());
                 C03PacketPlayer before=new C03PacketPlayer(true);f.connection.network.sendPacket(before);
@@ -71,7 +71,7 @@ public class LagRangeImpulseSafetyTest {
             final int selected=scenario;AtomicInteger bodies=new AtomicInteger();
             PacketFlowTest.Observer packets=new PacketFlowTest.Observer();
             packets.action=e->{if(selected==1&&e.isInbound()&&e.isPre()&&e.getPacket() instanceof S27PacketExplosion)e.cancel();};
-            Pulsar.BUS.subscribe(packets);LagRange lag=new LagRange(()->0,(min,max)->min);lag.setToggled(true);
+            Pulsar.BUS.subscribe(packets);LagRange lag=new LagRange(()->0,(min,max)->min); lag.getBooleanSetting("Only Aura").setValue(false);lag.setToggled(true);
             try {
                 Pulsar.BUS.post(new TickEvent());LagRange.beginFrame(f.client,false,1,50);
                 f.receive(new S27PacketExplosion(0,0,0,0,java.util.Collections.emptyList(),
@@ -85,7 +85,7 @@ public class LagRangeImpulseSafetyTest {
     @Test public void impulseKeepsUnpublishedLookBarrierUntilMovementIsSent() throws Exception {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
             f.world.entities.put(1,f.player);f.player.ticksExisted=120;f.enemy(7,3);
-            LagRange lag=new LagRange(()->0,(min,max)->min);lag.setToggled(true);
+            LagRange lag=new LagRange(()->0,(min,max)->min); lag.getBooleanSetting("Only Aura").setValue(false);lag.setToggled(true);
             try {
                 Pulsar.BUS.post(new TickEvent());LagRange.beginFrame(f.client,false,1,50);
                 LagRange.runPlayerStep(f.player,()->{fail("earn withheld body");return true;});
@@ -102,7 +102,7 @@ public class LagRangeImpulseSafetyTest {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
             f.world.entities.put(1,f.player);f.player.ticksExisted=120;ExploitHookFixture.Enemy enemy=f.enemy(7,6);
             AtomicLong now=new AtomicLong();BacktrackLagRangeControlTest.clock(f,now);
-            LagRange lag=new LagRange(now::get,(min,max)->min);lag.setToggled(true);
+            LagRange lag=new LagRange(now::get,(min,max)->min); lag.getBooleanSetting("Only Aura").setValue(false);lag.setToggled(true);
             PacketFlowTest.Observer packets=new PacketFlowTest.Observer();Pulsar.BUS.subscribe(packets);
             try {
                 Pulsar.BUS.post(new TickEvent());f.connection.network.sendPacket(new C03PacketPlayer(true));
@@ -123,7 +123,7 @@ public class LagRangeImpulseSafetyTest {
             packets.action=e->{if(selected==0&&e.isInbound()&&e.isPre()&&e.getPacket() instanceof S12PacketEntityVelocity)e.cancel();};
             Listener<KnockbackEvent> cancel=new Listener<>(KnockbackEvent.class,e->{if(selected==1&&e.isPre())e.cancel();});
             Pulsar.BUS.subscribe(packets);Pulsar.BUS.subscribe(cancel);
-            LagRange lag=new LagRange(()->0,(min,max)->min);lag.setToggled(true);
+            LagRange lag=new LagRange(()->0,(min,max)->min); lag.getBooleanSetting("Only Aura").setValue(false);lag.setToggled(true);
             try {
                 Pulsar.BUS.post(new TickEvent());LagRange.beginFrame(f.client,false,1,50);
                 if(scenario==2)f.receive(new S12PacketEntityVelocity(7,.3,.2,-.1));else velocity(f);
@@ -137,7 +137,7 @@ public class LagRangeImpulseSafetyTest {
             f.world.entities.put(1,f.player);f.player.ticksExisted=120;f.player.movementInput=new MovementInput();
             f.player.movementInput.moveForward=1;f.player.rotationYaw=-90;
             ExploitHookFixture.Enemy enemy=f.enemy(7,3);AtomicLong now=new AtomicLong();AtomicInteger extras=new AtomicInteger();
-            LagRange lag=new LagRange(now::get,(min,max)->min);lag.setToggled(true);
+            LagRange lag=new LagRange(now::get,(min,max)->min); lag.getBooleanSetting("Only Aura").setValue(false);lag.setToggled(true);
             try {
                 Pulsar.BUS.post(new TickEvent());
                 for(int i=0;i<3;i++){now.set(i*50_000_000L);LagRange.beginFrame(f.client,false,1,50);
@@ -155,7 +155,7 @@ public class LagRangeImpulseSafetyTest {
             AtomicLong now=new AtomicLong();AtomicInteger extras=new AtomicInteger();
             f.player.ticksExisted=120;f.player.movementInput=new MovementInput();f.player.movementInput.moveForward=1;
             f.player.rotationYaw=-90;ExploitHookFixture.Enemy enemy=f.enemy(7,3);
-            LagRange lag=new LagRange(now::get,(min,max)->min);lag.setToggled(true);
+            LagRange lag=new LagRange(now::get,(min,max)->min); lag.getBooleanSetting("Only Aura").setValue(false);lag.setToggled(true);
             final int selected=scenario;
             final GuiScreen screen=scenario==0?AttackHookTest.bare(GuiInventory.class)
                     :scenario==1?AttackHookTest.bare(GuiChest.class):null;

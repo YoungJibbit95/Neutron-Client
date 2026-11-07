@@ -64,7 +64,7 @@ public class TickbaseBudgetTest {
         assertEquals(0,budget.getCredit());assertFalse(budget.release());assertEquals(1,simulation.get());
     }
     @Test public void enablingTheActualModuleRequiresAFreshFrameSample() throws Exception {
-        Tickbase module=new Tickbase();java.lang.reflect.Field field=Tickbase.class.getDeclaredField("budget");field.setAccessible(true);
+        Tickbase module=new Tickbase(); module.getBooleanSetting("Only Aura").setValue(false);java.lang.reflect.Field field=Tickbase.class.getDeclaredField("budget");field.setAccessible(true);
         TickbaseBudget budget=(TickbaseBudget)field.get(module);budget.frame(true,1,50,1);
         module.setToggled(true);
         try {
@@ -101,7 +101,7 @@ public class TickbaseBudgetTest {
         now.set(99900);timer.updateTimer();assertEquals(0,timer.elapsedTicks);assertTrue(timer.renderPartialTicks>=0);
         timer.timerSpeed=Float.NaN;now.addAndGet(50);timer.updateTimer();assertEquals(1,timer.elapsedTicks);
         assertTrue(Float.isNaN(timer.timerSpeed)); // sampling never steals another owner's setting
-        timer.timerSpeed=1.7f;Tickbase module=new Tickbase();module.setToggled(true);module.setToggled(false);
+        timer.timerSpeed=1.7f;Tickbase module=new Tickbase(); module.getBooleanSetting("Only Aura").setValue(false);module.setToggled(true);module.setToggled(false);
         assertEquals(1.7f,timer.timerSpeed,0);
     }
     public static final class Manipulation implements Subscriber {
@@ -117,7 +117,7 @@ public class TickbaseBudgetTest {
         }finally {Pulsar.BUS.unsubscribe(manipulation);}
     }
     @Test public void releaseLabelKeepsItsOldPersistentIdAndLookupAlias() {
-        Tickbase module=new Tickbase();
+        Tickbase module=new Tickbase(); module.getBooleanSetting("Only Aura").setValue(false);
         me.youngjibbit.value.Value<?> setting=module.getValueByName("release_speed");
         assertNotNull(setting);assertSame(setting,module.getValueByName("Release Speed"));
         assertEquals("release_speed",setting.getId());assertEquals("Extra steps / 2 ticks",setting.getName());

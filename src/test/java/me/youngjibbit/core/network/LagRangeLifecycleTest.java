@@ -12,7 +12,7 @@ import static org.junit.Assert.*;
 public class LagRangeLifecycleTest {
     @Test public void deadLocalPlayerReleasesItsWindowAndCannotAcquireAnotherHold() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
-            LagRange lag = new LagRange(() -> 0, (min, max) -> 500);
+            LagRange lag = new LagRange(() -> 0, (min, max) -> 500); lag.getBooleanSetting("Only Aura").setValue(false);
             lag.getNumberSetting("Start Distance").setValue(0D);
             lag.getNumberSetting("Min MS").setValue(500.0);
             lag.getNumberSetting("Max MS").setValue(500.0);

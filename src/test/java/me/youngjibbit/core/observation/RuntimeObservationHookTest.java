@@ -89,7 +89,7 @@ public class RuntimeObservationHookTest {
         try (RotationBehaviorHookTest.Fixture f = new RotationBehaviorHookTest.Fixture()) {
             prepare(f); RuntimeObservation o = f.runtime.getObservation(); o.beginOuterTick();
             boolean[] failClock = {false}; IllegalStateException failure = new IllegalStateException("synthetic clock");
-            Tickbase module = new Tickbase(() -> { if (failClock[0]) throw failure; return 0; }, f.mc);
+            Tickbase module = new Tickbase(() -> { if (failClock[0]) throw failure; return 0; }, f.mc); module.getBooleanSetting("Only Aura").setValue(false);
             module.getBooleanSetting("Require Target").setValue(false); module.setToggled(true);
             try { failClock[0] = true;
                 assertSame(failure, assertThrows(IllegalStateException.class,
@@ -103,7 +103,7 @@ public class RuntimeObservationHookTest {
             LoadedWorld world = prepare(f); RuntimeObservation o = f.runtime.getObservation();
             RotationBehaviorHookTest.Player enemy = RotationBehaviorHookTest.bare(RotationBehaviorHookTest.Player.class);
             enemy.worldObj = world; enemy.setEntityId(9); enemy.serverPosX = 64; world.target = enemy;
-            Tickbase module = new Tickbase(() -> 0, f.mc);
+            Tickbase module = new Tickbase(() -> 0, f.mc); module.getBooleanSetting("Only Aura").setValue(false);
             module.getBooleanSetting("Require Target").setValue(false);
             module.getNumberSetting("Min Charge").setValue(1.0);
             module.getNumberSetting("Release Speed").setValue(2.0); module.setToggled(true);
