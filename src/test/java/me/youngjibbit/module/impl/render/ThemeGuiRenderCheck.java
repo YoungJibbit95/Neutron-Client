@@ -8,14 +8,19 @@ import me.youngjibbit.module.impl.client.ThemeModule;
 import me.youngjibbit.theme.*;
 import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.font.FontManager;
+import me.youngjibbit.utils.render.UiEffects;
 import net.minecraft.client.gui.*;
 import net.minecraft.client.renderer.texture.TextureManager;
 import net.minecraft.util.ResourceLocation;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.nio.file.Files;
 import java.lang.reflect.*;
 import java.util.Arrays;
+import java.util.function.LongSupplier;
+import javax.imageio.ImageIO;
+import static org.lwjgl.opengl.GL11.*;
 
 /** Real draws of both GUIs and the confirmed-session HUD with a disposable custom palette; no client bootstrap. */
 public final class ThemeGuiRenderCheck {
@@ -100,6 +105,86 @@ public final class ThemeGuiRenderCheck {
         SessionInfoRenderCheck.require(screen.scrollOffset==0,"Positive scroll offset was not clamped");
         System.out.println("PASS: iOS preset visibility controls real layout/draw/input capture; shrinking content clamps scroll");
     }
+    /** Optional cross-build capture of the actual sidebar glyph paths on a native Pbuffer. */
+    private static void captureSidebarIcons(iOS screen) throws Exception {
+        String output = System.getProperty("pulsar.theme.sidebar.capture");
+        if (output == null) return;
+
+        Field clockField = field(UiEffects.class, "clock");
+        LongSupplier oldClock = (LongSupplier) clockField.get(null);
+        Method timeSource = UiEffects.class.getDeclaredMethod("timeSource", LongSupplier.class);
+        timeSource.setAccessible(true);
+        int oldScale = SessionInfoRenderCheck.mc.gameSettings.guiScale;
+        try {
+            timeSource.invoke(null, (LongSupplier) () -> 0L);
+            SessionInfoRenderCheck.mc.gameSettings.guiScale = 3;
+            UiEffects.invalidate();
+            UiEffects.beginFrame();
+            SessionInfoRenderCheck.backdrop();
+            glViewport(31, 19, 960, 720);
+            glMatrixMode(GL_PROJECTION);
+            glLoadIdentity();
+            glOrtho(0, 480, 360, 0, -1, 1);
+            glMatrixMode(GL_MODELVIEW);
+            glLoadIdentity();
+            glTranslatef(240, 180, 0);
+            glScalef(.62f, .62f, 1);
+            glTranslatef(-240, -180, 0);
+
+            // The original class projects each icon directly. The optimized class captures here.
+            try {
+                Field snapshot = field(iOS.class, "sidebarProjection");
+                snapshot.get(screen).getClass().getMethod("capture").invoke(snapshot.get(screen));
+            } catch (NoSuchFieldException baseline) {
+                // The unmodified baseline has no batch snapshot.
+            }
+            Method icon1 = iOS.class.getDeclaredMethod("icon1", String.class, int.class, int.class, Theme.class);
+            Method icon2 = iOS.class.getDeclaredMethod("icon2", String.class, int.class, int.class, Theme.class);
+            icon1.setAccessible(true);
+            icon2.setAccessible(true);
+            String[] glyphs = {"c", "f", "d", "d", "e", "t", "f", "a"};
+            int[] offsets = {27, 44, 62, 79, 97, 113, 130, 147};
+            for (int i = 0; i < glyphs.length; i++) {
+                Method icon = i == 2 || i == 4 || i == 6 ? icon2 : icon1;
+                icon.invoke(screen, glyphs[i], 255, 40 + offsets[i], Theme.SynthWave);
+            }
+            File file = new File(output);
+            File parent = file.getParentFile();
+            if (parent != null) parent.mkdirs();
+            BufferedImage image = SessionInfoRenderCheck.capture();
+            int iconInk = 0;
+            for (int py = 0; py < image.getHeight(); py++) {
+                for (int px = 0; px < image.getWidth(); px++) {
+                    int color = image.getRGB(px, py);
+                    int red = color >> 16 & 255;
+                    int green = color >> 8 & 255;
+                    int blue = color & 255;
+                    if (blue > red + 40 && blue > green + 40) iconInk++;
+                }
+            }
+            SessionInfoRenderCheck.require(iconInk > 100, "Sidebar fixture did not draw visible icon ink");
+            String oraclePath = System.getProperty("pulsar.theme.sidebar.oracle");
+            if (oraclePath != null) {
+                BufferedImage oracle = ImageIO.read(new File(oraclePath));
+                SessionInfoRenderCheck.require(oracle != null && oracle.getWidth() == image.getWidth()
+                        && oracle.getHeight() == image.getHeight(), "Sidebar oracle dimensions changed");
+                for (int py = 0; py < image.getHeight(); py++) {
+                    for (int px = 0; px < image.getWidth(); px++) {
+                        if (image.getRGB(px, py) != oracle.getRGB(px, py)) {
+                            throw new AssertionError("Sidebar icon pixels changed at " + px + "," + py);
+                        }
+                    }
+                }
+            }
+            ImageIO.write(image, "png", file);
+            SessionInfoRenderCheck.require(glGetError() == GL_NO_ERROR, "Sidebar capture GL error");
+        } finally {
+            SessionInfoRenderCheck.mc.gameSettings.guiScale = oldScale;
+            timeSource.invoke(null, oldClock);
+            UiEffects.invalidate();
+            SessionInfoRenderCheck.backdrop();
+        }
+    }
     public static void run() throws Exception {
         ThemeCatalog previous=ThemeCatalog.global();ModuleManager oldManager=Pulsar.INSTANCE.getMm();iOS oldIos=Pulsar.INSTANCE.getIOS();
         FontManager oldFonts=Pulsar.INSTANCE.getFontManager();GuiScreen oldScreen=SessionInfoRenderCheck.mc.currentScreen;
@@ -127,6 +212,7 @@ public final class ThemeGuiRenderCheck {
             changed(hudA,SessionInfoRenderCheck.render("Outline",SessionInfoRenderCheck.NAME,SessionInfoRenderCheck.sample()),"SessionInfo",full(hudA));
             SessionInfoRenderCheck.require(id.equals(selected.selectedTheme.getValue())&&SessionInfoRenderCheck.stats.generation()==generation,"Theme redraw changed selection/session identity");
             iosVisibility(ios);
+            captureSidebarIcons(ios);
             System.out.println("PASS: custom palettes render in both GUIs and SessionInfo; shared immutable definition updates keep selection/session identity");
         } finally {
             if(click!=null)click.onGuiClosed();if(ios!=null)ios.onGuiClosed();
