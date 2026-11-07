@@ -31,6 +31,10 @@ public final class PingSpoofComponent implements Eierlecken {
             if(previous!=null)previous.delays().release(this);
         }
         public boolean isActive() { return pipeline!=null && pipeline.isActive() && pipeline.delays().hasOwner(this); }
+        public int activeHeldCount() {
+            PacketPipeline current = pipeline;
+            return current == null || !current.isActive() ? -1 : current.delays().activeHeldCount(this);
+        }
         public me.youngjibbit.core.network.PacketDelays.Snapshot snapshot() {
             return pipeline == null ? null : pipeline.delays().snapshot(this);
         }

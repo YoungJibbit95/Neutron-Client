@@ -42,6 +42,13 @@ public class NavigationLifecycleTest {
     static class Configs extends ClickLibraryScreen {
         Configs(GuiScreen parent,ConfigManager configs,ThemeCatalog themes){super(parent,false,configs,themes);}
         void escape()throws Exception{keyTyped(' ',Keyboard.KEY_ESCAPE);}
+        void click(me.youngjibbit.clickgui.utils.ClipRect bounds) throws Exception {
+            mouseClicked((int) bounds.x + 2, (int) bounds.y + 2, 0);
+            mouseReleased(0, 0, 0);
+        }
+        void type(String text) throws Exception {
+            for (char c : text.toCharArray()) keyTyped(c, Keyboard.KEY_NONE);
+        }
     }
     static class QueuedScreen extends GuiScreen {
         int mouseEvents,keyboardEvents,mouseCalls,keyboardCalls;
@@ -74,10 +81,123 @@ public class NavigationLifecycleTest {
         assertNull("ESC must close the visible panel even when the loaded module flag is false",client.currentScreen);
         assertFalse("Closing must not reactivate the module saved by the config",owner.isToggled());
     }
+    @Test public void emptySearchCannotLoadOrDeleteThePreviouslySelectedProfile() throws Exception {
+        java.nio.file.Path folder = temporary.newFolder().toPath();
+        ConfigManager storage = new ConfigManager(folder, Arrays.asList(owner), () -> false, message -> {});
+        owner.setKey(31);
+        assertTrue(storage.saveConfig("Practice"));
+        owner.setKey(45);
+        Configs screen = new Configs(null, storage, new ThemeCatalog(new ThemeStore(folder.resolve("themes.json"))));
+        client.displayGuiScreen(screen);
+        screen.click(screen.itemBounds(0));
+        screen.click(screen.searchBounds());
+        screen.type("missing");
+        screen.keyTyped('\0', Keyboard.KEY_DOWN);
+        screen.keyTyped('\0', Keyboard.KEY_RETURN);
+        assertEquals("Enter in empty search results loaded a hidden config", 45, owner.getKey());
+        screen.click(screen.actionBounds(1));
+        assertEquals("Load must require a visible selection", 45, owner.getKey());
+        screen.click(screen.actionBounds(2));
+        screen.keyTyped('\0', Keyboard.KEY_RETURN);
+        assertTrue("A filtered-out config must survive Delete/Enter", java.nio.file.Files.exists(folder.resolve("Practice.json")));
+    }
+
+    @Test public void downArrowInNameFieldDoesNotWriteAProfile() throws Exception {
+        java.nio.file.Path folder = temporary.newFolder().toPath();
+        ConfigManager storage = new ConfigManager(folder, Arrays.asList(owner), () -> false, message -> {});
+        Configs screen = new Configs(null, storage, new ThemeCatalog(new ThemeStore(folder.resolve("themes.json"))));
+        client.displayGuiScreen(screen);
+        screen.click(screen.nameBounds());
+        screen.type("NewProfile");
+        screen.keyTyped('\0', Keyboard.KEY_DOWN);
+        assertFalse("An arrow key wrote a new config", java.nio.file.Files.exists(folder.resolve("NewProfile.json")));
+        screen.keyTyped('\0', Keyboard.KEY_RETURN);
+        assertTrue(java.nio.file.Files.exists(folder.resolve("NewProfile.json")));
+    }
+
+    @Test public void deleteRequiresSelectionEvenWhenAnotherProfileMatchesSearch() throws Exception {
+        java.nio.file.Path folder = temporary.newFolder().toPath();
+        ConfigManager storage = new ConfigManager(folder, Arrays.asList(owner), () -> false, message -> {});
+        assertTrue(storage.saveConfig("Alpha"));
+        owner.setKey(56);
+        assertTrue(storage.saveConfig("Beta"));
+        owner.setKey(45);
+        Configs screen = new Configs(null, storage, new ThemeCatalog(new ThemeStore(folder.resolve("themes.json"))));
+        client.displayGuiScreen(screen);
+        screen.type("Al");
+        screen.keyTyped('\0', Keyboard.KEY_DOWN);
+        screen.click(screen.searchBounds());
+        screen.keyTyped('\0', Keyboard.KEY_BACK);
+        screen.keyTyped('\0', Keyboard.KEY_BACK);
+        screen.type("beTA");
+        screen.click(screen.actionBounds(2));
+        screen.keyTyped('\0', Keyboard.KEY_RETURN);
+        assertTrue(java.nio.file.Files.exists(folder.resolve("Alpha.json")));
+        assertTrue(java.nio.file.Files.exists(folder.resolve("Beta.json")));
+        screen.click(screen.itemBounds(0));
+        screen.keyTyped('\0', Keyboard.KEY_RETURN);
+        assertEquals("Selecting the matching row enables Load", 56, owner.getKey());
+    }
+
     @Test public void libraryRoutesImmediatelyInsteadOfWaitingUntilItHasDisappeared(){
         Library library=new Library(new GuiScreen(){});GuiScreen destination=new GuiScreen(){};
         client.displayGuiScreen(library);library.go(destination);
         assertSame("The shared compositor must own the whole transition",destination,client.currentScreen);
+    }
+    @Test public void numpadEnterLoadsTheFocusedConfigRow() throws Exception {
+        java.nio.file.Path folder=temporary.newFolder().toPath();
+        ConfigManager storage=new ConfigManager(folder,Arrays.asList(owner),()->false,message->{});
+        owner.setKey(31);assertTrue(storage.saveConfig("Practice"));owner.setKey(45);
+        Configs screen=new Configs(null,storage,new ThemeCatalog(new ThemeStore(folder.resolve("themes.json"))));
+        client.displayGuiScreen(screen);screen.click(screen.itemBounds(0));
+        screen.keyTyped('\0',Keyboard.KEY_NUMPADENTER);
+        assertEquals("Numpad Enter must activate the focused row",31,owner.getKey());
+    }
+    @Test public void numpadEnterLoadsTheFocusedActionButton() throws Exception {
+        java.nio.file.Path folder=temporary.newFolder().toPath();
+        ConfigManager storage=new ConfigManager(folder,Arrays.asList(owner),()->false,message->{});
+        owner.setKey(31);assertTrue(storage.saveConfig("Practice"));owner.setKey(45);
+        Configs screen=new Configs(null,storage,new ThemeCatalog(new ThemeStore(folder.resolve("themes.json"))));
+        client.displayGuiScreen(screen);screen.click(screen.itemBounds(0));
+        screen.keyTyped('\0',Keyboard.KEY_TAB);screen.keyTyped('\0',Keyboard.KEY_NUMPADENTER);
+        assertEquals("Numpad Enter must activate the focused Load button",31,owner.getKey());
+    }
+    @Test public void emptyResultsKeepSearchEditableAfterEnterOrDown() throws Exception {
+        for(int key:new int[]{Keyboard.KEY_DOWN,Keyboard.KEY_RETURN,Keyboard.KEY_NUMPADENTER}) {
+            java.nio.file.Path folder=temporary.newFolder().toPath();
+            ConfigManager storage=new ConfigManager(folder,Arrays.asList(owner),()->false,message->{});
+            owner.setKey(31);assertTrue(storage.saveConfig("Practice"));owner.setKey(45);
+            Configs screen=new Configs(null,storage,new ThemeCatalog(new ThemeStore(folder.resolve("themes.json"))));
+            client.displayGuiScreen(screen);screen.type("missing");screen.keyTyped('\0',key);
+            for(int i=0;i<7;i++)screen.keyTyped('\0',Keyboard.KEY_BACK);
+            screen.type("Practice");screen.keyTyped('\0',Keyboard.KEY_RETURN);screen.keyTyped('\0',Keyboard.KEY_RETURN);
+            assertEquals("Search lost focus on empty results, key="+key,31,owner.getKey());
+        }
+    }
+    @Test public void searchSelectionRevealsTheFirstRowAfterScrolling() throws Exception {
+        java.nio.file.Path folder=temporary.newFolder().toPath();
+        ConfigManager storage=new ConfigManager(folder,Arrays.asList(owner),()->false,message->{});
+        for(int i=0;i<24;i++)assertTrue(storage.saveConfig(String.format("Profile%02d",i)));
+        Configs screen=new Configs(null,storage,new ThemeCatalog(new ThemeStore(folder.resolve("themes.json"))));
+        client.displayGuiScreen(screen);screen.keyTyped('\0',Keyboard.KEY_DOWN);
+        for(int i=0;i<23;i++)screen.keyTyped('\0',Keyboard.KEY_DOWN);
+        assertTrue("control: first row has scrolled out",screen.itemBounds(0).y<screen.listBounds().y);
+        screen.click(screen.searchBounds());screen.keyTyped('\0',Keyboard.KEY_DOWN);
+        assertTrue("keyboard selection must be visible",screen.itemBounds(0).y>=screen.listBounds().y);
+        assertTrue(screen.itemBounds(0).y+screen.itemBounds(0).height<=screen.listBounds().y+screen.listBounds().height);
+    }
+    @Test public void deleteEscapeRetainsButtonFocusAndRequiresFreshConfirmation() throws Exception {
+        java.nio.file.Path folder=temporary.newFolder().toPath();
+        ConfigManager storage=new ConfigManager(folder,Arrays.asList(owner),()->false,message->{});
+        assertTrue(storage.saveConfig("Practice"));
+        Configs screen=new Configs(null,storage,new ThemeCatalog(new ThemeStore(folder.resolve("themes.json"))));
+        client.displayGuiScreen(screen);screen.click(screen.itemBounds(0));screen.click(screen.actionBounds(2));
+        screen.keyTyped('\0',Keyboard.KEY_ESCAPE);assertSame(screen,client.currentScreen);
+        assertTrue(java.nio.file.Files.exists(folder.resolve("Practice.json")));
+        screen.keyTyped('\0',Keyboard.KEY_NUMPADENTER);
+        assertTrue("first activation must only reopen confirmation",java.nio.file.Files.exists(folder.resolve("Practice.json")));
+        screen.keyTyped('\0',Keyboard.KEY_NUMPADENTER);
+        assertFalse(java.nio.file.Files.exists(folder.resolve("Practice.json")));
     }
     @Test public void libraryReentryStartsAtItsFinalGeometryAndEscapeRemainsUsable()throws Exception{
         GuiScreen parent=new GuiScreen(){};Library library=new Library(parent);
