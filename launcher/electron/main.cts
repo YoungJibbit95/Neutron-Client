@@ -1,7 +1,9 @@
 import { app, BrowserWindow, dialog, ipcMain, net, protocol, session } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, readFileSync } from 'node:fs';
+import { parseAlphaRelease } from './alpha-release.cjs';
+import { atomicJson, owned, redact } from './files.cjs';
 import fs from 'node:fs/promises';
 import { allowsPermission, windowOptions } from './window-contract.cjs';
 import { parseCommand } from './contracts.cjs';
@@ -9,13 +11,18 @@ import { LauncherService } from './service.cjs';
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'neutron', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 app.setName('Neutron Launcher');
+const preparation = process.argv.includes('--prepare-alpha');
+const verification = process.argv.includes('--verify-alpha');
+if (verification || process.argv.includes('--offline')) process.env.NEUTRON_OFFLINE = '1';
 const dataRoot = process.env.NEUTRON_DATA_ROOT ?? (app.isPackaged ? path.join(app.getPath('appData'), 'Neutron Launcher') : '');
 if (!dataRoot || !path.isAbsolute(dataRoot)) throw new Error('Development requires an absolute NEUTRON_DATA_ROOT on the chosen data drive.');
 for (const directory of [dataRoot, ...['session', 'logs', 'crashes', 'temp'].map(name => path.join(dataRoot, name))]) mkdirSync(directory, { recursive: true });
 app.setPath('userData', dataRoot); app.setPath('sessionData', path.join(dataRoot, 'session')); app.setPath('logs', path.join(dataRoot, 'logs')); app.setPath('crashDumps', path.join(dataRoot, 'crashes'));
 process.env.TEMP = path.join(dataRoot, 'temp'); process.env.TMP = process.env.TEMP;
-if (!app.requestSingleInstanceLock()) app.exit(0);
-const service = new LauncherService(dataRoot, app.isPackaged ? path.join(process.resourcesPath, 'source-adapter') : path.join(__dirname, '../resources/source-adapter'), app.isPackaged ? path.dirname(process.execPath) : undefined);
+if (!app.requestSingleInstanceLock()) app.exit(preparation || verification ? 2 : 0);
+let release: ReturnType<typeof parseAlphaRelease> | undefined; let releaseError: unknown = null;
+try { if (app.isPackaged) release = parseAlphaRelease(JSON.parse(readFileSync(path.join(process.resourcesPath, 'release.json'), 'utf8'))); } catch (error) { releaseError = error; }
+const service = new LauncherService(dataRoot, app.isPackaged ? path.join(process.resourcesPath, 'source-adapter') : path.join(__dirname, '../resources/source-adapter'), app.isPackaged ? path.dirname(process.execPath) : undefined, release);
 const startedAt = performance.now();
 const entry = 'neutron://launcher/index.html'; let window: BrowserWindow | null = null; let quitting = false; let shuttingDown = false;
 let initializing = true; let initialized: Promise<unknown> = Promise.resolve();
@@ -26,6 +33,23 @@ const quit = async () => {
   catch (error) { shuttingDown = false; service.setError(error); }
 };
 void app.whenReady().then(async () => {
+  if (preparation || verification) {
+    let exitCode = 0;
+    try {
+      if (releaseError) throw releaseError;
+      await service.initialize();
+      const result = preparation ? await service.prepareAlpha() : await service.verifyAlpha();
+      if (verification) await atomicJson(await owned(dataRoot, 'logs/offline-verification.json'), result);
+    } catch (error) {
+      exitCode = 1; service.setError(error);
+      await atomicJson(await owned(dataRoot, 'logs/installer-error.json'), { error: redact(String(error)), date: new Date().toISOString() }).catch(console.error);
+    } finally {
+      try { await service.shutdown(true); } catch (error) { console.error(error); exitCode = 1; }
+      quitting = true; app.exit(exitCode);
+    }
+    return;
+  }
+  if (releaseError) throw releaseError;
   const renderer = path.resolve(__dirname, '../dist');
   protocol.handle('neutron', request => {
     const url = new URL(request.url); let relative: string;

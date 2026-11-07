@@ -10,12 +10,17 @@ import { installRuntime, verifyRuntime, type Runtime } from './minecraft.cjs';
 import { buildDistribution, launchArguments, resolveMain, verifyDistribution, reusableDistribution } from './distribution.cjs';
 import { childEnvironment, killTree, startProcess, ProcessCancelledError, ProcessGroup, type ManagedProcess } from './processes.cjs';
 import { optionPatch, parseCommand, preferencePatch, type BuildRecord, type Command, type Snapshot } from './contracts.cjs';
+import type { AlphaRelease } from './alpha-release.cjs';
+import { assertUserInstallation } from './installation-context.cjs';
+import { validateClient } from './validate-client.cjs';
 import { commandHash, inspectProcess, processMatches, type ClientLease } from './lease.cjs';
 
 interface Stored { schemaVersion: 1; options: Snapshot['options']; preferences: Snapshot['preferences']; builds: BuildRecord[]; selected: string | null; runtime: Runtime | null }
 export interface PreparedClient { executable: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; temporary: string; windowsHide?: boolean }
 const busy = (status: Snapshot['status']) => ['prepare', 'download', 'build', 'verify'].includes(status);
 export class LauncherService extends EventEmitter {
+  private registryError: string | null = null; private alphaCommitted = false;
+  private alphaResult: Awaited<ReturnType<LauncherService['verifyAlphaRecord']>> | null = null;
   readonly logs: Logs; private state: Snapshot; private runtime: Runtime | null = null;
   private task: AbortController | null = null; private taskPromise: Promise<void> | null = null; private child: ChildProcess | null = null;
   private clientPromise: Promise<void> | null = null; private timer: NodeJS.Timeout | null = null; private writes = Promise.resolve(); private commands = Promise.resolve(); private committing = false; private stopping = false;
@@ -23,7 +28,7 @@ export class LauncherService extends EventEmitter {
   private unverifiedLease = false;
   private starting: Promise<void> | null = null; private startController: AbortController | null = null; private clientHandle: ManagedProcess | null = null; private closing = false;
   private taskProcesses: ProcessGroup | null = null; private clientProcesses: ProcessGroup | null = null;
-  constructor(readonly root: string, readonly adapter: string, readonly installDirectory?: string) {
+  constructor(readonly root: string, readonly adapter: string, readonly installDirectory?: string, private readonly alphaRelease?: AlphaRelease) {
     super(); const physicalMiB = Math.floor(os.totalmem() / 1024 ** 2); const maxRamMiB = Math.max(1024, Math.min(8192, Math.floor((physicalMiB - 2048) / 256) * 256));
     this.state = { revision: 0, status: 'first-run', online: true, setupComplete: false, builds: [], selected: null, runningBuild: null, clientStarting: false, logs: [], latestCommit: null, lastChecked: null, error: null, exitCode: null, physicalMiB, maxRamMiB, download: null,
       options: { ramMiB: Math.max(1024, Math.min(4096, Math.floor(physicalMiB / 4 / 256) * 256)), gameDir: path.join(root, 'game'), java: 'managed', javaPath: '', width: 1280, height: 720, fullscreen: false, jvmArgs: '' }, preferences: { theme: 'sunset', locale: 'de', scale: 100, effects: 70, reducedMotion: false } };
@@ -35,6 +40,7 @@ export class LauncherService extends EventEmitter {
     if (!this.timer) this.timer = setTimeout(() => { this.timer = null; this.emit('snapshot', this.snapshot()); }, 80);
   }
   private async persist() {
+    if (this.registryError) throw new Error(this.registryError);
     const data: Stored = { schemaVersion: 1, options: structuredClone(this.state.options), preferences: structuredClone(this.state.preferences), builds: structuredClone(this.state.builds), selected: this.state.selected, runtime: this.runtime };
     const operation = this.writes.then(() => atomicJson(path.join(this.root, 'state.json'), data)); this.writes = operation.catch(() => {}); await operation;
   }
@@ -43,21 +49,25 @@ export class LauncherService extends EventEmitter {
     await owned(this.root); await fs.mkdir(this.root, { recursive: true });
     for (const folder of ['temp', 'logs', 'cache', 'work', 'versions', 'candidates', 'tools', 'runtimes']) await fs.mkdir(await owned(this.root, folder), { recursive: true });
     await this.logs.restore();
-    const file = await owned(this.root, 'state.json'); let loaded = false;
+    const file = await owned(this.root, 'state.json'); let loaded = false; let registryAccepted = false;
     try {
       const data = JSON.parse(await fs.readFile(file, 'utf8')) as Stored; loaded = true;
       if (data.schemaVersion !== 1 || !Array.isArray(data.builds) || data.builds.length > 100 || data.builds.some(build => !/^[a-f0-9]{40}-[a-f0-9-]{36}$/.test(build.id) || !/^[a-f0-9]{40}$/.test(build.commit) || !/^[a-f0-9]{64}$/.test(build.manifestSha256) || !Number.isFinite(build.sizeMiB) || build.sizeMiB < 0 || !Number.isFinite(Date.parse(build.date)))) throw new Error('Invalid persisted build registry.');
       const options = optionPatch(data.options); const preferences = preferencePatch(data.preferences);
       if (Object.keys(options).length !== 8 || Object.keys(preferences).length !== 5) throw new Error('Incomplete saved settings.');
+      if (data.selected !== null && !data.builds.some(build => build.id === data.selected)) throw new Error('Invalid selected build registry.');
+      if (data.runtime !== null && (!data.runtime || !/^runtimes\/[a-f0-9-]{36}$/.test(data.runtime.directory) || !/^[a-f0-9]{64}$/.test(data.runtime.manifestSha256))) throw new Error('Invalid runtime registry.');
+      registryAccepted = true; this.registryError = null;
       this.state.options = { ...this.state.options, ...options }; this.state.preferences = { ...this.state.preferences, ...preferences };
       this.state.builds = data.builds; this.state.selected = data.builds.some(build => build.id === data.selected) ? data.selected : data.builds[0]?.id ?? null;
       this.runtime = data.runtime;
       if (this.runtime && (!/^runtimes\/[a-f0-9-]{36}$/.test(this.runtime.directory) || !/^[a-f0-9]{64}$/.test(this.runtime.manifestSha256))) throw new Error('Invalid runtime registry.');
-      if (this.runtime) { await verifyTools(this.root); await verifyRuntime(this.root, this.runtime); this.state.setupComplete = true; }
+      if (this.runtime) { await Promise.all([verifyTools(this.root), verifyRuntime(this.root, this.runtime)]); this.state.setupComplete = true; }
       this.state.status = this.state.setupComplete ? this.state.selected ? 'ready' : 'empty' : 'first-run';
     } catch (error) {
       if (loaded || (error as NodeJS.ErrnoException).code !== 'ENOENT') {
-        this.state.error = redact('Saved state/toolchain needs attention: ' + String(error)); this.logs.add('build', this.state.error, 'error');
+        if (!registryAccepted) this.registryError = redact('Saved state is unreadable or invalid. Repair state.json before setup; it has not been overwritten. ' + String(error));
+        this.state.error = this.registryError ?? redact('Saved state/toolchain needs attention: ' + String(error)); this.logs.add('build', this.state.error, 'error');
         // Preserve the original state for recovery; never replace it with defaults silently.
         await fs.copyFile(file, await owned(this.root, 'state-recovery-' + Date.now() + '.json')).catch(() => {});
       }
@@ -76,11 +86,13 @@ export class LauncherService extends EventEmitter {
   }
   protected createProcessGroup() { return new ProcessGroup({ onStopError: error => this.setError('Failed to stop an owned process; it remains protected until it actually exits. Retry Stop/Cancel: ' + String(error)) }); }
   protected startTask(work: (signal: AbortSignal, group: ProcessGroup) => Promise<void>) {
+    if (this.registryError) throw new Error(this.registryError);
     if (this.closing || this.task || this.state.runningBuild) throw new Error('Another task or client is running, or the launcher is closing.');
+    this.alphaCommitted = false; this.alphaResult = null;
     const controller = new AbortController(); const group = this.createProcessGroup(); this.taskProcesses = group; this.task = controller; this.state.status = 'prepare'; this.state.error = null; this.changed();
     this.taskPromise = (async () => {
       let failure: unknown = null; let cancelled = false;
-      try { await work(controller.signal, group); await this.logs.flush(); }
+      try { await work(controller.signal, group); try { await this.logs.flush(); } catch (error) { if (!this.alphaCommitted) throw error; console.error('Alpha is installed; diagnostic flush failed:', error); } }
       catch (error) { failure = error; cancelled = controller.signal.aborted; this.state.error = cancelled ? 'Operation cancelled. Installed versions are unchanged.' : redact(String(error)); this.logs.add('build', this.state.error, cancelled ? 'warn' : 'error'); controller.abort(error); }
       finally {
         // Failed termination must not release the task/versions while a child
@@ -110,7 +122,7 @@ export class LauncherService extends EventEmitter {
         if (this.state.runningBuild) throw new Error('Stop the client before editing launch options.');
         this.state.options = { ...this.state.options, ...command.patch }; await this.persist(); break;
       case 'save-preferences': this.state.preferences = { ...this.state.preferences, ...command.patch }; await this.persist(); break;
-      case 'setup': this.startTask(async (signal, group) => {
+      case 'setup': if (this.alphaRelease) { this.startTask((signal, group) => this.provisionAlpha(signal, group)); break; } this.startTask(async (signal, group) => {
         this.requireWindows(); const capacity = await fs.statfs(this.root); if (capacity.bavail * capacity.bsize < 3 * 1024 ** 3) throw new Error('At least 3 GiB free space is required for setup.');
         this.state.status = 'download'; this.changed(); await installTools(this.root, signal, this.progress, group);
         const runtime = await installRuntime(this.root, signal, this.progress); await verifyRuntime(this.root, runtime); signal.throwIfAborted();
@@ -153,12 +165,84 @@ export class LauncherService extends EventEmitter {
     }
     this.changed(); return this.snapshot();
   }
+  // Installer entry point: setup is complete only when this exact immutable
+  // client and its full local runtime can pass verification without networking.
+  async prepareAlpha() {
+    if (!this.alphaRelease) throw new Error('This package has no pinned Alpha release.');
+    if (this.registryError) throw new Error(this.registryError);
+    await this.execute({ type: 'setup' }); await this.taskPromise;
+    if (!this.alphaCommitted || !this.alphaResult) throw new Error(this.state.error ?? 'Alpha preparation did not finish.');
+    return this.alphaResult;
+  }
+  async verifyAlpha() {
+    if (!this.alphaRelease) throw new Error('This package has no pinned Alpha release.');
+    if (this.registryError) throw new Error(this.registryError);
+    const record = this.state.builds.find(build => build.id === this.state.selected);
+    if (!this.state.setupComplete || !record || record.commit !== this.alphaRelease.clientCommit) throw new Error('The pinned Alpha client is not installed. Run setup again.');
+    return this.verifyAlphaRecord(record);
+  }
+  private async verifyAlphaRecord(record: BuildRecord) {
+    const began = performance.now(); const release = this.alphaRelease!;
+    if (record.commit !== release.clientCommit) throw new Error('Unexpected Alpha client commit.');
+    const checked = await verifyDistribution(this.root, record);
+    if (checked.manifest.archiveSha256 !== release.sourceArchiveSha256) throw new Error('Installed Alpha source pin differs from this installer.');
+    const clientJar = checked.manifest.classpath.find(item => item.path === 'neutron-client.jar');
+    if (!clientJar || !/^[a-f0-9]{64}$/.test(clientJar.sha256)) throw new Error('Installed Alpha client JAR is missing from its manifest.');
+    const [tools] = await Promise.all([verifyTools(this.root), verifyRuntime(this.root, checked.manifest.runtime)]);
+    return { schemaVersion: 1, launcherVersion: release.launcherVersion, clientCommit: record.commit, selectedBuildId: record.id,
+      sourceArchiveSha256: checked.manifest.archiveSha256, clientManifestSha256: record.manifestSha256,
+      clientJarSha256: clientJar.sha256, toolchainId: tools.toolchainId,
+      verificationMs: Math.round(performance.now() - began) };
+  }
+  private async provisionAlpha(signal: AbortSignal, group: ProcessGroup) {
+    this.requireWindows();
+    const began = performance.now();
+    await assertUserInstallation(path.join(this.root, 'temp'), signal, group);
+    const release = this.alphaRelease!;
+    const requireCapacity = async () => {
+      const capacity = await fs.statfs(this.root);
+      if (capacity.bavail * capacity.bsize < 3 * 1024 ** 3) throw new Error('At least 3 GiB free space is required to install or rebuild Alpha files.');
+    };
+    this.state.status = 'download'; this.changed();
+    let tools: Awaited<ReturnType<typeof verifyTools>>;
+    try { tools = await verifyTools(this.root); }
+    catch { signal.throwIfAborted(); await requireCapacity(); tools = await installTools(this.root, signal, this.progress, group); }
+    let runtime = this.runtime;
+    if (runtime) { try { await verifyRuntime(this.root, runtime); } catch { signal.throwIfAborted(); runtime = null; } }
+    if (!runtime) { await requireCapacity(); runtime = await installRuntime(this.root, signal, this.progress); }
+    await verifyRuntime(this.root, runtime); signal.throwIfAborted();
+    const cached = await reusableDistribution(this.root, this.state.builds, release.clientCommit, this.adapter, runtime, signal);
+    // Never accept a cache generated from another source archive for this pin.
+    const reusable = cached && (await verifyDistribution(this.root, cached)).manifest.archiveSha256 === release.sourceArchiveSha256 ? cached : null;
+    if (reusable) this.logs.add('build', 'Pinned Alpha cache verified; no downloads or Maven build required.');
+    if (!reusable && process.env.NEUTRON_OFFLINE === '1') throw new Error('Offline setup needs an intact verified copy of the pinned Alpha. Connect to repair the cache. Previous version retained.');
+    if (!reusable) await requireCapacity();
+    const record = reusable ?? await buildDistribution(this.root, release.clientCommit, this.adapter, tools, runtime, signal,
+      phase => { this.state.status = phase; this.changed(); },
+      (line, error) => this.logs.add('build', line, /\[ERROR\]/.test(line) ? 'error' : error ? 'warn' : 'info'), group, release.sourceArchiveSha256, !!release.testedClientCommit);
+    // An old matching manifest is not proof that its Bootstrap ever passed.
+    await validateClient(this.root, record, tools, signal, group);
+    const result = await this.verifyAlphaRecord(record);
+    await this.logs.flush();
+    // Everything required for installer success precedes the registry commit.
+    // A receipt counts only when selectedBuildId matches state.json.
+    await atomicJson(await owned(this.root, 'logs/installer-result.json'), { ...result, phase: 'verified-before-activation',
+      completedAt: new Date().toISOString(), setupMs: Math.round(performance.now() - began) });
+    signal.throwIfAborted();
+    const previous = { builds: this.state.builds, selected: this.state.selected, runtime: this.runtime };
+    this.state.builds = [record, ...this.state.builds.filter(build => build.id !== record.id)].slice(0, 100);
+    this.state.selected = record.id; this.runtime = runtime; this.committing = true;
+    try { await this.persist(); this.alphaCommitted = true; this.alphaResult = result; }
+    catch (error) { this.state.builds = previous.builds; this.state.selected = previous.selected; this.runtime = previous.runtime; throw error; }
+    finally { this.committing = false; }
+    this.state.setupComplete = true; this.state.status = 'ready';
+    this.logs.add('build', 'Alpha installed and verified: ' + release.clientCommit + '. Play starts the local client without Maven. Previous versions and personal data retained.');
+  }
   private requireWindows() { if (process.platform !== 'win32' || process.arch !== 'x64') throw new Error('This playtest supports Windows x64 only.'); }
   protected async prepareClient(record: BuildRecord, signal: AbortSignal, group: ProcessGroup): Promise<PreparedClient> {
     signal.throwIfAborted();
     const distribution = await verifyDistribution(this.root, record); signal.throwIfAborted();
-    const runtime = await verifyRuntime(this.root, distribution.manifest.runtime); signal.throwIfAborted();
-    const tools = await verifyTools(this.root); signal.throwIfAborted();
+    const [runtime, tools] = await Promise.all([verifyRuntime(this.root, distribution.manifest.runtime), verifyTools(this.root)]); signal.throwIfAborted();
     const options = structuredClone(this.state.options); if (!path.isAbsolute(options.gameDir)) throw new Error('Choose an absolute game directory.');
     const protectedFolders = [...['versions', 'candidates', 'tools', 'runtimes', 'work', 'cache'].map(name => path.join(this.root, name)), ...(this.installDirectory ? [this.installDirectory] : [])];
     const checkGame = (game: string) => { for (const folder of protectedFolders) { const relative = path.relative(folder, game); if (!relative.startsWith('..') && !path.isAbsolute(relative)) throw new Error('Choose a game directory outside the application installation and managed launcher files.'); } };
@@ -242,14 +326,14 @@ export class LauncherService extends EventEmitter {
     if (this.recovered) { const identity = await inspectProcess(this.recovered.pid, path.join(this.root, 'temp')); if (processMatches(this.root, this.recovered, identity)) await killTree({ pid: this.recovered.pid, exitCode: null }); await this.refreshRecovered(); }
   }
   async idle() { await this.taskPromise; await this.logs.flush(); return this.snapshot(); }
-  async shutdown() {
+  async shutdown(preserveRecoveredClient = false) {
     this.closing = true; this.stopping = true; this.startController?.abort(new Error('Launcher closing.')); this.task?.abort(new Error('Launcher closing.'));
     try {
       await Promise.all([this.taskProcesses?.stop(), this.clientProcesses?.stop()]);
-      await this.taskPromise; await this.stop(); await this.leaseWrite.catch(() => {}); await this.logs.flush(); await this.writes;
+      await this.taskPromise; if (!preserveRecoveredClient || !this.recovered) await this.stop(); await this.leaseWrite.catch(() => {}); try { await this.logs.flush(); } catch (error) { if (!this.alphaCommitted) throw error; console.error('Alpha is installed; diagnostic flush failed:', error); } await this.writes;
       if (this.timer) clearTimeout(this.timer); if (this.recoveryTimer) clearInterval(this.recoveryTimer);
     } catch (error) { this.closing = false; throw error; }
   }
-  report() { return redact(JSON.stringify({ product: 'Neutron Launcher 0.1.0-playtest.5', platform: 'windows-x64', selected: this.state.builds.find(build => build.id === this.state.selected)?.commit ?? null, exitCode: this.state.exitCode, error: this.state.error, logs: this.logs.lines.slice(-80) }, null, 2)); }
+  report() { return redact(JSON.stringify({ product: 'Neutron Launcher ' + (this.alphaRelease?.launcherVersion ?? 'development'), platform: 'windows-x64', selected: this.state.builds.find(build => build.id === this.state.selected)?.commit ?? null, exitCode: this.state.exitCode, error: this.state.error, logs: this.logs.lines.slice(-80) }, null, 2)); }
   setError(error: unknown) { this.state.error = redact(String(error)); this.logs.add('build', this.state.error, 'error'); this.changed(); }
 }

@@ -9,5 +9,6 @@ if (output === path.parse(output).root) throw new Error('A drive root is not a p
 for (const target of [output, path.join(output, 'win-unpacked')]) {
   if (existsSync(target) && (lstatSync(target).isSymbolicLink() || realpathSync(target).toLowerCase() !== target.toLowerCase())) throw new Error('Refusing a redirected package output directory.');
 }
+run('scripts/pin-alpha.mjs', ['--check']);
 process.env.CSC_IDENTITY_AUTO_DISCOVERY = 'false';
 run('node_modules/electron-builder/cli.js', ['--config', 'electron-builder.cjs', '--win', 'nsis', '--x64', '--publish', 'never']);

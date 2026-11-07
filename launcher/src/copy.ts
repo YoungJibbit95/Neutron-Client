@@ -58,9 +58,9 @@ export const en: Record<CopyKey, string> = {
 export const dictionaries = { de, en };
 const liveCopy: Record<Locale, Partial<Record<CopyKey, string>>> = {
   de: {
-    prototype: 'Playtest', mockNotice: 'Neutron Playtest · Builds und Spiele laufen lokal. Anmeldung im Client.',
-    setupButton: 'Java, Maven und Spieldateien einrichten', exampleFolder: 'Auswählen', setupEstimate: 'Downloads werden geprüft. Für Einrichtung und Build mindestens 3 GiB freien Platz einplanen.',
-    storage: 'Spielverzeichnis', setupIntro: 'Wähle deinen Spielordner. Java, Maven und Spieldateien werden lokal vom Launcher verwaltet.', errorRam: 'Wähle eine ganze MiB-Zahl innerhalb der angezeigten RAM-Grenze.',
+    prototype: 'Alpha', development: 'Neutron Alpha', mockNotice: 'Neutron Alpha · Dein installierter Client startet lokal. Anmeldung im Client.',
+    setupButton: 'Neutron vollständig einrichten', exampleFolder: 'Auswählen', setupEstimate: 'Downloads werden geprüft. Für Einrichtung und Build mindestens 3 GiB freien Platz einplanen.',
+    storage: 'Spielverzeichnis', setupIntro: 'Wähle deinen Spielordner. Der gepinnte Alpha-Client und seine Laufzeit werden lokal vorbereitet. Danach startet Spielen ohne Build.', errorRam: 'Wähle eine ganze MiB-Zahl innerhalb der angezeigten RAM-Grenze.',
     progressHint: 'Eine vorhandene Version bleibt bis zur erfolgreichen Prüfung erhalten.', downloadProgress: 'Download läuft',
     firstBuildError: 'Der erste Build ist fehlgeschlagen. Es ist noch keine Version installiert. Prüfe die Build-Ausgabe und versuche es erneut.', firstBuildCancelled: 'Der Build wurde abgebrochen. Es ist noch keine Version installiert. Du kannst ihn erneut starten.',
     errorHint: 'Der Vorgang ist fehlgeschlagen. Prüfe die Build-Ausgabe. Eine vorhandene Version bleibt verfügbar.', cancelHint: 'Vorgang abgebrochen. Installierte Versionen bleiben erhalten.', crashHint: 'Der Client wurde unerwartet beendet.',
@@ -72,9 +72,9 @@ const liveCopy: Record<Locale, Partial<Record<CopyKey, string>>> = {
     reportHint: 'Lokaler Diagnosebericht. Erkennbare Zugangsdaten und persönliche Pfade werden entfernt. Prüfe den Text vor dem Teilen.', issueHint: 'Kopiere den geprüften Bericht bei Bedarf. Es wird nichts automatisch veröffentlicht.', exported: 'Logs exportiert',
   },
   en: {
-    prototype: 'Playtest', mockNotice: 'Neutron Playtest · Builds and games run locally. Sign in inside the client.',
-    setupButton: 'Set up Java, Maven and game files', exampleFolder: 'Browse', setupEstimate: 'Downloads are verified. Allow at least 3 GiB free space for setup and builds.',
-    storage: 'Game directory', setupIntro: 'Choose your game folder. Java, Maven and game files are managed locally by the launcher.', errorRam: 'Choose a whole MiB value within the displayed memory limit.',
+    prototype: 'Alpha', development: 'Neutron Alpha', mockNotice: 'Neutron Alpha · Your installed client starts locally. Sign in inside the client.',
+    setupButton: 'Complete Neutron setup', exampleFolder: 'Browse', setupEstimate: 'Downloads are verified. Allow at least 3 GiB free space for setup and builds.',
+    storage: 'Game directory', setupIntro: 'Choose your game folder. The pinned Alpha client and runtime are prepared locally. Afterwards, Play starts without a build.', errorRam: 'Choose a whole MiB value within the displayed memory limit.',
     progressHint: 'An installed version is retained until verification succeeds.', downloadProgress: 'Downloading',
     firstBuildError: 'The first build failed. No version is installed yet. Check Build output and try again.', firstBuildCancelled: 'The build was cancelled. No version is installed yet. You can try again.',
     errorHint: 'The operation failed. Check Build output. An installed version remains available.', cancelHint: 'Operation cancelled. Installed versions are retained.', crashHint: 'The client exited unexpectedly.',

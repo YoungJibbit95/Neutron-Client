@@ -8,7 +8,7 @@ permissions:
 jobs:
   candidate:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 60
     defaults:
       run:
         working-directory: launcher
@@ -35,6 +35,8 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node scripts/build.mjs
       - run: node node_modules/vitest/vitest.mjs run
+      - name: Check the tracked durable Alpha source pin
+        run: node scripts/pin-alpha.mjs --check
       - run: node scripts/package-windows.mjs
       - name: Install, start, reinstall and uninstall the actual candidate
         run: ./scripts/windows-installer-smoke.ps1
