@@ -1,6 +1,7 @@
-# Windows x64 Alpha installation
+# Windows x64 installation
 
-The public installer contains the launcher and an immutable source pin. It does
+Version 0.2.0 targets the requested stable channel; prerelease metadata remains
+validated separately. The installer contains the launcher and an immutable source pin. It does
 not contain a combined Minecraft/OptiFine client JAR, Minecraft assets, accounts,
 worlds or developer build directories.
 
@@ -59,11 +60,12 @@ invalid metadata. Optional pin generation from explicit environment inputs refus
 to overwrite an existing file.
 
 Publish the exact EXE that passed installer acceptance, without rebuilding it.
-Publish under a `launcher-v…` prerelease tag so the separate full-client release
+Publish under the separate `launcher-v0.2.0` tag so the full-client release
 workflow is not triggered. Attach only the reviewed installer, SHA256 text and
 release metadata. Verify the downloaded asset against the local SHA256 after
-publication. The human authorized an **unsigned Alpha** on 7 November 2026;
-publisher signing and SmartScreen reputation are not claimed.
+publication. The human authorized unsigned publication and subsequently requested
+the stable channel on 7 November 2026. Publisher signing and SmartScreen reputation
+are not claimed.
 
 ## Material and acceptance
 

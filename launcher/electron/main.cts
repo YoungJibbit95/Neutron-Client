@@ -1,7 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, net, protocol, session } from 'electron';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { parseAlphaRelease } from './alpha-release.cjs';
 import { atomicJson, owned, redact } from './files.cjs';
 import fs from 'node:fs/promises';
@@ -13,13 +13,27 @@ protocol.registerSchemesAsPrivileged([{ scheme: 'neutron', privileges: { standar
 app.setName('Neutron Launcher');
 const preparation = process.argv.includes('--prepare-alpha');
 const verification = process.argv.includes('--verify-alpha');
+const headless = preparation || verification;
+let startupRoot = '';
+const startupTrace = (stage: string, error?: unknown) => {
+  if (!headless) return;
+  const line = JSON.stringify({ date: new Date().toISOString(), pid: process.pid, stage, ...(error ? { error: redact(String(error)) } : {}) }) + '\n';
+  process.stderr.write(line);
+  if (startupRoot) { try { appendFileSync(path.join(startupRoot, 'logs/headless-startup.jsonl'), line); } catch {} }
+};
+startupTrace('main-entered');
+if (headless) process.on('uncaughtException', error => { startupTrace('uncaught-exception', error); app.exit(1); });
 if (verification || process.argv.includes('--offline')) process.env.NEUTRON_OFFLINE = '1';
 const dataRoot = process.env.NEUTRON_DATA_ROOT ?? (app.isPackaged ? path.join(app.getPath('appData'), 'Neutron Launcher') : '');
 if (!dataRoot || !path.isAbsolute(dataRoot)) throw new Error('Development requires an absolute NEUTRON_DATA_ROOT on the chosen data drive.');
 for (const directory of [dataRoot, ...['session', 'logs', 'crashes', 'temp'].map(name => path.join(dataRoot, name))]) mkdirSync(directory, { recursive: true });
+startupRoot = dataRoot; startupTrace('data-directories-ready');
 app.setPath('userData', dataRoot); app.setPath('sessionData', path.join(dataRoot, 'session')); app.setPath('logs', path.join(dataRoot, 'logs')); app.setPath('crashDumps', path.join(dataRoot, 'crashes'));
 process.env.TEMP = path.join(dataRoot, 'temp'); process.env.TMP = process.env.TEMP;
+startupTrace('before-single-instance-lock');
 if (!app.requestSingleInstanceLock()) app.exit(preparation || verification ? 2 : 0);
+startupTrace('single-instance-lock-acquired');
+const readyWatchdog = headless ? setTimeout(() => { startupTrace('electron-ready-timeout'); app.exit(1); }, 30000) : null;
 let release: ReturnType<typeof parseAlphaRelease> | undefined; let releaseError: unknown = null;
 try { if (app.isPackaged) release = parseAlphaRelease(JSON.parse(readFileSync(path.join(process.resourcesPath, 'release.json'), 'utf8'))); } catch (error) { releaseError = error; }
 const service = new LauncherService(dataRoot, app.isPackaged ? path.join(process.resourcesPath, 'source-adapter') : path.join(__dirname, '../resources/source-adapter'), app.isPackaged ? path.dirname(process.execPath) : undefined, release);
@@ -32,20 +46,22 @@ const quit = async () => {
   try { await initialized.catch(() => {}); await service.shutdown(); quitting = true; app.quit(); }
   catch (error) { shuttingDown = false; service.setError(error); }
 };
+startupTrace('waiting-for-electron-ready');
 void app.whenReady().then(async () => {
+  if (readyWatchdog) clearTimeout(readyWatchdog); startupTrace('electron-ready');
   if (preparation || verification) {
     let exitCode = 0;
     try {
       if (releaseError) throw releaseError;
-      await service.initialize();
+      startupTrace('before-service-initialize'); await service.initialize(); startupTrace('service-initialized');
       const result = preparation ? await service.prepareAlpha() : await service.verifyAlpha();
       if (verification) await atomicJson(await owned(dataRoot, 'logs/offline-verification.json'), result);
     } catch (error) {
-      exitCode = 1; service.setError(error);
+      startupTrace('preparation-failed', error); exitCode = 1; service.setError(error);
       await atomicJson(await owned(dataRoot, 'logs/installer-error.json'), { error: redact(String(error)), date: new Date().toISOString() }).catch(console.error);
     } finally {
       try { await service.shutdown(true); } catch (error) { console.error(error); exitCode = 1; }
-      quitting = true; app.exit(exitCode);
+      startupTrace('headless-exit-' + exitCode); quitting = true; app.exit(exitCode);
     }
     return;
   }
