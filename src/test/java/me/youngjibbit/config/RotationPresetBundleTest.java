@@ -20,6 +20,26 @@ import static org.junit.Assert.*;
 
 public class RotationPresetBundleTest {
     @Rule public TemporaryFolder temp=new TemporaryFolder();
+    @Test public void intaveCommandAppliesBundledSettingsIndividuallyAndTogether() throws Exception {
+        Aura aura = new Aura();
+        Velocity velocity = new Velocity();
+        List<Module> modules = Arrays.asList(aura, velocity, new Scaffold(), new Backtrack(), new LagRange(),
+                new Tickbase(), new me.youngjibbit.module.impl.ghost.WTap2(), new Speed(), new NoSlow());
+        ConfigManager manager = new ConfigManager(temp.newFolder().toPath(), modules, () -> false, m -> {});
+        me.youngjibbit.command.impl.LoadCommand command = new me.youngjibbit.command.impl.LoadCommand(manager);
+        aura.getBooleanSetting("Preset Timing").setValue(true);
+        command.execute("intave", "Autoblock");
+        assertEquals("", manager.getLastError());
+        assertTrue(aura.getBooleanSetting("Autoblock").getValue());
+        assertTrue(aura.getBooleanSetting("Preset Timing").getValue());
+        assertEquals("Legit", velocity.mode.getValue());
+        assertFalse(manager.applyIntavePreset("absent"));
+        command.execute("intave");
+        assertEquals("", manager.getLastError());
+        assertEquals("Intave Reduce", velocity.mode.getValue());
+        assertEquals("Pre", modules.get(2).getModeSetting("Place Timing").getValue());
+        for (Module module : modules) assertFalse(module.isToggled());
+    }
     private static final String[] NAMES={"Intave-Arsenic-Combat","Intave-Arsenic-Assist","Polar-Arsenic-Organic","Polar-Noise-Organic"};
     @Test public void everyBundledSettingIsKnownAndLoadsExactlyAcrossProfileSwitches() throws Exception {
         List<Module> modules=Arrays.asList(new Aura(),new AimAssist(),new Scaffold(),new Backtrack(),new LagRange(),

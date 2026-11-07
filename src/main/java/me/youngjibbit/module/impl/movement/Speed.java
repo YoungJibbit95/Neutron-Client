@@ -1,6 +1,8 @@
 package me.youngjibbit.module.impl.movement;
 
 import me.youngjibbit.event.motion.EventMotion;
+import me.youngjibbit.event.player.MovementInputEvent;
+import me.youngjibbit.event.player.PlayerMoveUpdateEvent;
 import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.ModuleInfo;
@@ -16,7 +18,7 @@ import net.minecraft.potion.Potion;
 @ModuleInfo(name = "Speed", category = Category.Movement)
 public class Speed extends Module {
 
-    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"BMC", "Intave", "Polar", "Vulcan", "Vulcan2"}, 1);
+    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"BMC", "Intave", "Polar", "Vulcan", "Vulcan2", "Intave Momentum"}, 1);
     private final CheckBoxValue airSpeed = new CheckBoxValue("Air Speed", this, false);
 
     private int offGroundTicks;
@@ -26,6 +28,13 @@ public class Speed extends Module {
 
     public Speed() {
         setKey(Keyboard.KEY_C);
+        airSpeed.setVisibility(m -> !"Intave Momentum".equals(mode.getValue()));
+        mode.setOnChange(selected -> {
+            if (isToggled() && "Intave Momentum".equals(selected)) {
+                resetMovementOverrides();
+                resetState();
+            }
+        });
     }
 
     @Override
@@ -36,14 +45,35 @@ public class Speed extends Module {
 
     @Override
     public void onDisable() {
-        resetMovementOverrides();
+        if (!"Intave Momentum".equals(mode.getValue())) resetMovementOverrides();
         resetState();
         super.onDisable();
     }
 
     @Subscribe
+    private final Listener<MovementInputEvent> momentum = new Listener<>(event -> {
+        if (event.isCancelled() || event.isSneak() || event.getForward() <= 0 || !momentumReady()
+                || mc.thePlayer.isCollidedHorizontally || !mc.thePlayer.isSprinting()) return;
+        event.setJump(true);
+    });
+
+    @Subscribe private final Listener<PlayerMoveUpdateEvent> wallAcceleration = new Listener<>(event -> {
+        if (event.isCancelled() || !momentumReady() || !mc.thePlayer.isCollidedHorizontally
+                || event.getFriction() <= 0 || event.getForward() == 0 && event.getStrafe() == 0) return;
+        // Intave's collision branch widens horizontal tolerance. Let vanilla resolve the blocked axis.
+        event.setFriction(event.getFriction() + .012F);
+    });
+
+    private boolean momentumReady() {
+        return "Intave Momentum".equals(mode.getValue()) && mc.thePlayer != null && mc.theWorld != null
+                && mc.currentScreen == null && mc.inGameHasFocus && mc.thePlayer.onGround && mc.thePlayer.hurtTime == 0
+                && !mc.thePlayer.isSneaking() && !mc.thePlayer.isUsingItem() && !mc.thePlayer.isRiding()
+                && !mc.thePlayer.capabilities.isFlying && !mc.thePlayer.isOnLadder() && !PlayerUtil.inLiquid();
+    }
+
+    @Subscribe
     private final Listener<EventMotion> onMotion = new Listener<>(event -> {
-        if (mc.thePlayer == null || mc.theWorld == null || !event.isPre()) {
+        if (mc.thePlayer == null || mc.theWorld == null || !event.isPre() || "Intave Momentum".equals(mode.getValue())) {
             return;
         }
 

@@ -23,6 +23,7 @@ import me.youngjibbit.event.motion.EventMotion;
 import me.youngjibbit.event.motion.EventRotation;
 import me.youngjibbit.event.packet.TickEvent;
 import me.youngjibbit.event.player.AttackEvent;
+import me.youngjibbit.event.player.MovementInputEvent;
 import me.youngjibbit.event.world.WorldEvent;
 import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
@@ -49,6 +50,8 @@ public class Aura extends Module {
     private Object worldContext, playerContext;
     private long lifecycleGeneration;
     private EntityLivingBase target;
+    private EntityLivingBase blockAfterHit;
+    private int blockTick;
     private final List<EntityLivingBase> targets = new ArrayList<>();
 
     private final AutoblockController autoblockController = new AutoblockController();
@@ -83,14 +86,15 @@ public class Aura extends Module {
     private final RotationReturnSettings rotationReturn = new RotationReturnSettings(this);
 
     private final CheckBoxValue autoblock = new CheckBoxValue("Autoblock", this, false);
-    private final ComboValue autoblockMode = new ComboValue("Autoblock Mode", this, new String[]{"Watchdog", "Verus", "Fake"}, 0);
+    private final ComboValue autoblockMode = new ComboValue("Autoblock Mode", this, new String[]{"Watchdog", "Verus", "Fake", "Intave"}, 0);
     private final CheckBoxValue customBlockFrequency = new CheckBoxValue("Custom Block Frequency", this, false);
     private final SliderValue blockFrequency = new SliderValue("Block Frequency", this, 4D, 0, 10, true);
 
     public Aura() {
         this.setKey(Keyboard.KEY_R);
         bestHitVec.setVisibility(m->!rotationSettings.arsenic());
-        customBlockFrequency.setVisibility(m -> autoblock.getValue() && !"Fake".equals(autoblockMode.getValue()));
+        customBlockFrequency.setVisibility(m -> autoblock.getValue() && !"Fake".equals(autoblockMode.getValue())
+                && !"Intave".equals(autoblockMode.getValue()));
         blockFrequency.setVisibility(m -> customBlockFrequency.isVisible() && customBlockFrequency.getValue());
     }
     @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String name) { return super.getValueByName(name!=null && name.equalsIgnoreCase("Range")?"reach":RotationSettings.canonicalName(name)); }
@@ -114,6 +118,7 @@ public class Aura extends Module {
     }
 
     @Override public void onValueChange() {
+        blockAfterHit = null;
         if (rotationReturn == null) return;
         final long generation = ++lifecycleGeneration;
         final RotationManager manager = RuntimeServices.rotation();
@@ -137,6 +142,7 @@ public class Aura extends Module {
     }
 
     private void clearCombat(boolean worldChanged) {
+        blockAfterHit = null;
         final long generation = ++lifecycleGeneration;
         final RotationManager manager = RuntimeServices.rotation();
         if (worldChanged || (softArsenic() && (mc == null || mc.currentScreen != null || !mc.inGameHasFocus))) manager.cancelRotationRelease(ROTATION_SOURCE);
@@ -188,6 +194,19 @@ public class Aura extends Module {
 
     @Subscribe
     private final Listener<AttackEvent> onAttack = new Listener<>(event -> autoblockController.beforeAttack());
+
+    @Subscribe private final Listener<MovementInputEvent> blockInput = new Listener<>(event -> {
+        EntityLivingBase hit = blockAfterHit;
+        blockAfterHit = null;
+        if (hit == null || event.isCancelled() || !usable() || mc.thePlayer.ticksExisted != blockTick) return;
+        // A full movement separates the use and release. Vanilla releases on the next unheld use key.
+        mc.playerController.trySetSwordBlocking(mc.thePlayer, true, () -> usable() && autoblock.getValue()
+                && "Intave".equals(autoblockMode.getValue()) && !mc.gameSettings.keyBindUseItem.isKeyDown()
+                && AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)
+                && worldContext == mc.theWorld && playerContext == mc.thePlayer
+                && target == hit && mc.theWorld.getEntityByID(hit.getEntityId()) == hit
+                && RuntimeServices.targeting().isValidTarget(hit, options()));
+    });
 
     @Subscribe
     private final Listener<EventMotion> onMotion = new Listener<>(event -> {
@@ -302,6 +321,13 @@ public class Aura extends Module {
                 boolean blockOwns = rotations.getValue() ? rotationManager.isOwner(ROTATION_SOURCE)
                         : !rotationManager.isOwner("scaffold") && rotationManager.getRotationRelease() == null;
                 if (!AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)) return;
+                if ("Intave".equals(autoblockMode.getValue())) {
+                    if (autoblock.getValue() && attackAccepted) {
+                        blockAfterHit = selected;
+                        blockTick = mc.thePlayer.ticksExisted + 1;
+                    }
+                    return;
+                }
                 autoblockController.update(autoblock.getValue() && attacking && blockOwns && rotationManager.isMotionAccepted()
                                 && validHit(selected, yaw, pitch) && PlayerUtil.isHoldingWeapon(),
                         mapAutoblock(autoblockMode.getValue()), false, true, customBlockFrequency.getValue(), blockFrequency.getValue());
@@ -309,7 +335,7 @@ public class Aura extends Module {
                 interrupted=true;throw failure;
             } finally { CombatDiagnostics.endOpportunity(opportunity,attackAccepted,interrupted); }
         } else if (AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)) {
-            autoblockController.update(autoblock.getValue() && attacking && PlayerUtil.isHoldingWeapon(),
+            autoblockController.update(autoblock.getValue() && !"Intave".equals(autoblockMode.getValue()) && attacking && PlayerUtil.isHoldingWeapon(),
                     mapAutoblock(autoblockMode.getValue()), true, false, customBlockFrequency.getValue(), blockFrequency.getValue());
         }
     }

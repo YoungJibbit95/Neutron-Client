@@ -54,6 +54,11 @@ public abstract class Module implements Subscriber {
     }
 
     public void beginConfigUpdate() {
+        beginSettingsUpdate();
+    }
+
+    /** Batch explicit setting edits without applying legacy config defaults. */
+    public final void beginSettingsUpdate() {
         if (configUpdate) throw new IllegalStateException("Nested module config update.");
         configUpdate = true;
     }
