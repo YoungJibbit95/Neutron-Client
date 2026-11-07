@@ -172,14 +172,16 @@ public class iOS extends GuiScreen
         for (Category category : CATEGORIES)
         {
             // Already inside the opening/fit transform; no input geometry or scale changes.
-            me.youngjibbit.clickgui.utils.GuiStyle.feedback(new ClipRect(x+4,y+25+i,86,17),categoryMotion[category.ordinal()]);
+            ClipRect hit = new ClipRect(x+4,y+25+i,86,17);
+            ClipRect paint = me.youngjibbit.clickgui.utils.GuiStyle.buttonBounds(hit,categoryMotion[category.ordinal()]);
+            me.youngjibbit.clickgui.utils.GuiStyle.feedback(paint,categoryMotion[category.ordinal()]);
 
             Pulsar.INSTANCE.getFontManager()
                     .getFont("KhmerOureang 19")
                     .drawString(
                             category.name(),
                             (int) (x + 21),
-                            (int) (y + 18 + (float) mc.fontRendererObj.FONT_HEIGHT + i),
+                            (int) (y + 18 + mc.fontRendererObj.FONT_HEIGHT + i + paint.y - hit.y),
                             me.youngjibbit.clickgui.utils.GuiStyle.ink(isSelectedCategory(category)?currentTheme.getTextColor().getRGB():UiEffects.alpha(currentTheme.getTextColor().getRGB(),.76f),categoryMotion[category.ordinal()]));
             i += 17;
         }

@@ -18,6 +18,12 @@ public final class UiSpring {
         amount=spring.step(target,seconds,settings==null||settings.animations.getValue(),settings!=null&&settings.reducedMotion.getValue(),preset);
         return amount;
     }
+    /** Pointer capture keeps logical focus for editing, but must not hold its visual spring open. */
+    public float stepForInput(float seconds, boolean hover, boolean focus, boolean held, boolean enabled, ClientSettings settings) {
+        float result = step(seconds, hover, focus && net.minecraft.client.gui.GuiScreen.showsKeyboardFocus(), held, enabled, settings);
+        focused = enabled && focus;
+        return result;
+    }
     public float amount(){return amount;}
     /** Reversible presentation transition sharing the configured motion policy. */
     public float transition(float target,float seconds,ClientSettings settings){
@@ -31,6 +37,7 @@ public final class UiSpring {
     public float scale(){return preset.scale(amount);}
     public float glow(){return preset.glow(amount);}
     public boolean focused(){return focused;}
+    public boolean keyboardFocused(){return focused && net.minecraft.client.gui.GuiScreen.showsKeyboardFocus();}
     public boolean pressed(){return pressed;}
     public boolean enabled(){return enabled;}
     public void reset(){spring.reset();amount=0;focused=pressed=false;enabled=true;}

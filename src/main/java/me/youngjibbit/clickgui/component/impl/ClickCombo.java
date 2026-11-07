@@ -35,8 +35,9 @@ public class ClickCombo extends Component.Sub<ComboValue> {
     @Override public void drawScreen(int mouseX,int mouseY){
         me.youngjibbit.utils.font.TTFFontRenderer font=compact()?Pulsar.INSTANCE.fontManager.getFont("Poppins-Regular 16"):ClickControlStyle.font();
         Theme theme=Theme.resolve(Theme.getDefaultTheme());int ink=hoverInk(theme.isCustom()?theme.getTextColor().getRGB():Color.WHITE.getRGB());
-        font.drawString(ClickControlStyle.fit(font,UiEffects.settingLabel(value),compact()?width-14:fieldX()-x-20),x+(compact()?7:12),y+(compact()?2:6),ink);
-        GuiStyle.panel(fieldX(),fieldY(),fieldWidth(),fieldHeight(),3,open||isMouseOver(mouseX,mouseY)?.7f:.12f,new Color(29,31,36));
+        font.drawString(ClickControlStyle.fit(font,UiEffects.settingLabel(value),compact()?width-14:fieldX()-x-(panelStyle?24:20)),x+(panelStyle?17:compact()?7:12),y+(compact()?2:6),ink);
+        if (panelStyle) ClickControlStyle.panelField(fieldX(),fieldY(),fieldWidth(),fieldHeight(),theme,open||isMouseOver(mouseX,mouseY));
+        else GuiStyle.panel(fieldX(),fieldY(),fieldWidth(),fieldHeight(),3,open||isMouseOver(mouseX,mouseY)?.7f:.12f,new Color(29,31,36));
         drawFeedback();
         try(GuiClip ignored=GuiClip.push(new ClipRect(fieldX()+3,fieldY()+1,fieldWidth()-6,fieldHeight()-2))){
             font.drawString(ClickControlStyle.fit(font,label(value.getValue()),fieldWidth()-21),
@@ -53,6 +54,8 @@ public class ClickCombo extends Component.Sub<ComboValue> {
                 String option=value.getOptions()[i];float rowY=y+height+i*optionHeight();
                 boolean selected=option.equals(value.getValue());
                 if(selected)UIUtils.drawDecorationGradientVertical(options.x,rowY,options.width,optionHeight(),0,UiEffects.color(theme.getPrimaryGradientRGB(),.25f),UiEffects.color(theme.getSecondaryGradientRGB(),.25f));
+                if (selected && panelStyle)
+                    UIUtils.drawDecorationRound(options.x + 2, rowY + 5, 2, optionHeight() - 10, 1, theme.getPrimaryGradientColor());
                 font.drawString(ClickControlStyle.fit(font,label(option),options.width-12),options.x+6,rowY+(optionHeight()-10)/2,ink);
             }
         }

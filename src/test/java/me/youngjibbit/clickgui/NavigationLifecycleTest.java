@@ -206,6 +206,31 @@ public class NavigationLifecycleTest {
         client.displayGuiScreen(new GuiScreen(){});client.displayGuiScreen(library);
         assertEquals(125,library.left(),.01);library.escape();assertSame(parent,client.currentScreen);
     }
+    @Test public void pointerHidesKeyboardCueAndTabRestoresIt() throws Exception {
+        class FocusScreen extends QueuedScreen {
+            void tab() throws Exception { dispatchKeyTyped(' ', Keyboard.KEY_TAB); }
+            @Override protected void keyTyped(char ch, int key) {}
+            @Override public void handleMouseInput() {}
+        }
+        FocusScreen screen = new FocusScreen();
+        client.displayGuiScreen(screen);
+        boolean initial = GuiScreen.showsKeyboardFocus();
+        me.youngjibbit.gui.UiSpring state = new me.youngjibbit.gui.UiSpring();
+        try {
+            screen.tab();
+            state.step(0, false, true, false, true, null);
+            assertTrue(state.keyboardFocused());
+            screen.mouseEvents = 1;
+            screen.handleInput();
+            assertTrue(state.focused());
+            assertFalse(state.keyboardFocused());
+            screen.tab();
+            assertTrue(state.keyboardFocused());
+        } finally {
+            if (!initial) { screen.mouseEvents = 1; screen.handleInput(); }
+        }
+    }
+
     @Test public void queuedClicksCannotDispatchIntoAClosedScreen()throws Exception{
         QueuedScreen screen=new QueuedScreen();screen.mouseEvents=2;screen.keyboardEvents=1;screen.next=new GuiScreen(){};
         client.displayGuiScreen(screen);screen.handleInput();

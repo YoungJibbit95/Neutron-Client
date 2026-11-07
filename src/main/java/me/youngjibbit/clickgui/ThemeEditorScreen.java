@@ -44,7 +44,7 @@ public class ThemeEditorScreen extends GuiScreen {
     private void resetMotion(){visualPressed=-1;for(me.youngjibbit.gui.UiSpring state:controlMotion)state.reset();lastFrame=System.nanoTime();}
     @Override public void initGui(){resetMotion();layout();super.initGui();}
     protected void advanceMotion(float dt,int mx,int my){
-        for(int id:order())controlMotion[id].step(dt,pickerField<0&&controlVisible(id)&&actionBounds(id).contains(mx,my),id==focus,id==visualPressed,enabled(id),me.youngjibbit.module.impl.client.ClientSettings.current());
+        for(int id:order())controlMotion[id].stepForInput(dt,pickerField<0&&controlVisible(id)&&actionBounds(id).contains(mx,my),id==focus,id==visualPressed,enabled(id),me.youngjibbit.module.impl.client.ClientSettings.current());
     }
     private void layout(){
         w=Math.min(620,Math.max(1,width-20));h=Math.min(440,Math.max(1,height-20));ox=(width-w)/2;oy=(height-h)/2;
@@ -77,8 +77,8 @@ public class ThemeEditorScreen extends GuiScreen {
         return id!=3||!draft.isEditable()||!catalog.isReadOnly();
     }
     private void control(int id,String label){
-        ClipRect r=actionBounds(id);boolean on=enabled(id);int ink=Theme.getDefaultTheme().getTextColor().getRGB();
-        GuiStyle.panel(r.x,r.y,r.width,r.height,3,on&&id==focus?1:.12f,new Color(20,23,30));GuiStyle.feedback(r,controlMotion[id]);
+        ClipRect r=GuiStyle.buttonBounds(actionBounds(id),controlMotion[id]);boolean on=enabled(id);int ink=Theme.getDefaultTheme().getTextColor().getRGB();
+        UIUtils.drawRound(r.x,r.y,r.width,r.height,3,new Color(20,23,30));GuiStyle.feedback(r,controlMotion[id]);
         try(GuiClip ignored=GuiClip.push(new ClipRect(r.x+3,r.y+1,r.width-6,r.height-2))){
             if(editingField==id)while(label.length()>1&&font().getWidth(label)>r.width-12)label=label.substring(1);
             text(fit(label,r.width-12),r.x+6,r.y+6,UiEffects.alpha(GuiStyle.ink(ink,controlMotion[id]),on?1:.42f));

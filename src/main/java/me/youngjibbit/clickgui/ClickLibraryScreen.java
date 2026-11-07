@@ -133,13 +133,13 @@ public class ClickLibraryScreen extends GuiScreen {
                     if (!themes) configSections(ink);
                     for (int id : new int[]{0,1,2,3,6,7,8}) {
                         ClipRect r = actionBounds(id); boolean active = enabled(id);
-                        motion[id].step(dt, r.contains(mx,my), focus == id, pressed == id, active, ClientSettings.current());
-                        if (themes) GuiStyle.panel(r.x,r.y,r.width,r.height,3, id == 7 ? 1 : .18f, new Color(21,24,31));
+                        motion[id].stepForInput(dt, r.contains(mx,my), focus == id, pressed == id, active, ClientSettings.current());
+                        r = GuiStyle.buttonBounds(r, motion[id]);
+                        if (themes) UIUtils.drawRound(r.x,r.y,r.width,r.height,3,new Color(21,24,31));
                         else {
                             boolean primary = id == 1 || id == 6;
                             int fill = Theme.interpolateRGB(0xff202630, theme.getPrimaryGradientRGB(), primary && active ? .32f : .03f);
                             UIUtils.drawDecorationRound(r.x,r.y,r.width,r.height,3,new Color(fill,true));
-                            if (focus == id) UIUtils.drawDecorationRound(r.x+5,r.y+r.height-2,r.width-10,1,0,new Color(ink,true));
                         }
                         GuiStyle.feedback(r,motion[id]);
                         text(label(id), r.x + 6, r.y + 6, r.width - 12, UiEffects.alpha(ink, active ? 1 : .42f));
@@ -154,7 +154,7 @@ public class ClickLibraryScreen extends GuiScreen {
                             else {
                                 UIUtils.drawDecorationRound(r.x,r.y,r.width,r.height,3,new Color(Theme.interpolateRGB(0xff171c25,theme.getPrimaryGradientRGB(),chosen?.2f:r.contains(mx,my)?.07f:0),true));
                                 if (chosen) UIUtils.drawDecorationRound(r.x+3,r.y+5,1,r.height-10,0,theme.getPrimaryGradientColor());
-                                if (chosen && focus == -2) UIUtils.drawDecorationRound(r.x+8,r.y+r.height-3,r.width-16,1,0,new Color(ink,true));
+                                if (chosen && focus == -2 && showsKeyboardFocus()) UIUtils.drawDecorationRound(r.x+8,r.y+r.height-3,r.width-16,1,0,new Color(ink,true));
                             }
                             if (themes) {
                                 Theme tile = catalog.find(ref);
@@ -183,7 +183,7 @@ public class ClickLibraryScreen extends GuiScreen {
                         text(info,nameBounds().x,nameBounds().y+6,nameBounds().width,ink);
                     }
                     String status = !message.isEmpty() ? message : themes ? catalog.isReadOnly() ? "Theme library is read-only. Presets can still be used." : "Select to inspect. Use theme applies; Edit previews before saving."
-                            : configs.status().isEmpty() ? "Local files · Module values, binds & client settings" : configs.status();
+                            : configs.status().isEmpty() ? "Local files Â· Module values, binds & client settings" : configs.status();
                     text(status,x+12,y+h-(themes?20:16),w-24,UiEffects.alpha(ink,.85f));
                     if(configs.pending()!=ConfigLibrary.Pending.NONE) confirmation(ink);
                 }
@@ -192,7 +192,7 @@ public class ClickLibraryScreen extends GuiScreen {
     }
     private void configSections(int ink) {
         if (splitConfigs()) {
-            text("Saved configs · " + configs.entries().size(),x+12,y+65,configListWidth(),ink);
+            text("Saved configs Â· " + configs.entries().size(),x+12,y+65,configListWidth(),ink);
             UIUtils.drawDecorationRound(detailsX()-8,y+64,1,h-96,0,UiEffects.color(ink,.12f));
             text("Selected config",detailsX(),y+66,detailsWidth(),UiEffects.alpha(ink,.72f));
             String visible = visibleConfigSelection();
@@ -202,7 +202,7 @@ public class ClickLibraryScreen extends GuiScreen {
         } else text("Save current setup as",x+12,y+h-59,w-24,UiEffects.alpha(ink,.8f));
     }
     private void field(ClipRect r,String value,boolean focused,int ink) {
-        GuiStyle.panel(r.x,r.y,r.width,r.height,3,focused?1:.12f,new Color(15,18,24));
+        GuiStyle.panel(r.x,r.y,r.width,r.height,3,focused && showsKeyboardFocus()?1:.12f,new Color(15,18,24));
         try(GuiClip clip=GuiClip.push(new ClipRect(r.x+5,r.y+2,r.width-10,r.height-4))) {
             if(focused)while(value.length()>1&&font().getWidth(value)>r.width-14)value=value.substring(1);
             text(value,r.x+7,r.y+6,r.width-14,ink);

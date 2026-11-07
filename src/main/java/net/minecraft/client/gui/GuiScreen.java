@@ -70,7 +70,7 @@ public abstract class GuiScreen extends Gui implements GuiYesNoCallback {
     private static final me.youngjibbit.utils.render.ArrayListSurface buttonScene=new me.youngjibbit.utils.render.ArrayListSurface();
     public void drawScreen(int mouseX,int mouseY,float partialTicks){
         Runnable contents=()->{
-            try{GuiButton.beginSurfaces(this.buttonList);for(GuiButton button:this.buttonList)button.drawButton(this.mc,mouseX,mouseY);}finally{GuiButton.endSurfaces();}
+            try{GuiButton.beginSurfaces(this.buttonList, mouseX, mouseY);for(GuiButton button:this.buttonList)button.drawButton(this.mc,mouseX,mouseY);}finally{GuiButton.endSurfaces();}
             for(GuiLabel label:this.labelList)label.drawLabel(this.mc,mouseX,mouseY);
         };
         boolean styled=false;for(GuiButton button:buttonList)styled|=button.visible&&button.styledSurface();
@@ -370,11 +370,18 @@ public abstract class GuiScreen extends Gui implements GuiYesNoCallback {
     public void initGui() {
     }
 
+    private static boolean keyboardFocusVisible;
+
+    public static boolean showsKeyboardFocus() { return keyboardFocusVisible; }
+
     public void handleInput() throws IOException {
         while (this.mc.currentScreen == this && nextMouseEvent()) {
             // Pages are composited away from their final hit regions during a slide.
             // Drain pointer events until settled; keyboard Back/Escape can still interrupt.
-            if (!me.youngjibbit.gui.GuiTransitions.blocksPointerInput(this)) this.handleMouseInput();
+            if (!me.youngjibbit.gui.GuiTransitions.blocksPointerInput(this)) {
+                keyboardFocusVisible = false;
+                this.handleMouseInput();
+            }
         }
         while (this.mc.currentScreen == this && nextKeyboardEvent()) {
             this.handleKeyboardInput();
@@ -385,6 +392,7 @@ public abstract class GuiScreen extends Gui implements GuiYesNoCallback {
     protected boolean nextKeyboardEvent() { return Keyboard.isCreated() && Keyboard.next(); }
 
     public void handleMouseInput() throws IOException {
+        keyboardFocusVisible = false;
         int i = Mouse.getEventX() * this.width / this.mc.displayWidth;
         int j = this.height - Mouse.getEventY() * this.height / this.mc.displayHeight - 1;
         int k = Mouse.getEventButton();
@@ -412,9 +420,14 @@ public abstract class GuiScreen extends Gui implements GuiYesNoCallback {
 
     public void handleKeyboardInput() throws IOException {
         if (Keyboard.getEventKeyState()) {
-            this.keyTyped(Keyboard.getEventCharacter(), Keyboard.getEventKey());
+            dispatchKeyTyped(Keyboard.getEventCharacter(), Keyboard.getEventKey());
         }
 
+    }
+
+    protected final void dispatchKeyTyped(char character, int key) throws IOException {
+        keyboardFocusVisible = true;
+        keyTyped(character, key);
     }
 
     public void updateScreen() {
