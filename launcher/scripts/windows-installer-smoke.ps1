@@ -71,7 +71,12 @@ function Install-Candidate([switch]$First) {
     $process = Start-Process -FilePath $installer[0].FullName -ArgumentList ("/S /currentuser "+$selection+"/D=$installed") -WindowStyle Hidden -PassThru
     Wait-OwnedExecutable $process $installer[0].FullName 1200
     $present = Test-Path -LiteralPath $executable
-    if ($process.ExitCode -ne 0 -or -not $present) { throw "NSIS installation failed: exit=$($process.ExitCode), exePresent=$present, target=$installed, elevated=$($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))." }
+    if ($process.ExitCode -ne 0 -or -not $present) {
+        foreach($diagnostic in @((Join-Path $control 'storage-preflight-error.json'),(Join-Path $data 'logs/installer-error.json'))) {
+            if(Test-Path -LiteralPath $diagnostic){Get-Content -LiteralPath $diagnostic -Raw | Write-Host}
+        }
+        throw "NSIS installation failed: exit=$($process.ExitCode), exePresent=$present, target=$installed, elevated=$($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))."
+    }
     $preparation = Get-Content -LiteralPath (Join-Path $data 'logs/installer-result.json') -Raw | ConvertFrom-Json
     $selectedState = Get-Content -LiteralPath (Join-Path $data 'state.json') -Raw | ConvertFrom-Json
     if ($preparation.phase -ne 'verified-before-activation' -or $preparation.selectedBuildId -ne $selectedState.selected -or ([datetime]$preparation.completedAt).ToUniversalTime() -lt $began) {

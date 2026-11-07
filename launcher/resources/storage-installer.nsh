@@ -29,19 +29,23 @@
     StrCpy $neutronDataRoot ""
     Push $0
     Push $1
+    Push $2
     System::Call 'kernel32::SetLastError(i 0)'
-    System::Call 'kernel32::GetEnvironmentVariableW(w "NEUTRON_DATA_ROOT", w .r0, i ${NSIS_MAX_STRLEN}) i .r1'
+    # Capture LastError inside this call: a separate System plug-in invocation
+    # can change it and misclassify an absent variable as an empty override.
+    System::Call 'kernel32::GetEnvironmentVariableW(w "NEUTRON_DATA_ROOT", w .r0, i ${NSIS_MAX_STRLEN}) i .r1 ?e'
+    Pop $2
     ${If} $1 > 0
       StrCpy $neutronStorageOverride "1"
       StrCpy $neutronStorageSavedOverride $0
       StrCpy $neutronDataRoot $0
     ${Else}
-      System::Call 'kernel32::GetLastError() i .r1'
-      ${If} $1 != 203
+      ${If} $2 != 203
         StrCpy $neutronStorageOverride "1"
         StrCpy $neutronStorageSavedOverride ""
       ${EndIf}
     ${EndIf}
+    Pop $2
     Pop $1
     Pop $0
     ${GetParameters} $neutronStorageParameters
