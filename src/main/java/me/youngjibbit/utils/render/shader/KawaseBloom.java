@@ -119,16 +119,16 @@ public class KawaseBloom {
         // Filter passes replace their targets; never accumulate straight-alpha RGB.
         GlStateManager.disableBlend();GL11.glDisable(GL11.GL_BLEND);
         GL11.glClearColor(0, 0, 0, 0);
-        renderFBO(framebufferList.get(1), framebufferTexture, kawaseDown, offset);
+        KawasePass.draw(framebufferList.get(1), framebufferTexture, kawaseDown, offset);
 
         //Downsample
         for (int i = 1; i < iterations; i++) {
-            renderFBO(framebufferList.get(i + 1), framebufferList.get(i).framebufferTexture, kawaseDown, offset);
+            KawasePass.draw(framebufferList.get(i + 1), framebufferList.get(i).framebufferTexture, kawaseDown, offset);
         }
 
         //Upsample
         for (int i = iterations; i > 1; i--) {
-            renderFBO(framebufferList.get(i - 1), framebufferList.get(i).framebufferTexture, kawaseUp, offset);
+            KawasePass.draw(framebufferList.get(i - 1), framebufferList.get(i).framebufferTexture, kawaseUp, offset);
         }
 
         Framebuffer lastBuffer = framebufferList.get(0);
@@ -176,20 +176,6 @@ public class KawaseBloom {
         GLUtils.startBlend();
     }
 
-    private static void renderFBO(Framebuffer framebuffer, int framebufferTexture, ShaderUtil shader, float offset) {
-        if(me.youngjibbit.utils.render.RenderDiagnostics.enabled)me.youngjibbit.utils.render.RenderDiagnostics.blurPasses++;
-        framebuffer.framebufferClear();
-        framebuffer.bindFramebuffer(false);
-        shader.init();shader.setUniformi("uiEnabled",0);
-        RenderUtil.bindTexture(framebufferTexture);
-        shader.setUniformf("offset", offset, offset);
-        shader.setUniformi("inTexture", 0);
-        shader.setUniformi("check", 0);
-        shader.setUniformf("halfpixel", 1.0f / framebuffer.framebufferWidth, 1.0f / framebuffer.framebufferHeight);
-        shader.setUniformf("iResolution", framebuffer.framebufferWidth, framebuffer.framebufferHeight);
-        ShaderUtil.drawQuads();
-        shader.unload();
-    }
 
     public static Framebuffer drawRectToFramebuffer(float x, float y, float width, float height, int radius, int color) {
         if(me.youngjibbit.utils.render.RenderDiagnostics.enabled)me.youngjibbit.utils.render.RenderDiagnostics.maskPasses++;

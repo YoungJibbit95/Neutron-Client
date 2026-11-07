@@ -17,7 +17,8 @@ import me.youngjibbit.utils.render.ColorUtil;
 import me.youngjibbit.utils.render.ESPUtil;
 import me.youngjibbit.utils.render.GLUtils;
 import me.youngjibbit.utils.render.RenderUiUtils;
-import me.youngjibbit.utils.render.shader.ShaderUtil;
+import me.youngjibbit.utils.render.ShaderUtil;
+import me.youngjibbit.utils.render.shader.KawasePass;
 import me.youngjibbit.value.impl.CheckBoxValue;
 import me.youngjibbit.value.impl.ComboValue;
 import me.youngjibbit.value.impl.SliderValue;
@@ -245,16 +246,16 @@ public class GlowESP extends Module
                 glBlendFunc(GL_ONE, GL_ONE);
 
                 GL11.glClearColor(0, 0, 0, 0);
-                renderFBO(framebufferList.get(1), outlineFrameBuffer.framebufferTexture, kawaseGlowShader, offset);
+                KawasePass.draw(framebufferList.get(1), outlineFrameBuffer.framebufferTexture, kawaseGlowShader, offset);
 
                 //Downsample
                 for (int i = 1; i < iterations; i++) {
-                    renderFBO(framebufferList.get(i + 1), framebufferList.get(i).framebufferTexture, kawaseGlowShader, offset);
+                    KawasePass.draw(framebufferList.get(i + 1), framebufferList.get(i).framebufferTexture, kawaseGlowShader, offset);
                 }
 
                 //Upsample
                 for (int i = iterations; i > 1; i--) {
-                    renderFBO(framebufferList.get(i - 1), framebufferList.get(i).framebufferTexture, kawaseGlowShader2, offset);
+                    KawasePass.draw(framebufferList.get(i - 1), framebufferList.get(i).framebufferTexture, kawaseGlowShader2, offset);
                 }
 
                 Framebuffer lastBuffer = framebufferList.get(0);
@@ -358,21 +359,6 @@ public class GlowESP extends Module
         }
     }
 
-    private static void renderFBO(Framebuffer framebuffer, int framebufferTexture, ShaderUtil shader, float offset) {
-        framebuffer.framebufferClear();
-        framebuffer.bindFramebuffer(false);
-        shader.init();
-        RenderUtil.bindTexture(framebufferTexture);
-        shader.setUniformf("offset", offset, offset);
-        shader.setUniformi("inTexture", 0);
-        shader.setUniformi("check", 0);
-        shader.setUniformf("lastPass", 0);
-        shader.setUniformf("halfpixel", 1.0f / framebuffer.framebufferWidth, 1.0f / framebuffer.framebufferHeight);
-        shader.setUniformf("iResolution", framebuffer.framebufferWidth, framebuffer.framebufferHeight);
-
-        ShaderUtil.drawQuads();
-        shader.unload();
-    }
 
 
     public void setupGlowUniforms(float dir1, float dir2) {
