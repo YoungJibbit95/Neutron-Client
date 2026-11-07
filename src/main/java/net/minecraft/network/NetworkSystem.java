@@ -148,7 +148,7 @@ public class NetworkSystem
                     NetworkSystem.this.networkManagers.add(networkmanager);
                     p_initChannel_1_.pipeline().addLast((String)"packet_handler", (ChannelHandler)networkmanager);
                 }
-            }).group((EventLoopGroup)eventLoops.getValue()).localAddress(LocalAddress.ANY)).bind().syncUninterruptibly();
+            }).group(SERVER_LOCAL_EVENTLOOP.getValue()).localAddress(LocalAddress.ANY)).bind().syncUninterruptibly();
             this.endpoints.add(channelfuture);
         }
 

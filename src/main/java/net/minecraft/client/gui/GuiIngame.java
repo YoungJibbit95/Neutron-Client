@@ -390,7 +390,7 @@ public class GuiIngame extends Gui
 
     /** The native Event2D owner is also exercised by the combined offscreen HUD regression. */
     private void renderClientHud(float partialTicks,ScaledResolution resolution) {
-        me.youngjibbit.utils.render.HudDrag.context(mc.currentScreen instanceof GuiChat, org.lwjgl.input.Mouse.isCreated() && org.lwjgl.input.Mouse.isButtonDown(0));
+        me.youngjibbit.utils.render.HudDrag.context(me.youngjibbit.module.impl.render.Diagnostics.editing(mc.currentScreen), org.lwjgl.input.Mouse.isCreated() && org.lwjgl.input.Mouse.isButtonDown(0));
         final Event2D event=new Event2D(partialTicks,resolution);
         try(me.youngjibbit.utils.render.RenderState state=new me.youngjibbit.utils.render.RenderState()){
             Runnable overlays=()->{GuiShaderBloom.beginBatch();try{Pulsar.BUS.post(event);}finally{GuiShaderBloom.flushBatch(2,3);}};

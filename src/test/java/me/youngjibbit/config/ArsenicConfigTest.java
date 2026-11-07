@@ -14,6 +14,37 @@ import static org.junit.Assert.*;
 
 public class ArsenicConfigTest {
     @Rule public TemporaryFolder temp=new TemporaryFolder();
+    @Test public void optInMotionAndAuraHitpointsSurviveRoundTripButDoNotLeakIntoOlderProfiles() throws Exception {
+        Aura aura = new Aura(); AimAssist assist = new AimAssist(); Scaffold scaffold = new Scaffold();
+        Path dir = temp.newFolder().toPath();
+        ConfigManager config = new ConfigManager(dir, Arrays.<Module>asList(aura, assist, scaffold), () -> false, m -> {});
+        aura.getModeSetting("Rot Mode").setValue("Arsenic Lazy");
+        assist.getModeSetting("Rotations").setValue("Arsenic Heuristics");
+        scaffold.getModeSetting("Scaffold Approach").setValue("Arsenic");
+        for (Module module : Arrays.<Module>asList(aura, assist, scaffold)) {
+            assertNotNull(module.getBooleanSetting("Arsenic Soft Motion"));
+            assertTrue(module.getBooleanSetting("Arsenic Soft Motion").isVisible());
+            assertFalse(module.getBooleanSetting("Arsenic Soft Motion").getValue());
+            module.getBooleanSetting("Arsenic Soft Motion").setValue(true);
+        }
+        assertNull(assist.getValueByName("Hitpoint Variation"));
+        assertFalse(aura.getValueByName("Hitpoint Profile").isVisible());
+        aura.getBooleanSetting("Hitpoint Variation").setValue(true);
+        aura.getModeSetting("Hitpoint Profile").setValue("Dynamisch");
+        assertTrue(aura.getValueByName("Hitpoint Speed").isVisible());
+        assertTrue(config.saveConfig("Soft"));
+        Files.write(dir.resolve("Old.json"), "{\"Aura\":{\"Rot Mode\":\"Arsenic Lazy\"},\"AimAssist\":{},\"Scaffold\":{}}".getBytes(StandardCharsets.UTF_8));
+        assertTrue(config.getLastError(), config.loadConfig("Old"));
+        for (Module module : Arrays.<Module>asList(aura, assist, scaffold))
+            assertFalse(module.getBooleanSetting("Arsenic Soft Motion").getValue());
+        assertFalse(aura.getBooleanSetting("Hitpoint Variation").getValue());
+        assertTrue(config.getLastError(), config.loadConfig("Soft"));
+        assertTrue(aura.getBooleanSetting("Hitpoint Variation").getValue());
+        assertEquals("Dynamisch", aura.getModeSetting("Hitpoint Profile").getValue());
+        for (Module module : Arrays.<Module>asList(aura, assist, scaffold))
+            assertTrue(module.getBooleanSetting("Arsenic Soft Motion").getValue());
+    }
+
     @Test public void newModesRoundTripAndLegacyConfigsCannotInheritTheirActivation() throws Exception {
         Aura aura=new Aura();AimAssist assist=new AimAssist();Scaffold scaffold=new Scaffold();
         Path dir=temp.newFolder().toPath();ConfigManager config=new ConfigManager(dir,Arrays.<Module>asList(aura,assist,scaffold),()->false,m->{});

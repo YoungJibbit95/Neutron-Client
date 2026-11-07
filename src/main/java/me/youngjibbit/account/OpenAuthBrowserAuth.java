@@ -19,7 +19,7 @@ public final class OpenAuthBrowserAuth {
         void close();
     }
     interface Windows { Window open(URI authorization) throws Exception; }
-    interface Exchange { Session login(AuthTokens tokens) throws Exception; }
+    interface Exchange { Session login(AuthTokens tokens, BooleanSupplier active) throws Exception; }
     private final Preparation preparation;
     private final Windows windows;
     private final Exchange exchange;
@@ -27,10 +27,11 @@ public final class OpenAuthBrowserAuth {
     private final Set<Attempt> attempts = new HashSet<>();
 
     public OpenAuthBrowserAuth() {
-        this(JavaFxRuntime::load, authorization -> new FxWindow(authorization), tokens -> {
-            MicrosoftAuthResult result = new MicrosoftAuthenticator().loginWithTokens(tokens);
-            return new Session(result.getProfile().getName(), result.getProfile().getId(), result.getAccessToken(), "mojang");
-        }, 180000);
+        this(JavaFxRuntime::load, authorization -> new FxWindow(authorization), new MicrosoftBrowserAuth(), 180000);
+    }
+
+    OpenAuthBrowserAuth(Preparation preparation, Windows windows, MicrosoftBrowserAuth services, long timeoutMillis) {
+        this(preparation, windows, (tokens, active) -> services.loginEmbedded(tokens.getAccessToken(), active), timeoutMillis);
     }
 
     OpenAuthBrowserAuth(Preparation preparation, Windows windows, Exchange exchange, long timeoutMillis) {
@@ -78,7 +79,8 @@ public final class OpenAuthBrowserAuth {
             check(active);
             AuthTokens tokens = tokens(response, state);
             Session session;
-            try { session = exchange.login(tokens); }
+            try { session = exchange.login(tokens, active); }
+            catch (LoginCoordinator.LoginUnavailableException failure) { throw failure; }
             catch (Exception failure) {
                 throw unavailable("Microsoft/Xbox sign-in failed. Check account eligibility and try again; your current session was retained.");
             }

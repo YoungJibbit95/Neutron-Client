@@ -78,14 +78,15 @@ public class SettingsMenu extends GuiScreen {
     }
     private TTFFontRenderer font(){return Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 18");}
     private void text(String value,float x,float y,int color){font().drawString(value,x,y,color);}
-    private String fit(String text,float width){TTFFontRenderer f=font();if(f.getWidth(text)<=width)return text;while(!text.isEmpty()&&f.getWidth(text+"…")>width)text=text.substring(0,text.offsetByCodePoints(text.length(),-1));return text.isEmpty()?"":text+"…";}
+    private String fit(String text,float width){TTFFontRenderer f=font();if(f.getWidth(text)<=width)return text;while(!text.isEmpty()&&f.getWidth(text+"â€¦")>width)text=text.substring(0,text.offsetByCodePoints(text.length(),-1));return text.isEmpty()?"":text+"â€¦";}
     private void button(int id,String title,int mx,int my){
-        ClipRect b=actionBounds(id);me.youngjibbit.gui.UiSpring state=actionMotion[id];
+        me.youngjibbit.gui.UiSpring state=actionMotion[id];
+        ClipRect b=GuiStyle.buttonBounds(actionBounds(id),state);
         UIUtils.drawDecorationRound(b.x,b.y,b.width,b.height,4,new Color(31,38,50));
         GuiStyle.feedback(b,state);
         text(fit(title,b.width-10),b.x+5,b.y+6,GuiStyle.ink(0xffe4ebf6,state));
     }
-    protected void advanceMotion(float dt,int mx,int my){ClientSettings c=ClientSettings.current();int size=rows().size();for(int i=0;i<6;i++)actionMotion[i].step(dt,actionBounds(i).contains(mx,my),focus==size+i,pressed==i,true,c);}
+    protected void advanceMotion(float dt,int mx,int my){ClientSettings c=ClientSettings.current();int size=rows().size();for(int i=0;i<6;i++)actionMotion[i].stepForInput(dt,actionBounds(i).contains(mx,my),focus==size+i,pressed==i,true,c);}
     private String description(){String name=names().isEmpty()?"":names().get(group);switch(name){
         case "Appearance":return "Choose the surface, opacity and border of your UI.";
         case "Blur / Liquid Glass":return "Tune scene softness, refraction, tint and edge light.";
@@ -110,14 +111,15 @@ public class SettingsMenu extends GuiScreen {
                 UIUtils.drawDecorationRound(x+1,y+1,w-2,h-2,7,new Color(13,16,23,175));
                 TTFFontRenderer heading=Pulsar.INSTANCE.fontManager.getFont("DmSansMedium 26");
                 heading.drawString("Client settings",x+16,y+11,0xfff1f4fa);
-                text(fit("Appearance, motion and type — changes apply live",w-32),x+16,y+33,0xffa6b2c5);
+                text(fit("Appearance, motion and type â€” changes apply live",w-32),x+16,y+33,0xffa6b2c5);
                 List<String> sections=names();
                 if(rail()){
                     for(int i=0;i<sections.size();i++){
                         ClipRect r=categoryBounds(i);boolean selected=i==group;
                         me.youngjibbit.gui.UiSpring motion=categoryMotion.computeIfAbsent(sections.get(i),k->new me.youngjibbit.gui.UiSpring());
-                        motion.step(dt,popupValue==null&&r.contains(mx,my),false,false,true,ClientSettings.current());
+                        motion.stepForInput(dt,popupValue==null&&r.contains(mx,my),false,false,true,ClientSettings.current());
                         if(selected)UIUtils.drawDecorationRound(r.x,r.y+4,2,r.height-8,1,theme.getPrimaryGradientColor());
+                        r = GuiStyle.buttonBounds(r, motion);
                         text(fit(sections.get(i),r.width-14),r.x+10,r.y+8,GuiStyle.ink(selected?0xfff1f4fa:0xffa4b0c3,motion));
                     }
                 }
@@ -142,7 +144,7 @@ public class SettingsMenu extends GuiScreen {
     private void drawValue(int index,Value<?> value,Theme theme,float dt,int mx,int my){
         ClipRect row=rowBounds(index),control=controlBounds(index);
         me.youngjibbit.gui.UiSpring motion=valueMotion.computeIfAbsent(value,k->new me.youngjibbit.gui.UiSpring());
-        motion.step(dt,popupValue==null&&row.contains(mx,my),index==focus,drag==index,true,ClientSettings.current());
+        motion.stepForInput(dt,popupValue==null&&row.contains(mx,my),index==focus,drag==index,true,ClientSettings.current());
         // Only ink, the switch/thumb and the focus marks react; no hover rectangle.
         text(fit(UiEffects.settingLabel(value),control.x-row.x-12),row.x+5,row.y+13,GuiStyle.ink(0xffe1e7f1,motion));
         GuiStyle.feedback(row,motion);
@@ -186,7 +188,7 @@ public class SettingsMenu extends GuiScreen {
         preview.panel(px,py,pw,34,5,theme,true,true,false,5,.45f,.35f,()->{
             UIUtils.drawDecorationRound(px+1,py+1,pw-2,32,4,new Color(11,15,22,145));
             me.youngjibbit.utils.render.TextEffects.direct(theme,()->text(fit("Neutron  /  HitDelayFix  /  FastPlace",pw-20),px+10,py+5,-1));
-            text(fit("Aa Bb  0123456789  ·  Session Info  ·  "+selectedFamily(),pw-20),px+10,py+19,0xffc5cfdf);
+            text(fit("Aa Bb  0123456789  Â·  Session Info  Â·  "+selectedFamily(),pw-20),px+10,py+19,0xffc5cfdf);
         });
     }
     private String selectedFamily(){ClientSettings c=ClientSettings.current();return c==null?"Original":c.fontFamily.getValue();}

@@ -14,13 +14,13 @@
 
 # Neutron Client
 
-A Minecraft **1.8.9** client with customizable menus, HUDs and gameplay modules. Runs on **Java 8**.
+A Minecraft **1.8.9** hacked client with a focus on modern and customizable visuals, a good user experience and good performing simple bypasses for most servers.
 
-**Focus:** Intave/Polar bypass research, consistent visuals and maintainable client systems.
+**Focus:** Intave and Polar Bypass Research, extended visual systems and good performance on most other anticheats. Bypasses for other anticheats are planned.
 
 ## Features
 
-- **ClickGUI:** Panel and iOS layouts, module settings and keybinds. Open with **Right Shift**.
+- **ClickGUI:** For Client Customization, Module Toggeling and Options, etc. Open with **Right Shift**.
 - **Themes:** PinkLemonade by default, plus presets and custom colors. Adjust blur, glow and animations.
 - **HUD:** Target, armor, session and module overlays with layout controls.
 - **Modules:** Combat, Ghost, Movement, Player, World, Exploit, Client and Render categories.

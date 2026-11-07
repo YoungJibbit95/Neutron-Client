@@ -32,7 +32,7 @@ public class ClickGui extends GuiScreen {
     private final me.youngjibbit.utils.render.ArrayListSurface themedSurface=new me.youngjibbit.utils.render.ArrayListSurface();
     private final me.youngjibbit.utils.render.TextEffects headingEffects=new me.youngjibbit.utils.render.TextEffects();
     private static final Category[] CATEGORIES = Category.values();
-    private static final float SIDEBAR = 102, HEADER = 36, CONTENT_HEADER = 24, FOOTER = 20, MARGIN = 8;
+    private static final float SIDEBAR = 102, HEADER = 36, CONTENT_HEADER = 24, FOOTER = 20, MARGIN = 8, CARD_GAP = 6;
     private float x, y, width = 450, height = 400;
     private float grabX, grabY, resizeWidth, resizeHeight;
     private boolean positioned, dragging, resizing;
@@ -61,7 +61,7 @@ public class ClickGui extends GuiScreen {
     private void resetMotion(){visualControl=null;visualChrome=-1;for(me.youngjibbit.gui.UiSpring state:chromeMotion)state.reset();for(List<ClickModule> rows:moduleCache.values())for(ClickModule row:rows){row.getPresentation().reset();for(Component.Sub<?> value:row.presentationValues())value.getPresentation().reset();}}
     protected void advanceMotion(float dt,int mx,int my){
         boolean available=!dragging&&!resizing&&binding==null;
-        for(int i=0;i<chromeMotion.length;i++)chromeMotion[i].step(dt,available&&chromeBounds(i).contains(mx,my),i==0&&searchFocus,i==visualChrome,available,me.youngjibbit.module.impl.client.ClientSettings.current());
+        for(int i=0;i<chromeMotion.length;i++)chromeMotion[i].stepForInput(dt,available&&chromeBounds(i).contains(mx,my),i==0&&searchFocus,i==visualChrome,available,me.youngjibbit.module.impl.client.ClientSettings.current());
         for(List<ClickModule> rows:moduleCache.values())for(ClickModule row:rows){
             boolean present=available&&modules.contains(row);
             boolean visible=present&&!viewport.intersect(row.presentationBounds()).isEmpty();
@@ -140,7 +140,7 @@ public class ClickGui extends GuiScreen {
             Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString("o", x + width - 21, y + 13,
                     theme.getSecondaryGradientRGB());
             ClipRect searchBox=searchBounds();
-            GuiStyle.panel(searchBox.x,searchBox.y,searchBox.width,searchBox.height,3,searchFocus?1:0,new Color(22,22,24));
+            GuiStyle.panel(searchBox.x,searchBox.y,searchBox.width,searchBox.height,3,searchFocus && showsKeyboardFocus()?1:0,new Color(22,22,24));
             GuiStyle.feedback(searchBox,chromeMotion[0]);
             try(GuiClip ignored=GuiClip.push(new ClipRect(searchBox.x+8,searchBox.y,searchBox.width-28,searchBox.height))){
                 String shown=search.isEmpty()&&!searchFocus?width<380?"Search...":"Search modules...":search+(searchFocus?"_":"");
@@ -148,21 +148,23 @@ public class ClickGui extends GuiScreen {
                 font().drawString(shown,searchBox.x+8,textY(font(),"Search",searchBox),searchFocus?0xffffffff:0xffa4a9b3);
             }
             if(!search.isEmpty()||searchFocus)font().drawString("x",searchBox.x+searchBox.width-14,textY(font(),"x",searchBox),0xffb8bec8);
-            ClipRect themes=themeBounds();GuiStyle.panel(themes.x,themes.y,themes.width,themes.height,3,0,new Color(22,22,24));
+            ClipRect themes = GuiStyle.buttonBounds(themeBounds(), chromeMotion[1]);
+            UIUtils.drawRound(themes.x,themes.y,themes.width,themes.height,3,new Color(22,22,24));
             GuiStyle.feedback(themes,chromeMotion[1]);
             font().drawString("Library",themes.x+(themes.width-font().getWidth("Library"))/2,textY(font(),"Library",themes),GuiStyle.ink(theme.isCustom()?theme.getTextColor().getRGB():0xffd4d9e3,chromeMotion[1]));
             float selectedY = y + HEADER + 4 + selectionOffset;
-            GuiStyle.panel(x + 5, selectedY, SIDEBAR - 10, step - 4, 5, 1, new Color(11, 11, 12));
-            UIUtils.drawRound(x + SIDEBAR - 16, selectedY + (step - 4) / 2 - 2, 4, 4, 2,
-                    theme.getPrimaryGradientColor());
+            UIUtils.drawDecorationRound(x + 5, selectedY, SIDEBAR - 10, step - 4, 6,
+                    me.youngjibbit.utils.render.UiEffects.accent(theme.getPrimaryGradientRGB(), .18f));
             String[] icons = {"c", "f", "d", "d", "e", "t", "f", "a"};
             for (int i = 0; i < CATEGORIES.length; i++) {
                 float rowY = y + HEADER + 4 + i * step;
-                GuiStyle.feedback(chromeBounds(i+2),chromeMotion[i+2]);
+                ClipRect category = GuiStyle.buttonBounds(chromeBounds(i+2), chromeMotion[i+2]);
+                rowY += category.y - chromeBounds(i+2).y;
+                GuiStyle.feedback(category,chromeMotion[i+2]);
                 String font = i == 2 || i == 4 || i == 6 ? "icon1 21" : "icon 21";
-                Pulsar.INSTANCE.getFontManager().getFont(font).drawString(icons[i], x + 9, rowY + (step-4-10)/2, i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffb6bdca);
+                Pulsar.INSTANCE.getFontManager().getFont(font).drawString(icons[i], x + 10, rowY + (step-4-10)/2, i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffc4cad5);
                 Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString(
-                        CATEGORIES[i].name(), x + 24, rowY + (step-4-10)/2, i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffb6bdca);
+                        CATEGORIES[i].name(), x + 26, rowY + (step-4-10)/2, i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffc4cad5);
             }
             String title=search.trim().isEmpty()?selectedCategory.name():"Search results";
             String count=modules.size()+(!search.trim().isEmpty()?(modules.size()==1?" result":" results"):(modules.size()==1?" module":" modules"));
@@ -188,12 +190,6 @@ public class ClickGui extends GuiScreen {
                     }
                 }
             }
-            if(focus!=null&&!searchFocus&&binding==null){
-                try(GuiClip ignored=GuiClip.push(viewport)){
-                    float fh=24;
-                    UIUtils.drawRound(focus.getX()+2,focus.getY()+2,2,fh-4,1,theme.getSecondaryGradientColor());
-                }
-            }
             drawTooltip(mouseX,mouseY);
             if(binding!=null)drawBinding();
         }
@@ -205,16 +201,16 @@ public class ClickGui extends GuiScreen {
         float contentHeight = 0;
         for (ClickModule module : modules) {
             module.updatePanelAnimation(delta);
-            contentHeight += module.getHeight() + 4;
+            contentHeight += module.getHeight() + CARD_GAP;
         }
-        maxScroll = Math.max(0, contentHeight - 4 - viewport.height);
+        maxScroll = Math.max(0, contentHeight - (modules.isEmpty()?0:CARD_GAP) - viewport.height);
         targetScrollOffset = Math.max(-maxScroll, Math.min(0, targetScrollOffset));
         scrollOffset += (targetScrollOffset - scrollOffset) * me.youngjibbit.utils.render.UiEffects.response(delta,20);
         scrollOffset = Math.max(-maxScroll, Math.min(0, scrollOffset));
         float moduleY = viewport.y + scrollOffset;
         for (ClickModule module : modules) {
             module.layout(viewport.x + 1, moduleY + 1, viewport.width - 2, viewport);
-            moduleY += module.getHeight() + 4;
+            moduleY += module.getHeight() + CARD_GAP;
         }
         if(focus!=null&&!focusables().contains(focus)){
             Component replacement=null;
@@ -236,7 +232,7 @@ public class ClickGui extends GuiScreen {
     }
 
     private List<ClickModule> categoryModules(Category category){
-        return moduleCache.computeIfAbsent(category,key->{List<ClickModule> result=new ArrayList<>();for(Module module:Pulsar.INSTANCE.getMm().getModules(key))result.add(new ClickModule(module,0,0,width-SIDEBAR-12,24));return result;});
+        return moduleCache.computeIfAbsent(category,key->{List<ClickModule> result=new ArrayList<>();for(Module module:Pulsar.INSTANCE.getMm().getModules(key))result.add(ClickModule.forPanel(module, width - SIDEBAR - 12));return result;});
     }
     private void setupModules(){
         modules.clear();String query=search.trim().toLowerCase(Locale.ROOT);

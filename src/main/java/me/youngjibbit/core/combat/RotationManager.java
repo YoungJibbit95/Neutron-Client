@@ -67,6 +67,52 @@ public final class RotationManager {
     private WeakReference<Object> motionPlayer = new WeakReference<>(null);
     private WeakReference<Object> motionWorld = new WeakReference<>(null);
     private MovementFrame movementFrame;
+    private VisibleAssistStop visibleAssistStop;
+    private static final String VISIBLE_STOP = "aimassist-return";
+
+    /** A visible assist has no silent yaw to return from. Decay only its last accepted camera delta. */
+    public void beginVisibleAssistStop() {
+        RotationState state = states.get("aimassist");
+        if (state == null || state.visibleStep == null || !canUseRotation("aimassist", collecting)) return;
+        if (state.visibleStep.current()) visibleAssistStop = state.visibleStep;
+    }
+
+    public void cancelVisibleAssistStop() {
+        visibleAssistStop = null;
+        if (winner != null && VISIBLE_STOP.equals(winner.source)) winner = null;
+    }
+
+    private final class VisibleAssistStop {
+        final RuntimeObservation observation = RuntimeServices.observation();
+        final long suspension = observation == null ? -1 : observation.getObservedSuspensionRevision();
+        final long connectionGeneration = observation == null ? -1 : observation.getObservedConnectionGeneration();
+        final long acquired = sequence, startNanos = clock.getAsLong();
+        final float yawDelta, pitchDelta;
+        VisibleAssistStop(float yawDelta, float pitchDelta) {
+            this.yawDelta = yawDelta;
+            this.pitchDelta = pitchDelta;
+        }
+        boolean current() {
+            long age = clock.getAsLong() - startNanos;
+            return age >= 0 && age <= 210_000_000L && sequence >= acquired && sequence - acquired <= 3
+                    && observation != null && observation == RuntimeServices.observation()
+                    && observation.getObservedSuspensionRevision() == suspension
+                    && observation.getObservedConnectionGeneration() == connectionGeneration
+                    && mc != null && mc.thePlayer != null && mc.theWorld != null && mc.currentScreen == null
+                    && mc.inGameHasFocus && !mc.isGamePaused() && motionPlayer.get() == mc.thePlayer
+                    && motionWorld.get() == mc.theWorld && mc.thePlayer.isEntityAlive()
+                    && !mc.thePlayer.isRiding() && !mc.thePlayer.isSpectator() && mc.getRenderViewEntity() == mc.thePlayer;
+        }
+        Request next() {
+            int tick = (int) (sequence - acquired);
+            if (tick <= 0 || !current()) return null;
+            float gain = 1 - RotationReturnCurve.progress(tick / 3.5f);
+            float yaw = mc.thePlayer.rotationYaw, pitch = mc.thePlayer.rotationPitch;
+            float[] pose = quantize(yaw + yawDelta * gain, pitch + pitchDelta * gain, yaw, pitch,
+                    mc.gameSettings.mouseSensitivity);
+            return new Request(VISIBLE_STOP, 0, pose[0], pose[1], true, yaw, pitch, this::current);
+        }
+    }
 
     /** Predict local physics before living input; only finishMotion can grant packet/action authority. */
     public void prepareMovement(EntityPlayerSP player) {
@@ -213,6 +259,7 @@ public final class RotationManager {
     private void offer(Request request) {
         if (!collecting || request.source==null || isReleaseSource(request.source)
                 || !Float.isFinite(request.yaw) || !Float.isFinite(request.pitch)) return;
+        cancelVisibleAssistStop();
         offeredSources.add(request.source);
         cancelRotationRelease();
         request.pitch=clamp(request.pitch,-90,90);
@@ -260,6 +307,15 @@ public final class RotationManager {
                     winner = new Request(release.releaseSource, 0, next[0], next[1], false, 0, 0, () -> true);
             }
         }
+        if (visibleAssistStop != null) {
+            if (winner != null && VISIBLE_STOP.equals(winner.source) && visibleAssistStop.current()) {
+                // A second resolution of the same frame must not move the camera twice.
+                event.setRotations(winner.yaw, winner.pitch);
+                return;
+            }
+            if (winner != null || release != null || cameraIntent || !visibleAssistStop.current()) cancelVisibleAssistStop();
+            else winner = visibleAssistStop.next();
+        }
         if (winner==null) return;
         if (winner.visible) {
             String confirmed=getConfirmedOwner();
@@ -269,6 +325,11 @@ public final class RotationManager {
                 winner=null;return;
             }
             // Add assistance to the latest camera; a later manual mouse delta must survive arbitration.
+            RotationState visible = states.get(winner.source);
+            if ("aimassist".equals(winner.source) && visible != null && visible.softVisible) {
+                winner.visibleStep = new VisibleAssistStop(MathHelper.wrapAngleTo180_float(winner.yaw - winner.cameraYaw),
+                        winner.pitch - winner.cameraPitch);
+            }
             mc.thePlayer.rotationYaw+=MathHelper.wrapAngleTo180_float(winner.yaw-winner.cameraYaw);
             mc.thePlayer.rotationPitch=clamp(mc.thePlayer.rotationPitch+winner.pitch-winner.cameraPitch,-90,90);
             winner.yaw=mc.thePlayer.rotationYaw;winner.pitch=mc.thePlayer.rotationPitch;
@@ -614,7 +675,7 @@ public final class RotationManager {
         collecting = false;
         releaseAcceptance = null;
         accepted = packetAccepted && Float.isFinite(yaw) && Float.isFinite(pitch) && pitch >= -90 && pitch <= 90;
-        if (!accepted) { invalidateUnownedSpeedCurves(null); return; }
+        if (!accepted) { cancelVisibleAssistStop(); invalidateUnownedSpeedCurves(null); return; }
         hasEffective = true;
         effectiveYaw = yaw;
         effectivePitch = clamp(pitch, -90, 90);
@@ -637,8 +698,10 @@ public final class RotationManager {
                 && evidence.scene.getConnectionGeneration() == evidence.observation.getObservedConnectionGeneration()
                 && evidence.suspensionRevision == evidence.observation.getObservedSuspensionRevision())
             releaseAcceptance = new AcceptedRotationBasis(evidence);
+        if (!VISIBLE_STOP.equals(owner)) cancelVisibleAssistStop();
         if (owner != null) {
             RotationState state = state(owner);
+            state.visibleStep = winner.visibleStep;
             state.yaw = effectiveYaw;
             state.pitch = effectivePitch;
             state.active = true;
@@ -692,6 +755,34 @@ public final class RotationManager {
     public float getEffectivePitch() { return effectivePitch; }
     public boolean hasEffectiveRotation() { return hasEffective; }
 
+    /** Scalar observation only: unlike authority getters, this never expires a lease or evaluates a predicate. */
+    public DiagnosticSnapshot diagnosticSnapshot() {
+        return new DiagnosticSnapshot(sequence, collecting, accepted, hasEffective, owner,
+                winner == null ? null : winner.source, winner == null ? 0 : winner.priority,
+                winner == null ? Float.NaN : winner.yaw, winner == null ? Float.NaN : winner.pitch,
+                effectiveYaw, effectivePitch, offeredSources.size(), rotationRelease != null);
+    }
+    public DiagnosticSnapshot diagnosticSnapshot(Object player,Object world,Object pipeline) {
+        return pipeline!=null&&connection.get()==pipeline&&motionPlayer.get()==player&&motionWorld.get()==world
+                ?diagnosticSnapshot():new DiagnosticSnapshot(sequence,false,false,false,null,null,0,
+                Float.NaN,Float.NaN,Float.NaN,Float.NaN,0,false);
+    }
+    public static final class DiagnosticSnapshot {
+        public final long sequence;
+        public final boolean collecting, accepted, hasEffective, returning;
+        public final String owner, requestedBy;
+        public final int priority, contenders;
+        public final float requestedYaw, requestedPitch, wireYaw, wirePitch;
+        DiagnosticSnapshot(long sequence, boolean collecting, boolean accepted, boolean hasEffective, String owner,
+                           String requestedBy, int priority, float requestedYaw, float requestedPitch,
+                           float wireYaw, float wirePitch, int contenders, boolean returning) {
+            this.sequence=sequence;this.collecting=collecting;this.accepted=accepted;this.hasEffective=hasEffective;
+            this.owner=owner;this.requestedBy=requestedBy;this.priority=priority;this.requestedYaw=requestedYaw;
+            this.requestedPitch=requestedPitch;this.wireYaw=wireYaw;this.wirePitch=wirePitch;
+            this.contenders=contenders;this.returning=returning;
+        }
+    }
+
     public boolean matchesEffective(float yaw, float pitch) {
         currentRotationRelease();
         return accepted && Math.abs(MathHelper.wrapAngleTo180_float(effectiveYaw-yaw)) < .001f
@@ -704,6 +795,9 @@ public final class RotationManager {
                 && Math.abs(MathHelper.wrapAngleTo180_float(winner.yaw - yaw)) < .001f
                 && Math.abs(winner.pitch - pitch) < .001f;
         if (rotationRelease != null && !matchingRelease) cancelRotationRelease();
+        if (visibleAssistStop != null && !(collecting && winner != null && VISIBLE_STOP.equals(winner.source)
+                && Math.abs(MathHelper.wrapAngleTo180_float(winner.yaw - yaw)) < .001f
+                && Math.abs(winner.pitch - pitch) < .001f)) cancelVisibleAssistStop();
         if (!Float.isFinite(yaw) || !Float.isFinite(pitch) || pitch < -90 || pitch > 90) {
             releaseAcceptance = null;
             accepted = false;
@@ -798,6 +892,7 @@ public final class RotationManager {
                                       boolean bestHitVec,RotationProfile profile,boolean visible) {
         if(target==null || mc==null || mc.thePlayer==null) return null;
         RotationState state=state(source);
+        state.softVisible = visible && profile.arsenic != RotationProfile.ArsenicMode.OFF && profile.softArsenicMotion;
         AxisAlignedBB box=target.getEntityBoundingBox();
         Vec3 feet=new Vec3(mc.thePlayer.posX,mc.thePlayer.posY,mc.thePlayer.posZ);
         if(!visible && (profile.arsenic!=RotationProfile.ArsenicMode.OFF || profile.smartAim || profile.stopOnTarget || profile.heuristics))feet=mc.thePlayer.getPlannedMovementPosition(feet.xCoord,feet.yCoord,feet.zCoord);
@@ -900,6 +995,7 @@ public final class RotationManager {
     }
 
     public void reset() {
+        cancelVisibleAssistStop();
         movementFrame = null;
         curveMotionSequence=Long.MIN_VALUE;
         rotationRelease = null;
@@ -954,7 +1050,8 @@ public final class RotationManager {
         RotationState(RotationTrajectory trajectory,ArsenicAimTrajectory arsenic) { this.trajectory=trajectory;this.arsenic=arsenic; }
         private float yaw;
         private float pitch;
-        private boolean active;
+        private boolean active, softVisible;
+        private VisibleAssistStop visibleStep;
 
     }
 
@@ -965,6 +1062,7 @@ public final class RotationManager {
         final boolean visible;
         final float cameraYaw,cameraPitch;
         final BooleanSupplier valid;
+        VisibleAssistStop visibleStep;
         Request(String source,int priority,float yaw,float pitch,boolean visible,float cameraYaw,float cameraPitch,BooleanSupplier valid) {
             this.source=source;this.priority=priority;this.yaw=yaw;this.pitch=pitch;
             this.visible=visible;this.cameraYaw=cameraYaw;this.cameraPitch=cameraPitch;this.valid=valid;

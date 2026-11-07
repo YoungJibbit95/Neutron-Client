@@ -154,6 +154,8 @@ public class GuiChat extends GuiScreen
     {
         super.handleMouseInput();
         int i = Mouse.getEventDWheel();
+        if (me.youngjibbit.module.impl.render.Diagnostics.scrollAt(Mouse.getEventX()*width/(float)mc.displayWidth,
+                height-Mouse.getEventY()*height/(float)mc.displayHeight-1,i)) return;
 
         if (i != 0)
         {

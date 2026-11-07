@@ -1,6 +1,5 @@
 package net.minecraft.client.renderer;
 
-import com.google.common.primitives.Floats;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -8,7 +7,6 @@ import java.nio.IntBuffer;
 import java.nio.ShortBuffer;
 import java.util.Arrays;
 import java.util.BitSet;
-import java.util.Comparator;
 import net.minecraft.block.state.IBlockState;
 import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.vertex.VertexFormat;
@@ -97,34 +95,40 @@ public class WorldRenderer
     public void func_181674_a(float p_181674_1_, float p_181674_2_, float p_181674_3_)
     {
         int i = this.vertexCount / 4;
-        final float[] afloat = new float[i];
+        long[] order = new long[i];
+        float cameraX = (float)((double)p_181674_1_ + this.xOffset);
+        float cameraY = (float)((double)p_181674_2_ + this.yOffset);
+        float cameraZ = (float)((double)p_181674_3_ + this.zOffset);
+        int vertexStride = this.vertexFormat.func_181719_f();
+        int quadStride = this.vertexFormat.getNextOffset();
 
         for (int j = 0; j < i; ++j)
         {
-            afloat[j] = func_181665_a(this.rawFloatBuffer, (float)((double)p_181674_1_ + this.xOffset), (float)((double)p_181674_2_ + this.yOffset), (float)((double)p_181674_3_ + this.zOffset), this.vertexFormat.func_181719_f(), j * this.vertexFormat.getNextOffset());
+            float distance = func_181665_a(this.rawFloatBuffer, cameraX, cameraY, cameraZ, vertexStride, j * quadStride);
+            order[j] = quadSortKey(distance, j);
         }
 
-        Integer[] ainteger = new Integer[i];
-
-        for (int k = 0; k < ainteger.length; ++k)
+        boolean alreadyOrdered = true;
+        for (int j = 1; j < i; ++j)
         {
-            ainteger[k] = Integer.valueOf(k);
+            if (order[j] < order[j - 1]) { alreadyOrdered = false; break; }
         }
 
-        Arrays.sort(ainteger, new Comparator<Integer>()
+        if (alreadyOrdered)
         {
-            public int compare(Integer p_compare_1_, Integer p_compare_2_)
-            {
-                return Floats.compare(afloat[p_compare_2_.intValue()], afloat[p_compare_1_.intValue()]);
-            }
-        });
+            this.rawIntBuffer.limit(this.rawIntBuffer.capacity());
+            this.rawIntBuffer.position(this.func_181664_j());
+            return;
+        }
+
+        Arrays.sort(order);
         BitSet bitset = new BitSet();
         int l = this.vertexFormat.getNextOffset();
         int[] aint = new int[l];
 
-        for (int l1 = 0; (l1 = bitset.nextClearBit(l1)) < ainteger.length; ++l1)
+        for (int l1 = 0; (l1 = bitset.nextClearBit(l1)) < order.length; ++l1)
         {
-            int i1 = ainteger[l1].intValue();
+            int i1 = (int)order[l1];
 
             if (i1 != l1)
             {
@@ -133,7 +137,7 @@ public class WorldRenderer
                 this.rawIntBuffer.get(aint);
                 int j1 = i1;
 
-                for (int k1 = ainteger[i1].intValue(); j1 != l1; k1 = ainteger[k1].intValue())
+                for (int k1 = (int)order[i1]; j1 != l1; k1 = (int)order[k1])
                 {
                     this.rawIntBuffer.limit(k1 * l + l);
                     this.rawIntBuffer.position(k1 * l);
@@ -161,14 +165,22 @@ public class WorldRenderer
             TextureAtlasSprite[] atextureatlassprite = new TextureAtlasSprite[this.vertexCount / 4];
             int i2 = this.vertexFormat.getNextOffset() / 4 * 4;
 
-            for (int j2 = 0; j2 < ainteger.length; ++j2)
+            for (int j2 = 0; j2 < order.length; ++j2)
             {
-                int k2 = ainteger[j2].intValue();
+                int k2 = (int)order[j2];
                 atextureatlassprite[j2] = this.quadSprites[k2];
             }
 
             System.arraycopy(atextureatlassprite, 0, this.quadSprites, 0, atextureatlassprite.length);
         }
+    }
+
+    /** Descending Float.compare order; the original index preserves stable ties. */
+    static long quadSortKey(float distance, int index)
+    {
+        int bits = Float.floatToIntBits(distance);
+        int ascending = bits ^ ((bits >> 31) & 0x7fffffff);
+        return ((long)~ascending << 32) | (index & 0xffffffffL);
     }
 
     public WorldRenderer.State func_181672_a()

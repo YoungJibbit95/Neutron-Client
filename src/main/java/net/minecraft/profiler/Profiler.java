@@ -57,6 +57,7 @@ public class Profiler
      */
     public void startSection(String name)
     {
+        me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.start(this, name);
         if (Lagometer.isActive())
         {
             int i = name.hashCode();
@@ -111,6 +112,7 @@ public class Profiler
      */
     public void endSection()
     {
+        me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.end(this);
         if (this.profilerLocalEnabled)
         {
             if (this.profilingEnabled)
@@ -216,6 +218,10 @@ public class Profiler
             this.endSection();
             this.startSection(name);
         }
+        else {
+            me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.end(this);
+            me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.start(this,name);
+        }
     }
 
     public String getNameOfLastSection()
@@ -229,6 +235,7 @@ public class Profiler
         {
             this.startSection(p_startSection_1_.getSimpleName());
         }
+        else me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.start(this,p_startSection_1_.getSimpleName());
     }
 
     public static final class Result implements Comparable<Profiler.Result>

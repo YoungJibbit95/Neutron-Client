@@ -35,11 +35,14 @@ import org.lwjgl.input.Keyboard;
  */
 public final class ClickGuiLayoutCheck {
   static class Panel extends ClickGui {
-    int themes;
+    int libraries;
 
     @Override
-    protected void openThemeEditor() {
-      themes++;
+    protected void openLibrary() {
+      SideGuiScreen library = new SideGuiScreen(this);
+      require(library != null, "SideGUI library factory");
+      library.onGuiClosed();
+      libraries++;
     }
 
     void click(float x, float y, int b) throws Exception {
@@ -133,7 +136,7 @@ public final class ClickGuiLayoutCheck {
           ClientSettings.current().surface.setValue("Standard");
         }
         panel.click(themes.x + themes.width / 2, themes.y + themes.height / 2, 0);
-        require(panel.themes == n + 1, "Theme target routing");
+        require(panel.libraries == n + 1, "Library target routing");
         panel.click(search.x + 6, search.y + 12, 0);
         panel.key('z', Keyboard.KEY_NONE);
         panel.key('z', Keyboard.KEY_NONE);
@@ -144,6 +147,23 @@ public final class ClickGuiLayoutCheck {
         frame(panel);
         require(!((List<?>) get(panel, "modules")).isEmpty(), "Escape search recovery");
         List<ClickModule> rows = (List<ClickModule>) get(panel, "modules");
+        for (int i = 1; i < rows.size(); i++) {
+          ClickModule previous = rows.get(i - 1), next = rows.get(i);
+          require(Math.abs(next.getY() - previous.getY() - previous.getHeight() - 6) < .01f,
+              "Panel card gap");
+        }
+        if (number(panel, "maxScroll") > 0) {
+          float end = -number(panel, "maxScroll");
+          set(panel, "targetScrollOffset", end);
+          set(panel, "scrollOffset", end);
+          frame(panel);
+          ClickModule last = rows.get(rows.size() - 1);
+          require(last.getY() + last.getHeight() <= viewport.y + viewport.height + 1.01f,
+              "Last panel card must remain reachable at scroll end");
+          set(panel, "targetScrollOffset", 0f);
+          set(panel, "scrollOffset", 0f);
+          frame(panel);
+        }
         ClickModule row = rows.get(0);
         boolean before = row.getModule().isToggled();
         panel.click(row.getX() + 14, row.getY() + 12, 0);

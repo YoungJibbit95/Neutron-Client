@@ -16,7 +16,7 @@ public abstract class Component implements MC
 
     public ClipRect presentationBounds(){return new ClipRect(x,y,width,height);}
     public void advanceMotion(float dt,int mx,int my,boolean focused,boolean pressed,boolean visible){
-        presentation.step(dt,visible&&acceptsMouse(mx,my)&&presentationBounds().contains(mx,my),focused,pressed,visible,me.youngjibbit.module.impl.client.ClientSettings.current());
+        presentation.stepForInput(dt,visible&&acceptsMouse(mx,my)&&presentationBounds().contains(mx,my),focused,pressed,visible,me.youngjibbit.module.impl.client.ClientSettings.current());
     }
     protected void drawFeedback(){me.youngjibbit.clickgui.utils.GuiStyle.feedback(presentationBounds(),presentation);}
     protected int hoverInk(int base){return me.youngjibbit.clickgui.utils.GuiStyle.ink(base,presentation);}
@@ -58,6 +58,12 @@ public abstract class Component implements MC
     {
 
         protected final T value;
+        protected boolean panelStyle;
+
+        public void usePanelStyle() {
+            panelStyle = true;
+            setWidth(width);
+        }
 
         public Sub(T value, float x, float y, float width, float height)
         {

@@ -30,6 +30,7 @@ import me.youngjibbit.utils.Strings;
 import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.PingSpoofComponent;
 import me.youngjibbit.utils.font.FontManager;
+import me.youngjibbit.event.render.WorldOverlaySubscriptions;
 import me.zero.alpine.bus.EventBus;
 import me.zero.alpine.bus.EventManager;
 import me.zero.alpine.listener.Listener;
@@ -50,10 +51,16 @@ public enum Pulsar implements Subscriber {
     INSTANCE;
 
     private final Minecraft mc = Minecraft.getMinecraft();
+    private static final WorldOverlaySubscriptions WORLD_OVERLAYS = new WorldOverlaySubscriptions();
     public static final EventBus BUS = EventManager.builder()
             .setName("root/Pulsar")
+            .setListenerListFactory(WORLD_OVERLAYS)
             .setSuperListeners()
             .build();
+
+    public static boolean hasWorldOverlayListeners() {
+        return WORLD_OVERLAYS.hasListeners();
+    }
 
     public final String name = "Neutron";
     public boolean devBuild = true;

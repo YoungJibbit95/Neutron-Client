@@ -29,6 +29,7 @@ public class HUD extends Module {
             if(m instanceof ArrayListHUDModule)((ArrayListHUDModule)m).resetPosition();
             if(m instanceof ArmorHUD)((ArmorHUD)m).resetPosition();
             if(m instanceof SessionInfo)((SessionInfo)m).resetPosition();
+            if(m instanceof Diagnostics)((Diagnostics)m).resetPositions();
         }
     }
     @Subscribe private final Listener<Event2D> guides=new Listener<>(e->{

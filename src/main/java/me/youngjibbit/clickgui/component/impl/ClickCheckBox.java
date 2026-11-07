@@ -17,13 +17,27 @@ public class ClickCheckBox extends Component.Sub<CheckBoxValue> {
     }
     private boolean compact(){return width<160;}
     @Override public void setWidth(float next){width=next;height=compact()?21:24;}
-    private float toggleWidth(){return compact()?19:25;}
-    private float toggleX(){return (compact()?x+width-7:ClickControlStyle.right(x,width))-toggleWidth();}
-    @Override public ClipRect presentationBounds(){return new ClipRect(toggleX(),y+5,toggleWidth(),compact()?11:14);}
+    private float toggleWidth(){return panelStyle?27:compact()?19:25;}
+    private float toggleX(){return (panelStyle?x+width-15:compact()?x+width-7:ClickControlStyle.right(x,width))-toggleWidth();}
+    @Override public ClipRect presentationBounds(){return new ClipRect(toggleX(),y+5,toggleWidth(),panelStyle?13:compact()?11:14);}
     @Override public void drawScreen(int mouseX,int mouseY){
         animation.setDirection(value.getValue()?Direction.FORWARDS:Direction.BACKWARDS);
         float progress=Math.max(0,Math.min(1,UiEffects.motion()?animation.getOutput().floatValue():value.getValue()?1:0));
         Theme theme=Theme.resolve(Theme.getDefaultTheme());int ink=hoverInk(theme.isCustom()?theme.getTextColor().getRGB():0xffe4e4e8);
+        if (panelStyle) {
+            float left = toggleX(), top = y + 5;
+            float knobX = left + 2 + (toggleWidth() - 14) * progress;
+            ClickControlStyle.halo(left, top, toggleWidth(), 13, theme, .12f * progress);
+            int neutral = Theme.interpolateRGB(theme.getBackground().getRGB(), theme.getTextColor().getRGB(), .29f);
+            UIUtils.drawDecorationGradientVertical(left, top, toggleWidth(), 13, 6.5f,
+                    new Color(Theme.interpolateRGB(neutral, theme.getPrimaryGradientRGB(), progress), true),
+                    new Color(Theme.interpolateRGB(neutral, theme.getSecondaryGradientRGB(), progress), true));
+            UIUtils.drawDecorationRound(knobX, top + 2.5f, 10, 10, 5, new Color(0, 0, 0, 95));
+            UIUtils.drawDecorationRound(knobX, top + 1.5f, 10, 10, 5, new Color(hoverInk(0xfff4f6fb), true));
+            ClickControlStyle.label(UiEffects.settingLabel(value), x + 17, y + 6, left - x - 23, ink);
+            drawFeedback();
+            return;
+        }
         float th=compact()?11:14,knob=th-2,travel=toggleWidth()-knob-2;
         UIUtils.drawDecorationGradientVertical(toggleX(),y+5,toggleWidth(),th,th/2,
                 new Color(Theme.interpolateRGB(0xff464950,theme.getPrimaryGradientRGB(),progress),true),
@@ -36,6 +50,10 @@ public class ClickCheckBox extends Component.Sub<CheckBoxValue> {
         drawFeedback();
     }
     @Override public void mouseClicked(int mouseX,int mouseY,int button){
+        if (panelStyle) {
+            if (button == 0 && hit(mouseX, mouseY, x + 10, y, width - 20, height)) value.setValue(!value.getValue());
+            return;
+        }
         if(button==0&&(compact()?hit(mouseX,mouseY,x+5,y+1,width-10,height-2):hit(mouseX,mouseY,toggleX(),y+5,25,14)))value.setValue(!value.getValue());
     }
     @Override public void keyTyped(char typedChar,int key){

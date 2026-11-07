@@ -25,6 +25,7 @@ public class MicrosoftBrowserAuthTest {
         final AtomicReference<Throwable> failure=new AtomicReference<>();
         final AtomicReference<URI> authorization=new AtomicReference<>();
         final AtomicReference<String> verifier=new AtomicReference<>();
+        String expectedTicket="d=ms-secret";
         String failStage="", errorBody="{\"Message\":\"raw-secret-token\"}";
         int failStatus=401;
         CountDownLatch tokenEntered,releaseToken;
@@ -49,7 +50,7 @@ public class MicrosoftBrowserAuthTest {
                         response="{\"access_token\":\"ms-secret\",\"token_type\":\"Bearer\"}";
                     } else if(path.equals("/xbox")) {
                         JsonObject json=new JsonParser().parse(body).getAsJsonObject();
-                        assertEquals("d=ms-secret",json.getAsJsonObject("Properties").get("RpsTicket").getAsString());
+                        assertEquals(expectedTicket,json.getAsJsonObject("Properties").get("RpsTicket").getAsString());
                         response=claims("xbox-secret");
                     } else if(path.equals("/xsts")) {
                         JsonObject json=new JsonParser().parse(body).getAsJsonObject();
@@ -59,6 +60,9 @@ public class MicrosoftBrowserAuthTest {
                     } else if(path.equals("/minecraft")) {
                         assertEquals("XBL3.0 x=12345;xsts-secret",new JsonParser().parse(body).getAsJsonObject().get("identityToken").getAsString());
                         response="{\"access_token\":\"minecraft-secret\"}";
+                    } else if(path.equals("/store")) {
+                        assertEquals("Bearer minecraft-secret",exchange.getRequestHeaders().getFirst("Authorization"));
+                        response="{\"items\":[{\"name\":\"game_minecraft\"}]}";
                     } else if(path.equals("/profile")) {
                         assertEquals("Bearer minecraft-secret",exchange.getRequestHeaders().getFirst("Authorization"));
                         response="{\"id\":\""+PROFILE+"\",\"name\":\"BrowserPlayer\"}";
@@ -72,7 +76,7 @@ public class MicrosoftBrowserAuthTest {
         static String claims(String token) {return "{\"Token\":\""+token+"\",\"DisplayClaims\":{\"xui\":[{\"uhs\":\"12345\"}]}}";}
         MicrosoftBrowserAuth auth(MicrosoftBrowserAuth.Browser browser,long timeout) {
             String base="http://127.0.0.1:"+server.getAddress().getPort();
-            return new MicrosoftBrowserAuth(CLIENT,new MicrosoftBrowserAuth.Endpoints(base+"/authorize",base+"/token",base+"/xbox",base+"/xsts",base+"/minecraft",base+"/profile"),uri->{
+            return new MicrosoftBrowserAuth(CLIENT,new MicrosoftBrowserAuth.Endpoints(base+"/authorize",base+"/token",base+"/xbox",base+"/xsts",base+"/minecraft",base+"/profile",base+"/store"),uri->{
                 authorization.set(uri);Map<String,String> query=MicrosoftBrowserAuth.query(uri.getRawQuery());
                 assertEquals("S256",query.get("code_challenge_method"));assertEquals("code",query.get("response_type"));
                 assertEquals("xboxlive.signin",query.get("scope"));assertFalse(query.containsKey("client_secret"));
@@ -213,7 +217,7 @@ public class MicrosoftBrowserAuthTest {
         try(Services services=new Services()) {
             AtomicBoolean opened=new AtomicBoolean();
             String base="http://127.0.0.1:"+services.server.getAddress().getPort();
-            MicrosoftBrowserAuth auth=new MicrosoftBrowserAuth("",new MicrosoftBrowserAuth.Endpoints(base+"/authorize",base+"/token",base+"/xbox",base+"/xsts",base+"/minecraft",base+"/profile"),uri->opened.set(true),2000);
+            MicrosoftBrowserAuth auth=new MicrosoftBrowserAuth("",new MicrosoftBrowserAuth.Endpoints(base+"/authorize",base+"/token",base+"/xbox",base+"/xsts",base+"/minecraft",base+"/profile",base+"/store"),uri->opened.set(true),2000);
             try{auth.login(()->true);fail();}catch(LoginCoordinator.LoginUnavailableException expected){
                 assertEquals(MicrosoftBrowserAuth.SETUP,expected.getUserMessage());
                 assertTrue(expected.isSetupRequired());
@@ -225,7 +229,7 @@ public class MicrosoftBrowserAuthTest {
         String previous=System.getProperty("neutron.microsoft.clientId");
         try(Services services=new Services()) {
             String base="http://127.0.0.1:"+services.server.getAddress().getPort();
-            MicrosoftBrowserAuth configured=new MicrosoftBrowserAuth(null,new MicrosoftBrowserAuth.Endpoints(base+"/authorize",base+"/token",base+"/xbox",base+"/xsts",base+"/minecraft",base+"/profile"),uri->{
+            MicrosoftBrowserAuth configured=new MicrosoftBrowserAuth(null,new MicrosoftBrowserAuth.Endpoints(base+"/authorize",base+"/token",base+"/xbox",base+"/xsts",base+"/minecraft",base+"/profile",base+"/store"),uri->{
                 services.authorization.set(uri);callback(uri,"mock-code",null,null);
             },2000);
             System.setProperty("neutron.microsoft.clientId","  "+CLIENT+"  ");

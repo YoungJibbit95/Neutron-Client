@@ -49,8 +49,9 @@ public final class ClickGuiRenderCheck {
         @Override protected boolean shiftDown(){return shift;}
         @Override protected boolean ctrlDown(){return ctrl;}
         void click(int x, int y, int button) throws Exception { mouseClicked(x, y, button); }
+        void drag(int x, int y) { mouseClickMove(x, y, 0, 16L); }
         void release() { mouseReleased(0, 0, 0); }
-        void key(char c,int key)throws Exception{keyTyped(c,key);}
+        void key(char c,int key)throws Exception{dispatchKeyTyped(c,key);}
         void type(String text)throws Exception{for(char c:text.toCharArray())key(c,org.lwjgl.input.Keyboard.KEY_NONE);}
     }
 
@@ -256,17 +257,36 @@ public final class ClickGuiRenderCheck {
         ClickSlider slider = control(values,"range",ClickSlider.class);
         me.youngjibbit.value.impl.SliderValue sliderValue = slider.getValue();
         int sliderX = (int) (methodNumber(slider, "trackX") + 2);
-        int sliderY = (int) (slider.getY() + 11);
+        int sliderY = (int) methodNumber(slider, "trackY");
         double before = sliderValue.getValue();
         panel.click(sliderX, sliderY, 1);
         require(sliderValue.getValue() == before, "Right click must not drag slider");
         slider.cancelInput();
-        panel.click((int)(methodNumber(slider,"valueX")+4),sliderY,0);
+        panel.click((int)(methodNumber(slider,"valueX")+4),(int)methodNumber(slider,"badgeY")+6,0);
         require(slider.isEditing() && sliderValue.getValue()==before,"Left click numeric badge begins exact entry without changing value");
         panel.key(' ',org.lwjgl.input.Keyboard.KEY_ESCAPE);
         panel.click(sliderX, sliderY, 0);
-        panel.release();
         require(sliderValue.getValue() < before, "Visible slider input");
+        int endX = (int)Math.ceil(methodNumber(slider, "trackX") + methodNumber(slider, "trackWidth"));
+        panel.drag(endX, sliderY);
+        require(sliderValue.getValue().equals(sliderValue.getMax()) && number(slider, "displayedFraction") == 1,
+                "Captured panel thumb reaches the maximum in the same drag event");
+        panel.release();
+        slider.keyTyped(' ', org.lwjgl.input.Keyboard.KEY_LEFT);
+        slider.advanceMotion(.016f, -1, -1, true, false, true);
+        float target = methodNumber(slider, "fraction");
+        float displayed = number(slider, "displayedFraction");
+        require(target < displayed && displayed < 1, "Keyboard value commits immediately and thumb eases toward it");
+        boolean reduced = me.youngjibbit.module.impl.client.ClientSettings.current().reducedMotion.getValue();
+        try {
+            me.youngjibbit.module.impl.client.ClientSettings.current().reducedMotion.setValue(true);
+            slider.advanceMotion(0, -1, -1, true, false, true);
+            require(Math.abs(number(slider, "displayedFraction") - target) < .00001f,
+                    "Reduced motion puts the thumb on the current value immediately");
+        } finally {
+            me.youngjibbit.module.impl.client.ClientSettings.current().reducedMotion.setValue(reduced);
+            sliderValue.setValue(before);
+        }
         ClickCombo combo = control(values,"sort_mode",ClickCombo.class);
         panel.click((int) (methodNumber(combo,"fieldX") + 8), (int) combo.getY() + 10, 0);
         settle(panel);
@@ -351,7 +371,7 @@ public final class ClickGuiRenderCheck {
         ClickSlider slider = control(values,"range",ClickSlider.class);
         double before = slider.getValue().getValue();
         panel.click((int) module.getX() + 12, (int) module.getY() + 10, 1);
-        panel.click((int) (methodNumber(slider,"trackX") + methodNumber(slider,"trackWidth") - 2), (int) slider.getY() + 11, 0);
+        panel.click((int) (methodNumber(slider,"trackX") + methodNumber(slider,"trackWidth") - 2), (int) methodNumber(slider, "trackY"), 0);
         require(slider.getValue().getValue() == before, "Closing settings reject input during animation");
         settle(panel);
         require(module.getHeight() == 24, "Collapsed module height");

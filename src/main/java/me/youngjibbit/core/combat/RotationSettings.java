@@ -12,6 +12,9 @@ public final class RotationSettings {
     public final ComboValue speedCurve;
     public final SliderValue bezierStrength,bezierDuration;
     public final SliderValue predictionTicks,missChance;
+    public final CheckBoxValue softArsenicMotion, hitpointVariation;
+    private final ComboValue hitpointProfile;
+    private final SliderValue hitpointSpeed, hitpointStrength;
     private final boolean placement;
     public final ComboValue mode,noise,cellularDistance,cellularReturn,fractal,warp;
     public final SliderValue minSpeed,maxSpeed,interpolation,yawOffset,pitchOffset,radius,frequency,strength;
@@ -39,6 +42,18 @@ public final class RotationSettings {
         advancedPitch=placement?null:new CheckBoxValue("Advanced Pitch",parent,false);
         randomMode=placement?null:new ComboValue("Random Mode",parent,new String[]{"Noise","Basic","OnlyRotation","Doubled"},0);
         mode=new ComboValue(modeName,parent,placement?new String[]{"Basic","Smooth","Advanced"}:assist?new String[]{"Legit","Test","Normal","Arsenic Lazy","Arsenic Heuristics"}:new String[]{"Basic","Smooth","Advanced","Arsenic Lazy","Arsenic Heuristics"},assist?2:0);
+        softArsenicMotion = placement ? null : new CheckBoxValue("Arsenic Soft Motion", parent, false);
+        hitpointVariation = placement || assist ? null : new CheckBoxValue("Hitpoint Variation", parent, false);
+        hitpointProfile = hitpointVariation == null ? null : new ComboValue("Hitpoint Profile", parent,
+                new String[]{"Ruhig", "Ausgewogen", "Dynamisch"}, 0);
+        hitpointSpeed = hitpointVariation == null ? null : new SliderValue("Hitpoint Speed", parent, 1D, .1, 3, false);
+        hitpointStrength = hitpointVariation == null ? null : new SliderValue("Hitpoint Strength", parent, .5, 0, 1, false);
+        if (softArsenicMotion != null) softArsenicMotion.setVisibility(m -> arsenic());
+        if (hitpointVariation != null) {
+            hitpointVariation.setVisibility(m -> arsenic());
+            for (Value<?> value : new Value<?>[]{hitpointProfile, hitpointSpeed, hitpointStrength})
+                value.setVisibility(m -> arsenic() && hitpointVariation.getValue());
+        }
         predictionTicks=placement?null:new SliderValue("Prediction Ticks",parent,assist?3D:1D,0,3,false);
         missChance=placement?null:new SliderValue("Miss Chance",parent,5D,0,50,true);
         preset=new ComboValue("Randomization Style",parent,new String[]{"Aus","Sanft","Organisch","Dynamisch","Benutzerdefiniert"},1);
@@ -132,6 +147,12 @@ public final class RotationSettings {
         if(placement) p.jitter=p.yawOffset=p.pitchOffset=0;
         if(arsenic()) {
             p.arsenic="Arsenic Lazy".equals(mode.getValue())?RotationProfile.ArsenicMode.LAZY:RotationProfile.ArsenicMode.HEURISTICS;
+            p.softArsenicMotion = softArsenicMotion.getValue();
+            if (hitpointVariation != null && hitpointVariation.getValue()) {
+                p.hitpointNoise = RotationProfile.HitpointNoise.values()[hitpointProfile.getSelectedIndex()];
+                p.hitpointStrength = f(hitpointStrength);
+                p.hitpointSpeed = f(hitpointSpeed);
+            }
             p.predictionTicks=f(predictionTicks);p.missChance=f(missChance)/100f;
         }
         return p;

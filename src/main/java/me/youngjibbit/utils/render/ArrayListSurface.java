@@ -27,8 +27,9 @@ public final class ArrayListSurface implements AutoCloseable {
     private static ShaderUtil shapeShader;
     private static boolean shaderFailed;
     private final UiEffects.LocalSurface local;
+    private final String diagnosticName;
     public ArrayListSurface(){this(null);}
-    public ArrayListSurface(me.youngjibbit.module.Module owner){local=owner==null?null:new UiEffects.LocalSurface(owner);owners.add(this);}
+    public ArrayListSurface(me.youngjibbit.module.Module owner){local=owner==null?null:new UiEffects.LocalSurface(owner);diagnosticName=owner==null?"Shared surfaces":owner.getName();owners.add(this);}
     private static ShaderUtil shader(){
         if(shapeShader==null&&!shaderFailed)try{shapeShader=new ShaderUtil("Flauxy/Shaders/arraylistSurface.frag");}catch(RuntimeException ex){shaderFailed=true;System.err.println("[UI] Surface shader unavailable; tinted contour fallback: "+ex.getMessage());}
         return shapeShader;
@@ -154,6 +155,13 @@ public final class ArrayListSurface implements AutoCloseable {
     }
     private void render(Shape shape,Theme theme,boolean background,boolean blur,boolean glow,float glowAlpha,
                         float blurRadius,float fillAlpha,float outlineAlpha,boolean gradientFill,int surfaceStyle,float opacity,Runnable text){
+        long timing=me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.surfaceStart();
+        try {
+            renderMeasured(shape,theme,background,blur,glow,glowAlpha,blurRadius,fillAlpha,outlineAlpha,gradientFill,surfaceStyle,opacity,text);
+        } finally { me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.surfaceEnd(diagnosticName,timing); }
+    }
+    private void renderMeasured(Shape shape,Theme theme,boolean background,boolean blur,boolean glow,float glowAlpha,
+                        float blurRadius,float fillAlpha,float outlineAlpha,boolean gradientFill,int surfaceStyle,float opacity,Runnable text){
         theme=theme(theme);
         capturedClean=capturedSoft=0;
         UiEffects.SurfacePolicy policy=UiEffects.surface(local,theme,background,blur,glow,outlineAlpha,surfaceStyle);
@@ -196,8 +204,11 @@ public final class ArrayListSurface implements AutoCloseable {
                 shader.init(); shader.setUniformi("maskPass",1);
                 ShaderUtil.drawQuads(shape.left-1,shape.top-1,shape.right-shape.left+2,shape.bottom-shape.top+2);
                 shader.unload();
-                GaussianBlur.renderPass(buffers[1],buffers[0].framebufferTexture,1,0,Math.min(120,Math.round(UiEffects.glowRadius(theme.isCustom()?theme.getGlowRadius():9)*sr.getScaleFactor())),true,1.4f);
-                GaussianBlur.renderPass(buffers[2],buffers[1].framebufferTexture,0,1,Math.min(120,Math.round(UiEffects.glowRadius(theme.isCustom()?theme.getGlowRadius():9)*sr.getScaleFactor())),true,1.4f);
+                int scale = sr.getScaleFactor();
+                int radius = Math.min(120, Math.round(UiEffects.glowRadius(theme.isCustom() ? theme.getGlowRadius() : 9) * scale));
+                GaussianBlur.renderMaskGlow(buffers[1], buffers[2], buffers[0].framebufferTexture, radius, 1.4f,
+                        (shape.left - 1) * scale, (shape.top - 1) * scale,
+                        (shape.right + 1) * scale, (shape.bottom + 1) * scale);
             }
             state.bindTarget();
             prepare();
