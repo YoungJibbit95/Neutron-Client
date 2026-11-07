@@ -26,17 +26,39 @@ public final class ArrayListSurface implements AutoCloseable {
     private static final Set<ArrayListSurface> owners=Collections.newSetFromMap(new WeakHashMap<ArrayListSurface,Boolean>());
     private static ShaderUtil shapeShader;
     private static boolean shaderFailed;
+    private static boolean originalHaloSources;
+    private static final HaloCache haloCache = new HaloCache();
+    private static net.minecraft.client.resources.IResourceManager shaderResources;
     private final UiEffects.LocalSurface local;
     private final String diagnosticName;
     public ArrayListSurface(){this(null);}
     public ArrayListSurface(me.youngjibbit.module.Module owner){local=owner==null?null:new UiEffects.LocalSurface(owner);diagnosticName=owner==null?"Shared surfaces":owner.getName();owners.add(this);}
     private static ShaderUtil shader(){
-        if(shapeShader==null&&!shaderFailed)try{shapeShader=new ShaderUtil("Flauxy/Shaders/arraylistSurface.frag");}catch(RuntimeException ex){shaderFailed=true;System.err.println("[UI] Surface shader unavailable; tinted contour fallback: "+ex.getMessage());}
+        watchShaderResources();
+        if(shapeShader==null&&!shaderFailed)try{shapeShader=new ShaderUtil("Flauxy/Shaders/arraylistSurface.frag");originalHaloSources=HaloCache.originalSources(Minecraft.getMinecraft().getResourceManager());}catch(RuntimeException ex){shaderFailed=true;System.err.println("[UI] Surface shader unavailable; tinted contour fallback: "+ex.getMessage());}
         return shapeShader;
     }
-    public static void releaseResources(){for(ArrayListSurface owner:new ArrayList<>(owners))owner.close();releaseEffects();if(shapeShader!=null){shapeShader.close();shapeShader=null;}shaderFailed=false;}
+    private static void watchShaderResources(){
+        net.minecraft.client.resources.IResourceManager resources=Minecraft.getMinecraft().getResourceManager();
+        if(shaderResources==resources)return;
+        // A Gaussian program may already have been initialized by a different shader consumer.
+        reloadShaderResources();shaderResources=resources;
+        if(resources instanceof net.minecraft.client.resources.IReloadableResourceManager){
+            ((net.minecraft.client.resources.IReloadableResourceManager)resources).registerReloadListener(new net.minecraft.client.resources.IResourceManagerReloadListener(){
+                private boolean registered;
+                @Override public void onResourceManagerReload(net.minecraft.client.resources.IResourceManager manager){
+                    if(!registered){registered=true;return;}
+                    if(shaderResources==manager)reloadShaderResources();
+                }
+            });
+        }
+    }
+    private static void reloadShaderResources(){
+        try(RenderState state=new RenderState()){releaseResources();GaussianBlur.releaseResources();}
+    }
+    public static void releaseResources(){for(ArrayListSurface owner:new ArrayList<>(owners))owner.close();releaseEffects();if(shapeShader!=null){shapeShader.close();shapeShader=null;}shaderFailed=false;originalHaloSources=false;}
 
-    private static void releaseEffects(){for(int i=0;i<effects.length;i++)if(effects[i]!=null){effects[i].deleteFramebuffer();effects[i]=null;}}
+    private static void releaseEffects(){haloCache.clear();for(int i=0;i<effects.length;i++)if(effects[i]!=null){effects[i].deleteFramebuffer();effects[i]=null;}}
     public boolean withCapturedScene(Runnable content){
         if(!UiEffects.effectsSupported()||capturedClean<=0||bufferWidth!=Minecraft.getMinecraft().displayWidth||bufferHeight!=Minecraft.getMinecraft().displayHeight||!glIsTexture(capturedClean))return false;
         try(UiEffects.SceneContext scope=UiEffects.scene(capturedClean,capturedSoft,capturedBlur,capturedTheme,capturedPolicy,false,capturedRadius)){content.run();}return true;
@@ -162,6 +184,7 @@ public final class ArrayListSurface implements AutoCloseable {
     }
     private void renderMeasured(Shape shape,Theme theme,boolean background,boolean blur,boolean glow,float glowAlpha,
                         float blurRadius,float fillAlpha,float outlineAlpha,boolean gradientFill,int surfaceStyle,float opacity,Runnable text){
+        watchShaderResources();
         theme=theme(theme);
         capturedClean=capturedSoft=0;
         UiEffects.SurfacePolicy policy=UiEffects.surface(local,theme,background,blur,glow,outlineAlpha,surfaceStyle);
@@ -198,21 +221,19 @@ public final class ArrayListSurface implements AutoCloseable {
             }
             if(computeBlur){GaussianBlur.renderScene(buffers[1],buffers[3],clean,effectiveRadius*sr.getScaleFactor());soft=buffers[3].framebufferTexture;}
             if(!blur)soft=clean;
+            int haloTexture=0;
             if (glow) {
-                if(RenderDiagnostics.enabled)RenderDiagnostics.maskPasses++;
-                target(buffers[0]);
-                shader.init(); shader.setUniformi("maskPass",1);
-                ShaderUtil.drawQuads(shape.left-1,shape.top-1,shape.right-shape.left+2,shape.bottom-shape.top+2);
-                shader.unload();
                 int scale = sr.getScaleFactor();
-                int radius = Math.min(120, Math.round(UiEffects.glowRadius(theme.isCustom() ? theme.getGlowRadius() : 9) * scale));
-                GaussianBlur.renderMaskGlow(buffers[1], buffers[2], buffers[0].framebufferTexture, radius, 1.4f,
-                        (shape.left - 1) * scale, (shape.top - 1) * scale,
-                        (shape.right + 1) * scale, (shape.bottom + 1) * scale);
+                int radius = Math.max(1,Math.min(120, Math.round(UiEffects.glowRadius(theme.isCustom() ? theme.getGlowRadius() : 9) * scale)));
+                Framebuffer halo=haloCache.get(mc.displayWidth,mc.displayHeight,scale,radius,shape.corners,
+                        shape.left,shape.top,shape.right,shape.bottom,originalHaloSources,
+                        output->renderHalo(shape,shader,scale,radius,output));
+                if(halo==null){halo=buffers[2];renderHalo(shape,shader,scale,radius,halo);}
+                haloTexture=halo.framebufferTexture;
             }
             state.bindTarget();
             prepare();
-            texture(0,soft);texture(2,clean);texture(1,glow?buffers[2].framebufferTexture:0);
+            texture(0,soft);texture(2,clean);texture(1,haloTexture);
             if(RenderDiagnostics.enabled)RenderDiagnostics.composites++;
             shader.init(); shader.setUniformi("maskPass",0);
             shader.setUniformi("scene",0); shader.setUniformi("halo",1);shader.setUniformi("snapshot",2);
@@ -243,6 +264,16 @@ public final class ArrayListSurface implements AutoCloseable {
         }
     }
 
+    private void renderHalo(Shape shape,ShaderUtil shader,int scale,int radius,Framebuffer output){
+        if(RenderDiagnostics.enabled)RenderDiagnostics.maskPasses++;
+        target(buffers[0]);
+        shader.init();shader.setUniformi("maskPass",1);
+        ShaderUtil.drawQuads(shape.left-1,shape.top-1,shape.right-shape.left+2,shape.bottom-shape.top+2);
+        shader.unload();
+        GaussianBlur.renderMaskGlow(buffers[1],output,buffers[0].framebufferTexture,radius,1.4f,
+                (shape.left-1)*scale,(shape.top-1)*scale,(shape.right+1)*scale,(shape.bottom+1)*scale);
+    }
+
     /** One read-only scene for disconnected controls or a set of projected labels. No rectangle is drawn here. */
     public boolean inheritsEffects(){return local!=null&&UiEffects.style(local.source.getValue())>=0||UiEffects.options().configured&&(local==null||!local.local());}
     public boolean usesSurface(boolean legacyEnabled){return local==null||!local.local()||legacyEnabled;}
@@ -251,6 +282,7 @@ public final class ArrayListSurface implements AutoCloseable {
     public void withScene(Theme theme,Runnable content){withScene(theme,-1,content);}
     /** Explicit local card designs reuse a scene with their selected material, without drawing a group rectangle. */
     public void withScene(Theme theme,int surfaceStyle,Runnable content){
+        watchShaderResources();
         theme=theme(theme);
         UiEffects.SurfacePolicy policy=UiEffects.surface(local,theme,true,true,false,0,surfaceStyle);UiEffects.SceneContext parent=UiEffects.scene();
         if(parent!=null&&parent.clean>0){try(UiEffects.SceneContext scope=UiEffects.scene(parent.clean,parent.soft,parent.blurred,theme,policy,parent.replacing,parent.radius)){content.run();}return;}
