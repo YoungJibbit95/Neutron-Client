@@ -64,7 +64,7 @@ public class UIUtils
     public static void drawGradientRound(float x, float y, float width, float height, float radius, Color bottomLeft, Color topLeft, Color bottomRight, Color topRight)
     {
         ensureShaders();
-        try(RenderState state=new RenderState()){
+        try(UiDrawScope state=UiDrawState.capture(roundedGradientShader)){
         RenderUiUtils.setAlphaLimit(0);
         RenderUiUtils.resetColor();
         GLUtil.startBlend();
@@ -94,7 +94,7 @@ public class UIUtils
     public static void drawRound(float x, float y, float width, float height, float radius, boolean blur, Color color)
     {
         ensureShaders();
-        try(RenderState state=new RenderState()){
+        try(UiDrawScope state=UiDrawState.capture(roundedShader)){
             drawRoundContents(x, y, width, height, radius, blur, color, null, null);
             }
     }
@@ -152,7 +152,7 @@ public class UIUtils
     }
     public static void drawRoundOutline(float x,float y,float width,float height,float radius,float outlineThickness,Color color,Color outlineColor,float themeAccent){
         ensureShaders();
-        try(RenderState state=new RenderState()){
+        try(UiDrawScope state=UiDrawState.capture(roundedOutlineShader)){
         RenderUiUtils.resetColor();
         GLUtil.startBlend();
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -180,7 +180,7 @@ public class UIUtils
     public static void drawRoundTextured(float x, float y, float width, float height, float radius, float alpha)
     {
         ensureShaders();
-        try(RenderState state=new RenderState()){
+        try(UiDrawScope state=UiDrawState.capture(roundedTexturedShader)){
         RenderUiUtils.resetColor();
         RenderUiUtils.setAlphaLimit(0);
         GLUtil.startBlend();

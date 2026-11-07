@@ -67,6 +67,8 @@ public final class SessionInfoRenderCheck {
             if(Boolean.getBoolean("pulsar.effects.check")) EffectConsistencyCheck.run();
             if(Boolean.getBoolean("pulsar.fonts.check")) FontResourcesCheck.run();
             if(Boolean.getBoolean("pulsar.cleanup.check")) RenderUtilsCleanupCheck.run();
+            if(Boolean.getBoolean("pulsar.halo.cache.check")) HaloCacheRenderCheck.run();
+            if(Boolean.getBoolean("pulsar.ui.state.check")) UiDrawStateCheck.run();
             if(Boolean.getBoolean("pulsar.theme.check")) ThemeEditorCheck.run();
             if(Boolean.getBoolean("pulsar.theme.gui.check")) ThemeGuiRenderCheck.run();
             if(Boolean.getBoolean("pulsar.watermark.check")) WatermarkCheck.run();
