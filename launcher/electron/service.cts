@@ -13,6 +13,8 @@ import { optionPatch, parseCommand, preferencePatch, type BuildRecord, type Comm
 import type { AlphaRelease } from './alpha-release.cjs';
 import { assertUserInstallation } from './installation-context.cjs';
 import { validateClient } from './validate-client.cjs';
+import { requireStorageCapacity } from './storage-location.cjs';
+import { parseStoredState } from './stored-state.cjs';
 import { commandHash, inspectProcess, processMatches, type ClientLease } from './lease.cjs';
 
 interface Stored { schemaVersion: 1; options: Snapshot['options']; preferences: Snapshot['preferences']; builds: BuildRecord[]; selected: string | null; runtime: Runtime | null }
@@ -52,11 +54,7 @@ export class LauncherService extends EventEmitter {
     const file = await owned(this.root, 'state.json'); let loaded = false; let registryAccepted = false;
     try {
       const data = JSON.parse(await fs.readFile(file, 'utf8')) as Stored; loaded = true;
-      if (data.schemaVersion !== 1 || !Array.isArray(data.builds) || data.builds.length > 100 || data.builds.some(build => !/^[a-f0-9]{40}-[a-f0-9-]{36}$/.test(build.id) || !/^[a-f0-9]{40}$/.test(build.commit) || !/^[a-f0-9]{64}$/.test(build.manifestSha256) || !Number.isFinite(build.sizeMiB) || build.sizeMiB < 0 || !Number.isFinite(Date.parse(build.date)))) throw new Error('Invalid persisted build registry.');
-      const options = optionPatch(data.options); const preferences = preferencePatch(data.preferences);
-      if (Object.keys(options).length !== 8 || Object.keys(preferences).length !== 5) throw new Error('Incomplete saved settings.');
-      if (data.selected !== null && !data.builds.some(build => build.id === data.selected)) throw new Error('Invalid selected build registry.');
-      if (data.runtime !== null && (!data.runtime || !/^runtimes\/[a-f0-9-]{36}$/.test(data.runtime.directory) || !/^[a-f0-9]{64}$/.test(data.runtime.manifestSha256))) throw new Error('Invalid runtime registry.');
+      const { options, preferences } = parseStoredState(data);
       registryAccepted = true; this.registryError = null;
       this.state.options = { ...this.state.options, ...options }; this.state.preferences = { ...this.state.preferences, ...preferences };
       this.state.builds = data.builds; this.state.selected = data.builds.some(build => build.id === data.selected) ? data.selected : data.builds[0]?.id ?? null;
@@ -123,7 +121,7 @@ export class LauncherService extends EventEmitter {
         this.state.options = { ...this.state.options, ...command.patch }; await this.persist(); break;
       case 'save-preferences': this.state.preferences = { ...this.state.preferences, ...command.patch }; await this.persist(); break;
       case 'setup': if (this.alphaRelease) { this.startTask((signal, group) => this.provisionAlpha(signal, group)); break; } this.startTask(async (signal, group) => {
-        this.requireWindows(); const capacity = await fs.statfs(this.root); if (capacity.bavail * capacity.bsize < 3 * 1024 ** 3) throw new Error('At least 3 GiB free space is required for setup.');
+        this.requireWindows(); const capacity = await fs.statfs(this.root); requireStorageCapacity(this.root, capacity.bavail * capacity.bsize);
         this.state.status = 'download'; this.changed(); await installTools(this.root, signal, this.progress, group);
         const runtime = await installRuntime(this.root, signal, this.progress); await verifyRuntime(this.root, runtime); signal.throwIfAborted();
         const previous = this.runtime; this.runtime = runtime;
@@ -135,7 +133,7 @@ export class LauncherService extends EventEmitter {
       case 'build':
         if (!this.state.setupComplete || !this.runtime) throw new Error('Complete setup before building.');
         this.startTask(async (signal, group) => {
-          this.requireWindows(); const capacity = await fs.statfs(this.root); if (capacity.bavail * capacity.bsize < 3 * 1024 ** 3) throw new Error('At least 3 GiB free space is required for a build.');
+          this.requireWindows(); const capacity = await fs.statfs(this.root); requireStorageCapacity(this.root, capacity.bavail * capacity.bsize);
           const launchOptions = structuredClone(this.state.options); const tools = await verifyTools(this.root); await verifyRuntime(this.root, this.runtime!); await this.check(signal);
           const cached = await reusableDistribution(this.root, this.state.builds, this.state.latestCommit!, this.adapter, this.runtime!, signal);
           if (cached) this.logs.add('build', 'Verified cache hit: commit, adapter, runtime and all client files match.');
@@ -201,7 +199,7 @@ export class LauncherService extends EventEmitter {
     const release = this.alphaRelease!;
     const requireCapacity = async () => {
       const capacity = await fs.statfs(this.root);
-      if (capacity.bavail * capacity.bsize < 3 * 1024 ** 3) throw new Error('At least 3 GiB free space is required to install or rebuild Neutron files.');
+      requireStorageCapacity(this.root, capacity.bavail * capacity.bsize);
     };
     this.state.status = 'download'; this.changed();
     let tools: Awaited<ReturnType<typeof verifyTools>>;

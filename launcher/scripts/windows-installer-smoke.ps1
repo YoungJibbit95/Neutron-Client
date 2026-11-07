@@ -25,18 +25,20 @@ if ($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))
 $appGuid = '17d12e18-c0d2-5a05-b898-3c34ccfad7ff'
 $uninstallKey = "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\$appGuid"
 $installKey = "HKCU:\Software\$appGuid"
-$data = Join-Path $env:APPDATA 'Neutron Launcher'
-if ((Test-Path -LiteralPath $uninstallKey) -or (Test-Path -LiteralPath $installKey) -or (Test-Path -LiteralPath $data)) {
+$control = Join-Path $env:APPDATA 'Neutron Launcher'
+if ((Test-Path -LiteralPath $uninstallKey) -or (Test-Path -LiteralPath $installKey) -or (Test-Path -LiteralPath $control)) {
     throw 'An existing launcher installation/data directory must not be modified by acceptance.'
 }
 $runnerRoot = [IO.Path]::GetFullPath($env:RUNNER_TEMP)
 $fixture = Join-Path $runnerRoot "neutron-installer-smoke-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
 if (Test-Path -LiteralPath $fixture) { throw 'Acceptance fixture already exists.' }
 $installed = Join-Path $fixture 'Install Prüfung'
+$data = Join-Path $fixture 'Daten Prüfung'
+$pointer = Join-Path $control 'data-directory.txt'
 $executable = Join-Path $installed 'Neutron Launcher.exe'
 $installer = @(Get-ChildItem -LiteralPath $env:NEUTRON_PACKAGE_OUTPUT -Filter '*.exe' -File)
 if ($installer.Count -ne 1) { throw 'Expected exactly one NSIS candidate.' }
-New-Item -ItemType Directory -Path $fixture, $data | Out-Null
+New-Item -ItemType Directory -Path $fixture | Out-Null
 # Before NSIS, compare the exact packaged helper in the same ordinary account.
 # An empty isolated root must fail explicitly, without network or client launch.
 $probeData = Join-Path $fixture 'startup-probe'
@@ -59,17 +61,22 @@ try {
     Write-Host 'Packaged startup probe passed: same standard account, fresh structured missing-client failure.'
 } finally { Remove-Item Env:NEUTRON_DATA_ROOT }
 $marker = Join-Path $data 'personal-data-fixture.txt'
-[IO.File]::WriteAllText($marker, 'synthetic settings/world marker; preserve on update and uninstall')
-$markerHash = (Get-FileHash -LiteralPath $marker).Hash
+$markerHash = $null
 $receipt = [ordered]@{ installerSha256 = (Get-FileHash -LiteralPath $installer[0].FullName).Hash; revision = $env:GITHUB_SHA }
 
-function Install-Candidate {
+function Install-Candidate([switch]$First) {
     $began = [datetime]::UtcNow
     # NSIS /D must be last and unquoted, including when the directory has spaces.
-    $process = Start-Process -FilePath $installer[0].FullName -ArgumentList "/S /currentuser /D=$installed" -WindowStyle Hidden -PassThru
+    $selection = if ($First) { '/DATA="'+$data+'" ' } else { '' }
+    $process = Start-Process -FilePath $installer[0].FullName -ArgumentList ("/S /currentuser "+$selection+"/D=$installed") -WindowStyle Hidden -PassThru
     Wait-OwnedExecutable $process $installer[0].FullName 1200
     $present = Test-Path -LiteralPath $executable
-    if ($process.ExitCode -ne 0 -or -not $present) { throw "NSIS installation failed: exit=$($process.ExitCode), exePresent=$present, target=$installed, elevated=$($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))." }
+    if ($process.ExitCode -ne 0 -or -not $present) {
+        foreach($diagnostic in @((Join-Path $control 'storage-preflight-error.json'),(Join-Path $data 'logs/installer-error.json'))) {
+            if(Test-Path -LiteralPath $diagnostic){Get-Content -LiteralPath $diagnostic -Raw | Write-Host}
+        }
+        throw "NSIS installation failed: exit=$($process.ExitCode), exePresent=$present, target=$installed, elevated=$($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))."
+    }
     $preparation = Get-Content -LiteralPath (Join-Path $data 'logs/installer-result.json') -Raw | ConvertFrom-Json
     $selectedState = Get-Content -LiteralPath (Join-Path $data 'state.json') -Raw | ConvertFrom-Json
     if ($preparation.phase -ne 'verified-before-activation' -or $preparation.selectedBuildId -ne $selectedState.selected -or ([datetime]$preparation.completedAt).ToUniversalTime() -lt $began) {
@@ -79,14 +86,18 @@ function Install-Candidate {
     if ((Get-FileHash -LiteralPath (Join-Path $installed 'resources/app.asar')).Hash -ne (Get-FileHash -LiteralPath $expected).Hash) { throw 'Installed application differs from the packaged candidate.' }
     $contract = Join-Path $installed 'resources/source-adapter/contract.json'
     if ((Get-FileHash -LiteralPath $contract).Hash -ne (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../resources/source-adapter/contract.json')).Hash) { throw 'Installed source contract differs from the reviewed candidate.' }
-    if ((Get-FileHash -LiteralPath $marker).Hash -ne $markerHash) { throw 'Installation modified personal data.' }
+    if ([IO.File]::ReadAllText($pointer,[Text.Encoding]::Unicode) -ne $data) { throw 'Installer did not persist the explicitly selected data folder.' }
+    if ($markerHash -and (Get-FileHash -LiteralPath $marker).Hash -ne $markerHash) { throw 'Installation modified personal data.' }
 }
 
 $allUsers = Start-Process -FilePath $installer[0].FullName -ArgumentList "/S /allusers /D=$installed" -WindowStyle Hidden -PassThru
 Wait-OwnedExecutable $allUsers $installer[0].FullName 60
 if ($allUsers.ExitCode -eq 0 -or (Test-Path -LiteralPath $executable)) { throw 'All-users Alpha installation was not refused.' }
 $receipt.allUsersRefusal = 'passed'
-Install-Candidate
+Install-Candidate -First
+[IO.File]::WriteAllText($marker, 'synthetic settings/world marker; preserve on update and uninstall')
+$markerHash = (Get-FileHash -LiteralPath $marker).Hash
+$pointerHash = (Get-FileHash -LiteralPath $pointer).Hash
 $receipt.install = 'passed'
 $prepared = Join-Path $data 'logs/installer-result.json'
 $pin = Get-Content -LiteralPath (Join-Path $installed 'resources/release.json') -Raw | ConvertFrom-Json
@@ -99,7 +110,8 @@ $offline = Start-Process -FilePath $executable -ArgumentList '--verify-alpha' -W
 Wait-OwnedExecutable $offline $executable 120
 if ($offline.ExitCode -ne 0) { throw 'Installed client/runtime verification failed.' }
 $receipt.localVerification = Get-Content -LiteralPath (Join-Path $data 'logs/offline-verification.json') -Raw | ConvertFrom-Json
-$env:NEUTRON_DATA_ROOT = $data
+# No process override: ordinary startup must follow the persistent root.
+if (Test-Path Env:NEUTRON_DATA_ROOT) { throw 'Fixture override leaked into normal startup.' }
 $originalPath = $env:PATH
 # The installed first-run window must work without Node/Java/Maven/Git on PATH.
 $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot"
@@ -176,5 +188,7 @@ while ((Test-Path -LiteralPath $executable) -or (Test-Path -LiteralPath $uninsta
 }
 if ((Get-FileHash -LiteralPath $marker).Hash -ne $markerHash) { throw 'Uninstaller removed personal data.' }
 $receipt.uninstall = 'passed; synthetic personal data retained'
+if ((Get-FileHash -LiteralPath $pointer).Hash -ne $pointerHash) { throw 'Reinstall/uninstall changed the saved data selection.' }
+$receipt.persistentStorage = 'explicit /DATA selection; normal startup and offline reinstall without overrides; selector and personal data retained after uninstall'
 $evidence = if ($env:NEUTRON_ACCEPTANCE_OUTPUT) { $env:NEUTRON_ACCEPTANCE_OUTPUT } else { $env:NEUTRON_PACKAGE_OUTPUT }
 $receipt | ConvertTo-Json -Depth 5 | Tee-Object -FilePath (Join-Path $evidence 'installer-acceptance.json')

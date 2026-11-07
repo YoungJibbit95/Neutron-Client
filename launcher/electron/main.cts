@@ -8,6 +8,7 @@ import fs from 'node:fs/promises';
 import { allowsPermission, windowOptions } from './window-contract.cjs';
 import { parseCommand } from './contracts.cjs';
 import { LauncherService } from './service.cjs';
+import { resolveStorageRoot } from './storage-location.cjs';
 
 protocol.registerSchemesAsPrivileged([{ scheme: 'neutron', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 app.setName('Neutron Launcher');
@@ -24,7 +25,7 @@ const startupTrace = (stage: string, error?: unknown) => {
 startupTrace('main-entered');
 if (headless) process.on('uncaughtException', error => { startupTrace('uncaught-exception', error); app.exit(1); });
 if (verification || process.argv.includes('--offline')) process.env.NEUTRON_OFFLINE = '1';
-const dataRoot = process.env.NEUTRON_DATA_ROOT ?? (app.isPackaged ? path.join(app.getPath('appData'), 'Neutron Launcher') : '');
+const dataRoot = resolveStorageRoot({ appData: app.getPath('appData'), installation: app.isPackaged ? path.dirname(process.execPath) : undefined, packaged: app.isPackaged, override: process.env.NEUTRON_DATA_ROOT });
 if (!dataRoot || !path.isAbsolute(dataRoot)) throw new Error('Development requires an absolute NEUTRON_DATA_ROOT on the chosen data drive.');
 for (const directory of [dataRoot, ...['session', 'logs', 'crashes', 'temp'].map(name => path.join(dataRoot, name))]) mkdirSync(directory, { recursive: true });
 startupRoot = dataRoot; startupTrace('data-directories-ready');
