@@ -35,6 +35,8 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node scripts/build.mjs
       - run: node node_modules/vitest/vitest.mjs run
+      - name: Storage preflight regression fixtures (Windows PowerShell 5.1)
+        run: '& "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -File scripts/test-storage-preflight.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'
       - name: Check the tracked durable Alpha source pin
         run: node scripts/pin-alpha.mjs --check
       - run: node scripts/package-windows.mjs

@@ -12,11 +12,11 @@ node scripts/build.mjs
 node node_modules/vitest/vitest.mjs run
 ```
 
-Desktop development requires an absolute `NEUTRON_DATA_ROOT` for isolated launcher data. The normal installed app uses its own application-data directory. No personal `test_run`, account data, build outputs or internal evidence is included here. See [measurement and change report](docs/SPRINT-20261105.md) and [current gates](docs/CURRENT-GATES.md).
+Desktop development requires an absolute `NEUTRON_DATA_ROOT` for isolated launcher data. Setup persists the selected data folder separately from the program folder; ordinary startup follows that selection. Existing installations retain their legacy data folder until a successful explicit selection. No personal `test_run`, account data, build outputs or internal evidence is included here. See [measurement and change report](docs/SPRINT-20261105.md) and [current gates](docs/CURRENT-GATES.md).
 
 ## Current limitations
 
-Version 0.2.1 targets the requested stable release channel. The installer is unsigned; signing/SmartScreen reputation is not claimed. Only the exact installer that passes final acceptance may be published; see the current gates for executed and pending checks. No Linux/macOS support is claimed.
+Version 0.2.2 targets the requested stable release channel. The installer is unsigned; signing/SmartScreen reputation is not claimed. Only the exact installer that passes final acceptance may be published; see the current gates for executed and pending checks. No Linux/macOS support is claimed.
 
 ## Reviewed source builds
 
