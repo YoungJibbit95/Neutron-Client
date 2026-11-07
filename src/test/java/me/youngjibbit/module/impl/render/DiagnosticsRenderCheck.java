@@ -23,6 +23,9 @@ public final class DiagnosticsRenderCheck {
         File out=new File("diagnostics-preview");out.mkdirs();
         Diagnostics hud=new Diagnostics();hud.getModeSetting("Effects Source").setValue("Local");Theme.setDefaultTheme(Theme.SynthWave);
         draw(hud,new File(out,"idle.png"));
+        hud.displayMode.setValue("Simple");
+        draw(hud,new File(out,"simple-empty.png"));
+        hud.displayMode.setValue("Text");
         AtomicLong clock=new AtomicLong(1);RenderTimings timings=new RenderTimings(clock::get);Object profiler=new Object();timings.enable(profiler);timings.frame();
         for(int i=0;i<60;i++) {
             timings.start(profiler,"root");timings.start(profiler,"render");timings.start(profiler,"gameRenderer");
@@ -58,6 +61,16 @@ public final class DiagnosticsRenderCheck {
         mc.displayWidth=854;mc.displayHeight=480;SessionInfoRenderCheck.set(mc,"framebufferMc",smallFramebuffer);
         editorResolution=new ScaledResolution(mc);editor.setWorldAndResolution(mc,editorResolution.getScaledWidth(),editorResolution.getScaledHeight());
         draw(hud,new File(out,"developer-editor-small.png"));
+        Field samples=Diagnostics.class.getDeclaredField("pingHistory");samples.setAccessible(true);
+        @SuppressWarnings("unchecked") Deque<Integer> pingSamples=(Deque<Integer>) samples.get(hud);
+        pingSamples.addAll(Arrays.asList(40,48,61,-1,54,42));
+        // Change via the module setting while the already initialized editor stays open.
+        hud.displayMode.setValue("Simple");
+        draw(hud,new File(out,"simple-editor-small.png"));
+        Field controls=net.minecraft.client.gui.GuiScreen.class.getDeclaredField("buttonList");controls.setAccessible(true);
+        @SuppressWarnings("unchecked") List<net.minecraft.client.gui.GuiButton> buttons=(List<net.minecraft.client.gui.GuiButton>) controls.get(editor);
+        SessionInfoRenderCheck.require(buttons.stream().anyMatch(b -> b.id==2 && "Mode: Simple".equals(b.displayString)), "Stale mode button on rendered Simple editor");
+        hud.displayMode.setValue("Text");
         smallFramebuffer.deleteFramebuffer();mc.displayWidth=oldWidth;mc.displayHeight=oldHeight;SessionInfoRenderCheck.set(mc,"framebufferMc",oldFramebuffer);
         editor.onGuiClosed();mc.currentScreen=null;
         // Long unbroken data, small screen and all settings produce finite, bounded geometry and bounded visible rows.
