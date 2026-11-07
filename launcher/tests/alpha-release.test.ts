@@ -33,6 +33,12 @@ test('Alpha pins reject moving refs, missing archive hashes and unrelated test c
   expect(parseAlphaRelease({ ...release, testedClientCommit: release.clientCommit }).testedClientCommit).toBe(release.clientCommit);
 });
 
+test('stable metadata requires a genuine stable version and preserves the exact source pin', () => {
+  expect(parseAlphaRelease({ ...release, channel: 'stable', launcherVersion: '0.2.0' })).toMatchObject({ channel: 'stable', launcherVersion: '0.2.0', clientCommit: release.clientCommit });
+  expect(() => parseAlphaRelease({ ...release, channel: 'alpha', launcherVersion: '0.2.0' })).toThrow('Invalid pinned');
+  expect(() => parseAlphaRelease({ ...release, channel: 'stable', launcherVersion: '0.2.0-alpha.1' })).toThrow('Invalid pinned');
+});
+
 test('fresh installer prepares the pinned client before success and records verified receipt', async () => {
   service = new LauncherService(root, 'adapter', undefined, release); await service.initialize();
   const result = await service.prepareAlpha();
