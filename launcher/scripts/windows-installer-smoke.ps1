@@ -55,7 +55,7 @@ try {
     }
     if ($probe.ExitCode -ne 1 -or -not (Test-Path -LiteralPath $probeError)) { throw "Packaged empty-root probe failed: exit=$($probe.ExitCode), missing structured verification failure." }
     $failure = Get-Content -LiteralPath $probeError -Raw | ConvertFrom-Json
-    if ($failure.error -notlike '*pinned Neutron client is not installed*' -or [datetime]::Parse($failure.date).ToUniversalTime() -lt $began) { throw 'Packaged empty-root probe produced the wrong or stale failure.' }
+    if ($failure.error -notlike '*pinned Neutron client is not installed*' -or ([datetime]$failure.date).ToUniversalTime() -lt $began) { throw 'Packaged empty-root probe produced the wrong or stale failure.' }
     Write-Host 'Packaged startup probe passed: same standard account, fresh structured missing-client failure.'
 } finally { Remove-Item Env:NEUTRON_DATA_ROOT }
 $marker = Join-Path $data 'personal-data-fixture.txt'
@@ -72,7 +72,7 @@ function Install-Candidate {
     if ($process.ExitCode -ne 0 -or -not $present) { throw "NSIS installation failed: exit=$($process.ExitCode), exePresent=$present, target=$installed, elevated=$($principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator))." }
     $preparation = Get-Content -LiteralPath (Join-Path $data 'logs/installer-result.json') -Raw | ConvertFrom-Json
     $selectedState = Get-Content -LiteralPath (Join-Path $data 'state.json') -Raw | ConvertFrom-Json
-    if ($preparation.phase -ne 'verified-before-activation' -or $preparation.selectedBuildId -ne $selectedState.selected -or [datetime]::Parse($preparation.completedAt).ToUniversalTime() -lt $began) {
+    if ($preparation.phase -ne 'verified-before-activation' -or $preparation.selectedBuildId -ne $selectedState.selected -or ([datetime]$preparation.completedAt).ToUniversalTime() -lt $began) {
         throw 'Missing, stale or uncommitted installation receipt.'
     }
     $expected = Join-Path $env:NEUTRON_PACKAGE_OUTPUT 'win-unpacked/resources/app.asar'
