@@ -177,28 +177,58 @@ public class TargetHUD extends Module {
     }
     private static String number(float value){return String.format(Locale.ROOT,value>=10000?"%.1fk":value==Math.rint(value)?"%.0f":"%.1f",value>=10000?value/1000:value);}
     private static String fit(String text,TTFFontRenderer font,float available){if(font.getWidth(text)<=available)return text;int end=text.length();while(end>0&&font.getWidth(text.substring(0,end)+"...")>available)end--;return end==0?"":text.substring(0,end)+"...";}
-    void paint(Frame f){
-        boolean basic="Basic".equals(f.design),outlined="Neutron Outline".equals(f.design),tenacity="Tenacity".equals(f.design);
-        GuiShaderBloom.afterBatch(()->surface.designedPanel(f.x,f.y,f.width,f.height,f.radius,f.theme,true,!basic,!basic,5,.62f,outlined?.9f:0,tenacity,()->content(f)));
+    void paint(Frame f){paint(f,1,1,0);}
+    void paint(Frame f,float opacity,float scale,float slideY){
+        boolean basic="Basic".equals(f.design),outlined="Neutron Outline".equals(f.design),
+                tenacity="Tenacity".equals(f.design);
+        final float x=f.x+(f.width-f.width*scale)/2;
+        final float y=f.y+slideY+(f.height-f.height*scale)/2;
+        final float w=f.width*scale,h=f.height*scale;
+        final long epoch=sceneEpoch;
+        GuiShaderBloom.afterBatch(()->{
+            // The compositor can run after a target/world/HUD disable event.
+            if(!isToggled()||!HUD.visible()||epoch!=sceneEpoch||mc.gameSettings.showDebugInfo)return;
+            surface.designedPanel(x,y,w,h,Math.min(f.radius*scale,h/2),f.theme,true,
+                    !basic,!basic,5,.62f*opacity,outlined?.9f*opacity:0,tenacity,()->{
+                try(RenderState state=new RenderState()){
+                    state.screenSpace();
+                    try(GuiClip clip=GuiClip.push(new ClipRect(x+1,y+1,Math.max(1,w-2),Math.max(1,h-2)))){
+                        glTranslatef(x-f.x*scale,y-f.y*scale,0);
+                        glScalef(scale,scale,1);
+                        content(f,opacity);
+                    }
+                }
+            });
+        });
     }
-    private void content(Frame f){
-        try(GuiClip clip=GuiClip.push(new ClipRect(f.x+1,f.y+1,f.width-2,f.height-2))){
-            boolean white="Neutron White".equals(f.design)&&(UiEffects.scene()==null||UiEffects.scene().policy.style<0);
-            if(white)UIUtils.drawRound(f.x+1,f.y+1,f.width-2,f.height-2,Math.max(.5f,f.radius-1),new Color(244,245,248,235));
-            int text=white?0xff20232c:f.theme.isCustom()?f.theme.getTextColor().getRGB():0xfff2f3f7;
-            if(!"Test".equals(f.design))portrait(f);
-            if(white)f.nameFont.drawString(f.name,f.x+f.textX,f.y+6,text);else TextEffects.direct(f.theme,()->f.nameFont.drawString(f.name,f.x+f.textX,f.y+6,-1));
-            f.infoFont.drawString(f.healthText,f.x+f.textX,f.y+19,white?0xff484d58:0xffcdd3df);
-            float bx=f.x+f.textX,by=f.y+f.height-8,bw=Math.max(0,f.width-f.textX-8);
-            UIUtils.drawRound(bx,by,bw,3,1,new Color(white?0x30323c44:0x66363b49,true));
-            float filled=bw*f.health;
-            if(filled>.01f)UIUtils.drawGradientHorizontal(bx,by,filled,3,Math.min(1,filled/2),f.theme.getPrimaryGradientColor(),f.theme.getSecondaryGradientColor());
-            float absorbed=bw*f.absorption;
-            if(absorbed>.01f)UIUtils.drawRound(bx+bw-absorbed,by,absorbed,3,Math.min(1,absorbed/2),new Color(255,211,80,220));
-        }
+    private static int opacity(int rgba,float amount){
+        return (Math.round(((rgba>>>24)&255)*Math.max(0,Math.min(1,amount)))<<24)
+                |(rgba&0x00ffffff);
+    }
+    private static Color tint(Color c,float alpha){
+        return new Color(c.getRed(),c.getGreen(),c.getBlue(),
+                Math.round(c.getAlpha()*Math.max(0,Math.min(1,alpha))));
+    }
+    private void content(Frame f,float alpha){
+        boolean white="Neutron White".equals(f.design)&&(UiEffects.scene()==null||UiEffects.scene().policy.style<0);
+        if(white)UIUtils.drawRound(f.x+1,f.y+1,f.width-2,f.height-2,
+                Math.max(.5f,f.radius-1),new Color(244,245,248,Math.round(235*alpha)));
+        int text=opacity(white?0xff20232c:f.theme.isCustom()?f.theme.getTextColor().getRGB():0xfff2f3f7,alpha);
+        if(!"Test".equals(f.design))portrait(f,alpha);
+        if(white||alpha<.999f)f.nameFont.drawString(f.name,f.x+f.textX,f.y+6,text);
+        else TextEffects.direct(f.theme,()->f.nameFont.drawString(f.name,f.x+f.textX,f.y+6,-1));
+        f.infoFont.drawString(f.healthText,f.x+f.textX,f.y+19,opacity(white?0xff484d58:0xffcdd3df,alpha));
+        float bx=f.x+f.textX,by=f.y+f.height-8,bw=Math.max(0,f.width-f.textX-8);
+        UIUtils.drawRound(bx,by,bw,3,1,new Color(white?0x30323c44:0x66363b49,true));
+        float filled=bw*f.health;
+        if(filled>.01f)UIUtils.drawGradientHorizontal(bx,by,filled,3,Math.min(1,filled/2),
+                tint(f.theme.getPrimaryGradientColor(),alpha),tint(f.theme.getSecondaryGradientColor(),alpha));
+        float absorbed=bw*f.absorption;
+        if(absorbed>.01f)UIUtils.drawRound(bx+bw-absorbed,by,absorbed,3,Math.min(1,absorbed/2),
+                new Color(255,211,80,Math.round(220*alpha)));
     }
     /** Players use their skin; animals/mobs get an explicit species badge, never a fabricated skin. */
-    private void portrait(Frame f){
+    private void portrait(Frame f,float alpha){
         float px=f.x+7,py=f.y+(f.height-30)/2;
         UIUtils.drawRound(px,py,30,30,4,new Color(f.theme.getPrimaryGradientRGB()&0xffffff|0x55000000,true));
         if(f.skin!=null){
