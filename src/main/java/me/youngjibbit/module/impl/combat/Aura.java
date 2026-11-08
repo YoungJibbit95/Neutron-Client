@@ -347,35 +347,50 @@ public class Aura extends Module {
                 // Capture before callbacks: an accepted send can reconfigure or replace this lifecycle.
                 PendingBlock pending = hit && autoblock.getValue() && "Intave".equals(autoblockMode.getValue())
                         ? capturePendingBlock(selected) : null;
-                attackAccepted=RuntimeServices.attackScheduler().tryAttack(rotationManager.getMotionSequence(), hit, () -> {
-                    clickSample = clickTiming.sample();
+                // Clicks are continuous while Aura owns an accepted C03 motion, but
+                // only the original controller/raycast path may emit an actual C02.
+                boolean clickEligible=rotationManager.isMotionAccepted() && owns
+                        && !mc.thePlayer.isUsingItem() && getActiveTarget()==selected;
+                final long clickGeneration=lifecycleGeneration;
+                attackAccepted=RuntimeServices.attackScheduler().tryClick(
+                        rotationManager.getMotionSequence(), clickEligible, () -> {
+                    clickSample=clickTiming.sample();
                     return clickSample.delayMillis;
                 }, () -> {
-                    // The optional RayCast setting adds an early recheck before changing block state.
-                    // The final controller gate below is mandatory, even when this option is off.
-                    if (raycast.getValue() && !validHit(selected, yaw, pitch)) return false;
-                    net.minecraft.client.entity.EntityPlayerSP attackingPlayer = mc.thePlayer;
-                    net.minecraft.client.multiplayer.PlayerControllerMP attackingController = mc.playerController;
-                    autoblockController.beforeAttack();
-                    if (!validHit(selected, yaw, pitch)) return false;
-                    float cameraYaw = attackingPlayer.rotationYaw, cameraPitch = attackingPlayer.rotationPitch;
+                    if (clickGeneration!=lifecycleGeneration || !usable()
+                            || getActiveTarget()!=selected || RuntimeServices.rotation()!=rotationManager
+                            || !rotationManager.isMotionAccepted()
+                            || (rotations.getValue() ? !rotationManager.isOwner(ROTATION_SOURCE)
+                                    : rotationManager.isOwner("scaffold")
+                                      || rotationManager.getRotationRelease()!=null)) return false;
+                    net.minecraft.client.entity.EntityPlayerSP attackingPlayer=mc.thePlayer;
+                    net.minecraft.client.multiplayer.PlayerControllerMP attackingController=mc.playerController;
+                    boolean valid=validHit(selected,yaw,pitch);
+                    if (valid) autoblockController.beforeAttack();
+                    if (clickGeneration!=lifecycleGeneration || !usable()
+                            || mc.thePlayer!=attackingPlayer || mc.playerController!=attackingController
+                            || getActiveTarget()!=selected || RuntimeServices.rotation()!=rotationManager
+                            || !rotationManager.isMotionAccepted()) return false;
+                    float cameraYaw=attackingPlayer.rotationYaw, cameraPitch=attackingPlayer.rotationPitch;
                     try {
-                        // The normal local attack/knockback uses player yaw. Keep it consistent
-                        // with the sent silent rotation, then restore the separate camera view.
-                        attackingPlayer.rotationYaw = yaw;
-                        attackingPlayer.rotationPitch = pitch;
+                        // A miss is only a visual swing; there is no fabricated target hit.
+                        attackingPlayer.rotationYaw=yaw;
+                        attackingPlayer.rotationPitch=pitch;
                         attackingPlayer.swingItem();
-                        boolean attacked = attackingController.tryAttackEntity(attackingPlayer, selected, () -> validHit(selected, yaw, pitch));
+                        if (!valid || (raycast.getValue() && !validHit(selected,yaw,pitch))
+                                || !validHit(selected,yaw,pitch)) return false;
+                        boolean attacked=attackingController.tryAttackEntity(attackingPlayer,selected,
+                                () -> clickGeneration==lifecycleGeneration && validHit(selected,yaw,pitch));
                         if (attacked) {
-                            advanceTarget = true;
-                            if (clickTiming.debugging.getValue() && clickSample != null)
+                            advanceTarget=true;
+                            if (clickTiming.debugging.getValue() && clickSample!=null)
                                 me.youngjibbit.Pulsar.INSTANCE.debugMessage("[Aura/" + clickTiming.mode.getValue() + "] "
-                                        + me.youngjibbit.utils.MathUtils.round(clickSample.cps, 1) + " cps");
+                                        + me.youngjibbit.utils.MathUtils.round(clickSample.cps,1) + " cps");
                         }
                         return attacked;
                     } finally {
-                        attackingPlayer.rotationYaw = cameraYaw;
-                        attackingPlayer.rotationPitch = cameraPitch;
+                        attackingPlayer.rotationYaw=cameraYaw;
+                        attackingPlayer.rotationPitch=cameraPitch;
                     }
                 });
                 CombatDiagnostics.opportunityResult(opportunity,Stage.SCHEDULER_RESULT,attackAccepted);
