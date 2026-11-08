@@ -281,6 +281,50 @@ public class AdaptiveAuraIntegrationTest {
         }
     }
 
+    @Test public void adaptivePresetThroughRealWalkingHookKeepsAcceptedC03AndNoC02() throws Exception {
+        double[] firstYaw = new double[3];
+        int i = 0;
+        for (String speed : new String[]{"Calm", "Balanced", "Swift"}) {
+            try (Harness h = new Harness()) {
+                h.f.aura.getModeSetting("Adaptive Speed").setValue(speed);
+                h.f.aura.getModeSetting("Adaptive Hitpoint").setValue("Organic");
+                h.f.aura.getNumberSetting("Adaptive Variation Strength").setValue(.8);
+                for (int tick = 0; tick < 7; tick++) {
+                    h.walk(tick);
+                    assertTrue(h.rotation.isMotionAccepted());
+                    assertEquals("aura", h.rotation.getConfirmedOwner());
+                }
+                firstYaw[i++] = Math.abs(h.rotation.getEffectiveYaw());
+                assertTrue(h.sawC03);
+            }
+        }
+        // Different harnesses have independent per-acquisition seeds and rotation history.
+        // Preset speed caps are ordered in AdaptivePresetMotionTest instead.
+        for (double yaw : firstYaw)
+            assertTrue("each real consumer must return a finite rotation", Double.isFinite(yaw));
+    }
+
+    @Test public void dynamicHitpointTargetSwitchAndDisableStartFreshMotion() throws Exception {
+        try(Harness h=new Harness()) {
+            h.f.aura.getModeSetting("Adaptive Speed").setValue("Swift");
+            h.f.aura.getModeSetting("Adaptive Hitpoint").setValue("Dynamic");
+            h.f.aura.getNumberSetting("Adaptive Variation Strength").setValue(1D);
+            for(int i=0;i<14;i++) h.walk(i);
+            float before=h.rotation.getEffectiveYaw();
+            RotationBehaviorHookTest.Player next=h.target(2.5,2.5);
+            h.setTarget(next);
+            h.walk(14);
+            assertSame(next,h.f.aura.getActiveTarget());
+            assertEquals(0,net.minecraft.util.MathHelper.wrapAngleTo180_float(
+                    h.rotation.getEffectiveYaw()-before),.12f);
+            h.f.aura.onDisable();
+            assertNull(h.rotation.getConfirmedOwner());
+            h.f.aura.onEnable();
+            h.walk(15);
+            assertTrue(h.rotation.isMotionAccepted());
+        }
+    }
+
     @Test public void guiFocusDisableAndConnectionBoundaryInvalidateWithoutGhostAcquisition() throws Exception {
         try (Harness h = new Harness()) {
             for (int i = 0; i < 5; i++) h.walk(i);
