@@ -7,6 +7,8 @@ public final class RotationProfile {
     public enum Mode { BASIC, SMOOTH, ADVANCED }
     public enum ArsenicMode { OFF, LAZY, HEURISTICS }
     public ArsenicMode arsenic=ArsenicMode.OFF;
+    /** Aura-only optional approach; false keeps every historical profile and default unchanged. */
+    public boolean adaptive;
     public boolean softArsenicMotion;
     public enum HitpointNoise {
         CALM(.45, .25), BALANCED(.85, .48), DYNAMIC(1.4, .8);

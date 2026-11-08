@@ -51,6 +51,7 @@ public class Aura extends Module {
     private long lifecycleGeneration;
     private EntityLivingBase target;
     private PendingBlock blockAfterHit;
+    private boolean previousAdaptiveApproach;
 
     /** An accepted hit may request one later use action, never new movement authority. */
     private final class PendingBlock {
@@ -126,6 +127,7 @@ public class Aura extends Module {
 
     @Override
     public void onEnable() {
+        previousAdaptiveApproach=rotationSettings.adaptive();
         clearCombat(true);
         super.onEnable();
     }
@@ -140,7 +142,7 @@ public class Aura extends Module {
         rotationSettings.softArsenicMotion.reset();
         rotationSettings.hitpointVariation.reset();
         rotationSettings.speedCurve.reset();
-        if(rotationSettings.arsenic())rotationSettings.mode.reset();
+        if(rotationSettings.arsenic() || rotationSettings.adaptive())rotationSettings.mode.reset();
     }
 
     @Override public void onValueChange() {
@@ -148,6 +150,10 @@ public class Aura extends Module {
         if (rotationReturn == null) return;
         final long generation = ++lifecycleGeneration;
         final RotationManager manager = RuntimeServices.rotation();
+        boolean adaptive=rotationSettings.adaptive();
+        // A changed Adaptive parameter/approach invalidates the old acquisition, never a live C03.
+        if (adaptive || previousAdaptiveApproach) manager.reset(ROTATION_SOURCE);
+        previousAdaptiveApproach=adaptive;
         if (!rotationReturn.enabled.getValue() && !softArsenic()) manager.cancelRotationRelease(ROTATION_SOURCE);
         if (isToggled() && !rotations.getValue()) {
             rotationReturn.begin(manager, ROTATION_SOURCE, moveFixMode(), bodyRotationMode(), softArsenic(),
