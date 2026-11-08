@@ -16,6 +16,7 @@ import me.youngjibbit.value.impl.CheckBoxValue;
 import me.youngjibbit.value.impl.ComboValue;
 import me.youngjibbit.value.impl.SliderValue;
 import me.youngjibbit.gui.HudSpring;
+import me.youngjibbit.gui.NeutronVisualTokens;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import java.awt.Color;
 import java.util.ArrayList;
@@ -34,13 +35,17 @@ public class ClickModule extends Component {
     private float openProgress, toggleProgress, settingsContentHeight;
     private ClipRect settingsClip = new ClipRect(0, 0, 0, 0);
 
-    private boolean panelStyle;
+    private boolean panelStyle,modernCard;
     private static final float PANEL_TOP = 8, PANEL_BOTTOM = 8, PANEL_GAP = 3;
 
-    public static ClickModule forPanel(Module module, float width) {
-        ClickModule row = new ClickModule(module, 0, 0, width, 24);
-        row.panelStyle = true;
-        for (Sub<?> value : row.values) value.usePanelStyle();
+    public static ClickModule forPanel(Module module,float width) {
+        return forPanel(module,width,false);
+    }
+    public static ClickModule forPanel(Module module,float width,boolean modern) {
+        ClickModule row=new ClickModule(module,0,0,width,
+                modern?NeutronVisualTokens.CARD_HEIGHT:24);
+        row.panelStyle=true;row.modernCard=modern;
+        for(Sub<?> value:row.values)value.usePanelStyle();
         row.resetPanelMotion();
         return row;
     }
@@ -218,8 +223,7 @@ public class ClickModule extends Component {
     }
 
     private void drawPanelHeader(Theme theme, boolean hover) {
-        if(me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(
-                me.youngjibbit.theme.ThemeMode.selected())){
+        if(modernCard){
             drawNeutronTwoHeader(theme,hover);
             return;
         }
@@ -257,46 +261,53 @@ public class ClickModule extends Component {
                 x + width - 17, y + 7, me.youngjibbit.utils.render.UiEffects.alpha(text, hover || open ? .95f : .62f));
     }
 
-    /** Approach-2 card and switch share the established Panel hitbox and springs. */
+    /** Restrained 2.0 cards: dark neutral backing; color is a fine semantic cue. */
     private void drawNeutronTwoHeader(Theme theme,boolean hover){
         float response=Math.max(0,Math.min(1,toggleProgress));
-        float over=Math.max(0,Math.min(1,getPresentation().amount()));
-        int base=Theme.interpolateRGB(0xff29172e,0xff513050,Math.max(over*.18f,response*.35f));
-        GuiStyle.panel(x,y,width,getHeight(),10,.12f+.3f*response,new Color(base,true));
-        if(module.isToggled()||response>.005f){
-            float bar=width*Math.max(0,Math.min(1,response));
-            if(bar>1)
-                me.youngjibbit.utils.render.UIUtils.drawGradientHorizontal(
-                        x+4,y+height-2,Math.min(width-8,bar),1,0,
-                        theme.getPrimaryGradientColor(),theme.getSecondaryGradientColor());
-        }
-        // A decorative switch: events still go through the unchanged module handler.
-        float switchX=x+width-54,switchY=y+4;
+        float energy=Math.max(0,Math.min(1,Math.abs(getPresentation().amount())));
+        float top=y,cardHeight=getHeight();
         me.youngjibbit.utils.render.UIUtils.drawRound(
-                switchX,switchY,32,16,8,new Color(22,16,30,225));
-        if(response>.01f)
-            me.youngjibbit.utils.render.UIUtils.drawGradientHorizontal(
-                    switchX,switchY,32*response,16,7,
-                    theme.getPrimaryGradientColor(),theme.getSecondaryGradientColor());
-        float bounce=Math.min(1,Math.abs(toggleBounce)*8);
-        me.youngjibbit.utils.render.UIUtils.drawRound(
-                switchX+2+14*response-bounce/2,switchY+2-bounce/2,
-                12+bounce,12+bounce,6+bounce/2,new Color(246,229,246));
-        TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18");
-        float nameWidth=width-97;
-        if(module.getKey()!=0)nameWidth-=20;
-        font.drawString(ClickControlStyle.fit(font,module.getName(),Math.max(14,nameWidth)),
-                x+12,y+6,hoverInk(0xfff8eefa));
-        if(module.getKey()!=0){
-            String key=org.lwjgl.input.Keyboard.getKeyName(module.getKey());
-            if(key!=null)font.drawString(ClickControlStyle.fit(font,key,18),
-                    x+width-83,y+7,0xffb69bb8);
+                x,top,width,cardHeight,NeutronVisualTokens.RADIUS_CARD,
+                hover?NeutronVisualTokens.CARD_HOVER:NeutronVisualTokens.CARD);
+        me.youngjibbit.utils.render.UIUtils.drawRoundOutline(
+                x+.5f,top+.5f,Math.max(1,width-1),Math.max(1,cardHeight-1),
+                NeutronVisualTokens.RADIUS_CARD,.55f,new Color(0,0,0,1),
+                new Color(223,205,228,Math.round(18+15*energy)));
+        if(response>.003f){
+            float line=Math.min(36,Math.max(0,cardHeight-11));
+            me.youngjibbit.utils.render.UIUtils.drawDecorationRound(
+                    x+2,top+6,2,line,1,
+                    NeutronVisualTokens.accent(theme,Math.round(100+140*response)));
         }
-        Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString(
-                openProgress>.5f?"h":"i",x+width-18,y+6,0xffecb5da);
         if(getPresentation().keyboardFocused())
-            me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x+4,y+5,2,height-10,1,
-                    new Color(255,122,207));
+            me.youngjibbit.utils.render.UIUtils.drawDecorationRound(
+                    x+7,top+7,2,cardHeight-14,1,NeutronVisualTokens.secondary(theme,235));
+        me.youngjibbit.utils.font.TTFFontRenderer title=
+                Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18");
+        me.youngjibbit.utils.font.TTFFontRenderer descFont=
+                Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Regular 16");
+        String name=ClickControlStyle.fit(title,module.getName(),Math.max(16,width-96));
+        title.drawString(name,x+15,y+7,NeutronVisualTokens.INK);
+        String description=module.getDescription();
+        if(description==null||description.trim().isEmpty())description="Module settings";
+        descFont.drawString(ClickControlStyle.fit(descFont,description,Math.max(16,width-110)),
+                x+15,y+24,NeutronVisualTokens.MUTED);
+
+        // Retargeted spring travels within a fixed non-interactive switch silhouette.
+        // The existing mouse/keyboard handlers alone change module.isToggled().
+        float sx=x+width-68,sy=y+13;
+        me.youngjibbit.utils.render.UIUtils.drawRound(sx,sy,36,18,9,
+                new Color(17,19,27,232));
+        if(response>.006f)
+            me.youngjibbit.utils.render.UIUtils.drawRound(sx+1,sy+1,
+                    Math.max(1,34*response),16,8,
+                    NeutronVisualTokens.accent(theme,Math.round(95+145*response)));
+        float bounce=Math.min(.9f,Math.abs(toggleBounce)*6);
+        me.youngjibbit.utils.render.UIUtils.drawRound(
+                sx+2+16*response-bounce/2,sy+3-bounce/2,12+bounce,12+bounce,
+                6+bounce/2,new Color(250,246,252,243));
+        Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString(
+                openProgress>.5f?"h":"i",x+width-23,y+15,NeutronVisualTokens.MUTED);
     }
 
     /** Shared settings renderer for the panel and compact dropdown presentations. */
@@ -305,12 +316,23 @@ public class ClickModule extends Component {
             try (GuiClip ignored = GuiClip.push(settingsClip)) {
                 if(compactSettings())me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x+1,y+height,width-2,settingsContentHeight,0,new Color(9,12,19,145));
                 if (panelStyle) {
-                    Theme theme = Theme.resolve(Theme.getDefaultTheme());
-                    me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x + 7, y + height + 2,
-                            width - 14, settingsContentHeight - 4, 5,
-                            me.youngjibbit.utils.render.UiEffects.accent(theme.getBackground().getRGB(), .34f));
-                    me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x + 13, y + height + 2,
-                            width - 26, .7f, 0, me.youngjibbit.utils.render.UiEffects.accent(theme.getTextColor().getRGB(), .16f));
+                    if(modernCard){
+                        me.youngjibbit.utils.render.UIUtils.drawRound(
+                                x+4,y+height+1,Math.max(1,width-8),
+                                Math.max(1,settingsContentHeight-1),8,
+                                NeutronVisualTokens.PANEL);
+                        me.youngjibbit.utils.render.UIUtils.drawDecorationRound(
+                                x+14,y+height+2,Math.max(1,width-28),1,.5f,
+                                NeutronVisualTokens.HAIRLINE);
+                    }else{
+                        Theme theme=Theme.resolve(Theme.getDefaultTheme());
+                        me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x+7,y+height+2,
+                                width-14,settingsContentHeight-4,5,
+                                me.youngjibbit.utils.render.UiEffects.accent(theme.getBackground().getRGB(),.34f));
+                        me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x+13,y+height+2,
+                                width-26,.7f,0,
+                                me.youngjibbit.utils.render.UiEffects.accent(theme.getTextColor().getRGB(),.16f));
+                    }
                 } else if(!compactSettings())Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString("Settings", x + 12, y + height + 5,
                         new Color(180, 180, 185).getRGB());
                 for (Sub<?> value : values) {
