@@ -82,10 +82,13 @@ try {
     Invoke-ObservedInstaller $old ("/S /currentuser /D="+$install) 'old-0.2.0-install' $false
     $marker=Join-Path $control 'personal-diagnostic-marker.txt'; [IO.File]::WriteAllText($marker,'synthetic profile; retain')
     Invoke-ObservedInstaller $new ("/currentuser /D="+$install) 'assisted-0.2.0-to-0.2.2' $true
-    Invoke-ObservedInstaller $new ("/S /currentuser /D="+$install) 'silent-0.2.2-reinstall' $false
-    $uninstaller=Join-Path $install 'Uninstall Neutron Launcher.exe'
+    $registeredInstall=(Get-ItemProperty -LiteralPath 'HKCU:\Software\17d12e18-c0d2-5a05-b898-3c34ccfad7ff').InstallLocation
+    $events.Add(@{label='assisted-install-location';requested=$install;registered=$registeredInstall})
+    if(-not $registeredInstall.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Registered install escaped the owned fixture.'}
+    Invoke-ObservedInstaller $new ("/S /currentuser /D="+$registeredInstall) 'silent-0.2.2-reinstall' $false
+    $uninstaller=Join-Path $registeredInstall 'Uninstall Neutron Launcher.exe'
     Invoke-ObservedInstaller $uninstaller '/currentuser /KEEP_APP_DATA' 'assisted-uninstall-0.2.2' $true
-    if((Test-Path -LiteralPath (Join-Path $install 'Neutron Launcher.exe')) -or (Test-Path -LiteralPath 'HKCU:\Software\17d12e18-c0d2-5a05-b898-3c34ccfad7ff')){throw 'Assisted uninstaller did not remove application files and registration.'}
+    if((Test-Path -LiteralPath (Join-Path $registeredInstall 'Neutron Launcher.exe')) -or (Test-Path -LiteralPath 'HKCU:\Software\17d12e18-c0d2-5a05-b898-3c34ccfad7ff')){throw 'Assisted uninstaller did not remove application files and registration.'}
     if(-not (Test-Path -LiteralPath $marker)){throw 'Uninstall changed synthetic personal data.'}
     $events.Add(@{label='completed';result='all observed operations succeeded; user failure not reproduced'})
 } finally {
