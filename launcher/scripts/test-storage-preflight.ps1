@@ -28,6 +28,17 @@ try {
     $stateFile=Join-Path $control 'state.json'; $originalHash=(Get-NeutronFileHash $stateFile)
     $null=[IO.Directory]::CreateDirectory($app)
     $exe=Join-Path $app 'Neutron Launcher.exe'; [IO.File]::WriteAllText($exe,'original EXE sentinel'); $exeHash=(Get-NeutronFileHash $exe)
+    # Process-name collisions must not block copying the selected profile.
+    # No process is spawned: model both the real installer path and a foreign EXE.
+    $session=[Diagnostics.Process]::GetCurrentProcess().SessionId
+    $mine=[pscustomobject]@{SessionId=$session;Path=(Join-Path $app 'Neutron Launcher.exe')}
+    $other=[pscustomobject]@{SessionId=$session;Path=(Join-Path $fixture 'Other/Neutron Launcher.exe')}
+    $differentSession=[pscustomobject]@{SessionId=($session+1);Path=$mine.Path}
+    Assert-True (-not (Test-NeutronInstalledLauncherRunning $app @($other) $session)) 'Foreign same-name EXE blocked a profile copy'
+    Assert-True (-not (Test-NeutronInstalledLauncherRunning $app @($differentSession) $session)) 'Other user session blocked a profile copy'
+    Assert-True (Test-NeutronInstalledLauncherRunning $app @($other,$mine) $session) 'Installed EXE did not block a profile copy'
+    Assert-True (Test-NeutronInstalledLauncherRunning $app @([pscustomobject]@{SessionId=$session;Path=$mine.Path.ToUpperInvariant()}) $session) 'Installed EXE comparison is case-sensitive'
+    Assert-Rejected { Test-NeutronInstalledLauncherRunning $app @([pscustomobject]@{SessionId=$session;Path=$null}) $session } 'Cannot verify'
     $newRelease=[pscustomobject]@{launcherVersion='0.2.2';clientCommit=('c'*40);sourceArchiveSha256=$archive}
     $script:testFreeBytes=[long](2.77GB)
     Assert-Rejected { Test-NeutronStorage $control $app $control $newRelease $false } 'At least 3 GiB'
@@ -107,7 +118,7 @@ try {
     $null=[IO.Directory]::CreateDirectory($missing)
     Assert-Rejected { Test-NeutronStorage $missing $app $control $release $false } 'existing profile'
     Assert-True ((Get-NeutronFileHash $pointer) -eq $pointerHash -and (Get-NeutronFileHash $stateFile) -eq $originalHash -and [IO.Directory]::GetFileSystemEntries($missing).Length -eq 0) 'Missing/empty profile refusal changed persistent files'
-    Write-Host 'Storage preflight fixtures passed: low space, cache hint, complete/incomplete adoption, settings, invalid state, missing selected build, unsafe paths, links, stale receipt, override, read-only and atomic selector.'
+    Write-Host 'Storage preflight fixtures passed: low space, owned executable guard, cache hint, complete/incomplete adoption, settings, invalid state, missing selected build, unsafe paths, links, stale receipt, override, read-only and atomic selector.'
 } finally {
     # Only the unique fixture created above. Remove the junction itself first.
     $owned=[IO.Path]::GetFullPath($fixture)
