@@ -58,7 +58,7 @@ public class AdaptiveBridgeLiveFlowTest {
             try {
                 return (PlacementTarget) ScaffoldOwnerContinuityTest.field(
                         Scaffold.class, "frameTarget").get(f.scaffold);
-            } catch (ReflectiveOperationException exception) {
+            } catch (Exception exception) {
                 throw new AssertionError(exception);
             }
         }
