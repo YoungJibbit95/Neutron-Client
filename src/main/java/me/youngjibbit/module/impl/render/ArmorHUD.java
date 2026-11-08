@@ -2,6 +2,7 @@ package me.youngjibbit.module.impl.render;
 
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.theme.ThemeMode;
+import me.youngjibbit.theme.ThemeCatalog;
 import me.youngjibbit.gui.HudSpring;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.event.render.Event2D;
@@ -117,7 +118,7 @@ public class ArmorHUD extends Module {
         f.scale=Math.min(scale.getValue().floatValue(),Math.min((sw-8)/Math.max(1,f.width),(sh-8)/Math.max(1,f.height)));
         f.scale=Math.max(.01f,f.scale);width=f.width*f.scale;height=f.height*f.scale;
         clamp(sw,sh);f.x=x;f.y=y;f.horizontal=horizontal;
-        f.theme=Theme.resolve(Theme.getDefaultTheme());
+        f.theme=Theme.resolve(f.modern?ThemeCatalog.global().current():Theme.getDefaultTheme());
         f.background=background.getValue();f.blur=blur.getValue();
         f.glow=!f.modern&&glow.getValue();f.bar=bar.getValue();return f;
     }
