@@ -229,6 +229,28 @@ public class NeutronAiCoreTest {
         assertFalse(run(c, acquisition(12, 2), o, 2, 100_000_000L).hasRotation);
     }
 
+    @Test public void settledOrPausedAcquisitionLivenessDoesNotGrantAuthority() throws Exception {
+        NeutronAiCore core=new NeutronAiCore();
+        NeutronAiCore.Acquisition a=acquisition(22,1);
+        NeutronAiFeatures.Observation o=NeutronAiFeaturesTest.visibleTarget();
+        assertFalse(core.hasCurrentAcquisition(a));
+        assertTrue(core.install(model(2,0)));
+        assertFalse(core.hasCurrentAcquisition(a));
+        assertFalse(run(core,a,o,0,0).hasRotation); // warm-up HOLD is live, not permission
+        assertTrue(core.hasCurrentAcquisition(a));
+        run(core,a,o,1,50_000_000L);
+        assertTrue(core.hasCurrentAcquisition(a));
+        assertFalse(run(core,a,o,2,350_000_000L).hasRotation); // 300ms interruption
+        assertFalse("a paused Core cannot back a held C03",core.hasCurrentAcquisition(a));
+        NeutronAiCore.Acquisition fresh=acquisition(22,2);
+        assertFalse(run(core,fresh,o,3,400_000_000L).hasRotation);
+        assertTrue(core.hasCurrentAcquisition(fresh));
+        core.reset();
+        assertFalse(core.hasCurrentAcquisition(fresh));
+        core.dispose();
+        assertFalse(core.hasCurrentAcquisition(fresh));
+    }
+
     @Test public void fixedNetworkAndHistoryHaveHardWorkAndMemoryBounds() {
         assertEquals(160, NeutronAiCheckpoint.INPUTS);
         assertEquals(40, NeutronAiCheckpoint.WIDTH);

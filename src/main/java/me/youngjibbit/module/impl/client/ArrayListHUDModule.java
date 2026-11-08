@@ -1,6 +1,8 @@
 package me.youngjibbit.module.impl.client;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.gui.HudSpring;
+import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.event.render.Event2D;
 import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
@@ -14,6 +16,7 @@ import me.youngjibbit.utils.render.ArrayListSurface;
 import me.youngjibbit.clickgui.utils.ClipRect;
 import me.youngjibbit.clickgui.utils.GuiClip;
 import me.youngjibbit.utils.render.GuiShaderBloom;
+import me.youngjibbit.utils.render.UIUtils;
 import me.youngjibbit.utils.render.UiEffects;
 import me.youngjibbit.value.impl.CheckBoxValue;
 import me.youngjibbit.value.impl.ComboValue;
@@ -63,9 +66,23 @@ public class ArrayListHUDModule extends Module {
     private final SliderValue rowSpacing=new SliderValue("Row Spacing",this,8.0,0,20);
     private final CheckBoxValue rightAnchored=new CheckBoxValue("Right Anchored",this,false);
     public ArrayListHUDModule(){mode.setVisibility(m->getModeSetting("Effects Source").getValue().equals("Local")||mode.getValue().equals("None"));for(SliderValue v:new SliderValue[]{paddingTop,paddingBottom,paddingLeft,paddingRight,rowSpacing})v.setVisibility(m->customPadding.getValue());}
-    private float pad(SliderValue value){if(customPadding.getValue())return value.getValue().floatValue();boolean compact="Compact".equalsIgnoreCase(mode.getValue());if(value==paddingTop||value==paddingBottom)return compact?3:4;if(value==paddingLeft||value==paddingRight)return compact?5:7;return compact?6:8;}
+    private boolean modern(){return ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());}
+    private float pad(SliderValue value){
+        if(customPadding.getValue())return value.getValue().floatValue();
+        if(modern()){
+            if(value==paddingTop||value==paddingBottom)return 4;
+            if(value==paddingLeft)return 10;
+            if(value==paddingRight)return 8;
+            return 5;
+        }
+        boolean compact="Compact".equalsIgnoreCase(mode.getValue());
+        if(value==paddingTop||value==paddingBottom)return compact?3:4;
+        if(value==paddingLeft||value==paddingRight)return compact?5:7;
+        return compact?6:8;
+    }
 
     private final Map<String, DecelerateAnimation> visibilityAnimations = new HashMap<>();
+    private final Map<String, HudSpring> modernVisibility = new HashMap<>();
     private final Map<String, Float> yPositions = new HashMap<>();
     private final Map<String, Metrics> metricsCache = new HashMap<>();
     private final ArrayListSurface surface = new ArrayListSurface(this);
@@ -104,7 +121,9 @@ public class ArrayListHUDModule extends Module {
         // Freeze layout, metrics, theme and switches before leaving the listener's frame.
         final Theme theme = currentTheme;
         final float phase = gradientOffset;
-        final boolean filled = background.getValue(), blurred = filled && blur.getValue(), glowing = glow.getValue();
+        final boolean modern=modern();
+        final boolean filled=background.getValue(), blurred=filled&&blur.getValue(),
+                glowing=!modern&&glow.getValue();
         float[] tops = new float[rows.size()], bottoms = new float[rows.size()], rights = new float[rows.size()],lefts=new float[rows.size()];
         float top=anchorY,bottom=bottomEdge+(ny-(positionY.getValue().floatValue()));
         rows.sort(Comparator.comparingDouble(r -> r.rectY + r.rectH / 2));
@@ -118,7 +137,7 @@ public class ArrayListHUDModule extends Module {
             row.clip=new ClipRect(row.rectX,tops[i],row.rectW,bottoms[i]-tops[i]);
             intensity=Math.max(intensity,row.progress);
         }
-        final float glowStrength=intensity*0.75f;
+        final float glowStrength=modern?0:intensity*.75f;
         ArrayListSurface.Shape initial=new ArrayListSurface.Shape(lefts,tops,bottoms,rights,UiEffects.radius(3,right-left,bottom-top));
         float oldX=anchorX,oldY=anchorY;
         boolean down=org.lwjgl.input.Mouse.isCreated()&&org.lwjgl.input.Mouse.isButtonDown(0);
@@ -128,7 +147,27 @@ public class ArrayListHUDModule extends Module {
         float dx=anchorX-oldX,dy=anchorY-oldY;moveRows(rows,dx,dy);
         for(ArrayRow row:rows)row.clip=new ClipRect(row.clip.x+dx,row.clip.y+dy,row.clip.width,row.clip.height);
         final ArrayListSurface.Shape shape=initial.translated(dx,dy);frameShape=shape;
-        Runnable labels=() -> textEffects.themed(theme,() -> { for (ArrayRow row:rows) drawLabel(row,theme,phase); });
+        Runnable labels=() -> {
+            Runnable glyphs=()->{for(ArrayRow row:rows){
+                if(modern&&filled){
+                    // Per-row ink plate and 2 px accent, not a full-screen color veil.
+                    UIUtils.drawRound(row.rectX+1,row.rectY+1,
+                            Math.max(1,row.rectW-2),Math.max(1,row.rectH-2),5,
+                            new java.awt.Color(21,23,33,Math.round(186*row.progress)));
+                    UIUtils.drawRound(row.rectX+1,row.rectY+2,2,
+                            Math.max(0,row.rectH-4),1,
+                            new java.awt.Color(theme.getPrimaryGradientColor().getRed(),
+                                    theme.getPrimaryGradientColor().getGreen(),
+                                    theme.getPrimaryGradientColor().getBlue(),
+                                    Math.round(205*row.progress)));
+                }
+                drawLabel(row,theme,phase);
+            }};
+            // In 2.0 the ink is neutral/high-contrast; only the slim stripe
+            // inherits the selected palette. Legacy retains its glyph shader.
+            if(modern)glyphs.run();
+            else textEffects.themed(theme,glyphs);
+        };
         GuiShaderBloom.afterBatch(() -> {
             if (!surface.inheritsEffects() && !filled && !glowing) surface.text(labels);
             else surface.render(shape,theme,filled,blurred,glowing,glowStrength,labels);
@@ -140,14 +179,19 @@ public class ArrayListHUDModule extends Module {
         Set<String> renderable=new HashSet<>();
         TTFFontRenderer renderer="Minecraft".equalsIgnoreCase(font.getValue())?null:getFontRenderer();
         float textScale=getScale();
+        boolean modern=modern();
+        ClientSettings visual=ClientSettings.current();
         for (Module module:Pulsar.INSTANCE.getMm().getAllModules()) {
             if (!canBeRenderedInArrayList(module)) continue;
             renderable.add(module.getId());
-            if (module.isToggled() || visibilityAnimations.containsKey(module.getId())) {
+            if (module.isToggled() || (modern
+                    ? modernVisibility.containsKey(module.getId())
+                    : visibilityAnimations.containsKey(module.getId()))) {
                 labels.add(new FrameLabel(module,metricsFor(module,getLabel(module),renderer,textScale)));
             }
         }
         visibilityAnimations.keySet().removeIf(id -> !renderable.contains(id));
+        modernVisibility.keySet().removeIf(id -> !renderable.contains(id));
         yPositions.keySet().removeIf(id -> !renderable.contains(id));
         labels.sort(Comparator.comparingDouble((FrameLabel label) -> label.metrics.width).reversed()
                 .thenComparing(label -> label.metrics.label,String.CASE_INSENSITIVE_ORDER));
@@ -155,14 +199,29 @@ public class ArrayListHUDModule extends Module {
         float rowY=startY;
         for (FrameLabel label:labels) {
             Module module=label.module;
-            DecelerateAnimation visibility=visibilityAnimations.computeIfAbsent(module.getId(),
-                    id -> new DecelerateAnimation(210,1,Direction.FORWARDS));
-            visibility.setDirection(module.isToggled()?Direction.FORWARDS:Direction.BACKWARDS);
-            if (!module.isToggled() && (!UiEffects.motion() || visibility.finished(Direction.BACKWARDS))) {
-                visibilityAnimations.remove(module.getId()); yPositions.remove(module.getId()); continue;
+            float progress;
+            if(modern){
+                HudSpring spring=modernVisibility.get(module.getId());
+                if(spring==null){spring=new HudSpring();spring.snap(0);modernVisibility.put(module.getId(),spring);}
+                progress=clamp01(spring.step(module.isToggled()?1:0,frameDelta,
+                        visual==null||visual.animations.getValue(),
+                        visual!=null&&visual.reducedMotion.getValue(),
+                        visual==null?"Balanced":visual.motionIntensity.getValue()));
+                if(!module.isToggled()&&progress<=.002f){
+                    modernVisibility.remove(module.getId());
+                    yPositions.remove(module.getId());continue;
+                }
+            }else{
+                DecelerateAnimation visibility=visibilityAnimations.computeIfAbsent(module.getId(),
+                        id->new DecelerateAnimation(210,1,Direction.FORWARDS));
+                visibility.setDirection(module.isToggled()?Direction.FORWARDS:Direction.BACKWARDS);
+                if(!module.isToggled()&&(!UiEffects.motion()||visibility.finished(Direction.BACKWARDS))){
+                    visibilityAnimations.remove(module.getId());
+                    yPositions.remove(module.getId());continue;
+                }
+                progress=UiEffects.motion()?clamp01(visibility.getOutput().floatValue()):1;
             }
-            float progress=UiEffects.motion()?clamp01(visibility.getOutput().floatValue()):1;
-            if (progress<=0.001f) continue;
+            if(progress<=.001f)continue;
             float rowHeight=Math.max(.1f,label.metrics.height+pad(rowSpacing))*progress;
             float rowWidth=Math.max(.1f,label.metrics.width+pad(paddingLeft)+pad(paddingRight))*progress;
             float oldY=startY+yPositions.getOrDefault(module.getId(),rowY-startY);
@@ -174,7 +233,8 @@ public class ArrayListHUDModule extends Module {
                     animatedY+(rowHeight-label.metrics.height)/2,rectX,animatedY,rowWidth,rowHeight));
             rowY+=rowHeight;
         }
-        metricsCache.keySet().removeIf(id -> !renderable.contains(id) || !visibilityAnimations.containsKey(id));
+        metricsCache.keySet().removeIf(id -> !renderable.contains(id) ||
+                !(modern?modernVisibility.containsKey(id):visibilityAnimations.containsKey(id)));
         float maxProgress=0;for(ArrayRow row:rows)maxProgress=Math.max(maxProgress,row.progress);
         for(ArrayRow row:rows){float offset=pad(paddingTop)*maxProgress-pad(rowSpacing)/2*row.progress;row.rectY+=offset;row.textY+=offset;}
         return rows;
@@ -257,7 +317,7 @@ public class ArrayListHUDModule extends Module {
     }
 
     private String getLabel(Module module) {
-        String label = "| " + module.getName();
+        String label = modern()?module.getName():"| " + module.getName();
         if (!showModuleInfo.getValue() || !module.isToggled()) return label;
         String detail = module.getInfo();
         return detail == null || detail.isEmpty() ? label : label + " " + detail;
@@ -334,6 +394,7 @@ public class ArrayListHUDModule extends Module {
     private void clearTransientState() {
         stopDragging();frameShape=null;
         visibilityAnimations.clear();
+        modernVisibility.clear();
         yPositions.clear();
         metricsCache.clear();
         surface.close();textEffects.close();

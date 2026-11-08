@@ -1,6 +1,7 @@
 package me.youngjibbit.module.impl.client;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.combat.CombatTargetTracker;
+import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.gui.IslandMorphMotion;
 import me.youngjibbit.module.impl.client.island.IslandLayout;
 import me.youngjibbit.module.impl.client.island.IslandPresentation;
@@ -43,13 +44,18 @@ public class WatermarkHUDModule extends Module {
     private IslandStateMachine.Selection islandLastSelection, islandPrevious;
     private boolean islandActive;
     public WatermarkHUDModule(){radius.setVisibility(m->localRadius.getValue());animated.setVisibility(m->!textStyle.getValue().equals("Theme"));speed.setVisibility(m->!textStyle.getValue().equals("Theme")&&animated.getValue());
-        islandTarget.setVisibility(m->"Dynamic Island".equals(mode.getValue()));
-        islandClock.setVisibility(m->"Dynamic Island".equals(mode.getValue()));}
+        islandTarget.setVisibility(m->islandSelected());
+        islandClock.setVisibility(m->islandSelected());}
+    /** Global opt-in upgrades the historical Glass default without rewriting stored Mode. */
+    boolean islandSelected(){
+        return "Dynamic Island".equals(mode.getValue())||
+                (ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())&&"Glass".equals(mode.getValue()));
+    }
     @Subscribe private final Listener<Event2D> onRender2D=new Listener<>(event->{if(!mc.gameSettings.showDebugInfo)renderWatermark();else if(islandActive){resetIsland();surface.close();}});
     @Override public void onDisable(){resetIsland();surface.close();textEffects.close();super.onDisable();}
     void renderWatermark(){
         if(!HUD.visible()){resetIsland();surface.close();textEffects.close();return;}
-        if("Dynamic Island".equals(mode.getValue())){renderIsland();return;}
+        if(islandSelected()){renderIsland();return;}
         if(islandActive)resetIsland();
         String design=mode.getValue();boolean logo=design.startsWith("Logo"),word=design.equals("Wordmark"),status=design.equals("Status"),rise=design.equals("Rise"),simple=design.equals("Simple");
         TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont(rise?"Product-Sans-Medium 41":word?"Poppins-Bold 23":design.equals("iOS")?"SFProText-Medium 18":simple?"KhmerOureang 20":"DmSansMedium 18");
@@ -125,8 +131,9 @@ public class WatermarkHUDModule extends Module {
         boolean reduced=settings!=null&&settings.reducedMotion.getValue();
         String intensity=settings==null?"Balanced":settings.motionIntensity.getValue();
         ScaledResolution sr=new ScaledResolution(mc);
+        final boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
         IslandLayout.Frame frame=islandMotion.sample(IslandLayout.forState(selected.state,
-                sr.getScaledWidth(),sr.getScaledHeight()),dt,animations,reduced,intensity);
+                sr.getScaledWidth(),sr.getScaledHeight(),modern),dt,animations,reduced,intensity);
         float mix=islandMotion.contentAlpha();
         if(mix>=.999f)islandPrevious=null;
         final IslandStateMachine.Selection previous=islandPrevious;
@@ -136,7 +143,8 @@ public class WatermarkHUDModule extends Module {
         final String clock=islandClock.getValue()?islandTime():"";
         final String clientName=Pulsar.INSTANCE.getName(), clientVersion=Pulsar.INSTANCE.getVersion();
         final boolean showName=name.getValue(), showVersion=version.getValue(), showClock=islandClock.getValue();
-        final boolean panel=background.getValue(), useBlur=blur.getValue(), useGlow=glow.getValue();
+        final boolean panel=background.getValue(), useBlur=blur.getValue(),
+                useGlow=!modern&&glow.getValue();
         final IslandPresentation present=IslandPresentation.from(selected,clientName,clientVersion,clock,
                 showName,showVersion,showClock);
         final IslandPresentation fading=previous==null?null:IslandPresentation.from(previous,
@@ -145,33 +153,47 @@ public class WatermarkHUDModule extends Module {
         final long passEpoch=islandEpoch;
         // Reuse the single existing surface and shared halo/blur/RenderState pools.
         final Runnable drawIsland=()->surface.designedPanel(frame.x,frame.y,frame.width,frame.height,
-                frame.radius,theme,panel,useBlur,useGlow,5,
-                .65f*frame.opacity,.48f*frame.opacity,false,
+                frame.radius,theme,panel,useBlur,useGlow,modern?3.5f:5,
+                (modern?.85f:.65f)*frame.opacity,(modern?.14f:.48f)*frame.opacity,false,
                 ()->{
                     try(GuiClip clip=GuiClip.push(new ClipRect(frame.x+2,frame.y+2,
                             Math.max(1,frame.width-4),Math.max(1,frame.height-4)))){
-                        if(fading!=null&&mix<1)paintIsland(fading,frame,font,theme,(1-mix)*frame.opacity);
-                        paintIsland(present,frame,font,theme,mix*frame.opacity);
+                        if(modern&&panel){
+                            // A quiet graphite ink plate: blur/world color remains perceptible,
+                            // but high-contrast glyphs no longer blend with bright terrain.
+                            UIUtils.drawRound(frame.x+2,frame.y+2,Math.max(1,frame.width-4),
+                                    Math.max(1,frame.height-4),Math.max(0,frame.radius-2),
+                                    new Color(17,19,29,Math.round(173*frame.opacity)));
+                            UIUtils.drawRound(frame.x+11,frame.y+3,
+                                    Math.max(0,Math.min(48,frame.width-22)),1.1f,.5f,
+                                    tint(theme.getSecondaryGradientColor(),.62f*frame.opacity));
+                        }
+                        if(fading!=null&&mix<1)paintIsland(fading,frame,font,theme,
+                                (1-mix)*frame.opacity,modern);
+                        paintIsland(present,frame,font,theme,mix*frame.opacity,modern);
                     }
                 });
         GuiShaderBloom.afterBatch(()->{if(islandActive&&passEpoch==islandEpoch)drawIsland.run();});
     }
 
     private void paintIsland(IslandPresentation view,IslandLayout.Frame frame,
-                             TTFFontRenderer font,Theme theme,float alpha){
+                             TTFFontRenderer font,Theme theme,float alpha,boolean modern){
         if(alpha<=0)return;
         float x=frame.x,y=frame.y,w=frame.width,h=frame.height;
         int primary=ink(0xfff4f6fc,alpha);
-        int secondary=ink(0xffb8cad8,alpha);
+        int secondary=ink(modern?0xffc7bdcf:0xffb8cad8,alpha);
         int accent=ink(theme.getPrimaryGradientRGB()|0xff000000,alpha);
-        // Neutron's own typographic N badge: no external logo, symbol font or texture.
-        UIUtils.drawRound(x+9,y+(h-24)/2,24,24,11,
-                new Color(26,47,60,Math.round(alpha*230)));
-        font.drawString("N",x+16,y+(h-11)/2,accent);
+        float badge=modern?21:24, badgeX=x+(modern?10:9),badgeY=y+(h-badge)/2;
+        // Existing typographic N, no copied logo/icon or new atlas upload.
+        UIUtils.drawRound(badgeX,badgeY,badge,badge,modern?7:11,
+                modern?new Color(42,32,53,Math.round(alpha*234)):
+                        new Color(26,47,60,Math.round(alpha*230)));
+        font.drawString("N",badgeX+(modern?(badge-12)/2:7),badgeY+(badge-11)/2,accent);
         if(view.state==IslandStateMachine.State.IDLE){
             float clockWidth=view.trailing.isEmpty()?0:font.getWidth(view.trailing)+11;
+            float start=modern?39:39;
             font.drawString(fitIsland(view.title,font,w-47-clockWidth),
-                    x+39,y+(h-11)/2,primary);
+                    x+start,y+(h-11)/2,primary);
             if(!view.trailing.isEmpty())
                 font.drawString(view.trailing,x+w-clockWidth,y+(h-11)/2,secondary);
         }else if(view.state==IslandStateMachine.State.TARGET&&view.hasHealthBar){
