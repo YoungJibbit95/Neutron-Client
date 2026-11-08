@@ -41,6 +41,7 @@ public class BacktrackReceiptSafeFlowTest {
             try {
                 ExploitHookFixture.Enemy enemy=f.enemy(7,3);
                 assertTrue(f.controller.tryAttackEntity(f.player,enemy,()->true));
+                f.drainOutbound(); // isolate physical C03 from the setup controller's legitimate C02
                 Pulsar.BUS.post(new TickEvent());
                 assertEquals("no fabricated pre-receipt delay",0,f.pipe().delays().size());
                 assertTrue(b.getStatus(),b.getStatus().contains("receipt missing or stale"));
@@ -74,6 +75,7 @@ public class BacktrackReceiptSafeFlowTest {
             try {
                 ExploitHookFixture.Enemy enemy=f.enemy(7,3);
                 assertTrue(f.controller.tryAttackEntity(f.player,enemy,()->true));
+                f.drainOutbound(); // isolate physical C03 from the setup controller's legitimate C02
                 move(f);assertEquals(1,f.pipe().delays().size());
                 time.set(250_000_000L); // low-TPS / high-latency gap, no packet arrival
                 Pulsar.BUS.post(new TickEvent());
@@ -97,6 +99,7 @@ public class BacktrackReceiptSafeFlowTest {
             try {
                 ExploitHookFixture.Enemy enemy=f.enemy(7,3);
                 assertTrue(f.controller.tryAttackEntity(f.player,enemy,()->true));
+                f.drainOutbound(); // isolate physical C03 from the setup controller's legitimate C02
                 for(int i=1;i<=12;i++) {
                     move(f);
                     assertEquals("held FIFO count "+i,i,f.pipe().delays().size());
