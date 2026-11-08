@@ -80,6 +80,17 @@ public final class AdaptiveBridgeScaffoldAdapter {
      */
     public Prepared prepare(ScaffoldPlacementService service,PlacementTarget original,
                             AdaptiveBridgePlanner.Frame frame) {
+        return prepare(service,original,frame,false);
+    }
+
+    /** Keep a still-valid acquired face instead of scoring fresh replacement identities each PRE. */
+    public Prepared prepareKeeping(ScaffoldPlacementService service,PlacementTarget original,
+                                   AdaptiveBridgePlanner.Frame frame) {
+        return prepare(service,original,frame,true);
+    }
+
+    private Prepared prepare(ScaffoldPlacementService service,PlacementTarget original,
+                             AdaptiveBridgePlanner.Frame frame,boolean keeping) {
         if(Thread.currentThread()!=owningThread || service==null || original==null || frame==null || frame.scope==null
                 || !service.isValid(original))return null;
         if(original.world!=frame.scope.world || original.player!=frame.scope.player)return null;
@@ -92,9 +103,11 @@ public final class AdaptiveBridgeScaffoldAdapter {
         List<AdaptiveBridgePlanner.SupportFace> options=new ArrayList<>();
 
         addIfValid(service,original,original,valid,options);
+        boolean held=keeping && !valid.isEmpty() && AdaptiveBridgePlanner.validMotion(frame)
+                && validPreview(service,frame,original,AdaptiveBridgePlanner.predict(frame));
         // All alternatives must still be approved by the existing service
         // and use the SAME destination, slot and actual inventory stack.
-        for(EnumFacing face:EnumFacing.values()) {
+        if(!held)for(EnumFacing face:EnumFacing.values()) {
             if(face==original.getFacing())continue;
             PlacementTarget alternate=service.planFace(destination.offset(face.getOpposite()),face,null);
             if(alternate!=null)addIfValid(service,original,alternate,valid,options);

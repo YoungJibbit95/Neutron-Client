@@ -17,6 +17,8 @@ import me.youngjibbit.core.combat.ai.NeutronAiFeatures;
 import me.youngjibbit.core.contract.SceneContext;
 import me.youngjibbit.core.observation.RuntimeObservation;
 import me.youngjibbit.core.network.PacketPipeline;
+import me.youngjibbit.core.world.AdaptiveBridgeMotion;
+import me.youngjibbit.core.world.AdaptiveBridgePlanner;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.network.NetHandlerPlayClient;
 import net.minecraft.network.Packet;
@@ -42,6 +44,7 @@ public final class RotationManager {
     private final Map<String,Long> trajectoryEpochs = new HashMap<>();
     private final LongSupplier clock;
     private final long seed;
+    private final Thread bridgeOwningThread=Thread.currentThread();
     public RotationManager() { this(System::nanoTime,ThreadLocalRandom.current().nextLong()); }
     public RotationManager(LongSupplier clock,long seed) { this.clock=clock;this.seed=seed; }
     /** Synthetic JUnit injection only. There is no production file/model loader. */
@@ -784,6 +787,7 @@ public final class RotationManager {
             if(!entry.getKey().equals(acceptedSource)) {
                 entry.getValue().arsenic.reset();
                 entry.getValue().invalidateAdaptive();
+                if(entry.getValue().bridgeMotion!=null)entry.getValue().bridgeMotion.rejectMotion(sequence);
                 // A first-frame neural HOLD is not an offer; it remains warm.
                 if(entry.getValue().aiOfferedSequence==sequence)entry.getValue().invalidateAi();
             }
@@ -1284,6 +1288,100 @@ public final class RotationManager {
         return profileStep(source,cameraYaw,cameraPitch,target,targetYaw,targetPitch,distance,profile,false);
     }
 
+    /** A checked Scaffold face proposal; this method never requests rotation ownership. */
+    public Vec3 bridgeFacePoint(AdaptiveBridgePlanner.Scope scope,Object identity,AxisAlignedBB bounds,
+                               net.minecraft.util.EnumFacing face,Vec3 originalAnchor,
+                               AdaptiveBridgeMotion.Settings settings) {
+        if(Thread.currentThread()!=bridgeOwningThread)return null;
+        if(identity==null || bounds==null || face==null || originalAnchor==null || settings==null)return null;
+        final long motion=sequence;
+        RuntimeObservation observation=RuntimeServices.observation();
+        SceneContext scene=bridgeScene(scope,observation,motion);
+        if(scene==null)return null;
+        RotationState state=state("scaffold");
+        if(state.bridgeMotion==null)state.bridgeMotion=new AdaptiveBridgeMotion(state.adaptiveSeed ^ 0x315bc74d9f42a68eL);
+        AdaptiveBridgeMotion.Point point=state.bridgeMotion.point(scope,identity,settings,motion,curveMotionTime(),
+                AdaptiveBridgePlanner.Face.valueOf(face.name()),bounds.minX,bounds.minY,bounds.minZ,
+                bounds.maxX,bounds.maxY,bounds.maxZ,originalAnchor.xCoord,originalAnchor.yCoord,originalAnchor.zCoord,true);
+        if(!currentBridgeScene(scope,observation,scene,motion,state)) {
+            state.bridgeMotion.rejectMotion(scope,identity,motion);return null;
+        }
+        return point==null?null:new Vec3(point.x,point.y,point.z);
+    }
+
+    /**
+     * Separate opt-in entry: old calculatePlanRotations, Aura and their clocks are unchanged.
+     * Dynamics start from this motion's accepted base, followed by the existing final mouse grid.
+     */
+    public float[] calculateBridgePlanRotations(AdaptiveBridgePlanner.Scope scope,Object identity,
+                                               float targetYaw,float targetPitch,
+                                               AdaptiveBridgeMotion.Settings settings) {
+        if(Thread.currentThread()!=bridgeOwningThread)return null;
+        if(identity==null || settings==null)return null;
+        final long motion=sequence;
+        RuntimeObservation observation=RuntimeServices.observation();
+        SceneContext scene=bridgeScene(scope,observation,motion);
+        if(scene==null)return null;
+        RotationState state=state("scaffold");
+        if(state.bridgeMotion==null)state.bridgeMotion=new AdaptiveBridgeMotion(state.adaptiveSeed ^ 0x315bc74d9f42a68eL);
+        AdaptiveMotionController.Result next=state.bridgeMotion.advance(scope,identity,settings,motion,curveMotionTime(),
+                baseYaw,basePitch,targetYaw,targetPitch,true);
+        if(next==null || !currentBridgeScene(scope,observation,scene,motion,state)) {
+            state.bridgeMotion.rejectMotion(scope,identity,motion);return null;
+        }
+        float wantedYaw=baseYaw+MathHelper.wrapAngleTo180_float((float)next.yaw-baseYaw);
+        float[] snapped=quantize(wantedYaw,(float)next.pitch,baseYaw,basePitch,mc.gameSettings.mouseSensitivity);
+        if(!Float.isFinite(snapped[0]) || !Float.isFinite(snapped[1])) {
+            state.bridgeMotion.rejectMotion(scope,identity,motion);return null;
+        }
+        return snapped;
+    }
+
+    /** A stale acquisition cannot dispose a replacement source's active motion. */
+    public void resetBridgeMotion(AdaptiveBridgePlanner.Scope expected) {
+        if(Thread.currentThread()!=bridgeOwningThread)return;
+        RotationState state=states.get("scaffold");
+        if(state!=null && state.bridgeMotion!=null)state.bridgeMotion.reset(expected);
+    }
+
+    private SceneContext bridgeScene(AdaptiveBridgePlanner.Scope scope,RuntimeObservation observation,long motion) {
+        if(!bridgeContext(scope) || observation==null || observation.getActiveOuterTickId()<0)return null;
+        SceneContext scene=observation.captureScene();
+        if(scene==null || !scene.isValid() || scene.isSuspended() || sequence!=motion || !bridgeContext(scope))return null;
+        boolean current=observation.isCurrent(scene);
+        return current && sequence==motion && RuntimeServices.observation()==observation && bridgeContext(scope)?scene:null;
+    }
+
+    private boolean currentBridgeScene(AdaptiveBridgePlanner.Scope scope,RuntimeObservation observation,
+                                       SceneContext scene,long motion,RotationState state) {
+        if(sequence!=motion || states.get("scaffold")!=state || !bridgeContext(scope)
+                || RuntimeServices.observation()!=observation)return false;
+        boolean current=observation.isCurrent(scene);
+        return current && sequence==motion && states.get("scaffold")==state && bridgeContext(scope)
+                && RuntimeServices.observation()==observation;
+    }
+
+    private boolean bridgeContext(AdaptiveBridgePlanner.Scope scope) {
+        if(!collecting || scope==null || scope.owner==null || scope.acquisitionGeneration<0
+                || scope.connectionEpoch<0 || mc==null || mc.thePlayer==null || mc.theWorld==null
+                || mc.gameSettings==null || mc.currentScreen!=null || !mc.inGameHasFocus || mc.isGamePaused()
+                || mc.getRenderViewEntity()!=mc.thePlayer || motionPlayer.get()!=scope.player
+                || motionWorld.get()!=scope.world || mc.thePlayer!=scope.player || mc.theWorld!=scope.world
+                || !Float.isFinite(baseYaw) || !Float.isFinite(basePitch)
+                || !Float.isFinite(mc.gameSettings.mouseSensitivity)
+                || mc.thePlayer.sendQueue==null || mc.thePlayer.sendQueue.getNetworkManager()==null)return false;
+        PacketPipeline packets=mc.thePlayer.sendQueue.getNetworkManager().getClientPackets();
+        if(packets==null || packets!=scope.connection || !packets.isActive()
+                || packets.getContextVersion()!=scope.connectionEpoch || !isConnection(packets))return false;
+        me.youngjibbit.module.ModuleManager modules=Pulsar.INSTANCE.getMm();
+        if(modules==null || modules.getModule(me.youngjibbit.module.impl.world.Scaffold.class)!=scope.owner)return false;
+        me.youngjibbit.module.impl.world.Scaffold scaffold=(me.youngjibbit.module.impl.world.Scaffold)scope.owner;
+        if(!scaffold.isCurrentBridgeScope(scope))return false;
+        // Respect a winning foreign request already known during PRE collection.
+        return winner==null || "scaffold".equals(winner.source) || winner.priority<SCAFFOLD_PRIORITY
+                || winner.priority==SCAFFOLD_PRIORITY && winner.source.compareTo("scaffold")>0;
+    }
+
     public Vec3 faceAimPoint(String source,Object target,AxisAlignedBB box,net.minecraft.util.EnumFacing face,Vec3 base,RotationProfile profile) {
         Vec3 point=state(source).trajectory.point(target,box,base,profile);
         switch(face) {
@@ -1321,6 +1419,8 @@ public final class RotationManager {
         }
         if (releaseAcceptance != null && source.equals(releaseAcceptance.source)) releaseAcceptance = null;
         if (isReleaseSource(source) && rotationRelease != null && source.equals(rotationRelease.releaseSource)) cancelRotationRelease();
+        RotationState discarded=states.get(source);
+        if(discarded!=null && discarded.bridgeMotion!=null)discarded.bridgeMotion.reset();
         states.remove(source);
         if (source.equals(owner)) owner = null;
         if (winner != null && source.equals(winner.source)) winner = null;
@@ -1345,6 +1445,7 @@ public final class RotationManager {
         offeredSources.clear();
         cameraIntent = false;
         RotationCorrections.reset();
+        for(RotationState discarded:states.values())if(discarded.bridgeMotion!=null)discarded.bridgeMotion.reset();
         states.clear();
         owner = null;
         winner = null;
@@ -1392,6 +1493,7 @@ public final class RotationManager {
         final ArsenicAimTrajectory arsenic;
         final long adaptiveSeed;
         AdaptiveMotionController adaptive;
+        AdaptiveBridgeMotion bridgeMotion;
         NeutronAiCore ai;
         NeutronAiCore.Acquisition aiToken;
         SceneContext aiScene;
