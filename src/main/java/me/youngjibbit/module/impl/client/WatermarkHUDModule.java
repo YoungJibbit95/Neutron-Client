@@ -164,7 +164,8 @@ public class WatermarkHUDModule extends Module {
                     x+39,y+(h-11)/2,primary);
             if(islandClock.getValue())font.drawString(time,x+w-clockWidth,y+(h-11)/2,secondary);
         }else if(view.state==IslandStateMachine.State.TARGET&&view.target!=null){
-            String hp=String.format(Locale.ROOT,"%.1f / %.1f HP",view.target.health,view.target.maxHealth);
+            String hp=String.format(Locale.ROOT,"%.1f / %.1f HP",view.target.health,view.target.maxHealth)
+                    +(view.target.absorption>0?String.format(Locale.ROOT," +%.1f",view.target.absorption):"");
             font.drawString(fitIsland(view.target.name,font,w-52),
                     x+39,y+7,primary);
             font.drawString(fitIsland(hp,font,w-52),x+39,y+20,secondary);
@@ -173,6 +174,9 @@ public class WatermarkHUDModule extends Module {
             float fill=barW*view.target.fraction();
             if(fill>.01f)UIUtils.drawGradientHorizontal(barX,barY,fill,4,Math.min(2,fill/2),
                     tint(theme.getPrimaryGradientColor(),alpha),tint(theme.getSecondaryGradientColor(),alpha));
+            float absorbed=barW*Math.min(1,view.target.absorption/view.target.maxHealth);
+            if(absorbed>.01f)UIUtils.drawRound(barX+barW-absorbed,barY,absorbed,4,
+                    Math.min(2,absorbed/2),new Color(255,205,105,Math.round(alpha*230)));
         }else if(view.state==IslandStateMachine.State.SCAFFOLD&&view.scaffold!=null){
             font.drawString(fitIsland("Scaffold  "+view.scaffold.blockCount+" blocks",font,w-53),x+39,y+7,primary);
             font.drawString(fitIsland(view.scaffold.approach,font,w-53),x+39,y+20,secondary);
