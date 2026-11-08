@@ -14,7 +14,9 @@ public class ThemeModule extends Module {
             new String[]{ThemeMode.LEGACY,ThemeMode.APPROACH_TWO},0);
     public ThemeModule(){setKey(Keyboard.KEY_0);ThemeMode.select(themeMode.getValue());}
     @Override public void onValueChange(){
-        ThemeCatalog.global().select(selectedTheme.getValue());
+        // A style change must not invalidate an unrelated custom-theme preview.
+        if(!java.util.Objects.equals(ThemeCatalog.global().selectedReference(),selectedTheme.getValue()))
+            ThemeCatalog.global().select(selectedTheme.getValue());
         ThemeMode.select(themeMode.getValue());
     }
     public static Theme getTheme(){return Theme.getDefaultTheme();}
