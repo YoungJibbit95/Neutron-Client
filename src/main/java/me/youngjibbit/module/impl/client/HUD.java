@@ -28,6 +28,7 @@ public class HUD extends Module {
         for(Module m:Pulsar.INSTANCE.getMm().getAllModules()){
             if(m instanceof ArrayListHUDModule)((ArrayListHUDModule)m).resetPosition();
             if(m instanceof ArmorHUD)((ArmorHUD)m).resetPosition();
+            if(m instanceof TargetHUD)((TargetHUD)m).resetPosition();
             if(m instanceof SessionInfo)((SessionInfo)m).resetPosition();
             if(m instanceof Diagnostics)((Diagnostics)m).resetPositions();
         }

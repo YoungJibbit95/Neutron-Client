@@ -15,6 +15,8 @@ import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.ModuleInfo;
 import me.youngjibbit.module.impl.client.HUD;
+import me.youngjibbit.module.impl.client.ClientSettings;
+import me.youngjibbit.gui.HudSpring;
 import me.youngjibbit.module.impl.exploit.*;
 import me.youngjibbit.notifications.*;
 import me.youngjibbit.utils.Theme;
@@ -129,6 +131,7 @@ public final class Diagnostics extends Module {
         corrections.clear();renderSnapshot=RenderTimings.Snapshot.EMPTY;rotation=null;queue=null;network=values=Collections.emptyList();
         cachedPanels=null;
         pingHistory.clear();
+        for(Widget w:widgets){w.graphSpring.reset();w.graphTail=Float.NaN;}
         ping=-1;sampledAt=loggedAt=notifiedAt=lastPaint=0;notified=false;
         world.clear();player.clear();connection.clear();cancelDrag();
     }
@@ -337,9 +340,10 @@ public final class Diagnostics extends Module {
         List<Panel> panels = new ArrayList<>(4);
         if (performanceWidget.getValue()) {
             double[] frames = renderSnapshot.frameMilliseconds;
-            String latest = frames.length == 0 ? "No samples" : fmt(frames[frames.length - 1]) + " ms";
+            double[] display=DiagnosticsPlots.easedTail(frames,widgets[0].graphTail);
+            String latest = display.length == 0 ? "No samples" : fmt(display[display.length-1]) + " ms";
             Panel p = new Panel(widgets[0], "Frame interval", latest);
-            p.plot = (theme, font, ink) -> DiagnosticsPlots.series(frames, 16.7, theme, font, ink, "Frames");
+            p.plot = (theme, font, ink) -> DiagnosticsPlots.series(display, 16.7, theme, font, ink, "Frames");
             panels.add(p);
         }
         if (rotationWidget.getValue()) {
@@ -352,8 +356,10 @@ public final class Diagnostics extends Module {
         }
         if (networkWidget.getValue()) {
             double[] samples = pingHistory.stream().mapToDouble(Integer::doubleValue).toArray();
-            Panel p = new Panel(widgets[2], "Reported ping", ping < 0 ? "No sample" : ping + " ms");
-            p.plot = (theme, font, ink) -> DiagnosticsPlots.series(samples, 50, theme, font, ink, "Samples");
+            double[] display=DiagnosticsPlots.easedTail(samples,widgets[2].graphTail);
+            Panel p = new Panel(widgets[2], "Reported ping", ping < 0 ? "No sample" :
+                    Math.round(Float.isFinite(widgets[2].graphTail)?widgets[2].graphTail:ping) + " ms");
+            p.plot = (theme, font, ink) -> DiagnosticsPlots.series(display, 50, theme, font, ink, "Samples");
             panels.add(p);
         }
         if (flagWidget.getValue()) {
@@ -373,6 +379,15 @@ public final class Diagnostics extends Module {
 
     void renderWidgets(ScaledResolution sr) {
         long now=System.nanoTime();float dt=lastPaint==0?0:Math.min(.1f,(now-lastPaint)/1e9f);lastPaint=now;
+        // Animate only the newest observed graph point, never the underlying history.
+        ClientSettings settings=ClientSettings.current();
+        boolean animated=animate.getValue()&&(settings==null||settings.animations.getValue());
+        boolean reduced=settings!=null&&settings.reducedMotion.getValue();
+        String intensity=settings==null?"Balanced":settings.motionIntensity.getValue();
+        double[] frameTimes=renderSnapshot.frameMilliseconds;
+        float lastMs=frameTimes.length==0?Float.NaN:(float)frameTimes[frameTimes.length-1];
+        updateGraphTail(widgets[0],lastMs,dt,animated,reduced,intensity);
+        updateGraphTail(widgets[2],ping>=0?ping:Float.NaN,dt,animated,reduced,intensity);
         boolean down=Mouse.isCreated()&&Mouse.isButtonDown(0),edit=editing(mc.currentScreen);
         float mx=Mouse.isCreated()?Mouse.getX()/(float)sr.getScaleFactor():-1;
         float my=Mouse.isCreated()?(mc.displayHeight-Mouse.getY()-1)/(float)sr.getScaleFactor():-1;
@@ -384,6 +399,11 @@ public final class Diagnostics extends Module {
             paint(panel,dt);
         }
         previousButton=down;
+    }
+    private static void updateGraphTail(Widget w,float value,float dt,
+                                        boolean animated,boolean reduced,String intensity){
+        if(!Float.isFinite(value)||value<0){w.graphSpring.reset();w.graphTail=Float.NaN;return;}
+        w.graphTail=Math.max(0,w.graphSpring.step(value,dt,animated,reduced,intensity));
     }
     void layout(Panel p,int sw,int sh) {
         sh=contentHeight(sh);
@@ -467,6 +487,8 @@ public final class Diagnostics extends Module {
     }
     final class Widget {
         final SliderValue positionX,positionY;final Map<String,Double> meters=new HashMap<>();
+        final HudSpring graphSpring=new HudSpring();
+        float graphTail=Float.NaN;
         float x,y,width,height,grabX,grabY;boolean dragging,visible;int scroll,maxScroll;
         double lastX,lastY;
         Widget(String label,float x,float y){this.x=x;this.y=y;lastX=x;lastY=y;positionX=new SliderValue(label+" X",Diagnostics.this,(double)x,-16384,16384);positionY=new SliderValue(label+" Y",Diagnostics.this,(double)y,-16384,16384);}
