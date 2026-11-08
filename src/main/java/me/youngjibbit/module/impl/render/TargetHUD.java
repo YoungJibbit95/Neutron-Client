@@ -66,11 +66,74 @@ public class TargetHUD extends Module {
     protected EntityLivingBase resolveTarget(){return CombatTargetTracker.getPrimaryTarget(300L);}
 
     void renderTarget(EntityLivingBase target){
-        if(!me.youngjibbit.module.impl.client.HUD.visible()){resetTarget();surface.close();return;}
-        if(mc.gameSettings.showDebugInfo||mc.currentScreen instanceof GuiChat){resetTarget();return;}
+        if(!HUD.visible()){resetTarget();surface.close();return;}
+        boolean down=Mouse.isCreated()&&Mouse.isButtonDown(0);
+        if(mc.gameSettings.showDebugInfo){resetTarget();previousButton=down;return;}
+        if(worldContext!=mc.theWorld){resetTarget();worldContext=mc.theWorld;previousButton=down;}
+        boolean chat=mc.currentScreen instanceof GuiChat;
         ScaledResolution sr=new ScaledResolution(mc);
-        Frame frame=layout(target,sr.getScaledWidth(),sr.getScaledHeight());
-        if(frame!=null)paint(frame);
+        int sw=sr.getScaledWidth(),sh=sr.getScaledHeight();
+        long now=System.nanoTime();
+        float dt=lastVisualFrame==0||now<=lastVisualFrame?0:
+                Math.min(.05f,(now-lastVisualFrame)/1_000_000_000f);
+        lastVisualFrame=now;
+        if(mc.theWorld==null||mc.thePlayer==null||target!=null&&
+                (target==mc.thePlayer||target.isDead||!target.isEntityAlive()||
+                mc.theWorld.getEntityByID(target.getEntityId())!=target))target=null;
+        Frame live=layout(target,sw,sh);
+        if(live==null&&chat)live=editorPreview(sw,sh);
+        if(!chat&&lastDisplayed!=null&&"Preview".equals(lastDisplayed.kind)){
+            lastDisplayed=null;reveal.reset();
+        }
+        if(live!=null){
+            float mx=Mouse.isCreated()?Mouse.getX()/(float)sr.getScaleFactor():-1;
+            float my=Mouse.isCreated()?(mc.displayHeight-Mouse.getY()-1)/(float)sr.getScaleFactor():-1;
+            interact(chat,down,mx,my,live,sw,sh);
+            HudPlacement.Point positioned=position(sw,sh,live.width,live.height);
+            live=live.positioned(positioned.x,positioned.y);
+            lastDisplayed=live;
+        }else{dragging=false;HudDrag.cancel(this);previousButton=down;}
+        ClientSettings settings=ClientSettings.current();
+        HudReveal.Frame state=reveal.step(live!=null,dt,
+                settings==null||settings.animations.getValue(),
+                settings!=null&&settings.reducedMotion.getValue(),
+                settings==null?"Balanced":settings.motionIntensity.getValue());
+        if(!state.drawn()){if(live==null)lastDisplayed=null;return;}
+        Frame shown=live!=null?live:lastDisplayed;
+        if(shown!=null)paint(shown,state.opacity,state.scale,state.slideY);
+    }
+
+    private HudPlacement.Point position(int sw,int sh,float width,float height){
+        boolean manual=positionX.getValue()!=0||positionY.getValue()!=0;
+        return HudPlacement.location(positionX.getValue().floatValue(),positionY.getValue().floatValue(),
+                manual,sw,sh,width,height,HUD.bounded());
+    }
+    /** Chat input only; a held gameplay click cannot start a new editor drag. */
+    void interact(boolean chat,boolean down,float mx,float my,Frame frame,int sw,int sh){
+        boolean was=dragging;
+        dragging=HudDrag.capture(this,chat,down,!previousButton,
+                HudDrag.roundedContains(mx,my,frame.x,frame.y,frame.width,frame.height,frame.radius));
+        if(dragging&&!was){grabX=mx-frame.x;grabY=my-frame.y;}
+        if(dragging){
+            HUD hud=HUD.current();float grid=hud==null?0:hud.snap.getValue().floatValue();
+            HudPlacement.Point p=HudPlacement.drag(mx,my,grabX,grabY,grid,sw,sh,
+                    frame.width,frame.height,HUD.bounded());
+            positionX.setValue((double)p.x);positionY.setValue((double)p.y);
+        }
+        previousButton=down;
+    }
+    private Frame editorPreview(int sw,int sh){
+        String design=mode.getValue();
+        boolean test="Test".equals(design),basic="Basic".equals(design),rise="Rise".equals(design);
+        TTFFontRenderer nameFont=Pulsar.INSTANCE.fontManager.getFont((basic?"Product-Sans-Bold":"Poppins-Medium")+" 18");
+        TTFFontRenderer infoFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 16");
+        float w=Math.min(Math.max(1,sw-8),190),h=Math.min(Math.max(1,sh-8),rise||basic?50:44);
+        HudPlacement.Point p=position(sw,sh,w,h);
+        float rad=basic?.5f:rise?14:"Neutron White".equals(design)?10:UiEffects.radius(5,w,h);
+        float textX=test?8:44;
+        return new Frame(p.x,p.y,w,h,Math.min(rad,h/2),textX,
+                fit("TargetHUD preview",nameFont,w-textX-8),"-- / --","Preview",null,
+                1,0,design,nameFont,infoFont,Theme.resolve(Theme.getDefaultTheme()));
     }
     Frame layout(EntityLivingBase target,int sw,int sh){
         if(target==null||target.isDead||!target.isEntityAlive()){resetTarget();return null;}
