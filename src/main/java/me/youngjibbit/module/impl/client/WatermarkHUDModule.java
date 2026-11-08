@@ -134,7 +134,7 @@ public class WatermarkHUDModule extends Module {
         final String time=islandTime();
         // Reuse the single existing surface and shared halo/blur/RenderState pools.
         GuiShaderBloom.afterBatch(()->surface.designedPanel(frame.x,frame.y,frame.width,frame.height,
-                frame.radius,theme,true,blur.getValue(),glow.getValue(),5,
+                frame.radius,theme,background.getValue(),blur.getValue(),glow.getValue(),5,
                 .65f*frame.opacity,.48f*frame.opacity,false,
                 ()->{
                     try(GuiClip clip=GuiClip.push(new ClipRect(frame.x+2,frame.y+2,
