@@ -39,6 +39,24 @@ public final class IslandLayout {
         }
     }
 
+    /**
+     * The neutral-glass Neutron 2.0 silhouette is compact in idle,
+     * and can grow only for independently verified target health. Legacy
+     * dimensions remain byte-for-byte equivalent to forState(state,w,h).
+     */
+    public static Frame forState(IslandStateMachine.State state,int width,int height,boolean modern){
+        if(!modern)return forState(state,width,height);
+        if(state==null)state=IslandStateMachine.State.IDLE;
+        switch(state){
+            case TARGET:return new Frame(width,height,266,52,17,1);
+            case SCAFFOLD:return new Frame(width,height,248,44,17,1);
+            case MODULE_TOAST:return new Frame(width,height,240,38,17,1);
+            case POSSIBLE_SETBACK:return new Frame(width,height,270,50,17,1);
+            case IDLE:
+            default:return new Frame(width,height,234,34,17,1);
+        }
+    }
+
     /** Trim by code points: never split a supplementary Unicode character. */
     public static String limitText(String input, int maxCodePoints) {
         if (input == null || maxCodePoints <= 0) return "";
