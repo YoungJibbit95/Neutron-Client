@@ -10,6 +10,8 @@ public final class AttackScheduler {
     private final LongSupplier clock;
     private final DoubleBinaryOperator cps;
     private long tick, lastAttackTick = Long.MIN_VALUE, lastAutoTick = Long.MIN_VALUE;
+    /** A reserved miss-click is not an accepted C02 or a native sprint impulse. */
+    private long lastClickTick = Long.MIN_VALUE;
     private long attemptedMotion = Long.MIN_VALUE, lastAttackAt = Long.MIN_VALUE;
     /** A refused C02 still consumes its admitted click; only accepted C02 marks lastAttackAt. */
     private long lastClickAt = Long.MIN_VALUE;
@@ -26,7 +28,9 @@ public final class AttackScheduler {
     }
 
     public void beginTick() { tick++; }
+    /** Legacy attack budget/accepted C02 view; click-only swings never claim a hit. */
     public boolean hasAttackThisTick() { return lastAttackTick == tick || lastAutoTick == tick; }
+    private boolean hasSpentClickBudget() { return hasAttackThisTick() || lastClickTick == tick; }
 
     public boolean allowControllerAttack(boolean auraEnabled) {
         if (automatic) {
@@ -34,7 +38,7 @@ public final class AttackScheduler {
             controllerUsed = true;
             return true;
         }
-        return !auraEnabled || !hasAttackThisTick();
+        return !auraEnabled || !hasSpentClickBudget();
     }
 
     /** Reserve only an admitted controller call, including all of its synchronous callbacks. */
@@ -65,7 +69,7 @@ public final class AttackScheduler {
         if (controllerInFlight) return false;
         if (attemptedMotion == motion) return false;
         attemptedMotion = motion;
-        if (!hitValidated || hasAttackThisTick()) return false;
+        if (!hitValidated || hasSpentClickBudget()) return false;
         if (delay == 0) delay = Math.max(1, nextDelay.getAsLong());
         if (!cadenceReady(clock.getAsLong())) return false;
         lastAutoTick = tick;
@@ -95,12 +99,14 @@ public final class AttackScheduler {
                             BooleanSupplier controllerAttack) {
         if (controllerInFlight || attemptedMotion == motion) return false;
         attemptedMotion = motion;
-        if (!clickEligible || hasAttackThisTick()) return false;
+        if (!clickEligible || hasSpentClickBudget()) return false;
         if (delay == 0) delay = Math.max(1, nextDelay.getAsLong());
         long now = clock.getAsLong();
         if (!cadenceReady(now)) return false;
 
-        lastAutoTick = tick;
+        // A visible click-only swing blocks further automation this tick, but
+        // MUST NOT masquerade as an accepted attack for sprint/physics consumers.
+        lastClickTick = tick;
         lastClickAt = now;
         automatic = true;
         controllerUsed = false;
