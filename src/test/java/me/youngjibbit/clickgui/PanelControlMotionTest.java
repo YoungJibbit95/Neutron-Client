@@ -78,7 +78,9 @@ public class PanelControlMotionTest {
         }
         settings.animations.setValue(false);
         row.setOpen(true);row.updatePanelAnimation(0);
-        assertFalse(row.focusableValues().isEmpty()==false && row.getHeight()<=24);
+        assertTrue(row.getHeight()>24);
+        row.layout(10,10,238,new ClipRect(0,0,500,500));
+        assertFalse(row.focusableValues().isEmpty());
         row.setOpen(false);row.updatePanelAnimation(0);
         assertEquals(24,row.getHeight(),.001);
     }
