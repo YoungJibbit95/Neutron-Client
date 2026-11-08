@@ -1,5 +1,12 @@
 package me.youngjibbit.module.impl.client;
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.core.combat.CombatTargetTracker;
+import me.youngjibbit.gui.IslandMorphMotion;
+import me.youngjibbit.module.impl.client.island.IslandLayout;
+import me.youngjibbit.module.impl.client.island.IslandStateMachine;
+import me.youngjibbit.clickgui.utils.ClipRect;
+import me.youngjibbit.clickgui.utils.GuiClip;
+import net.minecraft.entity.EntityLivingBase;
 import me.youngjibbit.event.render.Event2D;
 import me.youngjibbit.module.*;
 import me.youngjibbit.module.Module;
@@ -15,7 +22,7 @@ import java.util.*;
 import static org.lwjgl.opengl.GL11.*;
 @ModuleInfo(id="watermark_hud",name="Watermark",description="Renders the client watermark",category=Category.Client)
 public class WatermarkHUDModule extends Module {
-    private final ComboValue mode=new ComboValue("Mode",this,new String[]{"Simple","Glass","Outline","Rise","iOS","Logo 1","Logo 2","Wordmark","Status"},1);
+    private final ComboValue mode=new ComboValue("Mode",this,new String[]{"Simple","Glass","Outline","Rise","iOS","Logo 1","Logo 2","Wordmark","Status","Dynamic Island"},1);
     private final CheckBoxValue name=new CheckBoxValue("Client Name",this,true),version=new CheckBoxValue("Version",this,true),fps=new CheckBoxValue("FPS",this,true),player=new CheckBoxValue("Player",this,true);
     private final CheckBoxValue background=new CheckBoxValue("Background",this,true),blur=new CheckBoxValue("Blur",this,true),glow=new CheckBoxValue("Glow",this,true);
     private final ComboValue textStyle=new ComboValue("Text Style",this,new String[]{"Solid","Horizontal","Vertical","Theme"},3);
@@ -24,11 +31,25 @@ public class WatermarkHUDModule extends Module {
     private final SliderValue speed=new SliderValue("Text Speed",this,.18,.02,1),strength=new SliderValue("Text Glow Strength",this,.45,0,2),radius=new SliderValue("Text Glow Radius",this,4.0,1,12);
     private final ArrayListSurface surface=new ArrayListSurface(this);
     private final TextEffects textEffects=new TextEffects();
-    public WatermarkHUDModule(){radius.setVisibility(m->localRadius.getValue());animated.setVisibility(m->!textStyle.getValue().equals("Theme"));speed.setVisibility(m->!textStyle.getValue().equals("Theme")&&animated.getValue());}
+    // New settings follow the legacy surface's registrations: no existing Value index shifts.
+    private final CheckBoxValue islandTarget=new CheckBoxValue("Island Target",this,true);
+    private final CheckBoxValue islandClock=new CheckBoxValue("Island Clock",this,true);
+    private final IslandStateMachine islandState=new IslandStateMachine();
+    private final IslandMorphMotion islandMotion=new IslandMorphMotion();
+    private Object islandWorld;
+    private long islandEpoch, islandLastFrameNanos, islandClockMinute=Long.MIN_VALUE;
+    private String islandClockText="", islandLastKey;
+    private IslandStateMachine.Selection islandLastSelection, islandPrevious;
+    private boolean islandActive;
+    public WatermarkHUDModule(){radius.setVisibility(m->localRadius.getValue());animated.setVisibility(m->!textStyle.getValue().equals("Theme"));speed.setVisibility(m->!textStyle.getValue().equals("Theme")&&animated.getValue());
+        islandTarget.setVisibility(m->"Dynamic Island".equals(mode.getValue()));
+        islandClock.setVisibility(m->"Dynamic Island".equals(mode.getValue()));}
     @Subscribe private final Listener<Event2D> onRender2D=new Listener<>(event->{if(!mc.gameSettings.showDebugInfo)renderWatermark();});
-    @Override public void onDisable(){surface.close();textEffects.close();super.onDisable();}
+    @Override public void onDisable(){resetIsland();surface.close();textEffects.close();super.onDisable();}
     void renderWatermark(){
-        if(!HUD.visible()){surface.close();textEffects.close();return;}
+        if(!HUD.visible()){resetIsland();surface.close();textEffects.close();return;}
+        if("Dynamic Island".equals(mode.getValue())){renderIsland();return;}
+        if(islandActive)resetIsland();
         String design=mode.getValue();boolean logo=design.startsWith("Logo"),word=design.equals("Wordmark"),status=design.equals("Status"),rise=design.equals("Rise"),simple=design.equals("Simple");
         TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont(rise?"Product-Sans-Medium 41":word?"Poppins-Bold 23":design.equals("iOS")?"SFProText-Medium 18":simple?"KhmerOureang 20":"DmSansMedium 18");
         TTFFontRenderer detail=(word||rise)?Pulsar.INSTANCE.getFontManager().getFont("DmSansMedium 18"):font;
@@ -60,5 +81,135 @@ public class WatermarkHUDModule extends Module {
             };
             if(panel)surface.designedPanel(4,4,fw*fs,fh*fs,rounding,theme,panel&&background.getValue(),panel&&blur.getValue(),panel&&glow.getValue(),4,.52f,panel&&background.getValue()?(design.equals("Outline")?1:.55f):0,false,content);else surface.text(content);
         });
+    }
+
+    /** Render-side only: a valid, recent Aura/AimAssist-owned entity in this exact world. */
+    private IslandStateMachine.Target islandTargetSnapshot(){
+        if(!islandTarget.getValue()||mc.theWorld==null||mc.thePlayer==null)return null;
+        String source=CombatTargetTracker.getSource();
+        if(!"aura".equalsIgnoreCase(source)&&!"aimassist".equalsIgnoreCase(source))return null;
+        EntityLivingBase entity=CombatTargetTracker.getPrimaryTarget(250L);
+        if(entity==null||entity==mc.thePlayer||entity.isDead||!entity.isEntityAlive()
+                ||mc.theWorld.getEntityByID(entity.getEntityId())!=entity)return null;
+        String visible=net.minecraft.util.StringUtils.stripControlCodes(entity.getCommandSenderName());
+        if(visible==null||visible.trim().isEmpty())return null;
+        return new IslandStateMachine.Target(entity.getEntityId(),IslandLayout.limitText(visible,64),
+                entity.getHealth(),entity.getMaxHealth(),entity.getAbsorptionAmount());
+    }
+
+    private void renderIsland(){
+        islandActive=true;
+        // World object identity is a scene epoch: entity-id reuse cannot leak old content.
+        if(islandWorld!=mc.theWorld){
+            islandWorld=mc.theWorld;islandEpoch++;islandState.reset();islandMotion.reset();
+            islandLastSelection=islandPrevious=null;islandLastKey=null;islandLastFrameNanos=0;
+        }
+        long now=System.nanoTime();
+        float dt=islandLastFrameNanos==0||now<=islandLastFrameNanos?0
+                :Math.min(.05f,(now-islandLastFrameNanos)/1_000_000_000f);
+        islandLastFrameNanos=now;
+        if(!mc.inGameHasFocus){islandMotion.reset();dt=0;}
+        IslandStateMachine.Selection selected=islandState.resolve(islandEpoch,now,
+                islandTargetSnapshot(),null,islandTarget.getValue(),false);
+        String key=selected.state.name()+(selected.target==null?"":"#"+selected.target.entityId+":"+selected.target.name);
+        if(!key.equals(islandLastKey)){
+            // Only the neutral idle label may remain during a crossfade. Never retain lost targets.
+            islandPrevious=islandLastSelection!=null&&islandLastSelection.state==IslandStateMachine.State.IDLE
+                    ?islandLastSelection:null;
+            islandMotion.contentChanged();islandLastKey=key;
+        }
+        islandLastSelection=selected;
+        ClientSettings settings=ClientSettings.current();
+        boolean animations=settings==null||settings.animations.getValue();
+        boolean reduced=settings!=null&&settings.reducedMotion.getValue();
+        String intensity=settings==null?"Balanced":settings.motionIntensity.getValue();
+        ScaledResolution sr=new ScaledResolution(mc);
+        IslandLayout.Frame frame=islandMotion.sample(IslandLayout.forState(selected.state,
+                sr.getScaledWidth(),sr.getScaledHeight()),dt,animations,reduced,intensity);
+        float mix=islandMotion.contentAlpha();
+        if(mix>=.999f)islandPrevious=null;
+        final IslandStateMachine.Selection previous=islandPrevious;
+        final Theme theme=Theme.resolve(Theme.getDefaultTheme());
+        final TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont("DmSansMedium 18");
+        final String time=islandTime();
+        // Reuse the single existing surface and shared halo/blur/RenderState pools.
+        GuiShaderBloom.afterBatch(()->surface.designedPanel(frame.x,frame.y,frame.width,frame.height,
+                frame.radius,theme,true,blur.getValue(),glow.getValue(),5,
+                .65f*frame.opacity,.48f*frame.opacity,false,
+                ()->{
+                    try(GuiClip clip=GuiClip.push(new ClipRect(frame.x+2,frame.y+2,
+                            Math.max(1,frame.width-4),Math.max(1,frame.height-4)))){
+                        if(previous!=null&&mix<1)paintIsland(previous,frame,font,theme,time,(1-mix)*frame.opacity);
+                        paintIsland(selected,frame,font,theme,time,mix*frame.opacity);
+                    }
+                }));
+    }
+
+    private void paintIsland(IslandStateMachine.Selection view,IslandLayout.Frame frame,
+                             TTFFontRenderer font,Theme theme,String time,float alpha){
+        if(alpha<=0)return;
+        float x=frame.x,y=frame.y,w=frame.width,h=frame.height;
+        int primary=ink(0xfff4f6fc,alpha);
+        int secondary=ink(0xffb8cad8,alpha);
+        int accent=ink(theme.getPrimaryGradientRGB()|0xff000000,alpha);
+        // Neutron's own typographic N badge: no external logo, symbol font or texture.
+        UIUtils.drawRound(x+9,y+(h-24)/2,24,24,11,
+                new Color(26,47,60,Math.round(alpha*230)));
+        font.drawString("N",x+16,y+(h-11)/2,accent);
+        if(view.state==IslandStateMachine.State.IDLE){
+            String brand=(name.getValue()?Pulsar.INSTANCE.getName():"Neutron")
+                    +(version.getValue()?" "+Pulsar.INSTANCE.getVersion():"");
+            float clockWidth=islandClock.getValue()?font.getWidth(time)+11:0;
+            font.drawString(fitIsland(brand,font,w-47-clockWidth),
+                    x+39,y+(h-11)/2,primary);
+            if(islandClock.getValue())font.drawString(time,x+w-clockWidth,y+(h-11)/2,secondary);
+        }else if(view.state==IslandStateMachine.State.TARGET&&view.target!=null){
+            String hp=String.format(Locale.ROOT,"%.1f / %.1f HP",view.target.health,view.target.maxHealth);
+            font.drawString(fitIsland(view.target.name,font,w-52),
+                    x+39,y+7,primary);
+            font.drawString(fitIsland(hp,font,w-52),x+39,y+20,secondary);
+            float barX=x+39,barY=y+h-11,barW=Math.max(0,w-52);
+            UIUtils.drawRound(barX,barY,barW,4,2,new Color(55,67,80,Math.round(alpha*215)));
+            float fill=barW*view.target.fraction();
+            if(fill>.01f)UIUtils.drawGradientHorizontal(barX,barY,fill,4,Math.min(2,fill/2),
+                    tint(theme.getPrimaryGradientColor(),alpha),tint(theme.getSecondaryGradientColor(),alpha));
+        }else if(view.state==IslandStateMachine.State.SCAFFOLD&&view.scaffold!=null){
+            font.drawString(fitIsland("Scaffold  "+view.scaffold.blockCount+" blocks",font,w-53),x+39,y+7,primary);
+            font.drawString(fitIsland(view.scaffold.approach,font,w-53),x+39,y+20,secondary);
+        }else{
+            String text=view.state==IslandStateMachine.State.POSSIBLE_SETBACK
+                    ?"Possible setback (local)" : view.label;
+            font.drawString(fitIsland(text,font,w-53),x+39,y+(h-11)/2,
+                    view.state==IslandStateMachine.State.POSSIBLE_SETBACK
+                            ?ink(UiEffects.semanticColor(UiEffects.SemanticRole.WARNING,accent,true),alpha):primary);
+        }
+    }
+
+    private static Color tint(Color color,float alpha){
+        return new Color(color.getRed(),color.getGreen(),color.getBlue(),Math.round(Math.max(0,Math.min(1,alpha))*255));
+    }
+    private static int ink(int rgb,float alpha){
+        return (Math.round(Math.max(0,Math.min(1,alpha))*255)<<24)|(rgb&0xffffff);
+    }
+    private static String fitIsland(String value,TTFFontRenderer font,float available){
+        String text=IslandLayout.limitText(value,64);
+        if(available<=0)return "";
+        if(font.getWidth(text)<=available)return text;
+        while(!text.isEmpty()&&font.getWidth(text+"...")>available)
+            text=text.substring(0,text.offsetByCodePoints(text.length(),-1));
+        return text.isEmpty()?"":text+"...";
+    }
+    private String islandTime(){
+        long minute=System.currentTimeMillis()/60_000L;
+        if(minute!=islandClockMinute){
+            islandClockMinute=minute;
+            islandClockText=new java.text.SimpleDateFormat("HH:mm",Locale.ROOT).format(new Date(minute*60_000L));
+        }
+        return islandClockText;
+    }
+    private void resetIsland(){
+        islandState.reset();islandMotion.reset();islandWorld=null;islandEpoch++;
+        islandLastFrameNanos=0;islandLastKey=null;islandLastSelection=islandPrevious=null;
+        islandActive=false;
     }
 }
