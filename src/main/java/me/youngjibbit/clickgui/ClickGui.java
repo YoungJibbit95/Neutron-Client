@@ -13,6 +13,7 @@ import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.impl.render.ClickGUI;
 import me.youngjibbit.module.impl.client.ClientSettings;
+import me.youngjibbit.gui.NeutronVisualTokens;
 import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.render.Blur;
@@ -62,8 +63,11 @@ public class ClickGui extends GuiScreen {
 
     /** Only the dedicated 2.0 screen changes geometry and material; Panel stays Legacy. */
     protected boolean modernPresentation(){return false;}
-    private float sidebarWidth(){return modernPresentation()?148:SIDEBAR;}
-    private float headerHeight(){return modernPresentation()?44:HEADER;}
+    private float sidebarWidth(){return modernPresentation()?NeutronVisualTokens.sidebar(width):SIDEBAR;}
+    private float headerHeight(){return modernPresentation()?NeutronVisualTokens.header():HEADER;}
+    private float detailHeaderHeight(){return modernPresentation()?48:CONTENT_HEADER;}
+    private float footerHeight(){return modernPresentation()?30:FOOTER;}
+    private float rowGap(){return modernPresentation()?NeutronVisualTokens.ROW_GAP:CARD_GAP;}
 
     private ClipRect chromeBounds(int id){return id==0?searchBounds():id==1?themeBounds():new ClipRect(x+5,y+headerHeight()+4+(id-2)*categoryStep(),sidebarWidth()-10,categoryStep()-4);}
     private void resetMotion(){
@@ -105,7 +109,10 @@ public class ClickGui extends GuiScreen {
     }
 
     private void fitWindow() {
-        if(!positioned&&modernPresentation()){width=640;height=420;}
+        if(!positioned&&modernPresentation()){
+            width=NeutronVisualTokens.width(super.width);
+            height=NeutronVisualTokens.height(super.height);
+        }
         float availableWidth = Math.max(1, super.width - MARGIN * 2);
         float availableHeight = Math.max(1, super.height - MARGIN * 2);
         width = Math.max(Math.min(320, availableWidth), Math.min(width, availableWidth));
@@ -120,8 +127,9 @@ public class ClickGui extends GuiScreen {
     }
 
     private float categoryStep() {
-        return Math.min(modernPresentation()?32:24,
-                (height - headerHeight() - FOOTER - 8) / CATEGORIES.length);
+        return modernPresentation()?
+                NeutronVisualTokens.categoryPitch(height,CATEGORIES.length):
+                Math.min(24,(height-headerHeight()-FOOTER-8)/CATEGORIES.length);
     }
 
     @Override
@@ -243,20 +251,23 @@ public class ClickGui extends GuiScreen {
     }
 
     private void layoutModules(float delta) {
-        viewport = new ClipRect(x + sidebarWidth() + 8, y + headerHeight() + CONTENT_HEADER + 4, width - sidebarWidth() - 20, height - headerHeight() - CONTENT_HEADER - FOOTER - 8);
+        viewport = new ClipRect(x + sidebarWidth() + (modernPresentation()?16:8),
+                y + headerHeight() + detailHeaderHeight() + 4,
+                width - sidebarWidth() - (modernPresentation()?30:20),
+                height - headerHeight() - detailHeaderHeight() - footerHeight() - 8);
         float contentHeight = 0;
         for (ClickModule module : modules) {
             module.updatePanelAnimation(delta);
-            contentHeight += module.getHeight() + CARD_GAP;
+            contentHeight += module.getHeight() + rowGap();
         }
-        maxScroll = Math.max(0, contentHeight - (modules.isEmpty()?0:CARD_GAP) - viewport.height);
+        maxScroll = Math.max(0, contentHeight - (modules.isEmpty()?0:rowGap()) - viewport.height);
         targetScrollOffset = Math.max(-maxScroll, Math.min(0, targetScrollOffset));
         scrollOffset += (targetScrollOffset - scrollOffset) * me.youngjibbit.utils.render.UiEffects.response(delta,20);
         scrollOffset = Math.max(-maxScroll, Math.min(0, scrollOffset));
         float moduleY = viewport.y + scrollOffset;
         for (ClickModule module : modules) {
             module.layout(viewport.x + 1, moduleY + 1, viewport.width - 2, viewport);
-            moduleY += module.getHeight() + CARD_GAP;
+            moduleY += module.getHeight() + rowGap();
         }
         if(focus!=null&&!focusables().contains(focus)){
             Component replacement=null;
@@ -278,7 +289,12 @@ public class ClickGui extends GuiScreen {
     }
 
     private List<ClickModule> categoryModules(Category category){
-        return moduleCache.computeIfAbsent(category,key->{List<ClickModule> result=new ArrayList<>();for(Module module:Pulsar.INSTANCE.getMm().getModules(key))result.add(ClickModule.forPanel(module, width - sidebarWidth() - 12));return result;});
+        return moduleCache.computeIfAbsent(category,key->{
+            List<ClickModule> result=new ArrayList<>();
+            for(Module module:Pulsar.INSTANCE.getMm().getModules(key))
+                result.add(ClickModule.forPanel(module,width-sidebarWidth()-12,modernPresentation()));
+            return result;
+        });
     }
     private void setupModules(){
         modules.clear();String query=search.trim().toLowerCase(Locale.ROOT);
