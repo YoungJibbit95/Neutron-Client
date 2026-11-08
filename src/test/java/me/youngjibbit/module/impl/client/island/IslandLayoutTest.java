@@ -43,7 +43,7 @@ public class IslandLayoutTest {
         String raw = "😀😃😄😁👋 Grüß Gott — مرحبا";
         String limited = IslandLayout.limitText(raw, 6);
         assertEquals(6, limited.codePointCount(0, limited.length()));
-        assertFalse(limited.endsWith("\uD83D"));
+        assertFalse(Character.isHighSurrogate(limited.charAt(limited.length()-1)));
         assertEquals("A B", IslandLayout.limitText("A\nB", 10));
         assertEquals("", IslandLayout.limitText(null, 10));
         assertEquals("", IslandLayout.limitText(raw, 0));
