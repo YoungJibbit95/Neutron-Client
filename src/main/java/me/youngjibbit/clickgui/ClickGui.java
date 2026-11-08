@@ -258,15 +258,39 @@ public class ClickGui extends GuiScreen {
             String title=search.trim().isEmpty()?selectedCategory.name():"Search results";
             String count=modules.size()+(!search.trim().isEmpty()?(modules.size()==1?" result":" results"):(modules.size()==1?" module":" modules"));
             TTFFontRenderer heading=Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18");
-            heading.drawString(title,viewport.x+1,y+headerHeight()+8,0xffedf0f7);
-            font().drawString(count,viewport.x+viewport.width-font().getWidth(count)-2,y+headerHeight()+8,0xffaab3c3);
-            String shortcuts=width>=400?"/ Search  \u00b7  Tab Navigate  \u00b7  K Bind":"/ Search  \u00b7  Tab  \u00b7  K Bind";
-            font().drawString(shortcuts,viewport.x,y+height-FOOTER+5,0xffaab3c3);
+            heading.drawString(title,viewport.x+1,y+headerHeight()+8,
+                    modern?NeutronVisualTokens.INK:0xffedf0f7);
+            font().drawString(count,viewport.x+viewport.width-font().getWidth(count)-2,
+                    y+headerHeight()+8,modern?NeutronVisualTokens.MUTED:0xffaab3c3);
+            if(modern){
+                TTFFontRenderer small=Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Regular 16");
+                small.drawString(NeutronVisualTokens.categoryDescription(selectedCategory),
+                        viewport.x+1,y+headerHeight()+27,NeutronVisualTokens.MUTED);
+                float footerTop=y+height-footerHeight()-5;
+                UIUtils.drawDecorationRound(x+sidebarWidth()+15,footerTop,
+                        Math.max(1,width-sidebarWidth()-30),1,.5f,NeutronVisualTokens.HAIRLINE);
+                UIUtils.drawDecorationRound(x+15,footerTop,
+                        Math.max(1,sidebarWidth()-30),1,.5f,NeutronVisualTokens.HAIRLINE);
+                small.drawString("NEUTRON 2.0",x+18,footerTop+5,NeutronVisualTokens.INK);
+                small.drawString(modules.size()+" modules",x+18,footerTop+17,NeutronVisualTokens.MUTED);
+            }
+            if(!modern){
+                String shortcuts=width>=400?"/ Search  ·  Tab Navigate  ·  K Bind":
+                        "/ Search  ·  Tab  ·  K Bind";
+                font().drawString(shortcuts,viewport.x,y+height-FOOTER+5,0xffaab3c3);
+            }else{
+                Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Regular 16")
+                        .drawString("Tab: focus   ·   /: search   ·   K: bind",
+                                viewport.x,y+height-footerHeight()+2,NeutronVisualTokens.FAINT);
+            }
             if(maxScroll>0){
                 float thumb=Math.max(16,viewport.height*viewport.height/(viewport.height+maxScroll));
                 float thumbY=viewport.y+(-scrollOffset/maxScroll)*(viewport.height-thumb);
-                UIUtils.drawRound(x+width-7,viewport.y,2,viewport.height,1,new Color(42,46,56));
-                UIUtils.drawRound(x+width-7,thumbY,2,thumb,1,theme.getSecondaryGradientColor());
+                UIUtils.drawRound(x+width-7,viewport.y,2,viewport.height,1,
+                        modern?NeutronVisualTokens.TRACK:new Color(42,46,56));
+                UIUtils.drawRound(x+width-7,thumbY,2,thumb,1,
+                        modern?NeutronVisualTokens.secondary(theme,195):
+                                theme.getSecondaryGradientColor());
             }
             try (GuiClip contentClip = GuiClip.push(viewport)) {
                 if(modules.isEmpty()){
