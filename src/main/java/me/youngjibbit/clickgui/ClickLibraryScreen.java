@@ -5,6 +5,7 @@ import me.youngjibbit.clickgui.library.ConfigLibrary;
 import me.youngjibbit.clickgui.utils.*;
 import me.youngjibbit.config.*;
 import me.youngjibbit.gui.UiSpring;
+import me.youngjibbit.gui.NeutronVisualTokens;
 import me.youngjibbit.gui.clientsettings.SettingsMenu;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.theme.*;
@@ -49,7 +50,9 @@ public class ClickLibraryScreen extends GuiScreen {
         font().drawString(ClickControlStyle.fit(font(), text, width), x, y, ink);
     }
     private void layout() {
-        w = Math.min(640, Math.max(1, width - 20)); h = Math.min(420, Math.max(1, height - 20));
+        boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
+        w = Math.min(modern?780:640, Math.max(1,width-20));
+        h = Math.min(modern?480:420, Math.max(1,height-20));
         x = (width - w) / 2; y = (height - h) / 2;
         float max = Math.max(0, rowsHeight() - listBounds().height);
         targetScroll = Math.max(0, Math.min(max, targetScroll)); scroll = Math.max(0, Math.min(max, scroll));
@@ -122,23 +125,58 @@ public class ClickLibraryScreen extends GuiScreen {
     @Override public void drawScreen(int mx, int my, float partialTicks) {
         layout(); long now = System.nanoTime(); float dt = Math.min(.05f, Math.max(0, (now - lastFrame) / 1e9f)); lastFrame = now;
         scroll += (targetScroll - scroll) * UiEffects.response(dt, 22);
-        Theme theme = Theme.getDefaultTheme(); int ink = theme.getTextColor().getRGB();
+        Theme theme=Theme.getDefaultTheme();
+        int ink=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())?
+                NeutronVisualTokens.ink(theme):theme.getTextColor().getRGB();
         try (RenderState state = new RenderState()) {
             state.screenSpace();
             if(mc.theWorld==null)me.youngjibbit.gui.MainMenu.drawBackdrop(theme);else UIUtils.drawDecorationRound(0, 0, width, height, 0, new Color(5, 7, 12, 115));
-            surface.panel(x, y, w, h, 6, theme, true, true, true, 8, .92f, .8f, () -> {
-                try (GuiClip clip = GuiClip.push(new ClipRect(x + 2, y + 2, w - 4, h - 4))) {
-                    Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Bold 28").drawString("Neutron", x + 12, y + 12, ink);
-                    if (w > 370) text(themes ? "Configs & themes" : "Local configs", x + 107, y + 17, w - 170, ink);
+            boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
+            surface.panel(x,y,w,h,modern?14:6,theme,true,true,!modern,
+                    modern?4:8,modern?.98f:.92f,modern?.2f:.8f,()->{
+                try(GuiClip clip=GuiClip.push(new ClipRect(x+2,y+2,w-4,h-4))){
+                    if(modern){
+                        UIUtils.drawRound(x+1,y+1,w-2,h-2,14,NeutronVisualTokens.FRAME);
+                        UIUtils.drawRound(x+1,y+1,w-2,31,14,NeutronVisualTokens.HEADER);
+                        UIUtils.drawRound(x+7,y+(themes?88:splitConfigs()?104:78),
+                                Math.max(1,configListWidth()+10),
+                                Math.max(1,h-(themes?164:splitConfigs()?138:170)),
+                                9,NeutronVisualTokens.PANEL);
+                        if(splitConfigs()){
+                            UIUtils.drawRound(detailsX()-3,y+102,
+                                    Math.max(1,detailsWidth()+7),Math.max(1,h-136),
+                                    9,NeutronVisualTokens.PANEL);
+                        }
+                        UIUtils.drawDecorationRound(x+17,y+31,
+                                Math.max(1,w-34),1,.5f,NeutronVisualTokens.HAIRLINE);
+                        UIUtils.drawDecorationRound(x+12,y+11,2,18,1,
+                                NeutronVisualTokens.accent(theme,200));
+                    }
+                    Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Bold 28").drawString(
+                            modern?"Library":"Neutron",x+(modern?21:12),y+12,
+                            modern?NeutronVisualTokens.INK:ink);
+                    if(w>370)text(modern?themes?"Theme palettes":"Saved configurations":
+                            themes?"Configs & themes":"Local configs",
+                            x+(modern?115:107),y+17,w-170,
+                            modern?NeutronVisualTokens.MUTED:ink);
                     if (!themes) configSections(ink);
                     for (int id : new int[]{0,1,2,3,6,7,8}) {
                         ClipRect r = actionBounds(id); boolean active = enabled(id);
                         motion[id].stepForInput(dt, r.contains(mx,my), focus == id, pressed == id, active, ClientSettings.current());
                         r = GuiStyle.buttonBounds(r, motion[id]);
-                        if (themes) UIUtils.drawRound(r.x,r.y,r.width,r.height,3,new Color(21,24,31));
+                        if(modern){
+                            UIUtils.drawRound(r.x,r.y,r.width,r.height,7,
+                                    active?NeutronVisualTokens.CONTROL:NeutronVisualTokens.PANEL);
+                            if(active&&(id==1||id==6||id==7))
+                                UIUtils.drawDecorationRound(r.x+3,r.y+r.height-3,
+                                        Math.max(1,r.width-6),1,.5f,
+                                        NeutronVisualTokens.accent(theme,152));
+                        }else if(themes)
+                            UIUtils.drawRound(r.x,r.y,r.width,r.height,3,new Color(21,24,31));
                         else {
-                            boolean primary = id == 1 || id == 6;
-                            int fill = Theme.interpolateRGB(0xff202630, theme.getPrimaryGradientRGB(), primary && active ? .32f : .03f);
+                            boolean primary=id==1||id==6;
+                            int fill=Theme.interpolateRGB(0xff202630,
+                                    theme.getPrimaryGradientRGB(),primary&&active?.32f:.03f);
                             UIUtils.drawDecorationRound(r.x,r.y,r.width,r.height,3,new Color(fill,true));
                         }
                         GuiStyle.feedback(r,motion[id]);
@@ -150,11 +188,32 @@ public class ClickLibraryScreen extends GuiScreen {
                         for (int i = 0; i < items.size(); i++) {
                             ClipRect r = itemBounds(i); if (r.intersect(listBounds()).isEmpty()) continue;
                             String ref = items.get(i); boolean chosen = ref.equals(selected());
-                            if (themes) GuiStyle.panel(r.x,r.y,r.width,r.height,3,chosen?1:r.contains(mx,my)?.4f:.05f,new Color(17,20,27));
+                            if(modern){
+                                UIUtils.drawRound(r.x+2,r.y+2,Math.max(1,r.width-5),
+                                        Math.max(1,r.height-4),8,
+                                        chosen?NeutronVisualTokens.CARD_HOVER:
+                                                r.contains(mx,my)?NeutronVisualTokens.CARD:
+                                                NeutronVisualTokens.PANEL);
+                                if(chosen)UIUtils.drawDecorationRound(r.x+4,r.y+7,2,
+                                        Math.max(1,r.height-14),1,
+                                        NeutronVisualTokens.accent(theme,215));
+                                if(chosen&&focus==-2&&showsKeyboardFocus())
+                                    UIUtils.drawDecorationRound(r.x+8,r.y+r.height-4,
+                                            Math.max(1,r.width-16),1,.5f,
+                                            NeutronVisualTokens.secondary(theme,166));
+                            }else if(themes)
+                                GuiStyle.panel(r.x,r.y,r.width,r.height,3,
+                                        chosen?1:r.contains(mx,my)?.4f:.05f,new Color(17,20,27));
                             else {
-                                UIUtils.drawDecorationRound(r.x,r.y,r.width,r.height,3,new Color(Theme.interpolateRGB(0xff171c25,theme.getPrimaryGradientRGB(),chosen?.2f:r.contains(mx,my)?.07f:0),true));
-                                if (chosen) UIUtils.drawDecorationRound(r.x+3,r.y+5,1,r.height-10,0,theme.getPrimaryGradientColor());
-                                if (chosen && focus == -2 && showsKeyboardFocus()) UIUtils.drawDecorationRound(r.x+8,r.y+r.height-3,r.width-16,1,0,new Color(ink,true));
+                                UIUtils.drawDecorationRound(r.x,r.y,r.width,r.height,3,
+                                        new Color(Theme.interpolateRGB(0xff171c25,
+                                                theme.getPrimaryGradientRGB(),
+                                                chosen?.2f:r.contains(mx,my)?.07f:0),true));
+                                if(chosen)UIUtils.drawDecorationRound(r.x+3,r.y+5,1,
+                                        r.height-10,0,theme.getPrimaryGradientColor());
+                                if(chosen&&focus==-2&&showsKeyboardFocus())
+                                    UIUtils.drawDecorationRound(r.x+8,r.y+r.height-3,
+                                            r.width-16,1,0,new Color(ink,true));
                             }
                             if (themes) {
                                 Theme tile = catalog.find(ref);
@@ -202,7 +261,13 @@ public class ClickLibraryScreen extends GuiScreen {
         } else text("Save current setup as",x+12,y+h-59,w-24,UiEffects.alpha(ink,.8f));
     }
     private void field(ClipRect r,String value,boolean focused,int ink) {
-        GuiStyle.panel(r.x,r.y,r.width,r.height,3,focused && showsKeyboardFocus()?1:.12f,new Color(15,18,24));
+        if(ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())){
+            UIUtils.drawRound(r.x,r.y,r.width,r.height,7,NeutronVisualTokens.CONTROL);
+            if(focused&&showsKeyboardFocus())UIUtils.drawDecorationRound(r.x+4,
+                    r.y+r.height-2,Math.max(1,r.width-8),1,.5f,
+                    NeutronVisualTokens.accent(Theme.getDefaultTheme(),185));
+        }else GuiStyle.panel(r.x,r.y,r.width,r.height,3,
+                focused&&showsKeyboardFocus()?1:.12f,new Color(15,18,24));
         try(GuiClip clip=GuiClip.push(new ClipRect(r.x+5,r.y+2,r.width-10,r.height-4))) {
             if(focused)while(value.length()>1&&font().getWidth(value)>r.width-14)value=value.substring(1);
             text(value,r.x+7,r.y+6,r.width-14,ink);
