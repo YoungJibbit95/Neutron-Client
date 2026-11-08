@@ -55,6 +55,10 @@ New values `Island Target` and `Island Clock` register **after** the old
   and honors original `Client Name`/`Version` plus new `Island Clock` checkboxes,
   including when all are off. Content is never fetched from a live entity inside
   the deferred render pass.
+- The `GuiShaderBloom.afterBatch` callback is guarded by the island's scene
+  epoch and active state; queued drawing is rejected after mode disable,
+  world replacement, HUD hide or debug-overlay hide. GPU/resource correctness
+  still requires native validation.
 - No UI paint code changes `Value`s, config, combat, targeting, packets, world state
   or player state. It creates no per-frame texture uploads or separate GL resources.
 
