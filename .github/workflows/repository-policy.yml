@@ -30,7 +30,39 @@ jobs:
       - name: Policy and release tooling tests
         run: python3 -B -m unittest discover -s .github/scripts -p 'test_*.py' -v
       - name: Install checksum-locked linters
-        run: python3 -B .github/scripts/install_workflow_tools.py --destination "$RUNNER_TEMP/workflow-tools"
+        id: locked_tools
+        shell: bash
+        run: |
+          set +e
+          python3 -B .github/scripts/install_workflow_tools.py --destination "$RUNNER_TEMP/workflow-tools"
+          code=$?
+          set -e
+          if [ "$code" -eq 75 ]; then
+            echo 'registry_fallback=true' >> "$GITHUB_OUTPUT"
+          elif [ "$code" -ne 0 ]; then
+            exit "$code"
+          fi
+      - name: Recover pinned linters from independently verified registries
+        if: steps.locked_tools.outputs.registry_fallback == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/workflow-tools" "$RUNNER_TEMP/zizmor-wheels"
+          # Go verifies the module chain via sum.golang.org; no VCS HEAD or latest.
+          GOBIN="$RUNNER_TEMP/workflow-tools" GOPROXY=https://proxy.golang.org GOSUMDB=sum.golang.org \
+            go install github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+          # Same zizmor 1.31.1 as the GitHub asset, with the exact official
+          # PyPI Linux wheel SHA-256 pinned; never fall back to source builds.
+          python3 -m venv "$RUNNER_TEMP/zizmor-venv"
+          "$RUNNER_TEMP/zizmor-venv/bin/python" -m pip download --no-deps --only-binary=:all: \
+            --index-url https://pypi.org/simple --dest "$RUNNER_TEMP/zizmor-wheels" 'zizmor==1.31.1'
+          wheel="$RUNNER_TEMP/zizmor-wheels/zizmor-1.31.1-py3-none-manylinux_2_28_x86_64.whl"
+          test -f "$wheel"
+          echo "58e878eb2dbd2c6183c105e1ac28c14f7dd1eca44a783f1fe2a69647d012c410  $wheel" | sha256sum -c -
+          "$RUNNER_TEMP/zizmor-venv/bin/python" -m pip install --no-index --no-deps --no-compile "$wheel"
+          ln -s "$RUNNER_TEMP/zizmor-venv/bin/zizmor" "$RUNNER_TEMP/workflow-tools/zizmor"
+          "$RUNNER_TEMP/workflow-tools/actionlint" -version
+          "$RUNNER_TEMP/workflow-tools/zizmor" --version
       - name: Workflow syntax and shell checks
         run: '"$RUNNER_TEMP/workflow-tools/actionlint"'
       - name: Workflow security checks
