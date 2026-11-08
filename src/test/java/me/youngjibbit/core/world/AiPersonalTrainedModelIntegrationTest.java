@@ -184,7 +184,7 @@ public class AiPersonalTrainedModelIntegrationTest {
                 assertFalse("scenario "+scenario,run.loader.isConsented());
                 assertFalse(run.loader.isLoaded());
                 assertFalse("cannot restore without consent",run.loader.loadExplicit(true,run.scope));
-                assertFalse(run.rotation.hasAiPersonalCheckpoint());
+                assertNotEquals("aura",run.rotation.getConfirmedOwner());
                 assertFalse(run.rotation.isAiAuraMotionAccepted());
             }
         }
