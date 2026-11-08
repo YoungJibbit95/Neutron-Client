@@ -459,7 +459,8 @@ public class DropdownGui extends GuiScreen {
     }
 
     private void releaseControls() { for (CategoryPanel panel : panels) for (DropdownModule row : panel.all) row.mouseReleased(); }
-    private void cancelInteraction() {
+    /** Logical/input lifecycle, also used by headless tests. Native GPU release stays in onGuiClosed(). */
+    void cancelInteraction() {
         dragging = scrolling = null;
         for(me.youngjibbit.gui.UiSpring motion:toolbarMotion)motion.reset();
         for(CategoryPanel panel:panels)panel.headerMotion.reset();
