@@ -69,7 +69,6 @@ public class AiPersonalTrainedModelIntegrationTest {
         Run(Path localFolder) throws Exception {
             scene.run.fixture.mc.session=new Session("LocalSynthetic","local-fixture","no-login-token","legacy");
             scene.run.fixture.aura.getModeSetting("Rot Mode").setValue("AI Learned");
-            scene.run.fixture.aura.getBooleanSetting("Click Randomization Enabled").setValue(false);
             // Client's first actual walking frame binds the connection; it also
             // requires missing AI to HOLD with no C02 before any model install.
             List<Object> priming=scene.walk();
