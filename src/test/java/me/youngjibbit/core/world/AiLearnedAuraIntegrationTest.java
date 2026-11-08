@@ -45,7 +45,15 @@ public class AiLearnedAuraIntegrationTest {
         assertNotNull("synthetic weights structurally valid",model);
         return model;
     }
-    private static void select(Wave05AuraSelectionChecks.SelectionRun f) {
+    private static void select(Wave05AuraSelectionChecks.SelectionRun f) throws Exception {
+        // The selection fixture advances a synthetic scheduler clock by 150 ms
+        // per walking step. Give the rotation engine a matching 50 ms physical
+        // tick instead of wall-clock nanoseconds; otherwise slow/fast CI hosts
+        // change neural convergence without changing any game-state input.
+        java.lang.reflect.Field rotationClock=RotationManager.class.getDeclaredField("clock");
+        rotationClock.setAccessible(true);
+        rotationClock.set(rotation(f), (java.util.function.LongSupplier)()
+                -> f.clock.get() * 1_000_000L / 3L);
         f.run.fixture.mc.session=session();
         f.run.fixture.aura.getModeSetting("Rot Mode").setValue("AI Learned");
         f.run.fixture.aura.getBooleanSetting("Click Randomization Enabled").setValue(false);
