@@ -27,7 +27,7 @@ public class LagRangeImpulseSafetyTest {
     @Test public void appliedVelocityBeforeHurtStatusMustRunOrdinaryPhysics() throws Exception {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
             f.world.entities.put(1,f.player);f.player.ticksExisted=120;f.enemy(7,3);
-            AtomicLong now=new AtomicLong();AtomicInteger bodies=new AtomicInteger();
+            AtomicLong now=new AtomicLong();BacktrackLagRangeControlTest.clock(f,now);AtomicInteger bodies=new AtomicInteger();
             LagRange lag=new LagRange(now::get,(min,max)->min); lag.getBooleanSetting("Only Aura").setValue(false);lag.setToggled(true);
             try {
                 Pulsar.BUS.post(new TickEvent());LagRange.beginFrame(f.client,false,1,50);
@@ -39,9 +39,12 @@ public class LagRangeImpulseSafetyTest {
                 now.set(499_000_000L);LagRange.beginFrame(f.client,false,1,50);
                 LagRange.runPlayerStep(f.player,()->{bodies.incrementAndGet();return true;});
                 assertEquals(2,bodies.get());
-                now.set(500_000_000L);LagRange.beginFrame(f.client,false,1,50);
+                now.set(500_000_000L);f.player.onGround=false;LagRange.beginFrame(f.client,false,1,50);
                 LagRange.runPlayerStep(f.player,()->{bodies.incrementAndGet();return true;});
-                assertEquals("bounded pause ends when healthy and no hurt status remains",2,bodies.get());
+                assertEquals("elapsed time alone cannot end airborne recovery",3,bodies.get());
+                f.player.onGround=true;f.player.motionY=0;LagRange.beginFrame(f.client,false,1,50);
+                LagRange.runPlayerStep(f.player,()->{bodies.incrementAndGet();return true;});
+                assertEquals("settled player can acquire a fresh window",3,bodies.get());
             } finally {lag.setToggled(false);}
         }
     }

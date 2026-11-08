@@ -26,6 +26,9 @@ public final class PacketPipeline {
     private final Consumer<Packet<?>> appliedInbound;
     private final ArrayDeque<Handoff> handoff = new ArrayDeque<>();
     private final PacketDelays delays;
+    private final CombatTimingCoordinator combatTiming;
+    private net.minecraft.client.entity.EntityPlayerSP impulsePlayer;
+    private long impulseAt;
     private final ReceivedEntityPositions receivedPositions = new ReceivedEntityPositions();
     private boolean scheduled;
     private boolean draining, worldBoundary, correction;
@@ -49,6 +52,7 @@ public final class PacketPipeline {
         this.thread = thread; this.connected = connected;
         this.acceptedOutbound = acceptedOutbound; this.failure = failure;
         this.delays = delays;
+        this.combatTiming = new CombatTimingCoordinator(() -> this.delays.now());
         this.appliedInbound = appliedInbound;
     }
 
@@ -105,7 +109,7 @@ public final class PacketPipeline {
         // Actions are dependency barriers: a hit/placement must never overtake withheld movement.
         boolean movement = selected instanceof C03PacketPlayer;
         boolean independentReply = selected instanceof C00PacketKeepAlive || selected instanceof C0FPacketConfirmTransaction;
-        if (correction || !movement && !independentReply) {
+        if (correction || movement && recoveringLocalImpulse() || !movement && !independentReply) {
             CombatDiagnostics.packetStage(trace,selected,Stage.BARRIER);delays.barrier(EventFlow.OUTBOUND);
         } else if (movement && !silent && delays.defer(selected, EventFlow.OUTBOUND, apply)) {
             CombatDiagnostics.packetStage(trace,selected,Stage.HELD);return null;
@@ -174,7 +178,9 @@ public final class PacketPipeline {
                             if (!silent) post(selected, EventFlow.INBOUND, EventPhase.POST);
                         });
                 };
-                if (!silent && (selected instanceof S14PacketEntity || selected instanceof S19PacketEntityStatus
+                if (recoveringLocalImpulse()) {
+                    delays.barrier(EventFlow.INBOUND);
+                } else if (!silent && (selected instanceof S14PacketEntity || selected instanceof S19PacketEntityStatus
                         || selected instanceof S29PacketSoundEffect
                         || selected instanceof S06PacketUpdateHealth && ((S06PacketUpdateHealth) selected).getHealth() > 0)) {
                     if (delays.defer(selected, EventFlow.INBOUND, apply)) return;
@@ -189,6 +195,30 @@ public final class PacketPipeline {
     }
 
     public PacketDelays delays() { return delays; }
+    public CombatTimingCoordinator combatTiming() { return combatTiming; }
+
+    /** Called after velocity cancellation/selection, before vanilla changes local motion. */
+    public boolean beforeLocalImpulse(net.minecraft.client.entity.EntityPlayerSP player) {
+        if (!thread.isCallingFromMinecraftThread()) throw new IllegalStateException("Impulse requires client thread");
+        if (!isActive() || player == null) return false;
+        long version = contextVersion;
+        impulsePlayer = player;
+        impulseAt = delays.now();
+        Pulsar.BUS.post(new me.youngjibbit.event.motion.LocalImpulseEvent(player, this));
+        if (!isActive() || contextVersion != version) return false;
+        combatTiming.interrupt();
+        // Publish pre-impulse movement while it still describes pre-impulse physics.
+        delays.barrier(EventFlow.OUTBOUND);
+        return isActive() && contextVersion == version;
+    }
+    public boolean isRecoveringLocalImpulse(net.minecraft.client.entity.EntityPlayerSP player) {
+        if (player == null || player != impulsePlayer) return false;
+        long elapsed = delays.now() - impulseAt;
+        if (elapsed < 500_000_000L || !player.onGround || !Double.isFinite(player.motionY) || player.motionY > 0 || player.hurtTime > 0) return true;
+        impulsePlayer = null;
+        return false;
+    }
+    private boolean recoveringLocalImpulse() { return isRecoveringLocalImpulse(impulsePlayer); }
     /** Client-thread receipt snapshot, including movement queued before a consumer selected this exact entity. */
     public net.minecraft.util.Vec3 receivedPosition(net.minecraft.entity.Entity entity) {
         if (!thread.isCallingFromMinecraftThread()) throw new IllegalStateException("Position snapshot requires client thread");
@@ -196,7 +226,7 @@ public final class PacketPipeline {
     }
     /** Invalidates action evidence even when silent application intentionally omits packet events. */
     public long getContextVersion() { return contextVersion; }
-    private void discardDelayed() { contextVersion++; delays.discard(); receivedPositions.clear(); }
+    private void discardDelayed() { contextVersion++; impulsePlayer = null; combatTiming.reset(); delays.discard(); receivedPositions.clear(); }
     public void pump() {
         if (!thread.isCallingFromMinecraftThread()) throw new IllegalStateException("Packet pump requires client thread");
         if (!isActive()) { discardDelayed(); return; }
@@ -306,6 +336,8 @@ public final class PacketPipeline {
         if (!closing.compareAndSet(false,true)) return;
         closed = true;
         Runnable ended = () -> {
+            impulsePlayer = null;
+            combatTiming.reset();
             receivedPositions.clear();
             me.youngjibbit.core.bootstrap.RuntimeServices.rotation().invalidateConnection(this);
         };

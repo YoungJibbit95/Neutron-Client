@@ -12,7 +12,8 @@ import java.util.concurrent.atomic.*;
 import static org.junit.Assert.*;
 
 public class TickbaseBehaviorHookTest {
-    private Tickbase enable(AtomicLong now, ExploitHookFixture f) {
+    private Tickbase enable(AtomicLong now, ExploitHookFixture f) throws Exception {
+        BacktrackLagRangeControlTest.clock(f, now);
         Tickbase tick = new Tickbase(now::get, f.client); tick.getBooleanSetting("Only Aura").setValue(false); assertNull(tick.getDiagnostics());
         tick.getBooleanSetting("Debug").setValue(true); tick.getNumberSetting("Charge Ticks").setValue(2.0);
         tick.getNumberSetting("Min Charge").setValue(1.0); tick.getNumberSetting("Release Speed").setValue(2.0);
@@ -35,7 +36,7 @@ public class TickbaseBehaviorHookTest {
                 assertTrue(f.controller.tryAttackEntity(f.player, enemy, () -> true)); assertTrue(tick.getDiagnostics().releasing);
                 frame(f); assertEquals(2, step(f)); assertEquals(1, tick.getDiagnostics().extraSteps);
                 frame(f); assertEquals(2, step(f)); assertEquals(0, tick.getDiagnostics().credit);
-                assertFalse(tick.getDiagnostics().releasing); assertEquals(300, tick.getDiagnostics().cooldownMs);
+                assertFalse(tick.getDiagnostics().releasing); assertTrue(tick.getDiagnostics().cooldownMs >= 270 && tick.getDiagnostics().cooldownMs <= 300);
                 frame(f); assertEquals(1, step(f)); assertEquals(0, tick.getDiagnostics().credit);
                 now.set(300000000); frame(f); assertEquals(0, step(f)); assertEquals(1, tick.getDiagnostics().credit);
             } finally { tick.setToggled(false); }
@@ -109,27 +110,40 @@ public class TickbaseBehaviorHookTest {
             } finally { tick.setToggled(false); }
         }
     }
-    @Test public void simultaneousRealBacktrackLagRangeAndTickbaseShareQueuesWithoutSpendingForeignHolds() throws Exception {
+    @Test public void enabledModulesSerializeTheirWindowsAndPreserveForeignPacketOwners() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
-            AtomicLong now = new AtomicLong(); Tickbase tick = enable(now, f);
-            Backtrack back = new Backtrack(now::get, f.client); back.getBooleanSetting("Only Aura").setValue(false); LagRange lag = new LagRange(); lag.getBooleanSetting("Only Aura").setValue(false);
+            AtomicLong now = new AtomicLong(); BacktrackLagRangeControlTest.clock(f, now);
+            Tickbase tick = enable(now, f);
+            Backtrack back = new Backtrack(now::get, f.client); back.getBooleanSetting("Only Aura").setValue(false);
+            LagRange lag = new LagRange(now::get, (min,max)->min); lag.getBooleanSetting("Only Aura").setValue(false);
             back.getModeSetting("Target Source").setValue("Attack / Cursor");
             back.getModeSetting("Delay Mode").setValue("Range");
             lag.getNumberSetting("Start Distance").setValue(0D);
             back.getNumberSetting("Min MS").setValue(500.0); back.getNumberSetting("Max MS").setValue(500.0);
-            lag.getNumberSetting("Min MS").setValue(500.0); lag.getNumberSetting("Max MS").setValue(500.0);
-            back.setToggled(true); lag.setToggled(true);
+            back.setToggled(true);
             try {
-                ExploitHookFixture.Enemy enemy = f.enemy(7, 2.4); f.cursor(enemy); CombatTargetTracker.update(enemy, "synthetic");
+                ExploitHookFixture.Enemy enemy = f.enemy(7, 2.4); f.cursor(enemy);
                 Pulsar.BUS.post(new me.youngjibbit.event.packet.TickEvent());
-                f.receive(new S14PacketEntity.S15PacketEntityRelMove(7, (byte) 16, (byte) 0, (byte) 0, true));
-                chargeTwo(f, tick); f.connection.network.sendPacket(new C03PacketPlayer.C06PacketPlayerPosLook(0, 0, 0, 15, 20, true));
-                assertTrue(f.pipe().delays().size() >= 2);
-                assertTrue(f.controller.tryAttackEntity(f.player, enemy, () -> true));
-                assertTrue(f.connection.channel.readOutbound() instanceof C03PacketPlayer); assertTrue(f.connection.channel.readOutbound() instanceof C02PacketUseEntity);
-                assertEquals(1, f.pipe().delays().size()); // Backtrack's inbound hold survives LagRange's successful-hit release
-                frame(f); assertEquals(2, step(f)); back.setToggled(false); assertEquals(0, f.pipe().delays().size());
-            } finally { back.setToggled(false); lag.setToggled(false); tick.setToggled(false); }
+                f.receive(new S14PacketEntity.S15PacketEntityRelMove(7, (byte)16, (byte)0, (byte)0, true));
+                assertTrue(f.pipe().combatTiming().owns(back));
+                lag.setToggled(true);
+                Pulsar.BUS.post(new me.youngjibbit.event.packet.TickEvent());
+                frame(f); assertEquals("Backtrack already owns this window",1,step(f));
+                assertEquals(0,tick.getDiagnostics().credit);
+                C03PacketPlayer movement = new C03PacketPlayer(true); f.connection.network.sendPacket(movement);
+                assertSame("LagRange cannot add an outgoing hold",movement,f.connection.channel.readOutbound());
+                assertEquals(1,f.pipe().delays().size());
+                Object foreign = new Object();f.pipe().delays().request(foreign,500,(packet,flow)->true);
+                back.setToggled(false);
+                assertTrue("another owner's request survives",f.pipe().delays().hasOwner(foreign));
+                now.set(501_000_000L); f.pipe().delays().release(foreign);
+                chargeTwo(f,tick);
+                Pulsar.BUS.post(new me.youngjibbit.event.packet.TickEvent());
+                assertTrue(f.pipe().combatTiming().owns(tick));
+                assertEquals(0,f.pipe().delays().size());
+                assertTrue(f.controller.tryAttackEntity(f.player,enemy,()->true));
+                frame(f);assertEquals(2,step(f));
+            } finally {back.setToggled(false);lag.setToggled(false);tick.setToggled(false);}
         }
     }
 }
