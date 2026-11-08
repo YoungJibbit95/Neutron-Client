@@ -1,6 +1,8 @@
 package me.youngjibbit.module.impl.render;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.theme.ThemeMode;
+import me.youngjibbit.theme.ThemeCatalog;
 import me.youngjibbit.gui.HudSpring;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.event.render.Event2D;
@@ -72,7 +74,9 @@ public class ArmorHUD extends Module {
         boolean reduced=settings!=null&&settings.reducedMotion.getValue();
         String intensity=settings==null?"Balanced":settings.motionIntensity.getValue();
         TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Bold 16");
-        Frame f=new Frame(font);boolean horizontal=layout.getValue().equals("Horizontal");
+        Frame f=new Frame(font);
+        boolean horizontal=layout.getValue().equals("Horizontal");
+        f.modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
         String[] names={"Head","Body","Legs","Feet","Hand"};
         for(int i=0;i<5;i++){
             if(i==4&&!held.getValue())continue;
@@ -95,13 +99,16 @@ public class ArmorHUD extends Module {
         for(Cell cell:f.cells){
             TTFFontRenderer labelFont=cell.item==null?f.emptyFont:font;
             float textWidth=labelFont.getWidth(cell.label);
-            cell.w=horizontal||cell.item==null?Math.max(24,textWidth+8):Math.max(42,30+textWidth);
+            cell.w=horizontal||cell.item==null?Math.max(f.modern?44:24,textWidth+(f.modern?13:8)):
+                    Math.max(f.modern?52:42,30+textWidth);
             hasLabels|=!cell.label.isEmpty();hasBars|=bar.getValue()&&cell.item!=null&&cell.item.getMaxDamage()>0;
-            if(horizontal){cell.x=cursor;cell.y=6;cursor+=cell.w;}
-            else if(cell.item!=null){cell.x=6;cell.y=cursor;cursor+=bar.getValue()&&cell.item.getMaxDamage()>0?24:20;max=Math.max(max,cell.w);}
+            if(horizontal){cell.x=cursor;cell.y=6;cursor+=cell.w+(f.modern?3:0);}
+            else if(cell.item!=null){cell.x=6;cell.y=cursor;
+                cursor+=f.modern?28:bar.getValue()&&cell.item.getMaxDamage()>0?24:20;
+                max=Math.max(max,cell.w);}
             else emptyWidth+=cell.w;
         }
-        if(horizontal){f.width=cursor+6;f.height=12+16+(hasLabels?11:0)+(hasBars?4:0);}
+        if(horizontal){f.width=cursor+6;f.height=f.modern?52:12+16+(hasLabels?11:0)+(hasBars?4:0);}
         else{
             max=Math.max(max,emptyWidth);float emptyX=6;
             for(Cell cell:f.cells)if(cell.item==null){cell.x=emptyX;cell.y=cursor;cell.mini=true;emptyX+=cell.w;}else cell.w=max;
@@ -111,7 +118,9 @@ public class ArmorHUD extends Module {
         f.scale=Math.min(scale.getValue().floatValue(),Math.min((sw-8)/Math.max(1,f.width),(sh-8)/Math.max(1,f.height)));
         f.scale=Math.max(.01f,f.scale);width=f.width*f.scale;height=f.height*f.scale;
         clamp(sw,sh);f.x=x;f.y=y;f.horizontal=horizontal;
-        f.theme=Theme.resolve(Theme.getDefaultTheme());f.background=background.getValue();f.blur=blur.getValue();f.glow=glow.getValue();f.bar=bar.getValue();return f;
+        f.theme=Theme.resolve(f.modern?ThemeCatalog.global().current():Theme.getDefaultTheme());
+        f.background=background.getValue();f.blur=blur.getValue();
+        f.glow=!f.modern&&glow.getValue();f.bar=bar.getValue();return f;
     }
     private String formatDurability(ItemStack item){
         int max=item.getMaxDamage();
@@ -130,32 +139,59 @@ public class ArmorHUD extends Module {
         if(dragging){x=me.youngjibbit.module.impl.client.HUD.snap(mx-grabX);y=me.youngjibbit.module.impl.client.HUD.snap(my-grabY);clamp(sw,sh);positionX.setValue((double)x);positionY.setValue((double)y);}previousButton=down;
     }
     private void clamp(int sw,int sh){if(!me.youngjibbit.module.impl.client.HUD.bounded())return;x=Math.max(4,Math.min(x,sw-width-4));y=Math.max(4,Math.min(y,sh-height-4));}
-    void paint(Frame f){if(f.cells.isEmpty())return;GuiShaderBloom.afterBatch(()->surface.panel(f.x,f.y,f.width*f.scale,f.height*f.scale,5*f.scale,f.theme,f.background,f.blur,f.glow,4,.7f,f.background?.7f:0,()->{
-        try(RenderState state=new RenderState()){
-            state.screenSpace();glTranslatef(f.x,f.y,0);glScalef(f.scale,f.scale,1);
-            float oldZ=mc.getRenderItem().zLevel;
-            try{
-                for(Cell cell:f.cells){
-                    float ix=cell.x+(f.horizontal||cell.mini?(cell.w-16)/2:2),iy=cell.y;
-                    if(cell.item!=null){
-                        GlStateManager.enableDepth();GlStateManager.depthFunc(GL_LEQUAL);GlStateManager.depthMask(true);GlStateManager.enableAlpha();RenderHelper.enableGUIStandardItemLighting();
-                        mc.getRenderItem().zLevel=100;mc.getRenderItem().renderItemAndEffectIntoGUI(cell.item,Math.round(ix),Math.round(iy));
-                        RenderHelper.disableStandardItemLighting();GlStateManager.disableDepth();GlStateManager.disableAlpha();
-                    }else UIUtils.drawRound(ix,iy,16,16,3,new Color(255,255,255,48));
-                    TTFFontRenderer labelFont=cell.item==null?f.emptyFont:f.font;
-                    float tx=f.horizontal||cell.mini?cell.x+(cell.w-labelFont.getWidth(cell.label))/2:cell.x+25;
-                    float ty=cell.y+(f.horizontal||cell.mini?19:4);
-                    labelFont.drawString(cell.label,tx,ty,cell.item==null?0xffcbd1dc:f.theme.isCustom()?f.theme.getTextColor().getRGB():0xfff0f1f5);
-                    if(f.bar&&cell.item!=null&&cell.item.getMaxDamage()>0){
-                        float ratio=cell.durabilityRatio;
-                        float bx=cell.x+2,bw=cell.w-4,by=cell.y+(f.horizontal?30:20);
-                        UIUtils.drawRound(bx,by,bw,2,1,new Color(255,255,255,26));
-                        if(ratio>0)UIUtils.drawRound(bx,by,bw*ratio,2,Math.min(1,bw*ratio/2),new Color(durabilityColor(f.theme,ratio),true));
+    void paint(Frame f){
+        if(f.cells.isEmpty())return;
+        GuiShaderBloom.afterBatch(()->surface.panel(f.x,f.y,f.width*f.scale,f.height*f.scale,
+                (f.modern?9:5)*f.scale,f.theme,f.background,f.blur,f.glow,
+                f.modern?3:4,f.modern?.82f:.7f,
+                f.background?(f.modern?.14f:.7f):0,()->{
+            try(RenderState state=new RenderState()){
+                state.screenSpace();glTranslatef(f.x,f.y,0);glScalef(f.scale,f.scale,1);
+                float oldZ=mc.getRenderItem().zLevel;
+                try{
+                    if(f.modern&&f.background)UIUtils.drawRound(2,2,Math.max(1,f.width-4),
+                            Math.max(1,f.height-4),8,new Color(19,21,31,198));
+                    for(Cell cell:f.cells){
+                        float ix=cell.x+(f.horizontal||cell.mini?(cell.w-16)/2:2),iy=cell.y;
+                        if(f.modern){
+                            float blockH=f.horizontal?38:cell.mini?23:26;
+                            UIUtils.drawRound(cell.x+1,cell.y+1,Math.max(1,cell.w-3),blockH,
+                                    6,new Color(33,34,47,225));
+                            UIUtils.drawRound(cell.x+5,cell.y+blockH-2,
+                                    Math.max(0,cell.w-12),1,.5f,
+                                    new Color(f.theme.getPrimaryGradientColor().getRed(),
+                                            f.theme.getPrimaryGradientColor().getGreen(),
+                                            f.theme.getPrimaryGradientColor().getBlue(),44));
+                        }
+                        if(cell.item!=null){
+                            GlStateManager.enableDepth();GlStateManager.depthFunc(GL_LEQUAL);
+                            GlStateManager.depthMask(true);GlStateManager.enableAlpha();
+                            RenderHelper.enableGUIStandardItemLighting();
+                            mc.getRenderItem().zLevel=100;
+                            mc.getRenderItem().renderItemAndEffectIntoGUI(cell.item,
+                                    Math.round(ix),Math.round(iy));
+                            RenderHelper.disableStandardItemLighting();
+                            GlStateManager.disableDepth();GlStateManager.disableAlpha();
+                        }else UIUtils.drawRound(ix,iy,16,16,3,new Color(255,255,255,48));
+                        TTFFontRenderer labelFont=cell.item==null?f.emptyFont:f.font;
+                        float tx=f.horizontal||cell.mini?cell.x+(cell.w-labelFont.getWidth(cell.label))/2:cell.x+25;
+                        float ty=cell.y+(f.horizontal||cell.mini?19:4);
+                        labelFont.drawString(cell.label,tx,ty,
+                                cell.item==null?0xffcbd1dc:f.modern?0xfff5f0f8:
+                                f.theme.isCustom()?f.theme.getTextColor().getRGB():0xfff0f1f5);
+                        if(f.bar&&cell.item!=null&&cell.item.getMaxDamage()>0){
+                            float ratio=cell.durabilityRatio;
+                            float bx=cell.x+2,bw=cell.w-4,by=cell.y+(f.horizontal?30:20);
+                            UIUtils.drawRound(bx,by,bw,f.modern?3:2,1,new Color(255,255,255,26));
+                            if(ratio>0)UIUtils.drawRound(bx,by,bw*ratio,f.modern?3:2,
+                                    Math.min(1,bw*ratio/2),
+                                    new Color(durabilityColor(f.theme,ratio),true));
+                        }
                     }
-                }
-            }finally{mc.getRenderItem().zLevel=oldZ;}
-        }
-    }));}
+                }finally{mc.getRenderItem().zLevel=oldZ;}
+            }
+        }));
+    }
     // Equipment information is a ratio, independent of decorative motion and direction.
     static int durabilityColor(Theme theme,float remaining){
         remaining=Float.isFinite(remaining)?Math.max(0,Math.min(1,remaining)):0;
@@ -175,5 +211,5 @@ public class ArmorHUD extends Module {
             this.item=item;this.label=label;this.durabilityRatio=durabilityRatio;
         }
     }
-    static final class Frame {float x,y,width,height,scale;boolean horizontal,background,blur,glow,bar;Theme theme;final TTFFontRenderer font;final TTFFontRenderer emptyFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 12");final java.util.List<Cell> cells=new ArrayList<>();Frame(TTFFontRenderer font){this.font=font;}}
+    static final class Frame {float x,y,width,height,scale;boolean horizontal,background,blur,glow,bar,modern;Theme theme;final TTFFontRenderer font;final TTFFontRenderer emptyFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 12");final java.util.List<Cell> cells=new ArrayList<>();Frame(TTFFontRenderer font){this.font=font;}}
 }
