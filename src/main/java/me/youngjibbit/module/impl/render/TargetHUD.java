@@ -219,7 +219,8 @@ public class TargetHUD extends Module {
         else TextEffects.direct(f.theme,()->f.nameFont.drawString(f.name,f.x+f.textX,f.y+6,-1));
         f.infoFont.drawString(f.healthText,f.x+f.textX,f.y+19,opacity(white?0xff484d58:0xffcdd3df,alpha));
         float bx=f.x+f.textX,by=f.y+f.height-8,bw=Math.max(0,f.width-f.textX-8);
-        UIUtils.drawRound(bx,by,bw,3,1,new Color(white?0x30323c44:0x66363b49,true));
+        UIUtils.drawRound(bx,by,bw,3,1,
+                tint(new Color(white?0x30323c44:0x66363b49,true),alpha));
         float filled=bw*f.health;
         if(filled>.01f)UIUtils.drawGradientHorizontal(bx,by,filled,3,Math.min(1,filled/2),
                 tint(f.theme.getPrimaryGradientColor(),alpha),tint(f.theme.getSecondaryGradientColor(),alpha));
@@ -230,19 +231,34 @@ public class TargetHUD extends Module {
     /** Players use their skin; animals/mobs get an explicit species badge, never a fabricated skin. */
     private void portrait(Frame f,float alpha){
         float px=f.x+7,py=f.y+(f.height-30)/2;
-        UIUtils.drawRound(px,py,30,30,4,new Color(f.theme.getPrimaryGradientRGB()&0xffffff|0x55000000,true));
-        if(f.skin!=null){
-            try(RenderState state=new RenderState();GuiClip clip=GuiClip.push(new ClipRect(px+1,py+1,28,28))){
-                GlStateManager.setActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0);org.lwjgl.opengl.GL13.glActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0);
-                GlStateManager.enableTexture2D();glEnable(GL_TEXTURE_2D);GlStateManager.enableBlend();glEnable(GL_BLEND);GlStateManager.blendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);GlStateManager.color(1,1,1,1);glColor4f(1,1,1,1);
-                mc.getTextureManager().bindTexture(f.skin);Gui.drawScaledCustomSizeModalRect((int)px+1,(int)py+1,8,8,8,8,28,28,64,64);
-                Gui.drawScaledCustomSizeModalRect((int)px+1,(int)py+1,40,8,8,8,28,28,64,64);
+        try(RenderState state=new RenderState()){
+            float pulse=1+.09f*Math.max(0,Math.min(1,f.headPulse));
+            glTranslatef(px+15,py+15,0);glScalef(pulse,pulse,1);
+            glTranslatef(-px-15,-py-15,0);
+            UIUtils.drawRound(px,py,30,30,4,
+                    new Color((f.theme.getPrimaryGradientRGB()&0xffffff)
+                            |(Math.round(85*alpha)<<24),true));
+            if(f.skin!=null){
+                try(GuiClip clip=GuiClip.push(new ClipRect(px+1,py+1,28,28))){
+                    GlStateManager.setActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0);
+                    org.lwjgl.opengl.GL13.glActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0);
+                    GlStateManager.enableTexture2D();glEnable(GL_TEXTURE_2D);
+                    GlStateManager.enableBlend();glEnable(GL_BLEND);
+                    GlStateManager.blendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+                    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+                    GlStateManager.color(1,1,1,alpha);glColor4f(1,1,1,alpha);
+                    mc.getTextureManager().bindTexture(f.skin);
+                    Gui.drawScaledCustomSizeModalRect((int)px+1,(int)py+1,8,8,8,8,28,28,64,64);
+                    Gui.drawScaledCustomSizeModalRect((int)px+1,(int)py+1,40,8,8,8,28,28,64,64);
+                }
+            }else{
+                String badge="Preview".equals(f.kind)?"N":"Animal".equals(f.kind)?"A":"Mob".equals(f.kind)?"M":"P";
+                f.nameFont.drawString(badge,px+15-f.nameFont.getWidth(badge)/2,py+4,
+                        opacity(Color.WHITE.getRGB(),alpha));
+                TTFFontRenderer tiny=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 10");
+                tiny.drawString(f.kind,px+15-tiny.getWidth(f.kind)/2,py+20,
+                        opacity(Color.WHITE.getRGB(),alpha));
             }
-        }else{
-            String badge="Animal".equals(f.kind)?"A":"Mob".equals(f.kind)?"M":"P";
-            f.nameFont.drawString(badge,px+15-f.nameFont.getWidth(badge)/2,py+4,Color.WHITE.getRGB());
-            TTFFontRenderer tiny=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 10");
-            tiny.drawString(f.kind,px+15-tiny.getWidth(f.kind)/2,py+20,Color.WHITE.getRGB());
         }
     }
     static final class Frame {
