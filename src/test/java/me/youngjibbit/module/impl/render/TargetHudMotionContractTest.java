@@ -12,7 +12,9 @@ public class TargetHudMotionContractTest {
         TargetHUD hud=new TargetHUD();
         ComboValue mode=hud.getModeSetting("Mode");
         assertArrayEquals(new String[]{"Neutron Default","Neutron White","Neutron Outline",
-                "Rise","Tenacity","Basic","Test"},mode.getOptions());
+                "Rise","Tenacity","Basic","Test"},
+                java.util.Arrays.copyOf(mode.getOptions(),7));
+        assertEquals("Neutron 2.0",mode.getOptions()[7]);
         assertEquals("Neutron White",mode.getValue());
         assertEquals(1,mode.getSelectedIndex());
         assertEquals(5000d,hud.gradientSpeed.getValue(),0);
