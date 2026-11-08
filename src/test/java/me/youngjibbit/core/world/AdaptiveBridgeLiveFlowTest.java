@@ -4,7 +4,6 @@ import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.combat.RotationBehaviorHookTest;
 import me.youngjibbit.core.combat.RotationManager;
 import me.youngjibbit.event.motion.EventMotion;
-import me.youngjibbit.event.motion.EventRotation;
 import me.youngjibbit.event.packet.EventPacket;
 import me.youngjibbit.module.impl.world.Scaffold;
 import me.zero.alpine.listener.Listener;
@@ -75,10 +74,14 @@ public class AdaptiveBridgeLiveFlowTest {
     }
 
     private static final class PriorityHook implements Subscriber {
-        @Subscribe final Listener<EventRotation> listener;
+        @Subscribe final Listener<EventMotion> listener;
         PriorityHook(RotationManager rotation) {
-            listener = new Listener<>(event ->
-                    rotation.request("aura", RotationManager.SCAFFOLD_PRIORITY + 10, 90, 0));
+            // ordinaryWalking posts EventMotion PRE (not the separate pre-physics
+            // EventRotation hook), so compete at the same actual production boundary.
+            listener = new Listener<>(event -> {
+                if (event.isPre())
+                    rotation.request("aura", RotationManager.SCAFFOLD_PRIORITY + 10, 90, 0);
+            });
         }
     }
 
