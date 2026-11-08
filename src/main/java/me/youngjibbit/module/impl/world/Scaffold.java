@@ -12,6 +12,7 @@ import me.youngjibbit.core.world.ScaffoldRotationPlan;
 import me.youngjibbit.core.world.AdaptiveBridgeScaffoldAdapter;
 import me.youngjibbit.core.world.AdaptiveBridgePlanner;
 import me.youngjibbit.core.world.AdaptiveBridgeMotion;
+import me.youngjibbit.core.world.BridgePlacementCadence;
 import me.youngjibbit.core.world.AdaptiveBridgeSafetyController;
 import me.youngjibbit.core.world.TowerController;
 import me.youngjibbit.event.motion.EventMotion;
@@ -62,6 +63,13 @@ public class Scaffold extends Module {
     private AdaptiveBridgePlanner.Scope bridgeScope;
     private boolean bridgeHasDirection;
     private float bridgeForward,bridgeStrafe,bridgeYaw;
+    private final BridgePlacementCadence bridgeCadence=new BridgePlacementCadence();
+    private BridgePlacementCadence.Scope bridgeCadenceScope;
+    private Object bridgeCadenceStack;
+    private int bridgeCadenceSelectedSlot=-1,bridgeCadenceBlockSlot=-1;
+    private final java.util.function.LongSupplier bridgePlacementClock=()->RuntimeServices.rotation().readMonotonicNanos();
+    private int bridgeConfirmedPlacements,bridgeBlocksSinceJump;
+    private boolean bridgeDebugInfo;
     private final ComboValue approach=new ComboValue("Scaffold Approach",this,new String[]{"Neutron","Arsenic","Adaptive Bridge"},0);
     private final ComboValue bridgeEdgeSafety=new ComboValue("Bridge Edge Safety",this,
             new String[]{"Off","Sneak","Stop","Smart"},3);
@@ -71,6 +79,16 @@ public class Scaffold extends Module {
     private final ComboValue bridgeRotationSpeed=new ComboValue("Bridge Rotation Speed",this,
             new String[]{"Calm","Balanced","Fast"},1);
     private final SliderValue bridgeRotationVariation=new SliderValue("Bridge Rotation Variation",this,.25D,0,1,false);
+    private final SliderValue bridgePlaceMinCps=new SliderValue("Place Min CPS",this,12D,1,20,false);
+    private final SliderValue bridgePlaceMaxCps=new SliderValue("Place Max CPS",this,16D,1,20,false);
+    private final ComboValue bridgeClickProfile=new ComboValue("Click Profile",this,
+            new String[]{"Basic","Smoothstep","Perlin"},1);
+    private final ComboValue bridgeClickInterpolation=new ComboValue("Place Interpolation",this,
+            new String[]{"Stable","Smooth","Dynamic"},1);
+    private final SliderValue bridgeClickVariation=new SliderValue("Variation Strength",this,.35D,0,1,false);
+    private final CheckBoxValue bridgePlaceDebug=new CheckBoxValue("Place Debug",this,false);
+    private final CheckBoxValue bridgeAutoJump=new CheckBoxValue("Godbridge Auto Jump",this,false);
+    private final SliderValue bridgeJumpAfter=new SliderValue("Godbridge Jump After Blocks",this,8D,1,20,true);
     private final CheckBoxValue softArsenicMotion = new CheckBoxValue("Arsenic Soft Motion", this, false);
     private final me.youngjibbit.core.world.ScaffoldSneakInterval sneakInterval = new me.youngjibbit.core.world.ScaffoldSneakInterval();
     private long freshInputSequence;
@@ -149,6 +167,15 @@ public class Scaffold extends Module {
         this.setKey(Keyboard.KEY_G);
         roundRots.setVisibility(module->rotations.getValue());
         for(me.youngjibbit.value.Value<?> value:getValues()) {
+            if(value==bridgeAutoJump || value==bridgeJumpAfter) {
+                value.setVisibility(m->adaptiveBridge() && "Godbridge".equals(bridgeRotationProfile.getValue())
+                        && (value!=bridgeJumpAfter || bridgeAutoJump.getValue()));
+                continue;
+            }
+            if(value==bridgePlaceMinCps || value==bridgePlaceMaxCps || value==bridgeClickProfile
+                    || value==bridgeClickInterpolation || value==bridgeClickVariation || value==bridgePlaceDebug) {
+                value.setVisibility(m->adaptiveBridge());continue;
+            }
             if(value==bridgeEdgeSafety || value==bridgePrediction || value==bridgeRotationProfile
                     || value==bridgeRotationSpeed || value==bridgeRotationVariation) {
                 value.setVisibility(m->adaptiveBridge());continue;
@@ -174,6 +201,9 @@ public class Scaffold extends Module {
         super.beginConfigUpdate();approach.reset();softArsenicMotion.reset();sneakAfterBlocks.reset();
         bridgeEdgeSafety.reset();bridgePrediction.reset();bridgeRotationProfile.reset();
         bridgeRotationSpeed.reset();bridgeRotationVariation.reset();
+        bridgePlaceMinCps.reset();bridgePlaceMaxCps.reset();bridgeClickProfile.reset();
+        bridgeClickInterpolation.reset();bridgeClickVariation.reset();bridgePlaceDebug.reset();
+        bridgeAutoJump.reset();bridgeJumpAfter.reset();
     }
     @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String name) { return super.getValueByName(name!=null && name.replace("_","").replace(" ","").equalsIgnoreCase("SameY")?"keep_y":name); }
     @Override public void onValueChange() {
@@ -453,6 +483,12 @@ public class Scaffold extends Module {
 
     /** Release only this approach's short-lived acquisition; never a physical key. */
     private void resetBridgeAcquisition(boolean sequences) {
+        if(bridgeCadence!=null && bridgeCadenceScope!=null)bridgeCadence.reset(bridgeCadenceScope);
+        bridgeCadenceScope=null;
+        bridgeCadenceStack=null;
+        bridgeCadenceSelectedSlot=bridgeCadenceBlockSlot=-1;
+        bridgeConfirmedPlacements=bridgeBlocksSinceJump=0;
+        if(bridgeDebugInfo) {info="";bridgeDebugInfo=false;}
         if(contextRotation!=null && bridgeScope!=null)contextRotation.resetBridgeMotion(bridgeScope);
         bridgeGeneration++;
         bridgePreview=null;
@@ -588,6 +624,75 @@ public class Scaffold extends Module {
                 && scope.connectionEpoch==contextEpoch;
     }
 
+    /** Locally observed target blocks, not packet attempts or remote acknowledgements. */
+    public int bridgePlacementCount() { return bridgeConfirmedPlacements; }
+
+    private BridgePlacementCadence.Settings bridgePlacementSettings() {
+        BridgePlacementCadence.Profile profile="Perlin".equals(bridgeClickProfile.getValue())
+                ?BridgePlacementCadence.Profile.PERLIN:"Smoothstep".equals(bridgeClickProfile.getValue())
+                ?BridgePlacementCadence.Profile.SMOOTHSTEP:BridgePlacementCadence.Profile.BASIC;
+        BridgePlacementCadence.Interpolation interpolation="Stable".equals(bridgeClickInterpolation.getValue())
+                ?BridgePlacementCadence.Interpolation.STABLE:"Dynamic".equals(bridgeClickInterpolation.getValue())
+                ?BridgePlacementCadence.Interpolation.DYNAMIC:BridgePlacementCadence.Interpolation.SMOOTH;
+        return new BridgePlacementCadence.Settings(bridgePlaceMinCps.getValue(),bridgePlaceMaxCps.getValue(),
+                profile,interpolation,bridgeClickVariation.getValue());
+    }
+
+    private boolean currentBridgeCadence(AdaptiveBridgePlanner.Scope scope) {
+        BridgePlacementCadence.Scope click=bridgeCadenceScope;
+        return scope!=null && click!=null && click.owner==scope.owner && click.world==scope.world
+                && click.player==scope.player && click.connection==scope.connection
+                && click.epoch==scope.connectionEpoch && click.generation==scope.acquisitionGeneration;
+    }
+
+    /** Stack amounts may decrease normally; replacing a stack or selecting another slot ends its credit. */
+    private boolean bridgeInventoryUnchanged(long sequence,long generation,long acquisition,boolean capture) {
+        if(!bridgeCurrent(sequence,generation,acquisition))return false;
+        int blockSlot=RuntimeServices.scaffoldPlacement().getBlockSlot();
+        if(!bridgeCurrent(sequence,generation,acquisition))return false;
+        Minecraft client=Minecraft.getMinecraft();
+        int selected=client.thePlayer.inventory.currentItem;
+        // Read after the last contextual callback; do not validate a cached inventory snapshot.
+        Object stack=blockSlot>=0 && blockSlot<9?client.thePlayer.inventory.mainInventory[blockSlot]:null;
+        if(capture) {
+            bridgeCadenceSelectedSlot=selected;bridgeCadenceBlockSlot=blockSlot;bridgeCadenceStack=stack;
+            return true;
+        }
+        if(selected==bridgeCadenceSelectedSlot && blockSlot==bridgeCadenceBlockSlot
+                && stack==bridgeCadenceStack)return true;
+        revokeBridge(sequence,generation,acquisition);
+        return false;
+    }
+
+    /** Begin a PRE clock session without consuming a click or granting placement. */
+    private boolean acquireBridgeCadence(AdaptiveBridgePlanner.Scope scope,long sequence,long generation,long acquisition) {
+        if(!bridgeCurrent(sequence,generation,acquisition))return false;
+        if(currentBridgeCadence(scope)) {
+            if(bridgeCadence.isActive())return bridgeInventoryUnchanged(sequence,generation,acquisition,false);
+            // A rollback tombstones this session. Rearm on a later real PRE.
+            revokeBridge(sequence,generation,acquisition);return false;
+        }
+        long now=bridgePlacementClock.getAsLong();
+        if(!bridgeCurrent(sequence,generation,acquisition))return false;
+        if(!bridgeInventoryUnchanged(sequence,generation,acquisition,true))return false;
+        BridgePlacementCadence.Scope next=new BridgePlacementCadence.Scope(scope.owner,scope.world,scope.player,
+                scope.connection,scope.connectionEpoch,scope.acquisitionGeneration);
+        if(!bridgeCadence.start(next,bridgePlacementSettings(),now)) {
+            revokeBridge(sequence,generation,acquisition);return false;
+        }
+        bridgeCadenceScope=next;
+        return bridgeCurrent(sequence,generation,acquisition);
+    }
+
+    private void updateBridgePlacementInfo() {
+        if(!bridgePlaceDebug.getValue())return;
+        bridgeDebugInfo=true;
+        info=String.format(java.util.Locale.ROOT,"Place %.1f CPS | Blocks %d",
+                bridgeCadence.getPendingCps(),bridgeConfirmedPlacements);
+        if(bridgeAutoJump.getValue() && "Godbridge".equals(bridgeRotationProfile.getValue()))
+            info+=" | Jump "+bridgeBlocksSinceJump+"/"+bridgeJumpAfter.getValue().intValue();
+    }
+
     private AdaptiveBridgeMotion.Settings bridgeRotationSettings() {
         AdaptiveBridgeMotion.Mode mode="Godbridge".equals(bridgeRotationProfile.getValue())
                 ?AdaptiveBridgeMotion.Mode.GODBRIDGE:AdaptiveBridgeMotion.Mode.ADAPTIVE;
@@ -631,6 +736,7 @@ public class Scaffold extends Module {
             bridgeScope=frame.scope;
             bridgePreview=host;
             rememberBridgeDirection(input,cameraYaw);
+            if(!acquireBridgeCadence(bridgeScope,sequence,generation,acquisition))return;
             if(host==null) {
                 bridgeSafety.observePlan(bridgeScope,sequence,false);
                 requestAcceptedHold();return;
@@ -708,10 +814,27 @@ public class Scaffold extends Module {
             if(accepted==null) {bridgeSafety.invalidate(scope);releasePlacement();return;}
             frameTarget=currentTarget=accepted;
             bridgeSafety.ready(scope,sequence);
+            if(!currentBridgeCadence(scope))return;
+            long now=bridgePlacementClock.getAsLong();
+            if(!bridgeCurrent(sequence,generation,acquisition))return;
+            BridgePlacementCadence.Attempt attempt=bridgeCadence.tryConsume(bridgeCadenceScope,
+                    bridgePlacementSettings(),sequence,now,true);
+            if(attempt==null) {updateBridgePlacementInfo();return;}
             bridgeSafety.placing(scope,sequence);
             boolean placed=tryPlace(false);
             if(!bridgeCurrent(sequence,generation,acquisition))return;
-            bridgeSafety.placementResult(scope,sequence,placed);
+            // A successful non-silent switch deliberately keeps the chosen block slot.
+            // Do not refresh stack identity: exhaustion/replacement must end pending credit.
+            if(placed && !itemSpoof.getValue() && client.thePlayer.inventory.currentItem==accepted.getSlot())
+                bridgeCadenceSelectedSlot=accepted.getSlot();
+            boolean confirmed=placed && service.hasLocallyPlacedBlock(accepted);
+            if(!bridgeCurrent(sequence,generation,acquisition))return;
+            if(confirmed) {
+                if(bridgeConfirmedPlacements<Integer.MAX_VALUE)bridgeConfirmedPlacements++;
+                if(bridgeBlocksSinceJump<bridgeJumpAfter.getValue().intValue())bridgeBlocksSinceJump++;
+            }
+            bridgeSafety.placementResult(scope,sequence,confirmed);
+            updateBridgePlacementInfo();
             if(placed) {bridgePreview=null;bridgeProfileAnchor=null;}
             boolean valid=placed || service.isValid(frameTarget);
             if(!bridgeCurrent(sequence,generation,acquisition))return;
@@ -896,6 +1019,52 @@ public class Scaffold extends Module {
         // Physical jumps remain the user's choice. Earlier automatic jumps must
         // not silently turn off the normal grounded sneak collision protection.
         if(decision.requestSneak && !keyDown(client.gameSettings.keyBindJump))input.jump=false;
+        applyBridgeAutoJump(input,sample,decision,sequence,generation,acquisition);
+    }
+
+    /** A one-sample jump request; all velocity and actual jump execution remain vanilla. */
+    private void applyBridgeAutoJump(MovementInput input,AdaptiveBridgeSafetyController.Snapshot sample,
+            AdaptiveBridgeSafetyController.Decision decision,long sequence,long generation,long acquisition) {
+        if(!bridgeAutoJump.getValue() || !"Godbridge".equals(bridgeRotationProfile.getValue())
+                || !bridgeCurrent(sequence,generation,acquisition))return;
+        Minecraft client=Minecraft.getMinecraft();
+        // The user's jump takes precedence and cancels our pending automatic cycle.
+        if(keyDown(client.gameSettings.keyBindJump)) {
+            bridgeBlocksSinceJump=0;updateBridgePlacementInfo();return;
+        }
+        if(bridgeBlocksSinceJump<bridgeJumpAfter.getValue().intValue()
+                || !sample.grounded || !sample.currentSupported || !sample.pathSupported
+                || decision.requestSneak || input.sneak || keyDown(client.gameSettings.keyBindSneak)
+                || !Float.isFinite(input.moveForward) || !Float.isFinite(input.moveStrafe)
+                || Math.hypot(input.moveForward,input.moveStrafe)<1e-5
+                || client.thePlayer.hurtTime>0 || client.thePlayer.capabilities.isFlying
+                || client.thePlayer.capabilities.allowFlying
+                || client.thePlayer.isUsingItem() || client.thePlayer.isRiding()
+                || client.thePlayer.isOnLadder() || client.thePlayer.isInWater() || client.thePlayer.isInLava())return;
+        if(!bridgeCurrent(sequence,generation,acquisition))return;
+        boolean recovering=contextPackets.isRecoveringLocalImpulse(client.thePlayer);
+        if(!bridgeCurrent(sequence,generation,acquisition) || recovering)return;
+        if(!currentBridgeCadence(sample.scope)
+                || !bridgeInventoryUnchanged(sequence,generation,acquisition,false)
+                || bridgeCadenceBlockSlot<0)return;
+        // No contextual/world callbacks after this final snapshot. Such callbacks may
+        // have changed flight permission or physical input without changing the scene.
+        if(client.gameSettings.keyBindJump.pressed) {
+            bridgeBlocksSinceJump=0;updateBridgePlacementInfo();return;
+        }
+        if(!bridgeScopeCurrent(sequence,generation,acquisition)
+                || client.thePlayer!=contextPlayer || client.theWorld!=contextWorld
+                || !client.thePlayer.onGround || client.thePlayer.hurtTime>0
+                || client.thePlayer.capabilities.allowFlying || client.thePlayer.capabilities.isFlying
+                || client.currentScreen!=null || !client.inGameHasFocus
+                || input.sneak || client.gameSettings.keyBindSneak.pressed
+                || !Float.isFinite(input.moveForward) || !Float.isFinite(input.moveStrafe)
+                || Math.hypot(input.moveForward,input.moveStrafe)<1e-5
+                || !(bridgeCadenceStack instanceof net.minecraft.item.ItemStack)
+                || ((net.minecraft.item.ItemStack)bridgeCadenceStack).stackSize<=0)return;
+        input.jump=true;
+        bridgeBlocksSinceJump=0;
+        updateBridgePlacementInfo();
     }
 
     /** Keep floor-to-int conversion and the small cell loops within the world coordinate budget. */

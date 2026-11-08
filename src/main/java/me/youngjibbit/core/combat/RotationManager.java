@@ -794,6 +794,9 @@ public final class RotationManager {
         }
     }
 
+    /** Read the existing monotonic source without advancing any motion, trajectory or action state. */
+    public long readMonotonicNanos() { return clock.getAsLong(); }
+
     /** Capture only when the feature is used: OFF retains its original clock-read order. */
     private long curveMotionTime() {
         if(curveMotionSequence!=sequence) {

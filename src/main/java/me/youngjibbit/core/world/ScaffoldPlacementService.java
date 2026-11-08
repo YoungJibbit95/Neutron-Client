@@ -330,6 +330,16 @@ public final class ScaffoldPlacementService {
                 && (requiredSource == null ? rotations.canUseRotation(pre) : rotations.canUseRotation(requiredSource, pre));
     }
 
+    /** Local block evidence after a true controller result; never a remote acknowledgement or authority. */
+    public boolean hasLocallyPlacedBlock(PlacementTarget original) {
+        if(original==null || !sameContext(original)
+                || !(original.stackSnapshot.getItem() instanceof ItemBlock))return false;
+        Object state=access.state(original.getDestination());
+        return sameIdentity(original) && state instanceof IBlockState
+                && ((IBlockState)state).getBlock()==((ItemBlock)original.stackSnapshot.getItem()).getBlock()
+                && !((IBlockState)state).getBlock().getMaterial().isReplaceable();
+    }
+
     private static final class MinecraftAccess implements Access {
         private final Minecraft mc = Minecraft.getMinecraft();
         private final Map<Class<?>, Boolean> interactive = new HashMap<>();
