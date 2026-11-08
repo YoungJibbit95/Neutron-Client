@@ -14,6 +14,8 @@ import me.youngjibbit.value.Value;
 import me.youngjibbit.value.impl.CheckBoxValue;
 import me.youngjibbit.value.impl.ComboValue;
 import me.youngjibbit.value.impl.SliderValue;
+import me.youngjibbit.gui.HudSpring;
+import me.youngjibbit.module.impl.client.ClientSettings;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
@@ -25,6 +27,8 @@ public class ClickModule extends Component {
     private final DecelerateAnimation openAnimation = new me.youngjibbit.clickgui.utils.ClickAnimation(220, 1, Direction.BACKWARDS);
     private final DecelerateAnimation toggleAnimation = new me.youngjibbit.clickgui.utils.ClickAnimation(180, 1, Direction.BACKWARDS);
     private final me.youngjibbit.gui.UiSpring panelReveal = new me.youngjibbit.gui.UiSpring();
+    private final HudSpring panelToggle=new HudSpring();
+    private float toggleBounce;
     private float openProgress, toggleProgress, settingsContentHeight;
     private ClipRect settingsClip = new ClipRect(0, 0, 0, 0);
 
@@ -35,6 +39,7 @@ public class ClickModule extends Component {
         ClickModule row = new ClickModule(module, 0, 0, width, 24);
         row.panelStyle = true;
         for (Sub<?> value : row.values) value.usePanelStyle();
+        row.resetPanelMotion();
         return row;
     }
 
@@ -74,11 +79,37 @@ public class ClickModule extends Component {
         }
     }
 
-    /** Panel-only reveal; the compact Dropdown retains its existing timing. */
+    /** Visual state only; never resets a toggled Module or a saved setting. */
+    public void resetPanelMotion(){
+        panelReveal.reset();
+        panelToggle.snap(module.isToggled()?1:0);
+        toggleBounce=0;
+        for(Sub<?> value:values){
+            if(value instanceof ClickCombo)((ClickCombo)value).resetPanelMotion();
+            if(value instanceof ClickCheckBox)((ClickCheckBox)value).resetPanelMotion();
+            if(value instanceof ClickSlider)((ClickSlider)value).resetPanelMotion();
+        }
+    }
+
+    /** Panel-only springs; compact Dropdown retains its original animation path. */
     public void updatePanelAnimation(float seconds) {
         updateAnimation();
-        openProgress = Math.max(0, Math.min(1.08f, panelReveal.transition(open ? 1 : 0, seconds,
-                me.youngjibbit.module.impl.client.ClientSettings.current())));
+        ClientSettings settings=ClientSettings.current();
+        float toggle=panelToggle.step(module.isToggled()?1:0,seconds,
+                settings==null||settings.animations.getValue(),
+                settings!=null&&settings.reducedMotion.getValue(),
+                settings==null?"Balanced":settings.motionIntensity.getValue());
+        toggleProgress=Math.max(0,Math.min(1,toggle));
+        toggleBounce=Math.min(.1f,Math.abs(toggle-toggleProgress));
+        openProgress=Math.max(0,Math.min(1.08f,panelReveal.transition(
+                open?1:0,seconds,settings)));
+        // Combo geometry must be frozen from the same spring sample as the clip.
+        settingsContentHeight=settingsTop()+PANEL_BOTTOM;
+        for(Sub<?> value:values){
+            if(!visible(value))continue;
+            if(value instanceof ClickCombo)((ClickCombo)value).updatePanelAnimation(seconds);
+            settingsContentHeight+=value.getHeight()+valueGap();
+        }
     }
 
     protected boolean compactSettings() { return false; }
@@ -162,8 +193,13 @@ public class ClickModule extends Component {
         int fill = Theme.interpolateRGB(base, text, over * .045f);
         GuiStyle.panel(x, y, width, getHeight(), 6, .09f + toggleProgress * .17f, new Color(fill, true));
         float dotX = x + 10, dotY = y + height / 2 - 2;
-        if (module.isToggled())
-            me.youngjibbit.utils.render.UIUtils.drawDecorationRound(dotX, dotY, 4, 4, 2, theme.getPrimaryGradientColor());
+        if (module.isToggled()||toggleProgress>.005f){
+            float dot=4+toggleBounce*18;
+            me.youngjibbit.utils.render.UIUtils.drawDecorationRound(dotX-(dot-4)/2,
+                    dotY-(dot-4)/2,dot,dot,dot/2,
+                    me.youngjibbit.utils.render.UiEffects.color(
+                            theme.getPrimaryGradientRGB(),.24f+.76f*toggleProgress));
+        }
         if (getPresentation().keyboardFocused())
             Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString("â€º", x + 3, y + 6, text);
 

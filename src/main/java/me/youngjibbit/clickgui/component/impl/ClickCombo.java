@@ -4,6 +4,8 @@ import me.youngjibbit.Pulsar;
 import me.youngjibbit.clickgui.utils.*;
 import me.youngjibbit.clickgui.component.Component;
 import me.youngjibbit.utils.Theme;
+import me.youngjibbit.gui.HudSpring;
+import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.utils.animations.Direction;
 import me.youngjibbit.utils.render.*;
 import me.youngjibbit.value.impl.ComboValue;
@@ -13,6 +15,8 @@ public class ClickCombo extends Component.Sub<ComboValue> {
     private boolean open;
     private float progress;
     private final ClickAnimation animation=new ClickAnimation(180,1,Direction.BACKWARDS);
+    private final HudSpring panelDisclosure=new HudSpring();
+    private float disclosureBounce;
     public ClickCombo(ComboValue value,float x,float y,float width,float height){
         super(value,x,y,width,height);setWidth(width);animation.timerUtil.setTime(System.currentTimeMillis()-180);
     }
@@ -21,6 +25,23 @@ public class ClickCombo extends Component.Sub<ComboValue> {
     public void updateAnimation(){
         animation.setDirection(open?Direction.FORWARDS:Direction.BACKWARDS);
         progress=Math.max(0,Math.min(1,UiEffects.motion()?animation.getOutput().floatValue():open?1:0));
+    }
+
+    /** Only the Panel screen calls this; Dropdown retains ClickAnimation. */
+    public void resetPanelMotion(){
+        panelDisclosure.snap(open?1:0);
+        disclosureBounce=0;
+    }
+
+    public void updatePanelAnimation(float dt){
+        if(!panelStyle)return;
+        ClientSettings settings=ClientSettings.current();
+        float response=panelDisclosure.step(open?1:0,dt,
+                settings==null||settings.animations.getValue(),
+                settings!=null&&settings.reducedMotion.getValue(),
+                settings==null?"Balanced":settings.motionIntensity.getValue());
+        progress=Math.max(0,Math.min(1,response));
+        disclosureBounce=Math.max(0,Math.min(.1f,response-progress));
     }
     private float fieldX(){return compact()?x+7:ClickControlStyle.right(x,width)-fieldWidth();}
     private float fieldWidth(){return compact()?width-14:ClickControlStyle.fieldWidth(width);}
@@ -46,6 +67,10 @@ public class ClickCombo extends Component.Sub<ComboValue> {
             float cx=fieldX()+fieldWidth()-10,cy=fieldY()+fieldHeight()/2;
             UIUtils.drawDecorationRound(cx-2,cy,5,1,0,UiEffects.color(ink,.8f));
             if(progress<.99f)UIUtils.drawDecorationRound(cx,cy-2,1,5*(1-progress),0,UiEffects.color(ink,.8f));
+            if(panelStyle&&disclosureBounce>.002f)UIUtils.drawDecorationRound(
+                    cx-3-disclosureBounce*7,cy-3-disclosureBounce*7,
+                    6+disclosureBounce*14,6+disclosureBounce*14,3,
+                    UiEffects.color(theme.getPrimaryGradientRGB(),disclosureBounce*1.7f));
         }
         ClipRect options=optionsClip();
         if(!options.isEmpty())try(GuiClip ignored=GuiClip.push(options)){
