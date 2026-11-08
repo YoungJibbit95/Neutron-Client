@@ -67,7 +67,7 @@ public class LagRangeApproachTest {
                 assertTrue(f.controller.tryAttackEntity(f.player, enemy, () -> true));
                 assertSame(move, f.connection.channel.readOutbound());
                 assertTrue(f.connection.channel.readOutbound() instanceof C02PacketUseEntity);
-                tick(now, 499); f.connection.network.sendPacket(new C03PacketPlayer(true));
+                tick(now, 449); f.connection.network.sendPacket(new C03PacketPlayer(true));
                 assertEquals(0, f.pipe().delays().size()); f.drainOutbound();
                 tick(now, 500); f.connection.network.sendPacket(new C03PacketPlayer(true));
                 assertEquals(1, f.pipe().delays().size());

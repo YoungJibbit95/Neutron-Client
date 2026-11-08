@@ -5,6 +5,7 @@ on:
     tags: ['v[0-9]*']
   pull_request:
     paths:
+      - 'src/**'
       - 'pom.xml'
       - '.github/workflows/release-bundle.yml'
       - '.github/scripts/*.py'
