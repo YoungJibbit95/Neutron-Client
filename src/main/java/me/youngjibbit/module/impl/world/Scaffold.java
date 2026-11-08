@@ -567,7 +567,7 @@ public class Scaffold extends Module {
     public static void applyDownwardsInput(MovementInput input, boolean allowInterval) {
         Minecraft mc = Minecraft.getMinecraft();
         Scaffold scaffold = active;
-        if (scaffold != null && scaffold.isToggled() && !scaffold.arsenic() && scaffold.validContext()
+        if (scaffold != null && scaffold.isToggled() && !scaffold.arsenic() && !scaffold.adaptiveBridge() && scaffold.validContext()
                 && scaffold.downwards.getValue() && mc.gameSettings.keyBindSneak.isKeyDown()
                 && scaffold.currentTarget != null && RuntimeServices.scaffoldPlacement().isValid(scaffold.currentTarget)) suppressSneak(input);
         // This hook runs once after each fresh input read, after downwards suppression.

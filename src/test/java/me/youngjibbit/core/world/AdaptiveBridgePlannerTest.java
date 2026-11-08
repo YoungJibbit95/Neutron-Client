@@ -226,4 +226,124 @@ public class AdaptiveBridgePlannerTest {
         f.forward=1;f.destinationY=256;assertFalse(plan(f).hasCandidate);
         f.destinationY=64;assertTrue(plan(f).hasCandidate);
     }
+
+    @Test public void newConnectionWithLowerEpochRequiresANewAcquisitionAndRejectsOldCallbacks() {
+        AdaptiveBridgePlanner.Frame f=frame();
+        AdaptiveBridgePlanner.Scope original=f.scope;
+        f.scope=new AdaptiveBridgePlanner.Scope(original.owner,original.world,original.player,
+                original.connection,7,4);
+        AdaptiveBridgePlanner.Scope old=f.scope;
+        AdaptiveBridgePlanner planner=new AdaptiveBridgePlanner();
+        assertTrue(planner.prepare(f,one(f)).hasCandidate);
+        planner.reset();
+
+        Object replacement=new Object();
+        f.scope=new AdaptiveBridgePlanner.Scope(old.owner,old.world,old.player,replacement,0,4);
+        assertFalse("connection replacement cannot reuse an old acquisition",
+                planner.prepare(f,one(f)).hasCandidate);
+        f.scope=new AdaptiveBridgePlanner.Scope(old.owner,new Object(),new Object(),replacement,0,5);
+        AdaptiveBridgePlanner.Scope current=f.scope;
+        f.sequence=1;
+        AdaptiveBridgePlanner.Plan fresh=planner.prepare(f,one(f));
+        assertTrue("a legitimate new connection starts with its own epoch",fresh.hasCandidate);
+
+        assertFalse(planner.invalidateIfCurrent(old));
+        f.scope=old;f.sequence=100;
+        assertFalse(planner.prepare(f,one(f)).hasCandidate);
+        f.scope=new AdaptiveBridgePlanner.Scope(old.owner,old.world,old.player,
+                old.connection,1000,4);
+        assertFalse("old callback cannot win with an unrelated larger epoch",
+                planner.prepare(f,one(f)).hasCandidate);
+        f.authorized=false;
+        assertFalse(planner.prepare(f,one(f)).hasCandidate);
+        f.authorized=true;f.scope=current;f.sequence=1;
+        assertSame("old callbacks cannot erase the live acquisition",fresh,
+                planner.prepare(f,one(f)));
+    }
+
+    @Test public void sameConnectionCannotRewindEpochAndResetCannotRearmTheSameScope() {
+        AdaptiveBridgePlanner.Frame f=frame();
+        AdaptiveBridgePlanner.Scope initial=f.scope;
+        f.scope=new AdaptiveBridgePlanner.Scope(initial.owner,initial.world,initial.player,
+                initial.connection,5,8);
+        AdaptiveBridgePlanner.Scope current=f.scope;
+        AdaptiveBridgePlanner planner=new AdaptiveBridgePlanner();
+        assertTrue(planner.prepare(f,one(f)).hasCandidate);
+        f.scope=new AdaptiveBridgePlanner.Scope(initial.owner,initial.world,initial.player,
+                initial.connection,4,9);
+        assertFalse("new acquisition cannot legalize an older epoch on the same connection",
+                planner.prepare(f,one(f)).hasCandidate);
+        f.scope=current;planner.reset();f.sequence++;
+        assertFalse("reset keeps the revoked scope tombstone",planner.prepare(f,one(f)).hasCandidate);
+        f.scope=new AdaptiveBridgePlanner.Scope(initial.owner,initial.world,initial.player,
+                initial.connection,5,9);
+        assertTrue(planner.prepare(f,one(f)).hasCandidate);
+        f.scope=new AdaptiveBridgePlanner.Scope(new Object(),initial.world,initial.player,
+                new Object(),100,100);
+        assertFalse("a foreign owner never acquires this planner",planner.prepare(f,one(f)).hasCandidate);
+    }
+
+    @Test public void foreignThreadCannotClearAnExistingLiveAcquisition() throws Exception {
+        AdaptiveBridgePlanner.Frame f=frame();
+        AdaptiveBridgePlanner planner=new AdaptiveBridgePlanner();
+        AdaptiveBridgePlanner.Plan first=planner.prepare(f,one(f));
+        AtomicReference<Boolean> invalidated=new AtomicReference<>();
+        Thread worker=new Thread(()->{
+            invalidated.set(planner.invalidateIfCurrent(f.scope));
+            planner.reset();
+        },"scaffold-plan-late-thread");
+        worker.start();worker.join();
+        assertEquals(Boolean.FALSE,invalidated.get());
+        assertSame(first,planner.prepare(f,one(f)));
+    }
+
+    @Test public void statelessPredictionUsesABoundedHorizonWithoutConsumingPre() {
+        AdaptiveBridgePlanner.Frame f=frame();
+        f.predictionTicks=0;
+        assertArrayEquals(new double[]{f.feetX,f.feetZ},AdaptiveBridgePlanner.predict(f),0);
+        f.predictionTicks=2;
+        assertEquals(f.feetZ+.36,AdaptiveBridgePlanner.predict(f)[1],1e-9);
+        f.velocityZ=.7;f.predictionTicks=3;
+        assertEquals(.6,AdaptiveBridgePlanner.predict(f)[1]-f.feetZ,1e-9);
+        AdaptiveBridgePlanner planner=new AdaptiveBridgePlanner();
+        assertTrue("preview does not reserve the actual PRE sequence",
+                planner.prepare(f,one(f)).hasCandidate);
+        f.predictionTicks=Double.NaN;
+        assertArrayEquals(new double[]{f.feetX,f.feetZ},AdaptiveBridgePlanner.predict(f),0);
+        assertFalse(plan(f).hasCandidate);
+        f.predictionTicks=4;
+        assertFalse(plan(f).hasCandidate);
+    }
+
+    @Test public void directionChangeInsideOneSequenceRevokesInsteadOfReplanning() {
+        AdaptiveBridgePlanner.Frame f=frame();
+        AdaptiveBridgePlanner planner=new AdaptiveBridgePlanner();
+        assertTrue(planner.prepare(f,one(f)).hasCandidate);
+        f.forward=-1;
+        assertFalse("fresh opposite input cannot inherit an earlier candidate",
+                planner.prepare(f,one(f)).hasCandidate);
+        f.forward=1;f.sequence++;
+        assertFalse("next frame must use a new acquisition token",
+                planner.prepare(f,one(f)).hasCandidate);
+        f.scope=new AdaptiveBridgePlanner.Scope(f.scope.owner,f.scope.world,f.scope.player,
+                f.scope.connection,f.scope.connectionEpoch,f.scope.acquisitionGeneration+1);
+        assertTrue(planner.prepare(f,one(f)).hasCandidate);
+    }
+
+    @Test public void invalidOldFrameCannotEraseANewerSequenceInTheSameScope() {
+        AdaptiveBridgePlanner.Frame f=frame();
+        AdaptiveBridgePlanner planner=new AdaptiveBridgePlanner();
+        f.sequence=10;
+        AdaptiveBridgePlanner.Plan current=planner.prepare(f,one(f));
+        assertTrue(current.hasCandidate);
+        f.sequence=9;f.authorized=false;
+        assertFalse(planner.prepare(f,one(f)).hasCandidate);
+        f.sequence=10;f.authorized=true;
+        assertSame("late invalid callback cannot revoke current PRE",current,
+                planner.prepare(f,one(f)));
+        f.authorized=false;
+        assertFalse("invalid CURRENT frame must still revoke",planner.prepare(f,one(f)).hasCandidate);
+        f.authorized=true;f.sequence=11;
+        assertFalse(planner.prepare(f,one(f)).hasCandidate);
+    }
 }
