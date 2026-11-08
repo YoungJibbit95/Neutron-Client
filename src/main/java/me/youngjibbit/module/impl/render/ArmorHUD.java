@@ -49,7 +49,7 @@ public class ArmorHUD extends Module {
     private float x=100,y=300,width,height,grabX,grabY;
     private boolean dragging,previousButton;
     @Subscribe public final Listener<Event2D> render=new Listener<>(e->{if(isToggled())renderArmorHUD();});
-    @Override public void onDisable(){dragging=false;clearDurabilityMotion();me.youngjibbit.utils.render.HudDrag.cancel(this);surface.close();super.onDisable();}
+    @Override public void onDisable(){dragging=false;clearDurabilityMotion();durabilityWorld=null;me.youngjibbit.utils.render.HudDrag.cancel(this);surface.close();super.onDisable();}
     public void renderArmorHUD(){
         if(!me.youngjibbit.module.impl.client.HUD.visible()){dragging=false;clearDurabilityMotion();HudDrag.cancel(this);surface.close();return;}
         if(mc.thePlayer==null||mc.gameSettings.showDebugInfo){dragging=false;clearDurabilityMotion();previousButton=Mouse.isCreated()&&Mouse.isButtonDown(0);return;}
