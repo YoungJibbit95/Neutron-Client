@@ -122,9 +122,17 @@ function Get-PinnedInstaller([hashtable]$Artifact) {
 
 try {
     $old=Join-Path $downloads 'Neutron-Launcher-0.2.0-Windows-x64.exe'
-    $new=Join-Path $downloads 'Neutron-Launcher-0.2.2-Windows-x64.exe'
-    foreach($artifact in @(@{path=$old;version='0.2.0';assetId=721507262;hash='20e8c8a8b0a71a8e3540d87eeae7bce7c4fa2c6323777b0cbce136e12f9091d3'},@{path=$new;version='0.2.2';assetId=722300068;hash='acfc43e605fc0af9d591068bd12b08d1e05a1a6b5936cdc3af312aaddd6a27bc'})) {
-        Get-PinnedInstaller $artifact
+    $candidate=$env:NEUTRON_DIAGNOSTIC_CANDIDATE
+    $newVersion=if($candidate){[string]$env:NEUTRON_DIAGNOSTIC_CANDIDATE_VERSION}else{'0.2.2'}
+    $new=if($candidate){[string]$candidate}else{Join-Path $downloads 'Neutron-Launcher-0.2.2-Windows-x64.exe'}
+    Get-PinnedInstaller @{path=$old;version='0.2.0';assetId=721507262;hash='20e8c8a8b0a71a8e3540d87eeae7bce7c4fa2c6323777b0cbce136e12f9091d3'}
+    if($candidate){
+        $owned=[IO.Path]::GetFullPath($root).TrimEnd([char]92)+[IO.Path]::DirectorySeparatorChar
+        if(-not [IO.Path]::GetFullPath($new).StartsWith($owned,[StringComparison]::OrdinalIgnoreCase)){throw 'Refusing a candidate outside the disposable fixture.'}
+        if($newVersion -notmatch '^[0-9]+[.][0-9]+[.][0-9]+$' -or -not [IO.File]::Exists($new) -or $env:NEUTRON_DIAGNOSTIC_CANDIDATE_HASH -notmatch '^[a-f0-9]{64}$'){throw 'Candidate fixture is missing or invalid.'}
+        if((Get-FileHash -LiteralPath $new).Hash.ToLowerInvariant() -cne $env:NEUTRON_DIAGNOSTIC_CANDIDATE_HASH){throw 'Candidate installer bytes differ from the exact CI package.'}
+    } else {
+        Get-PinnedInstaller @{path=$new;version='0.2.2';assetId=722300068;hash='acfc43e605fc0af9d591068bd12b08d1e05a1a6b5936cdc3af312aaddd6a27bc'}
     }
     $reference=Join-Path $root 'reference'; [IO.Directory]::CreateDirectory($reference) | Out-Null
     $seven=Join-Path $env:ProgramFiles '7-Zip/7z.exe'
@@ -144,18 +152,18 @@ try {
         Save-Evidence
     }
     $marker=Join-Path $control 'personal-diagnostic-marker.txt'; [IO.File]::WriteAllText($marker,'synthetic profile; retain'); $markerHash=(Get-FileHash -LiteralPath $marker).Hash
-    Invoke-ObservedInstaller $new ("/currentuser /D="+$install) 'assisted-0.2.0-to-0.2.2' $true
+    Invoke-ObservedInstaller $new ("/currentuser /D="+$install) ('assisted-0.2.0-to-'+$newVersion) $true
     $registeredInstall=(Get-ItemProperty -LiteralPath 'HKCU:\Software\17d12e18-c0d2-5a05-b898-3c34ccfad7ff').InstallLocation
     $events.Add(@{label='assisted-install-location';requested=$install;registered=$registeredInstall})
     if(-not $registeredInstall.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Registered install escaped the owned fixture.'}
     $installedExe=Join-Path $registeredInstall 'Neutron Launcher.exe'
-    if((Get-Item -LiteralPath $installedExe).VersionInfo.ProductVersion -ne '0.2.2'){throw 'Assisted upgrade did not install version 0.2.2.'}
+    if((Get-Item -LiteralPath $installedExe).VersionInfo.ProductVersion -ne $newVersion){throw 'Assisted upgrade did not install version 0.2.2.'}
     $metadata=Get-Content -LiteralPath (Join-Path $registeredInstall 'resources/release.json') -Raw | ConvertFrom-Json
-    if($metadata.launcherVersion -ne '0.2.2'){throw 'Installed release metadata differs from the candidate.'}
-    if((Get-FileHash -LiteralPath (Join-Path $registeredInstall 'resources/app.asar')).Hash -ne $expectedAsar){throw 'Assisted upgrade application bytes differ from the immutable public candidate.'}
-    Invoke-ObservedInstaller $new ("/S /currentuser /D="+$registeredInstall) 'silent-0.2.2-reinstall' $false
+    if($metadata.launcherVersion -ne $newVersion){throw 'Installed release metadata differs from the candidate.'}
+    if((Get-FileHash -LiteralPath (Join-Path $registeredInstall 'resources/app.asar')).Hash -ne $expectedAsar){throw 'Assisted upgrade application bytes differ from the expected pinned candidate.'}
+    Invoke-ObservedInstaller $new ("/S /currentuser /D="+$registeredInstall) ('silent-'+$newVersion+'-reinstall') $false
     $uninstaller=Join-Path $registeredInstall 'Uninstall Neutron Launcher.exe'
-    Invoke-ObservedInstaller $uninstaller '/currentuser /KEEP_APP_DATA' 'assisted-uninstall-0.2.2' $true
+    Invoke-ObservedInstaller $uninstaller '/currentuser /KEEP_APP_DATA' ('assisted-uninstall-'+$newVersion) $true
     if((Test-Path -LiteralPath (Join-Path $registeredInstall 'Neutron Launcher.exe')) -or (Test-Path -LiteralPath 'HKCU:\Software\17d12e18-c0d2-5a05-b898-3c34ccfad7ff')){throw 'Assisted uninstaller did not remove application files and registration.'}
     if((Get-FileHash -LiteralPath $marker).Hash -ne $markerHash){throw 'Uninstall changed synthetic personal data.'}
     $events.Add(@{label='completed';result='all observed operations succeeded; user failure not reproduced'})
