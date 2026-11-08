@@ -12,7 +12,7 @@ public final class IslandLayout {
             viewportWidth = Math.max(1, screenW);
             viewportHeight = Math.max(1, screenH);
             float limit = Math.min(380, Math.min(viewportWidth * .85f, Math.max(1, viewportWidth - 16)));
-            this.width = clamp(width, 1, limit);
+            this.width = clamp(width, Math.min(1, limit), limit);
             this.height = clamp(height, 1, Math.max(1, viewportHeight - 8));
             this.radius = clamp(radius, 0, this.height / 2);
             this.opacity = clamp(opacity, 0, 1);
