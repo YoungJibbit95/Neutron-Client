@@ -156,8 +156,9 @@ public class ClickGui extends GuiScreen {
         Theme theme = Theme.resolve(Theme.getDefaultTheme());
         boolean modern=modernPresentation();
         // Only the Approach-2 paint changes; all hit/drag/resize rectangles stay fixed.
-        themedSurface.panel(x,y,width,height,modern?9:5,theme,true,true,true,8,
-                modern?.80f:.72f,modern?.88f:1,()->{
+        themedSurface.panel(x,y,width,height,modern?NeutronVisualTokens.RADIUS_FRAME:5,
+                theme,true,true,!modern,modern?4:8,modern?.98f:.72f,
+                modern?.22f:1,()->{
         // The legacy bloom helper restores raw GL attributes, bypassing Minecraft's state cache.
         // Synchronize both sides before drawing coplanar UI surfaces over its fullscreen quad.
         GL11.glDisable(GL11.GL_DEPTH_TEST);
@@ -167,26 +168,43 @@ public class ClickGui extends GuiScreen {
 
 
         try (GuiClip windowClip = GuiClip.push(new ClipRect(x + 2, y + 2, width - 4, height - 4))) {
-            UIUtils.drawRound(x + 1, y + 1, sidebarWidth() - 2, height - 2,
-                    modern?11:4, modern?new Color(29,11,39,220):new Color(8,8,9));
-            UIUtils.drawRound(x + 1, y + 1, width - 2, headerHeight() - 1,
-                    modern?11:4, modern?new Color(42,13,40,228):new Color(13,13,14));
             if(modern){
-                UIUtils.drawDecorationGradientVertical(x+sidebarWidth()-1,y+headerHeight()+2,
-                        1,Math.max(0,height-headerHeight()-5),0,
-                        new Color(255,55,185,95),new Color(255,148,48,90));
-                UIUtils.drawGradientHorizontal(x+8,y+height-4,Math.min(width*.35f,170),2,1,
-                        new Color(239,48,181,170),new Color(255,136,61,130));
+                // Opaque-internal glass layers keep the Minecraft world legible but
+                // never leave moving world pixels directly behind widget labels.
+                UIUtils.drawRound(x+1,y+1,width-2,height-2,
+                        NeutronVisualTokens.RADIUS_FRAME,NeutronVisualTokens.FRAME);
+                UIUtils.drawRound(x+5,y+headerHeight()+3,sidebarWidth()-10,
+                        height-headerHeight()-10,NeutronVisualTokens.RADIUS_SIDEBAR,
+                        NeutronVisualTokens.SIDEBAR);
+                UIUtils.drawRound(x+sidebarWidth()+5,y+headerHeight()+3,
+                        width-sidebarWidth()-11,height-headerHeight()-10,
+                        NeutronVisualTokens.RADIUS_SIDEBAR,NeutronVisualTokens.PANEL);
+                UIUtils.drawRound(x+1,y+1,width-2,headerHeight()-1,
+                        NeutronVisualTokens.RADIUS_FRAME,NeutronVisualTokens.HEADER);
+                UIUtils.drawDecorationRound(x+sidebarWidth(),y+headerHeight()+14,
+                        1,Math.max(1,height-headerHeight()-29),.5f,
+                        NeutronVisualTokens.HAIRLINE);
+                UIUtils.drawRound(x+16,y+12,32,32,9,NeutronVisualTokens.CONTROL);
+                UIUtils.drawDecorationRound(x+17,y+13,2,30,1,
+                        NeutronVisualTokens.accent(theme,175));
+                TTFFontRenderer logo=Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Bold 28");
+                logo.drawString("N",x+25,y+17,theme.getPrimaryGradientRGB());
+                TTFFontRenderer brand=Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 20");
+                brand.drawString("Neutron",x+56,y+17,NeutronVisualTokens.INK);
+                UIUtils.drawRound(x+140,y+18,30,16,7,NeutronVisualTokens.CONTROL);
+                font().drawCenteredString("2.0",x+155,y+21,theme.getPrimaryGradientRGB());
+                if(entry>.01f)
+                    UIUtils.drawLiteralGradient(x+sidebarWidth()+14,y+headerHeight()+1,
+                            Math.max(.5f,(width-sidebarWidth()-40)*entry),
+                            1.5f,.75f,NeutronVisualTokens.accent(theme,175),
+                            NeutronVisualTokens.secondary(theme,95));
+            }else{
+                UIUtils.drawRound(x+1,y+1,sidebarWidth()-2,height-2,4,new Color(8,8,9));
+                UIUtils.drawRound(x+1,y+1,width-2,headerHeight()-1,4,new Color(13,13,14));
+                drawClientName(Pulsar.INSTANCE.getName(),(int)(x+9),(int)(y+10),theme);
+                Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString(
+                        "o",x+width-21,y+13,theme.getSecondaryGradientRGB());
             }
-            drawClientName(Pulsar.INSTANCE.getName(),(int)(x+(modern?17:9)),(int)(y+(modern?13:10)),theme);
-            if(modern&&entry>.005f){
-                // Spring-driven entrance accent, not an extra FBO or input surface.
-                float stroke=(width-22)*entry;
-                UIUtils.drawLiteralGradient(x+11,y+headerHeight()-2,stroke,2,1,
-                        theme.getPrimaryGradientColor(),theme.getSecondaryGradientColor());
-            }
-            Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString("o", x + width - 21, y + 13,
-                    theme.getSecondaryGradientRGB());
             ClipRect searchBox=searchBounds();
             GuiStyle.panel(searchBox.x,searchBox.y,searchBox.width,searchBox.height,
                     modern?10:3,searchFocus&&showsKeyboardFocus()?1:0,
