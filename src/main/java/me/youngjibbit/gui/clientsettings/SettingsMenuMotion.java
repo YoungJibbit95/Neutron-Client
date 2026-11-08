@@ -28,6 +28,12 @@ final class SettingsMenuMotion {
         return category.step(y, dt, enabled(settings), reduced(settings), intensity(settings));
     }
 
+    void resetPopup() {
+        disclosure.snap(0);
+        popupCursor.reset();
+        popupOpen = false;
+    }
+
     void popup(boolean open) { popupOpen = open; }
     boolean popupOpen() { return popupOpen; }
 
