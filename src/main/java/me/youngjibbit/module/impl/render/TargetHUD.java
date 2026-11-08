@@ -136,30 +136,44 @@ public class TargetHUD extends Module {
                 1,0,design,nameFont,infoFont,Theme.resolve(Theme.getDefaultTheme()));
     }
     Frame layout(EntityLivingBase target,int sw,int sh){
-        if(target==null||target.isDead||!target.isEntityAlive()){resetTarget();return null;}
+        if(target==null||target.isDead||!target.isEntityAlive())return null;
         float max=target.getMaxHealth();if(!Float.isFinite(max)||max<=0)max=20;
         float health=target.getHealth();health=Float.isFinite(health)?Math.max(0,Math.min(max,health)):0;
-        float absorption=target.getAbsorptionAmount();absorption=Float.isFinite(absorption)?Math.max(0,absorption):0;
+        float absorption=target.getAbsorptionAmount();absorption=Float.isFinite(absorption)?Math.max(0,Math.min(2048,absorption)):0;
         long now=System.nanoTime();
-        if(animatedTarget!=target){animatedTarget=target;animatedHealth=health;}
-        else {float dt=Math.max(0,Math.min(.1f,(now-lastFrame)/1_000_000_000f));animatedHealth+=(health-animatedHealth)*UiEffects.response(dt,14);}
+        float dt=lastFrame==0||now<=lastFrame?0:Math.min(.05f,(now-lastFrame)/1_000_000_000f);
+        ClientSettings settings=ClientSettings.current();
+        boolean enabled=settings==null||settings.animations.getValue();
+        boolean reduced=settings!=null&&settings.reducedMotion.getValue();
+        String intensity=settings==null?"Balanced":settings.motionIntensity.getValue();
+        if(animatedTarget!=target){
+            animatedTarget=target;animatedHealth=healthSpring.snap(health);
+            animatedAbsorption=absorptionSpring.snap(absorption);
+            portraitSpring.snap(1);
+        }else{
+            animatedHealth=Math.max(0,Math.min(max,healthSpring.step(health,dt,enabled,reduced,intensity)));
+            animatedAbsorption=Math.max(0,Math.min(2048,
+                    absorptionSpring.step(absorption,dt,enabled,reduced,intensity)));
+        }
+        portraitPulse=Math.max(0,Math.min(1,portraitSpring.step(0,dt,enabled,reduced,intensity)));
         lastFrame=now;
         String design=mode.getValue();
         boolean test="Test".equals(design),basic="Basic".equals(design),rise="Rise".equals(design);
         TTFFontRenderer nameFont=Pulsar.INSTANCE.fontManager.getFont((basic?"Product-Sans-Bold":"Poppins-Medium")+" 18");
         TTFFontRenderer infoFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 16");
         String name=net.minecraft.util.StringUtils.stripControlCodes(target.getCommandSenderName());if(name==null||name.trim().isEmpty())name="Living entity";
-        String hp=number(health)+" / "+number(max)+(absorption>0?"  +"+number(absorption):"");
+        String hp=number(animatedHealth)+" / "+number(max)+(animatedAbsorption>0?"  +"+number(animatedAbsorption):"");
         float textX=test?8:44;
         float width=Math.min(Math.max(1,sw-8),Math.max(152,Math.min(240,Math.max(nameFont.getWidth(name),infoFont.getWidth(hp))+textX+9)));
         float height=Math.min(Math.max(1,sh-8),rise||basic?50:44);
-        float x=Math.max(4,Math.min(sw/2f+25,sw-width-4)),y=Math.max(4,Math.min(sh/2f-35,sh-height-4));
+        HudPlacement.Point point=position(sw,sh,width,height);float x=point.x,y=point.y;
         float radius=basic?.5f:rise?14:"Neutron White".equals(design)?10:UiEffects.radius(5,width,height);
         ResourceLocation skin=null;
         if(!test&&target instanceof AbstractClientPlayer)skin=((AbstractClientPlayer)target).getLocationSkin();
         String kind=target instanceof AbstractClientPlayer?"Player":target instanceof EntityAnimal?"Animal":"Mob";
         return new Frame(x,y,width,height,Math.min(radius,height/2),textX,fit(name,nameFont,width-textX-8),fit(hp,infoFont,width-textX-8),kind,skin,
-                Math.max(0,Math.min(1,animatedHealth/max)),Math.max(0,Math.min(1,absorption/max)),design,nameFont,infoFont,Theme.resolve(Theme.getDefaultTheme()));
+                Math.max(0,Math.min(1,animatedHealth/max)),Math.max(0,Math.min(1,animatedAbsorption/max)),
+                design,nameFont,infoFont,Theme.resolve(Theme.getDefaultTheme()),portraitPulse);
     }
     private static String number(float value){return String.format(Locale.ROOT,value>=10000?"%.1fk":value==Math.rint(value)?"%.0f":"%.1f",value>=10000?value/1000:value);}
     private static String fit(String text,TTFFontRenderer font,float available){if(font.getWidth(text)<=available)return text;int end=text.length();while(end>0&&font.getWidth(text.substring(0,end)+"...")>available)end--;return end==0?"":text.substring(0,end)+"...";}
