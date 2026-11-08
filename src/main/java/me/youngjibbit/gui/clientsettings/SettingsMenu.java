@@ -39,9 +39,21 @@ public class SettingsMenu extends GuiScreen {
     private final Map<Value<?>,me.youngjibbit.gui.UiSpring> valueMotion=new IdentityHashMap<>();
     private final Map<String,me.youngjibbit.gui.UiSpring> categoryMotion=new HashMap<>();
     private final Map<Value<?>,me.youngjibbit.gui.HudSpring> controlSprings=new IdentityHashMap<>();
+    private final SettingsMenuMotion presentation=new SettingsMenuMotion();
+    // A dismissed dropdown remains a short, read-only visual until its spring closes.
+    // Logical focus/capture always follows popupValue, never this outgoing snapshot.
+    private ComboValue closingPopupValue;
+    private ClipRect closingPopupBounds;
+    private int closingPopupOffset,closingPopupChoice;
     public SettingsMenu(){this(null);}
     public SettingsMenu(GuiScreen parent){this.parent=parent;for(int i=0;i<actionMotion.length;i++)actionMotion[i]=new me.youngjibbit.gui.UiSpring();}
-    private void resetMotion(){pressed=-1;for(me.youngjibbit.gui.UiSpring state:actionMotion)state.reset();controlSprings.clear();lastFrame=System.nanoTime();}
+    private void resetMotion(){
+        pressed=-1;
+        for(me.youngjibbit.gui.UiSpring state:actionMotion)state.reset();
+        controlSprings.clear();presentation.reset();
+        closingPopupValue=null;closingPopupBounds=null;
+        lastFrame=System.nanoTime();
+    }
     @Override public void initGui(){resetMotion();if(Keyboard.isCreated()){previousRepeat=Keyboard.areRepeatEventsEnabled();Keyboard.enableRepeatEvents(true);}layout();}
     private Map<String,List<Value<?>>> groups(){
         ClientSettings c=ClientSettings.current();HUD hud=HUD.current();
@@ -63,7 +75,7 @@ public class SettingsMenu extends GuiScreen {
         focus=Math.max(0,Math.min(focus,Math.max(0,visible.size()+5)));
         if(editValue!=null){editing=visible.indexOf(editValue);if(editing<0)editValue=null;}
         if(dragValue!=null){drag=visible.indexOf(dragValue);if(drag<0)dragValue=null;}
-        if(popupValue!=null&&!visible.contains(popupValue))popupValue=null;
+        if(popupValue!=null&&!visible.contains(popupValue))dismissPopup(false);
         float max=Math.max(0,visible.size()*42-view().height);
         targetScroll=Math.max(0,Math.min(targetScroll,max));scroll=Math.max(0,Math.min(scroll,max));
     }
@@ -100,8 +112,10 @@ public class SettingsMenu extends GuiScreen {
         UiEffects.beginFrame();layout();
         long now=System.nanoTime();float dt=Math.max(0,Math.min(.1f,(now-lastFrame)/1e9f));lastFrame=now;
         scroll+=(targetScroll-scroll)*UiEffects.response(dt,18);
-        if(drag>=0&&drag<rows().size())updateSlider(drag,mx);
+        // Rendering is presentation-only: slider writes belong to mouseClickMove.
         advanceMotion(dt,mx,my);
+        ClientSettings motionSettings=ClientSettings.current();
+        me.youngjibbit.gui.HudReveal.Frame entry=presentation.screen(true,dt,motionSettings);
         try(RenderState frameState=new RenderState()){
             frameState.screenSpace();
             Theme theme=Theme.getDefaultTheme();
@@ -112,13 +126,22 @@ public class SettingsMenu extends GuiScreen {
                 TTFFontRenderer heading=Pulsar.INSTANCE.fontManager.getFont("DmSansMedium 26");
                 heading.drawString("Client settings",x+16,y+11,0xfff1f4fa);
                 text(fit("Appearance, motion and type â€” changes apply live",w-32),x+16,y+33,0xffa6b2c5);
+                // The global screen exit animation stays owned by GuiTransitions.
+                // The entry accent uses the same spring policy; text/input remain ready.
+                if(me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(me.youngjibbit.theme.ThemeMode.selected())
+                        &&entry.opacity>.01f)
+                    UIUtils.drawDecorationGradientHorizontal(x+16,y+49+Math.max(0,entry.slideY*.22f),
+                            Math.max(.01f,(w-32)*entry.opacity),2,1,
+                            theme.getPrimaryGradientColor(),theme.getSecondaryGradientColor());
                 List<String> sections=names();
                 if(rail()){
+                    float markerY=presentation.category(categoryBounds(group).y+4,dt,motionSettings);
+                    UIUtils.drawDecorationRound(x+12,markerY,2,categoryBounds(group).height-8,1,
+                            theme.getPrimaryGradientColor());
                     for(int i=0;i<sections.size();i++){
                         ClipRect r=categoryBounds(i);boolean selected=i==group;
                         me.youngjibbit.gui.UiSpring motion=categoryMotion.computeIfAbsent(sections.get(i),k->new me.youngjibbit.gui.UiSpring());
-                        motion.stepForInput(dt,popupValue==null&&r.contains(mx,my),false,false,true,ClientSettings.current());
-                        if(selected)UIUtils.drawDecorationRound(r.x,r.y+4,2,r.height-8,1,theme.getPrimaryGradientColor());
+                        motion.stepForInput(dt,popupValue==null&&r.contains(mx,my),false,false,true,motionSettings);
                         r = GuiStyle.buttonBounds(r, motion);
                         text(fit(sections.get(i),r.width-14),r.x+10,r.y+8,GuiStyle.ink(selected?0xfff1f4fa:0xffa4b0c3,motion));
                     }
@@ -136,7 +159,7 @@ public class SettingsMenu extends GuiScreen {
                 button(3,sections.size()>group&&sections.get(group).equals("HUD behavior")?"Reset positions":"Preview toast",mx,my);
                 button(4,"Game options",mx,my);button(5,"Done",mx,my);
                 text(fit(status.isEmpty()?"F6: section   Tab: focus   Right click: exact value   Ctrl+R: reset all":status,w-24),x+12,y+h-43,status.isEmpty()?0xffa7b4c7:0xffffbc99);
-                drawPopup(mx,my,theme);
+                drawPopup(mx,my,theme,dt,motionSettings);
             });
         }
     }
