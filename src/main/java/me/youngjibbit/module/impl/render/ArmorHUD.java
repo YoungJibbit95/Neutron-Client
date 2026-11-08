@@ -1,6 +1,8 @@
 package me.youngjibbit.module.impl.render;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.gui.HudSpring;
+import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.event.render.Event2D;
 import me.youngjibbit.module.*;
 import me.youngjibbit.module.Module;
@@ -30,6 +32,14 @@ public class ArmorHUD extends Module {
     private final CheckBoxValue glow=new CheckBoxValue("Glow",this,true);
     private final SliderValue scale=new SliderValue("Scale",this,1.0,0.65,1.6);
     private final ArrayListSurface surface=new ArrayListSurface(this);
+    private final HudSpring[] durabilitySprings=new HudSpring[5];
+    private long durabilityFrame;
+    private Object durabilityWorld;
+    { for(int i=0;i<durabilitySprings.length;i++)durabilitySprings[i]=new HudSpring(); }
+    private void clearDurabilityMotion(){
+        for(HudSpring spring:durabilitySprings)spring.reset();
+        durabilityFrame=0;
+    }
     private final SliderValue positionX=new SliderValue("Position X",this,100.0,-16384,16384);
     private final SliderValue positionY=new SliderValue("Position Y",this,300.0,-16384,16384);
     private double lastPositionX=100,lastPositionY=300;
@@ -39,10 +49,10 @@ public class ArmorHUD extends Module {
     private float x=100,y=300,width,height,grabX,grabY;
     private boolean dragging,previousButton;
     @Subscribe public final Listener<Event2D> render=new Listener<>(e->{if(isToggled())renderArmorHUD();});
-    @Override public void onDisable(){dragging=false;me.youngjibbit.utils.render.HudDrag.cancel(this);surface.close();super.onDisable();}
+    @Override public void onDisable(){dragging=false;clearDurabilityMotion();durabilityWorld=null;me.youngjibbit.utils.render.HudDrag.cancel(this);surface.close();super.onDisable();}
     public void renderArmorHUD(){
-        if(!me.youngjibbit.module.impl.client.HUD.visible()){dragging=false;HudDrag.cancel(this);surface.close();return;}
-        if(mc.thePlayer==null||mc.gameSettings.showDebugInfo){dragging=false;previousButton=Mouse.isCreated()&&Mouse.isButtonDown(0);return;}
+        if(!me.youngjibbit.module.impl.client.HUD.visible()){dragging=false;clearDurabilityMotion();HudDrag.cancel(this);surface.close();return;}
+        if(mc.thePlayer==null||mc.gameSettings.showDebugInfo){dragging=false;clearDurabilityMotion();previousButton=Mouse.isCreated()&&Mouse.isButtonDown(0);return;}
         ScaledResolution sr=new ScaledResolution(mc);
         Frame frame=layout(mc.thePlayer.inventory.armorInventory,mc.thePlayer.getHeldItem(),sr.getScaledWidth(),sr.getScaledHeight());
         boolean down=Mouse.isCreated()&&Mouse.isButtonDown(0);
@@ -52,6 +62,15 @@ public class ArmorHUD extends Module {
         frame.x=x;frame.y=y;paint(frame);
     }
     Frame layout(ItemStack[] armor,ItemStack hand,int sw,int sh){
+        if(durabilityWorld!=mc.theWorld){durabilityWorld=mc.theWorld;clearDurabilityMotion();}
+        long now=System.nanoTime();
+        float dt=durabilityFrame==0||now<=durabilityFrame?0:
+                Math.min(.05f,(now-durabilityFrame)/1_000_000_000f);
+        durabilityFrame=now;
+        ClientSettings settings=ClientSettings.current();
+        boolean animations=settings==null||settings.animations.getValue();
+        boolean reduced=settings!=null&&settings.reducedMotion.getValue();
+        String intensity=settings==null?"Balanced":settings.motionIntensity.getValue();
         TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Bold 16");
         Frame f=new Frame(font);boolean horizontal=layout.getValue().equals("Horizontal");
         String[] names={"Head","Body","Legs","Feet","Hand"};
@@ -59,8 +78,16 @@ public class ArmorHUD extends Module {
             if(i==4&&!held.getValue())continue;
             ItemStack item=i==4?hand:armor.length>3-i?armor[3-i]:null;
             if(item==null&&!empty.getValue())continue;
-            ItemStack copy=item==null?null:item.copy();String label=copy==null?names[i]:formatDurability(copy);
-            f.cells.add(new Cell(copy,label));
+            ItemStack copy=item==null?null:item.copy();
+            float displayRatio=1;
+            if(copy!=null&&copy.getMaxDamage()>0){
+                int max=copy.getMaxDamage();
+                float actual=Math.max(0,Math.min(1,(max-copy.getItemDamage())/(float)max));
+                displayRatio=Math.max(0,Math.min(1,
+                        durabilitySprings[i].step(actual,dt,animations,reduced,intensity)));
+            }else durabilitySprings[i].reset();
+            String label=copy==null?names[i]:formatDurability(copy,displayRatio);
+            f.cells.add(new Cell(copy,label,displayRatio));
         }
         // Occupied vertical rows keep the equipment order. Empty slots share one compact strip.
         float cursor=6,max=0,emptyWidth=0;
@@ -87,8 +114,13 @@ public class ArmorHUD extends Module {
         f.theme=Theme.resolve(Theme.getDefaultTheme());f.background=background.getValue();f.blur=blur.getValue();f.glow=glow.getValue();f.bar=bar.getValue();return f;
     }
     private String formatDurability(ItemStack item){
+        int max=item.getMaxDamage();
+        float ratio=max<=0?1:Math.max(0,Math.min(1,(max-item.getItemDamage())/(float)max));
+        return formatDurability(item,ratio);
+    }
+    private String formatDurability(ItemStack item,float shownRatio){
         int max=item.getMaxDamage();if(max<=0)return item.stackSize>1?Integer.toString(item.stackSize):"";
-        int remaining=Math.max(0,Math.min(max,max-item.getItemDamage()));int percent=(int)(100L*remaining/max);
+        int remaining=Math.max(0,Math.min(max,Math.round(max*shownRatio)));int percent=(int)(100L*remaining/max);
         switch(durability.getValue()){case "Value":return remaining+"/"+max;case "Both":return remaining+" ("+percent+"%)";case "None":return "";default:return percent+"%";}
     }
     void interact(boolean chat,boolean down,float mx,float my,int sw,int sh){
@@ -115,7 +147,7 @@ public class ArmorHUD extends Module {
                     float ty=cell.y+(f.horizontal||cell.mini?19:4);
                     labelFont.drawString(cell.label,tx,ty,cell.item==null?0xffcbd1dc:f.theme.isCustom()?f.theme.getTextColor().getRGB():0xfff0f1f5);
                     if(f.bar&&cell.item!=null&&cell.item.getMaxDamage()>0){
-                        float ratio=Math.max(0,Math.min(1,(cell.item.getMaxDamage()-cell.item.getItemDamage())/(float)cell.item.getMaxDamage()));
+                        float ratio=cell.durabilityRatio;
                         float bx=cell.x+2,bw=cell.w-4,by=cell.y+(f.horizontal?30:20);
                         UIUtils.drawRound(bx,by,bw,2,1,new Color(255,255,255,26));
                         if(ratio>0)UIUtils.drawRound(bx,by,bw*ratio,2,Math.min(1,bw*ratio/2),new Color(durabilityColor(f.theme,ratio),true));
@@ -136,6 +168,12 @@ public class ArmorHUD extends Module {
         int color=remaining<=.5f?Theme.interpolateRGB(low,middle,remaining*2):Theme.interpolateRGB(middle,high,(remaining-.5f)*2);
         return (palette&0xff000000)|(color&0x00ffffff);
     }
-    static final class Cell {final ItemStack item;final String label;float x,y,w;boolean mini;Cell(ItemStack item,String label){this.item=item;this.label=label;}}
+    static final class Cell {
+        final ItemStack item;final String label;final float durabilityRatio;
+        float x,y,w;boolean mini;
+        Cell(ItemStack item,String label,float durabilityRatio){
+            this.item=item;this.label=label;this.durabilityRatio=durabilityRatio;
+        }
+    }
     static final class Frame {float x,y,width,height,scale;boolean horizontal,background,blur,glow,bar;Theme theme;final TTFFontRenderer font;final TTFFontRenderer emptyFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 12");final java.util.List<Cell> cells=new ArrayList<>();Frame(TTFFontRenderer font){this.font=font;}}
 }

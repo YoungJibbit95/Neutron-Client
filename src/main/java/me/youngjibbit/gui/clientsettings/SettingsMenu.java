@@ -38,10 +38,10 @@ public class SettingsMenu extends GuiScreen {
     private int popupChoice,popupOffset;
     private final Map<Value<?>,me.youngjibbit.gui.UiSpring> valueMotion=new IdentityHashMap<>();
     private final Map<String,me.youngjibbit.gui.UiSpring> categoryMotion=new HashMap<>();
-    private final Map<Value<?>,Float> controlProgress=new IdentityHashMap<>();
+    private final Map<Value<?>,me.youngjibbit.gui.HudSpring> controlSprings=new IdentityHashMap<>();
     public SettingsMenu(){this(null);}
     public SettingsMenu(GuiScreen parent){this.parent=parent;for(int i=0;i<actionMotion.length;i++)actionMotion[i]=new me.youngjibbit.gui.UiSpring();}
-    private void resetMotion(){pressed=-1;for(me.youngjibbit.gui.UiSpring state:actionMotion)state.reset();lastFrame=System.nanoTime();}
+    private void resetMotion(){pressed=-1;for(me.youngjibbit.gui.UiSpring state:actionMotion)state.reset();controlSprings.clear();lastFrame=System.nanoTime();}
     @Override public void initGui(){resetMotion();if(Keyboard.isCreated()){previousRepeat=Keyboard.areRepeatEventsEnabled();Keyboard.enableRepeatEvents(true);}layout();}
     private Map<String,List<Value<?>>> groups(){
         ClientSettings c=ClientSettings.current();HUD hud=HUD.current();
@@ -170,9 +170,18 @@ public class SettingsMenu extends GuiScreen {
         }
     }
     private float follow(Value<?> value,float target,float dt){
-        float previous=controlProgress.containsKey(value)?controlProgress.get(value):target;
-        float next=previous+(target-previous)*UiEffects.response(dt,22);
-        controlProgress.put(value,next);return next;
+        ClientSettings settings=ClientSettings.current();
+        me.youngjibbit.gui.HudSpring spring=controlSprings.computeIfAbsent(value,
+                key->new me.youngjibbit.gui.HudSpring());
+        float next=spring.step(target,dt,
+                settings==null||settings.animations.getValue(),
+                settings!=null&&settings.reducedMotion.getValue(),
+                settings==null?"Balanced":settings.motionIntensity.getValue());
+        // A switch may overshoot a few pixels for bounce; a numeric slider never
+        // extends beyond its interaction track. Neither writes a config Value.
+        float low=value instanceof CheckBoxValue?-.06f:0;
+        float high=value instanceof CheckBoxValue?1.06f:1;
+        return Math.max(low,Math.min(high,next));
     }
     private String number(SliderValue v){
         return v.isInteger()?Integer.toString(v.getValue().intValue()):String.format(Locale.ROOT,"%.2f",v.getValue());
@@ -301,6 +310,6 @@ public class SettingsMenu extends GuiScreen {
         if(key==Keyboard.KEY_RETURN||key==Keyboard.KEY_NUMPADENTER||key==Keyboard.KEY_SPACE){Value<?> value=rows().get(focus);if(value instanceof ComboValue)beginPopup((ComboValue)value);else activateValue(focus,1);}
         if(key==Keyboard.KEY_F6)activate(1);
     }
-    @Override public void onGuiClosed(){resetMotion();editing=drag=-1;editValue=dragValue=null;popupValue=null;valueMotion.clear();categoryMotion.clear();controlProgress.clear();surface.close();preview.close();if(Keyboard.isCreated())Keyboard.enableRepeatEvents(previousRepeat);}
+    @Override public void onGuiClosed(){resetMotion();editing=drag=-1;editValue=dragValue=null;popupValue=null;valueMotion.clear();categoryMotion.clear();surface.close();preview.close();if(Keyboard.isCreated())Keyboard.enableRepeatEvents(previousRepeat);}
     @Override public boolean doesGuiPauseGame(){return false;}
 }
