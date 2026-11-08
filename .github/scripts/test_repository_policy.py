@@ -8,6 +8,7 @@ from pathlib import Path
 import tempfile
 import unittest
 from unittest.mock import patch
+from urllib.error import HTTPError
 import zipfile
 
 
@@ -87,6 +88,36 @@ class WorkflowToolTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             with self.assertRaisesRegex(ValueError, "checksum mismatch"):
                 tools.install(entry, Path(tmp), "tool.exe", fetch=lambda *a, **k: io.BytesIO(data))
+            self.assertEqual([], list(Path(tmp).iterdir()))
+
+    def test_transient_gateway_errors_retry_the_exact_pinned_archive(self):
+        data = self.archive()
+        entry = {"url": "https://github.com/owner/tool/releases/download/v1/tool.zip",
+                 "sha256": hashlib.sha256(data).hexdigest(), "member": "tool.exe"}
+        attempts = []
+        def fetch(url, timeout):
+            attempts.append((url, timeout))
+            if len(attempts) < 3:
+                raise HTTPError(url, 504, "Gateway Timeout", None, None)
+            return io.BytesIO(data)
+        with tempfile.TemporaryDirectory() as tmp, patch.object(tools.time, "sleep") as sleep:
+            target = tools.install(entry, Path(tmp), "tool.exe", fetch=fetch)
+            self.assertEqual(b"verified binary fixture", target.read_bytes())
+            self.assertEqual([(entry["url"], 60)] * 3, attempts)
+            self.assertEqual([unittest.mock.call(3), unittest.mock.call(6)], sleep.call_args_list)
+
+    def test_nonretryable_http_failure_keeps_destination_empty(self):
+        entry = {"url": "https://github.com/owner/tool/releases/download/v1/tool.zip",
+                 "sha256": "0" * 64, "member": "tool.exe"}
+        attempts = []
+        def fetch(url, timeout):
+            attempts.append(url)
+            raise HTTPError(url, 404, "Not Found", None, None)
+        with tempfile.TemporaryDirectory() as tmp, patch.object(tools.time, "sleep") as sleep:
+            with self.assertRaises(HTTPError):
+                tools.install(entry, Path(tmp), "tool.exe", fetch=fetch)
+            self.assertEqual([entry["url"]], attempts)
+            sleep.assert_not_called()
             self.assertEqual([], list(Path(tmp).iterdir()))
 
     def test_verified_archive_copies_only_the_expected_binary(self):
