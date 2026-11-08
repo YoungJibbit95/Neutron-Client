@@ -8,6 +8,7 @@ import me.youngjibbit.gui.HudSpring;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.module.impl.client.HUD;
 import me.youngjibbit.theme.ThemeMode;
+import me.youngjibbit.theme.ThemeCatalog;
 import me.youngjibbit.event.render.Event2D;
 import me.youngjibbit.module.*;
 import me.youngjibbit.module.Module;
@@ -139,7 +140,8 @@ public class TargetHUD extends Module {
         return Math.min(Math.max(1,viewport-8),64);
     }
     private static Theme targetTheme(String design){
-        return "Neutron 2.0".equals(design)?Theme.approachTwo():
+        // Palette belongs to the selected ThemeCatalog, not to the layout.
+        return "Neutron 2.0".equals(design)?Theme.resolve(ThemeCatalog.global().current()):
                 Theme.resolve(Theme.getDefaultTheme());
     }
 
@@ -197,9 +199,10 @@ public class TargetHUD extends Module {
         TTFFontRenderer nameFont=Pulsar.INSTANCE.fontManager.getFont((basic?"Product-Sans-Bold":"Poppins-Medium")+" 18");
         TTFFontRenderer infoFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 16");
         String name=net.minecraft.util.StringUtils.stripControlCodes(target.getCommandSenderName());if(name==null||name.trim().isEmpty())name="Living entity";
-        String hp=modern?"Health: "+number(animatedHealth)+" \u2665"+
-                (Float.isFinite(observedDistance)?"  |  Dist: "+number(
-                        Math.max(0,distanceSpring.value()))+" m":""):
+        String hp=modern?"Health: "+number(animatedHealth)+" / "+number(max)+
+                (Float.isFinite(observedDistance)?"  |  "+number(
+                        Math.max(0,distanceSpring.value()))+" m":"")+
+                (animatedAbsorption>0?"  +"+number(animatedAbsorption)+" Abs":""):
                 number(animatedHealth)+" / "+number(max)+(animatedAbsorption>0?"  +"+number(animatedAbsorption):"");
         float textX=test?8:modern?58:44;
         float width=modern?modernWidth(sw,Math.max(nameFont.getWidth(name),
@@ -231,8 +234,9 @@ public class TargetHUD extends Module {
             // The compositor can run after a target/world/HUD disable event.
             if(!isToggled()||!HUD.visible()||epoch!=sceneEpoch||mc.gameSettings.showDebugInfo)return;
             surface.designedPanel(x,y,w,h,Math.min(f.radius*scale,h/2),f.theme,true,
-                    !basic,!basic,5,(modern?.74f:.62f)*opacity,
-                    (modern?.68f:outlined?.9f:0)*opacity,tenacity||modern,()->{
+                    !basic,modern?false:!basic,modern?false:!basic,modern?3.5f:5,
+                    (modern?.86f:.62f)*opacity,
+                    (modern?.10f:outlined?.9f:0)*opacity,tenacity,()->{
                 try(RenderState state=new RenderState()){
                     state.screenSpace();
                     try(GuiClip clip=GuiClip.push(new ClipRect(x+1,y+1,Math.max(1,w-2),Math.max(1,h-2)))){
@@ -256,22 +260,27 @@ public class TargetHUD extends Module {
         boolean modern="Neutron 2.0".equals(f.design);
         boolean white="Neutron White".equals(f.design)&&(UiEffects.scene()==null||UiEffects.scene().policy.style<0);
         if(modern){
-            // One stroke atop the established compositor, no extra framebuffer or shader.
+            // Neutral dark ink plate and a quiet selected-palette hairline.
+            UIUtils.drawRound(f.x+2,f.y+2,Math.max(1,f.width-4),Math.max(1,f.height-4),
+                    Math.max(1,f.radius-2),new Color(18,20,30,Math.round(205*alpha)));
             UIUtils.drawRoundOutline(f.x+2,f.y+2,f.width-4,f.height-4,
-                    Math.max(1,f.radius-2),.65f,new Color(0,0,0,1),
-                    tint(new Color(255,74,194),alpha));
-            UIUtils.drawRound(f.x+3,f.y+3,Math.min(48,f.width-6),1.5f,.7f,
-                    tint(new Color(255,154,76,230),alpha));
+                    Math.max(1,f.radius-2),.55f,new Color(0,0,0,1),
+                    tint(f.theme.getPrimaryGradientColor(),.34f*alpha));
+            UIUtils.drawGradientHorizontal(f.x+14,f.y+3,Math.min(72,Math.max(0,f.width-28)),
+                    1.2f,.6f,tint(f.theme.getPrimaryGradientColor(),.62f*alpha),
+                    tint(f.theme.getSecondaryGradientColor(),.48f*alpha));
         }
         if(white)UIUtils.drawRound(f.x+1,f.y+1,f.width-2,f.height-2,
                 Math.max(.5f,f.radius-1),new Color(244,245,248,Math.round(235*alpha)));
-        int text=opacity(white?0xff20232c:f.theme.isCustom()?f.theme.getTextColor().getRGB():0xfff2f3f7,alpha);
+        int text=opacity(white?0xff20232c:modern?0xfff7f0f9:
+                f.theme.isCustom()?f.theme.getTextColor().getRGB():0xfff2f3f7,alpha);
         if(!"Test".equals(f.design))portrait(f,alpha);
         float titleY=f.y+(modern?10:6);
-        if(white||alpha<.999f)f.nameFont.drawString(f.name,f.x+f.textX,titleY,text);
+        if(white||modern||alpha<.999f)
+            f.nameFont.drawString(f.name,f.x+f.textX,titleY,text);
         else TextEffects.direct(f.theme,()->f.nameFont.drawString(f.name,f.x+f.textX,titleY,-1));
         f.infoFont.drawString(f.healthText,f.x+f.textX,f.y+(modern?31:19),
-                opacity(white?0xff484d58:modern?0xfffbd8e7:0xffcdd3df,alpha));
+                opacity(white?0xff484d58:modern?0xffd5c8da:0xffcdd3df,alpha));
         float bx=f.x+f.textX,by=f.y+f.height-(modern?12:8),bw=Math.max(0,f.width-f.textX-8);
         float barHeight=modern?5:3;
         UIUtils.drawRound(bx,by,bw,barHeight,barHeight/2,
@@ -294,6 +303,7 @@ public class TargetHUD extends Module {
             glTranslatef(px+size/2,py+size/2,0);glScalef(pulse,pulse,1);
             glTranslatef(-px-size/2,-py-size/2,0);
             UIUtils.drawRound(px,py,size,size,modern?9:4,
+                    modern?new Color(40,34,49,Math.round(230*alpha)):
                     new Color((f.theme.getPrimaryGradientRGB()&0xffffff)
                             |(Math.round(85*alpha)<<24),true));
             if(f.skin!=null){
