@@ -12,6 +12,8 @@ import me.youngjibbit.clickgui.utils.GuiStyle;
 import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.impl.render.ClickGUI;
+import me.youngjibbit.module.impl.client.ClientSettings;
+import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.render.Blur;
 import me.youngjibbit.utils.render.GuiShaderBloom;
@@ -49,6 +51,7 @@ public class ClickGui extends GuiScreen {
     private long lastFrame = System.nanoTime();
     private ClipRect viewport = new ClipRect(0, 0, 0, 0);
     private final me.youngjibbit.gui.UiSpring[] chromeMotion=new me.youngjibbit.gui.UiSpring[CATEGORIES.length+2];
+    private final PanelMotion panelMotion=new PanelMotion();
     private int visualChrome=-1;
     private Component visualControl;
 
@@ -58,7 +61,16 @@ public class ClickGui extends GuiScreen {
     }
 
     private ClipRect chromeBounds(int id){return id==0?searchBounds():id==1?themeBounds():new ClipRect(x+5,y+HEADER+4+(id-2)*categoryStep(),SIDEBAR-10,categoryStep()-4);}
-    private void resetMotion(){visualControl=null;visualChrome=-1;for(me.youngjibbit.gui.UiSpring state:chromeMotion)state.reset();for(List<ClickModule> rows:moduleCache.values())for(ClickModule row:rows){row.getPresentation().reset();for(Component.Sub<?> value:row.presentationValues())value.getPresentation().reset();}}
+    private void resetMotion(){
+        visualControl=null;visualChrome=-1;
+        panelMotion.reset(selectedCategory.ordinal()*categoryStep());
+        for(me.youngjibbit.gui.UiSpring state:chromeMotion)state.reset();
+        for(List<ClickModule> rows:moduleCache.values())for(ClickModule row:rows){
+            row.getPresentation().reset();
+            row.resetPanelMotion();
+            for(Component.Sub<?> value:row.presentationValues())value.getPresentation().reset();
+        }
+    }
     protected void advanceMotion(float dt,int mx,int my){
         boolean available=!dragging&&!resizing&&binding==null;
         for(int i=0;i<chromeMotion.length;i++)chromeMotion[i].stepForInput(dt,available&&chromeBounds(i).contains(mx,my),i==0&&searchFocus,i==visualChrome,available,me.youngjibbit.module.impl.client.ClientSettings.current());
@@ -83,6 +95,7 @@ public class ClickGui extends GuiScreen {
         fitWindow();
         setupModules();
         selectionOffset = selectedCategory.ordinal() * categoryStep();
+        panelMotion.reset(selectionOffset);
         lastFrame = System.nanoTime();
     }
 
@@ -119,12 +132,17 @@ public class ClickGui extends GuiScreen {
         }
         fitWindow();
         float step = categoryStep();
-        selectionOffset += (selectedCategory.ordinal() * step - selectionOffset) * me.youngjibbit.utils.render.UiEffects.response(delta,20);
+        ClientSettings motionSettings=ClientSettings.current();
+        selectionOffset=panelMotion.category(selectedCategory.ordinal()*step,delta,motionSettings);
+        float entry=panelMotion.entrance(delta,motionSettings);
         layoutModules(delta);
         advanceMotion(delta,mouseX,mouseY);
 
         Theme theme = Theme.resolve(Theme.getDefaultTheme());
-        themedSurface.panel(x,y,width,height,5,theme,true,true,true,8,.72f,1,()->{
+        boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
+        // Only the Approach-2 paint changes; all hit/drag/resize rectangles stay fixed.
+        themedSurface.panel(x,y,width,height,modern?9:5,theme,true,true,true,8,
+                modern?.80f:.72f,modern?.88f:1,()->{
         // The legacy bloom helper restores raw GL attributes, bypassing Minecraft's state cache.
         // Synchronize both sides before drawing coplanar UI surfaces over its fullscreen quad.
         GL11.glDisable(GL11.GL_DEPTH_TEST);
@@ -137,6 +155,12 @@ public class ClickGui extends GuiScreen {
             UIUtils.drawRound(x + 1, y + 1, SIDEBAR - 2, height - 2, 4, new Color(8, 8, 9));
             UIUtils.drawRound(x + 1, y + 1, width - 2, HEADER - 1, 4, new Color(13, 13, 14));
             drawClientName(Pulsar.INSTANCE.getName(), (int) (x + 9), (int) (y + 10), theme);
+            if(modern&&entry>.005f){
+                // Spring-driven entrance accent, not an extra FBO or input surface.
+                float stroke=(width-22)*entry;
+                UIUtils.drawLiteralGradient(x+11,y+HEADER-2,stroke,2,1,
+                        theme.getPrimaryGradientColor(),theme.getSecondaryGradientColor());
+            }
             Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString("o", x + width - 21, y + 13,
                     theme.getSecondaryGradientRGB());
             ClipRect searchBox=searchBounds();
