@@ -45,15 +45,7 @@ public class AiLearnedAuraIntegrationTest {
         assertNotNull("synthetic weights structurally valid",model);
         return model;
     }
-    private static void select(Wave05AuraSelectionChecks.SelectionRun f) throws Exception {
-        // The selection fixture advances a synthetic scheduler clock by 150 ms
-        // per walking step. Give the rotation engine a matching 50 ms physical
-        // tick instead of wall-clock nanoseconds; otherwise slow/fast CI hosts
-        // change neural convergence without changing any game-state input.
-        java.lang.reflect.Field rotationClock=RotationManager.class.getDeclaredField("clock");
-        rotationClock.setAccessible(true);
-        rotationClock.set(rotation(f), (java.util.function.LongSupplier)()
-                -> f.clock.get() * 1_000_000L / 3L);
+    private static void select(Wave05AuraSelectionChecks.SelectionRun f) {
         f.run.fixture.mc.session=session();
         f.run.fixture.aura.getModeSetting("Rot Mode").setValue("AI Learned");
         f.run.fixture.aura.getBooleanSetting("Click Randomization Enabled").setValue(false);
@@ -85,6 +77,19 @@ public class AiLearnedAuraIntegrationTest {
     }
     private static long count(List<Object> sent,Class<?> type) {
         return sent.stream().filter(type::isInstance).count();
+    }
+    /** Failing synthetic CI evidence; no additional motion, packets or authority. */
+    private static String aiDebug(Wave05AuraSelectionChecks.SelectionRun f,int tick,List<Object> sent)
+            throws Exception {
+        RotationManager r=rotation(f);
+        return tick+":t="+f.run.scene.motionTime.get()
+                +" owner="+r.getConfirmedOwner()
+                +" accepted="+r.isAiAuraMotionAccepted()
+                +" yaw="+r.getEffectiveYaw()+" pitch="+r.getEffectivePitch()
+                +" infer="+inferences(r)
+                +" C03="+count(sent,C03PacketPlayer.class)
+                +" C02="+count(sent,C02PacketUseEntity.class)
+                +" targetFirst="+(f.run.fixture.aura.getActiveTarget()==f.first);
     }
 
     @Test public void missingOrCorruptedModelNeverGrantsAiC03OrC02() throws Exception {
@@ -119,15 +124,17 @@ public class AiLearnedAuraIntegrationTest {
         try(Wave05AuraSelectionChecks.SelectionRun f=new Wave05AuraSelectionChecks.SelectionRun("Single")) {
             select(f);inject(f,testModel(3,3));
             boolean acceptedHit=false;
+            java.util.List<String> trace=new java.util.ArrayList<>();
             for(int i=0;i<70;i++) {
                 List<Object> sent=f.walk();
+                trace.add(aiDebug(f,i,sent));
                 if(count(sent,C02PacketUseEntity.class)>0) {
                     assertEquals("aura",rotation(f).getConfirmedOwner());
                     assertTrue(rotation(f).isAiAuraMotionAccepted());
                     acceptedHit=true;break;
                 }
             }
-            assertTrue("only the original tracked controller emits C02",acceptedHit);
+            assertTrue("only the original tracked controller emits C02; "+trace,acceptedHit);
         }
     }
 
@@ -147,8 +154,10 @@ public class AiLearnedAuraIntegrationTest {
     @Test public void accountSwitchAndFocusLossDiscardOldModelState() throws Exception {
         try(Wave05AuraSelectionChecks.SelectionRun f=new Wave05AuraSelectionChecks.SelectionRun("Single")) {
             select(f);f.run.fixture.player.usingItem=true;inject(f,testModel(3,3));
-            for(int i=0;i<10;i++)f.walk();
-            assertTrue(rotation(f).isAiAuraMotionAccepted());
+            java.util.List<String> trace=new java.util.ArrayList<>();
+            for(int i=0;i<10;i++)trace.add(aiDebug(f,i,f.walk()));
+            assertTrue("AI must accept before session transition; "+trace,
+                    rotation(f).isAiAuraMotionAccepted());
             f.run.fixture.mc.session=session(); // different opaque account object
             f.walk();
             assertFalse(rotation(f).isAiAuraMotionAccepted());
