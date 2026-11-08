@@ -58,7 +58,7 @@ public class TargetHUD extends Module {
     }
     private void resetTarget(){
         animatedTarget=null;animatedHealth=animatedAbsorption=portraitPulse=0;
-        lastFrame=lastVisualFrame=0;sceneEpoch++;lastDisplayed=null;
+        lastFrame=lastVisualFrame=0;sceneEpoch++;lastDisplayed=null;worldContext=null;
         healthSpring.reset();absorptionSpring.reset();portraitSpring.reset();reveal.reset();
         dragging=false;HudDrag.cancel(this);
     }
@@ -81,6 +81,11 @@ public class TargetHUD extends Module {
                 (target==mc.thePlayer||target.isDead||!target.isEntityAlive()||
                 mc.theWorld.getEntityByID(target.getEntityId())!=target))target=null;
         Frame live=layout(target,sw,sh);
+        if(target==null){
+            // Fade the frozen final frame only; discard all live target motion.
+            animatedTarget=null;lastFrame=0;
+            healthSpring.reset();absorptionSpring.reset();portraitSpring.reset();
+        }
         if(live==null&&chat)live=editorPreview(sw,sh);
         if(!chat&&lastDisplayed!=null&&"Preview".equals(lastDisplayed.kind)){
             lastDisplayed=null;reveal.reset();
