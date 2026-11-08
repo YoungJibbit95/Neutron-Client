@@ -53,7 +53,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           $version = & "$env:JAVA_HOME/bin/java.exe" -version 2>&1 | Out-String
           Write-Host $version
-          if ($version -notmatch '1\\.8\\.0_') { throw 'Java 8 was not installed. Release toolchain remains pinned to Temurin 8u482.' }
+          if ($version -notmatch '1\.8\.0_') { throw 'Java 8 was not installed. Release toolchain remains pinned to Temurin 8u482.' }
           & "$env:JAVA_HOME/bin/javac.exe" -version
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
