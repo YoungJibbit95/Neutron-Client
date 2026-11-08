@@ -39,10 +39,35 @@ public class SettingsMenu extends GuiScreen {
     private final Map<Value<?>,me.youngjibbit.gui.UiSpring> valueMotion=new IdentityHashMap<>();
     private final Map<String,me.youngjibbit.gui.UiSpring> categoryMotion=new HashMap<>();
     private final Map<Value<?>,me.youngjibbit.gui.HudSpring> controlSprings=new IdentityHashMap<>();
+    private final SettingsMenuMotion presentation=new SettingsMenuMotion();
+    // A dismissed dropdown remains a short, read-only visual until its spring closes.
+    // Logical focus/capture always follows popupValue, never this outgoing snapshot.
+    private ComboValue closingPopupValue;
+    private ClipRect closingPopupBounds;
+    private int closingPopupOffset,closingPopupChoice;
     public SettingsMenu(){this(null);}
     public SettingsMenu(GuiScreen parent){this.parent=parent;for(int i=0;i<actionMotion.length;i++)actionMotion[i]=new me.youngjibbit.gui.UiSpring();}
-    private void resetMotion(){pressed=-1;for(me.youngjibbit.gui.UiSpring state:actionMotion)state.reset();controlSprings.clear();lastFrame=System.nanoTime();}
-    @Override public void initGui(){resetMotion();if(Keyboard.isCreated()){previousRepeat=Keyboard.areRepeatEventsEnabled();Keyboard.enableRepeatEvents(true);}layout();}
+    private void resetMotion(){
+        pressed=-1;
+        for(me.youngjibbit.gui.UiSpring state:actionMotion)state.reset();
+        controlSprings.clear();presentation.reset();
+        closingPopupValue=null;closingPopupBounds=null;
+        lastFrame=System.nanoTime();
+    }
+    @Override public void initGui(){
+        resetMotion();
+        if(Keyboard.isCreated()){
+            previousRepeat=Keyboard.areRepeatEventsEnabled();
+            Keyboard.enableRepeatEvents(true);
+        }
+        layout();
+        // Resize/reinit preserves the logical popup, but starts with an immediately
+        // readable disclosure instead of reviving stale progress from an old viewport.
+        if(popupValue!=null){
+            presentation.popup(true);
+            presentation.resetCursor(popupBounds().y+4+(popupChoice-popupOffset)*22+5);
+        }
+    }
     private Map<String,List<Value<?>>> groups(){
         ClientSettings c=ClientSettings.current();HUD hud=HUD.current();
         if(groupCache==null||groupOwner!=c||hudOwner!=hud){
@@ -63,7 +88,7 @@ public class SettingsMenu extends GuiScreen {
         focus=Math.max(0,Math.min(focus,Math.max(0,visible.size()+5)));
         if(editValue!=null){editing=visible.indexOf(editValue);if(editing<0)editValue=null;}
         if(dragValue!=null){drag=visible.indexOf(dragValue);if(drag<0)dragValue=null;}
-        if(popupValue!=null&&!visible.contains(popupValue))popupValue=null;
+        if(popupValue!=null&&!visible.contains(popupValue))dismissPopup(false);
         float max=Math.max(0,visible.size()*42-view().height);
         targetScroll=Math.max(0,Math.min(targetScroll,max));scroll=Math.max(0,Math.min(scroll,max));
     }
@@ -100,8 +125,10 @@ public class SettingsMenu extends GuiScreen {
         UiEffects.beginFrame();layout();
         long now=System.nanoTime();float dt=Math.max(0,Math.min(.1f,(now-lastFrame)/1e9f));lastFrame=now;
         scroll+=(targetScroll-scroll)*UiEffects.response(dt,18);
-        if(drag>=0&&drag<rows().size())updateSlider(drag,mx);
+        // Rendering is presentation-only: slider writes belong to mouseClickMove.
         advanceMotion(dt,mx,my);
+        ClientSettings motionSettings=ClientSettings.current();
+        me.youngjibbit.gui.HudReveal.Frame entry=presentation.screen(true,dt,motionSettings);
         try(RenderState frameState=new RenderState()){
             frameState.screenSpace();
             Theme theme=Theme.getDefaultTheme();
@@ -112,13 +139,22 @@ public class SettingsMenu extends GuiScreen {
                 TTFFontRenderer heading=Pulsar.INSTANCE.fontManager.getFont("DmSansMedium 26");
                 heading.drawString("Client settings",x+16,y+11,0xfff1f4fa);
                 text(fit("Appearance, motion and type â€” changes apply live",w-32),x+16,y+33,0xffa6b2c5);
+                // The global screen exit animation stays owned by GuiTransitions.
+                // The entry accent uses the same spring policy; text/input remain ready.
+                if(me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(me.youngjibbit.theme.ThemeMode.selected())
+                        &&entry.opacity>.01f)
+                    UIUtils.drawLiteralGradient(x+16,y+49+Math.max(0,entry.slideY*.22f),
+                            Math.max(.01f,(w-32)*entry.opacity),2,1,
+                            theme.getPrimaryGradientColor(),theme.getSecondaryGradientColor());
                 List<String> sections=names();
                 if(rail()){
+                    float markerY=presentation.category(categoryBounds(group).y+4,dt,motionSettings);
+                    UIUtils.drawDecorationRound(x+12,markerY,2,categoryBounds(group).height-8,1,
+                            theme.getPrimaryGradientColor());
                     for(int i=0;i<sections.size();i++){
                         ClipRect r=categoryBounds(i);boolean selected=i==group;
                         me.youngjibbit.gui.UiSpring motion=categoryMotion.computeIfAbsent(sections.get(i),k->new me.youngjibbit.gui.UiSpring());
-                        motion.stepForInput(dt,popupValue==null&&r.contains(mx,my),false,false,true,ClientSettings.current());
-                        if(selected)UIUtils.drawDecorationRound(r.x,r.y+4,2,r.height-8,1,theme.getPrimaryGradientColor());
+                        motion.stepForInput(dt,popupValue==null&&r.contains(mx,my),false,false,true,motionSettings);
                         r = GuiStyle.buttonBounds(r, motion);
                         text(fit(sections.get(i),r.width-14),r.x+10,r.y+8,GuiStyle.ink(selected?0xfff1f4fa:0xffa4b0c3,motion));
                     }
@@ -136,7 +172,7 @@ public class SettingsMenu extends GuiScreen {
                 button(3,sections.size()>group&&sections.get(group).equals("HUD behavior")?"Reset positions":"Preview toast",mx,my);
                 button(4,"Game options",mx,my);button(5,"Done",mx,my);
                 text(fit(status.isEmpty()?"F6: section   Tab: focus   Right click: exact value   Ctrl+R: reset all":status,w-24),x+12,y+h-43,status.isEmpty()?0xffa7b4c7:0xffffbc99);
-                drawPopup(mx,my,theme);
+                drawPopup(mx,my,theme,dt,motionSettings);
             });
         }
     }
@@ -201,45 +237,108 @@ public class SettingsMenu extends GuiScreen {
         });
     }
     private String selectedFamily(){ClientSettings c=ClientSettings.current();return c==null?"Original":c.fontFamily.getValue();}
-    private int popupRows(){return popupValue==null?0:Math.min(popupValue.getOptions().length,Math.max(2,Math.min(7,(int)(h-94)/22)));}
+    private int popupRows(){return popupRows(popupValue);}
+    private int popupRows(ComboValue value){
+        return value==null?0:Math.min(value.getOptions().length,
+                Math.max(2,Math.min(7,(int)(h-94)/22)));
+    }
     protected ClipRect popupBounds(){
-        int index=rows().indexOf(popupValue);if(index<0)return new ClipRect(0,0,0,0);
+        int index=rows().indexOf(popupValue);
+        if(index<0)return new ClipRect(0,0,0,0);
         ClipRect field=controlBounds(index);float height=popupRows()*22+8;
         float top=field.y+field.height+3;
         if(top+height>y+h-33)top=Math.max(y+48,field.y-height-3);
         return new ClipRect(field.x,top,field.width,height);
     }
-    private void drawPopup(int mx,int my,Theme theme){
-        if(popupValue==null)return;
-        ClipRect p=popupBounds();
-        UIUtils.drawDecorationRound(p.x-1,p.y-1,p.width+2,p.height+2,5,new Color(69,83,103));
-        UIUtils.drawDecorationRound(p.x,p.y,p.width,p.height,4,new Color(24,31,43));
-        try(GuiClip clip=GuiClip.push(p)){
-            for(int i=0;i<popupRows();i++){
-                int option=i+popupOffset;float top=p.y+4+i*22;
-                boolean highlighted=option==popupChoice||(mx>=p.x&&mx<=p.x+p.width&&my>=top&&my<top+22);
-                if(option==popupValue.getSelectedIndex())UIUtils.drawDecorationRound(p.x+3,top+5,2,12,1,theme.getPrimaryGradientColor());
-                text(fit(popupValue.getOptions()[option],p.width-20),p.x+10,top+7,highlighted?theme.getPrimaryGradientRGB():0xffdce5f2);
+
+    private static int fadeInk(int color,float alpha){
+        float opacity=Float.isFinite(alpha)?Math.max(0,Math.min(1,alpha)):0;
+        return (Math.round(((color>>>24)&255)*opacity)<<24)|(color&0x00ffffff);
+    }
+    private void drawPopup(int mx,int my,Theme theme,float dt,ClientSettings settings){
+        boolean open=popupValue!=null;
+        ComboValue shown=open?popupValue:closingPopupValue;
+        if(shown==null)return;
+        float progress=presentation.popup(dt,settings);
+        if(!open&&progress<=.003f){
+            closingPopupValue=null;closingPopupBounds=null;
+            return;
+        }
+        ClipRect p=open?popupBounds():closingPopupBounds;
+        if(p==null||p.width<=0||p.height<=0)return;
+        float opacity=open?Math.max(.72f,progress):progress;
+        float visibleHeight=p.height*(open?1:progress);
+        // The full logical popup is ready immediately; only its ink, accent and
+        // outgoing visual are animated. Its fixed hit rectangles never move.
+        UIUtils.drawDecorationRound(p.x-1,p.y-1,p.width+2,Math.max(1,visibleHeight+2),5,
+                new Color(69,83,103,Math.round(220*opacity)));
+        UIUtils.drawDecorationRound(p.x,p.y,p.width,Math.max(1,visibleHeight),4,
+                new Color(24,31,43,Math.round(246*opacity)));
+        int count=popupRows(shown),offset=open?popupOffset:closingPopupOffset;
+        int choice=open?popupChoice:closingPopupChoice;
+        float marker=presentation.cursor(p.y+4+(choice-offset)*22+5,dt,settings);
+        try(GuiClip clip=GuiClip.push(new ClipRect(p.x,p.y,p.width,Math.max(1,visibleHeight)))){
+            if(count>0&&choice>=offset&&choice<offset+count)
+                UIUtils.drawDecorationRound(p.x+3,marker,2,12,1,
+                        new Color(fadeInk(theme.getPrimaryGradientRGB(),opacity),true));
+            String[] options=shown.getOptions();
+            for(int i=0;i<count;i++){
+                int option=i+offset;if(option>=options.length)break;
+                float top=p.y+4+i*22;
+                boolean highlighted=option==choice||(open&&mx>=p.x&&mx<=p.x+p.width
+                        &&my>=top&&my<top+22);
+                int ink=highlighted?theme.getPrimaryGradientRGB():0xffdce5f2;
+                text(fit(options[option],p.width-20),p.x+10,top+7,fadeInk(ink,opacity));
             }
-            int total=popupValue.getOptions().length,visible=popupRows();
-            if(total>visible){float track=p.height-8,thumb=track*visible/total;UIUtils.drawDecorationRound(p.x+p.width-3,p.y+4+(track-thumb)*popupOffset/(total-visible),1,thumb,.5f,new Color(158,173,196));}
+            int total=options.length;
+            if(total>count&&count>0){
+                float track=p.height-8,thumb=track*count/total;
+                UIUtils.drawDecorationRound(p.x+p.width-3,
+                        p.y+4+(track-thumb)*offset/(total-count),1,thumb,.5f,
+                        new Color(158,173,196,Math.round(180*opacity)));
+            }
         }
     }
     private void beginPopup(ComboValue value){
-        popupValue=value;popupChoice=value.getSelectedIndex();popupOffset=Math.max(0,popupChoice-popupRows()+1);
+        boolean reopening=closingPopupValue==value;
+        if(!reopening)presentation.resetPopup();
+        popupValue=value;popupChoice=value.getSelectedIndex();
+        int maxOffset=Math.max(0,value.getOptions().length-popupRows());
+        int desired=Math.max(0,popupChoice-popupRows()+1);
+        popupOffset=reopening?Math.max(0,Math.min(maxOffset,closingPopupOffset)):desired;
+        if(popupChoice<popupOffset||popupChoice>=popupOffset+popupRows())popupOffset=desired;
+        ClipRect bounds=popupBounds();
+        if(!reopening)presentation.resetCursor(bounds.y+4+(popupChoice-popupOffset)*22+5);
+        closingPopupValue=null;closingPopupBounds=null;
+        presentation.popup(true);
         editing=drag=-1;editValue=dragValue=null;
+    }
+    /** Drop input ownership at once; keep only a short, non-interactive exit visual. */
+    private void dismissPopup(boolean animate){
+        if(popupValue!=null&&animate){
+            closingPopupBounds=popupBounds();
+            closingPopupValue=popupValue;
+            closingPopupOffset=popupOffset;
+            closingPopupChoice=popupChoice;
+            presentation.popup(false);
+        }else if(!animate){
+            closingPopupValue=null;closingPopupBounds=null;
+            presentation.resetPopup();
+        }
+        popupValue=null;
     }
     private void selectGroup(int next){
         if(!commitInput())return;
+        dismissPopup(false);
         group=Math.floorMod(next,Math.max(1,names().size()));scroll=targetScroll=0;focus=0;
-        popupValue=null;drag=editing=-1;editValue=dragValue=null;status="";layout();
+        drag=editing=-1;editValue=dragValue=null;status="";layout();
     }
     private void updateSlider(int row,int mx){Value<?> value=rows().get(row);if(!(value instanceof SliderValue))return;SliderValue v=(SliderValue)value;ClipRect c=controlBounds(row);double f=Math.max(0,Math.min(1,(mx-c.x)/c.width));v.setValue(v.getMin()+f*(v.getMax()-v.getMin()));}
     private void activateValue(int index,int step){Value<?> value=rows().get(index);if(value instanceof CheckBoxValue){CheckBoxValue v=(CheckBoxValue)value;v.setValue(!v.getValue());}else if(value instanceof ComboValue){ComboValue v=(ComboValue)value;v.setSelectedIndex((v.getSelectedIndex()+step+v.getOptions().length)%v.getOptions().length);}else beginInput(index);}
-    private void beginInput(int index){if(!(rows().get(index) instanceof SliderValue))return;editing=index;editValue=rows().get(index);drag=-1;dragValue=null;popupValue=null;input=String.valueOf(rows().get(index).getValue());replace=true;status="";}
+    private void beginInput(int index){if(!(rows().get(index) instanceof SliderValue))return;editing=index;editValue=rows().get(index);drag=-1;dragValue=null;dismissPopup(false);input=String.valueOf(rows().get(index).getValue());replace=true;status="";}
     private boolean commitInput(){if(editing<0)return true;if(editing>=rows().size()){editing=-1;return true;}if(!(rows().get(editing) instanceof SliderValue)){editing=-1;status="Setting changed; edit cancelled";return true;}SliderValue v=(SliderValue)rows().get(editing);try{double number=Double.parseDouble(input);if(!Double.isFinite(number)||number<v.getMin()||number>v.getMax())throw new IllegalArgumentException();v.setValue(number);editing=-1;editValue=null;status="";return true;}catch(IllegalArgumentException e){status="Enter a finite value between "+v.getMin()+" and "+v.getMax();return false;}}
     protected void activate(int id){
-        if(!commitInput())return;drag=-1;dragValue=null;popupValue=null;
+        if(!commitInput())return;drag=-1;dragValue=null;dismissPopup(false);
         if(id==0||id==1){selectGroup(group+(id==0?-1:1));}
         else if(id==2){List<String> names=names();if(!names.isEmpty())for(Value<?> value:groups().get(names.get(group)))value.reset();status="Group defaults restored";}
         else if(id==3){if(!names().isEmpty()&&names().get(group).equals("HUD behavior")){HUD.resetPositions();status="HUD positions restored";}else{NotificationManager.show(new Notification(NotificationType.INFO,"Preview notification","Synthetic preview of the selected notification design.",0));status="Preview queued";}}
@@ -255,7 +354,7 @@ public class SettingsMenu extends GuiScreen {
                 int option=(int)((my-p.y-4)/22)+popupOffset;
                 if(my>=p.y+4&&option>=popupOffset&&option<Math.min(popupOffset+popupRows(),popupValue.getOptions().length))popupValue.setSelectedIndex(option);
             }
-            popupValue=null;return;
+            dismissPopup(true);return;
         }
         if(rail()&&button==0)for(int i=0;i<names().size();i++)if(categoryBounds(i).contains(mx,my)){selectGroup(i);return;}
         for(int id=0;id<6;id++)if(actionBounds(id).contains(mx,my)){if(button==0){pressed=id;activate(id);}return;}
@@ -272,7 +371,18 @@ public class SettingsMenu extends GuiScreen {
             return;
         }
     }
-    @Override protected void mouseReleased(int mx,int my,int button){if(button==0){drag=-1;dragValue=null;pressed=-1;}}
+    @Override protected void mouseClickMove(int mx,int my,int button,long elapsed){
+        if(button!=0||drag<0||dragValue==null)return;
+        List<Value<?>> values=rows();
+        if(drag>=values.size()||values.get(drag)!=dragValue){
+            drag=-1;dragValue=null;return;
+        }
+        // Pointer capture owns writes. Drawing and spring updates never persist a Value.
+        updateSlider(drag,mx);
+    }
+    @Override protected void mouseReleased(int mx,int my,int button){
+        if(button==0){drag=-1;dragValue=null;pressed=-1;}
+    }
     @Override public void handleMouseInput()throws IOException{
         super.handleMouseInput();int wheel=Mouse.getDWheel();if(wheel==0)return;
         if(popupValue!=null){
@@ -284,7 +394,7 @@ public class SettingsMenu extends GuiScreen {
     @Override protected void keyTyped(char c,int key)throws IOException{
         pressed=-1; // presentation only; the existing keyboard and mouse-down actions retain ownership
         if(popupValue!=null){
-            if(key==Keyboard.KEY_ESCAPE||key==Keyboard.KEY_TAB){popupValue=null;return;}
+            if(key==Keyboard.KEY_ESCAPE||key==Keyboard.KEY_TAB){dismissPopup(true);return;}
             if(key==Keyboard.KEY_UP||key==Keyboard.KEY_DOWN){
                 popupChoice=Math.floorMod(popupChoice+(key==Keyboard.KEY_UP?-1:1),popupValue.getOptions().length);
                 popupOffset=Math.max(0,Math.min(popupChoice,Math.max(popupOffset,popupChoice-popupRows()+1)));
@@ -292,7 +402,7 @@ public class SettingsMenu extends GuiScreen {
                 popupChoice=key==Keyboard.KEY_HOME?0:popupValue.getOptions().length-1;
                 popupOffset=Math.max(0,popupChoice-popupRows()+1);
             }else if(key==Keyboard.KEY_RETURN||key==Keyboard.KEY_NUMPADENTER||key==Keyboard.KEY_SPACE){
-                popupValue.setSelectedIndex(popupChoice);popupValue=null;
+                popupValue.setSelectedIndex(popupChoice);dismissPopup(true);
             }
             return;
         }
