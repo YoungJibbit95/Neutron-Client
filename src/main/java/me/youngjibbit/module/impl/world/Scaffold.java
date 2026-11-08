@@ -9,6 +9,8 @@ import me.youngjibbit.core.network.PacketPipeline;
 import me.youngjibbit.core.world.PlacementContext;
 import me.youngjibbit.core.world.PlacementTarget;
 import me.youngjibbit.core.world.ScaffoldRotationPlan;
+import me.youngjibbit.core.world.AdaptiveBridgeScaffoldAdapter;
+import me.youngjibbit.core.world.AdaptiveBridgePlanner;
 import me.youngjibbit.core.world.TowerController;
 import me.youngjibbit.event.motion.EventMotion;
 import me.youngjibbit.event.motion.EventRotation;
@@ -45,7 +47,9 @@ public class Scaffold extends Module {
     private final TimerControl timerControl = new TimerControl();
     private final TowerController towerController = new TowerController();
     private final me.youngjibbit.core.world.ArsenicScaffoldController arsenicController=new me.youngjibbit.core.world.ArsenicScaffoldController();
-    private final ComboValue approach=new ComboValue("Scaffold Approach",this,new String[]{"Neutron","Arsenic"},0);
+    private final AdaptiveBridgeScaffoldAdapter bridgeAdapter=new AdaptiveBridgeScaffoldAdapter();
+    private long bridgeGeneration,bridgeLastPreSequence=Long.MIN_VALUE;
+    private final ComboValue approach=new ComboValue("Scaffold Approach",this,new String[]{"Neutron","Arsenic","Adaptive Bridge"},0);
     private final CheckBoxValue softArsenicMotion = new CheckBoxValue("Arsenic Soft Motion", this, false);
     private final me.youngjibbit.core.world.ScaffoldSneakInterval sneakInterval = new me.youngjibbit.core.world.ScaffoldSneakInterval();
     private long freshInputSequence;
@@ -130,11 +134,12 @@ public class Scaffold extends Module {
                 value.setVisibility(m->arsenic());continue;
             }
             java.util.function.Predicate<Module> visible=value.getVisibility();
-            value.setVisibility(m->!arsenic() && (visible==null || visible.test(m)));
+            value.setVisibility(m->!arsenic() && !adaptiveBridge() && (visible==null || visible.test(m)));
         }
     }
     private boolean arsenic() { return "Arsenic".equals(approach.getValue()); }
-    private boolean usesRotations() { return arsenic() || rotations.getValue(); }
+    private boolean adaptiveBridge() { return "Adaptive Bridge".equals(approach.getValue()); }
+    private boolean usesRotations() { return arsenic() || adaptiveBridge() || rotations.getValue(); }
     @Override public void beginConfigUpdate() { super.beginConfigUpdate();approach.reset();softArsenicMotion.reset();sneakAfterBlocks.reset(); }
     @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String name) { return super.getValueByName(name!=null && name.replace("_","").replace(" ","").equalsIgnoreCase("SameY")?"keep_y":name); }
     @Override public void onValueChange() {
@@ -142,6 +147,9 @@ public class Scaffold extends Module {
         sneakInterval.reset();
         releasePlacement();
         arsenicController.reset();
+        bridgeAdapter.reset();
+        bridgeGeneration++;
+        bridgeLastPreSequence=Long.MIN_VALUE;
         // Module's callback has no changed-value argument; revalidate the actual owner conditions.
         boolean end = !isToggled() || !usesRotations() || !sameScene();
         if (generation != lifecycleGeneration) return;
@@ -278,6 +286,8 @@ public class Scaffold extends Module {
     private void suspendPlacement() {
         sneakInterval.reset();
         arsenicController.reset();
+        bridgeAdapter.reset();
+        bridgeGeneration++;
         rememberAcceptedRotation();
         releasePlacement();
         releaseRotation(); // Keep only the scene-bound wish; resume needs a new C03 acceptance.
@@ -299,6 +309,9 @@ public class Scaffold extends Module {
     private void clearState() {
         sneakInterval.reset();
         arsenicController.reset();
+        bridgeAdapter.reset();
+        bridgeGeneration++;
+        bridgeLastPreSequence=Long.MIN_VALUE;
         long generation = lifecycleGeneration;
         try { endRotation(); }
         finally {
@@ -347,6 +360,7 @@ public class Scaffold extends Module {
             return;
         }
         if(arsenic()) { arsenicMotion(event,motionSequence,generation);return; }
+        if(adaptiveBridge()) { bridgeMotion(event,motionSequence,generation);return; }
         if (event.isPre()) {
             downwardsState = downwards.getValue() && mc.gameSettings.keyBindSneak.isKeyDown();
             if (mc.thePlayer.onGround) keepYCoord = Math.floor(mc.thePlayer.posY - 1);
@@ -404,6 +418,78 @@ public class Scaffold extends Module {
             boolean placed = !framePre && tryPlace(false);
             if (!continueMotion(motionSequence, generation)) return;
             if (placed || !RuntimeServices.scaffoldPlacement().isValid(frameTarget)) releasePlacement();
+        }
+    }
+
+    /** Third opt-in approach: bounded PRE proposals, original C03 and POST-only placement. */
+    private void bridgeMotion(EventMotion event,long sequence,long generation) {
+        Minecraft client=Minecraft.getMinecraft();
+        if(event.isPre()) {
+            // No re-entry/second planner budget in one physical motion sequence.
+            if(bridgeLastPreSequence==sequence)return;
+            bridgeLastPreSequence=sequence;
+            frameTarget=currentTarget=null;
+            frameSequence=sequence;
+            framePre=false;downwardsState=false;
+            if(client.thePlayer.onGround)keepYCoord=Math.floor(client.thePlayer.posY-1);
+            PlacementContext context=new PlacementContext(false,keepY.getValue(),keepYCoord);
+            me.youngjibbit.core.world.ScaffoldPlacementService service=RuntimeServices.scaffoldPlacement();
+            // The host picks an actually valid destination, slot, stack and first support.
+            PlacementTarget host=service.findTarget(context,"Back",false,null);
+            if(!continueMotion(sequence,generation))return;
+            if(host==null){requestAcceptedHold();return;}
+
+            AdaptiveBridgePlanner.Frame frame=new AdaptiveBridgePlanner.Frame();
+            frame.scope=new AdaptiveBridgePlanner.Scope(this,contextWorld,contextPlayer,contextPackets,
+                    contextEpoch,bridgeGeneration);
+            frame.sequence=sequence;
+            frame.feetX=client.thePlayer.posX;frame.feetY=client.thePlayer.posY;
+            frame.feetZ=client.thePlayer.posZ;
+            Vec3 eyes=client.thePlayer.getPositionEyes(1);
+            frame.eyeX=eyes.xCoord;frame.eyeY=eyes.yCoord;frame.eyeZ=eyes.zCoord;
+            frame.yaw=event.getYaw();
+            frame.velocityX=client.thePlayer.motionX;frame.velocityZ=client.thePlayer.motionZ;
+            MovementInput input=client.thePlayer.movementInput;
+            frame.forward=input==null?0:input.moveForward;
+            frame.strafe=input==null?0:input.moveStrafe;
+            frame.reach=client.playerController.getBlockReachDistance();
+            frame.authorized=validContext() && contextRotation.isConnection(contextPackets);
+            // Eagle input / tower and timer mutation are explicitly out of this first bundle.
+            frame.eagleEnabled=false;frame.physicalEdgeRisk=false;
+
+            AdaptiveBridgeScaffoldAdapter.Prepared prepared=bridgeAdapter.prepare(service,host,frame);
+            if(!continueMotion(sequence,generation))return;
+            if(prepared==null || !service.isValid(prepared.target)) {
+                requestAcceptedHold();return;
+            }
+            frameTarget=currentTarget=prepared.target;
+            if(!sprint.getValue()) {
+                noSprintSequence=sequence;noSprintGeneration=generation;
+                client.thePlayer.setSprinting(false);
+                if(!continueMotion(sequence,generation))return;
+            }
+            // Same source priority, old rotation trajectory and mouse-GCD snap.
+            RotationProfile settings=rotationSettings.snapshot();
+            float[] pose=contextRotation.calculatePlanRotations("scaffold",
+                    event.getYaw(),event.getPitch(),service.rotationIdentity(prepared.target),
+                    prepared.yaw,prepared.pitch,eyes.distanceTo(prepared.target.getHitVec()),settings);
+            if(!continueMotion(sequence,generation) || !service.isValid(frameTarget))return;
+            contextRotation.request("scaffold",RotationManager.SCAFFOLD_PRIORITY,pose[0],pose[1]);
+        } else if(event.isPost() && frameSequence==sequence) {
+            PlacementTarget original=frameTarget;
+            if(original==null)return;
+            me.youngjibbit.core.world.ScaffoldPlacementService service=RuntimeServices.scaffoldPlacement();
+            PlacementContext context=new PlacementContext(false,keepY.getValue(),keepYCoord);
+            if(!service.stillNeeded(original,context)) {releasePlacement();return;}
+            // The server-accepted pose can refine a hit vector, but never support,
+            // face, destination or stack of the PRE intent.
+            PlacementTarget accepted=service.alignAcceptedHit(original,contextRotation);
+            if(!continueMotion(sequence,generation))return;
+            if(accepted==null) {releasePlacement();return;}
+            frameTarget=currentTarget=accepted;
+            boolean placed=tryPlace(false);
+            if(!continueMotion(sequence,generation))return;
+            if(placed || !service.isValid(frameTarget))releasePlacement();
         }
     }
 
@@ -564,7 +650,7 @@ public class Scaffold extends Module {
                 && validContext() && usesRotations() == rotationRequired
                 && frameTarget == target && frameSequence == sequence
                 && AutomatedActionAdmission.mayAttempt(ModuleAction.PLACEMENT);
-        if(!arsenic() && (roundRots.getValue() || "Godbridge".equals(rotationMode.getValue()))) {
+        if(!arsenic() && !adaptiveBridge() && (roundRots.getValue() || "Godbridge".equals(rotationMode.getValue()))) {
             double step=roundRots.getValue()?90:45,yaw=RuntimeServices.rotation().getEffectiveYaw();
             if(Math.abs(net.minecraft.util.MathHelper.wrapAngleTo180_double(yaw-Math.rint(yaw/step)*step))>.001) {
                 diagnose(me.youngjibbit.core.world.ScaffoldPlacementService.Rejection.ROTATION);return false;
