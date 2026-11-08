@@ -84,13 +84,22 @@ public class NeutronAiCheckpointTest {
     }
 
     @Test public void nonfiniteOrOutOfRangeWeightsAndLossesReject() throws Exception {
+        for (float invalid : new float[]{Float.NaN, Float.POSITIVE_INFINITY, -Float.MAX_VALUE, 21}) {
+            for (int byteOffset : new int[]{44, 48}) {
+                byte[] bytes = fixture(1, 1);
+                ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN).putFloat(byteOffset, invalid);
+                seal(bytes);
+                assertNull("nonfinite/invalid loss at " + byteOffset,
+                        NeutronAiCheckpoint.decode(bytes));
+            }
+        }
         for (float invalid : new float[]{Float.NaN, Float.POSITIVE_INFINITY, -Float.MAX_VALUE, 9}) {
-            for (int byteOffset : new int[]{44, 48, NeutronAiCheckpoint.HEADER_BYTES,
+            for (int byteOffset : new int[]{NeutronAiCheckpoint.HEADER_BYTES,
                     NeutronAiCheckpoint.HEADER_BYTES + (NeutronAiCheckpoint.PARAMETERS - 1) * 4}) {
                 byte[] bytes = fixture(1, 1);
                 ByteBuffer.wrap(bytes).order(ByteOrder.BIG_ENDIAN).putFloat(byteOffset, invalid);
                 seal(bytes);
-                assertNull("nonfinite/invalid float at " + byteOffset,
+                assertNull("nonfinite/invalid weight at " + byteOffset,
                         NeutronAiCheckpoint.decode(bytes));
             }
         }
