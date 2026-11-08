@@ -13,6 +13,8 @@ public final class RotationSettings {
     public final SliderValue bezierStrength,bezierDuration;
     public final SliderValue predictionTicks,missChance;
     public final CheckBoxValue softArsenicMotion, hitpointVariation;
+    public final ComboValue adaptiveSpeedPreset, adaptiveHitpointPreset;
+    public final SliderValue adaptiveVariationStrength;
     private final ComboValue hitpointProfile;
     private final SliderValue hitpointSpeed, hitpointStrength;
     private final boolean placement;
@@ -112,6 +114,19 @@ public final class RotationSettings {
                 v.setVisibility(m->!arsenic() && !adaptive() && (visible==null || visible.test(m)));
             }
         }
+        // Append new values after the legacy registration sequence. Only Aura owns them.
+        boolean auraOnly = !assist && !placement;
+        adaptiveSpeedPreset = auraOnly ? new ComboValue("Adaptive Speed", parent,
+                new String[]{"Calm","Balanced","Swift"}, 1) : null;
+        adaptiveHitpointPreset = auraOnly ? new ComboValue("Adaptive Hitpoint", parent,
+                new String[]{"Stable","Organic","Dynamic"}, 0) : null;
+        adaptiveVariationStrength = auraOnly ? new SliderValue("Adaptive Variation Strength",
+                parent, .5D, 0, 1, false) : null;
+        if (auraOnly) {
+            adaptiveSpeedPreset.setVisibility(m -> adaptive());
+            adaptiveHitpointPreset.setVisibility(m -> adaptive());
+            adaptiveVariationStrength.setVisibility(m -> adaptive());
+        }
     }
     public boolean arsenic() { return !placement && mode.getValue().startsWith("Arsenic "); }
     /** Only Aura offers this appended option; legacy mode indices and defaults stay identical. */
@@ -128,6 +143,11 @@ public final class RotationSettings {
     public RotationProfile snapshot() {
         RotationProfile p=new RotationProfile();
         p.adaptive=adaptive();
+        if(p.adaptive) {
+            p.adaptiveSpeed=AdaptivePresetMotion.Speed.values()[adaptiveSpeedPreset.getSelectedIndex()];
+            p.adaptiveHitpoint=AdaptivePresetMotion.Hitpoint.values()[adaptiveHitpointPreset.getSelectedIndex()];
+            p.adaptiveVariation=adaptiveVariationStrength.getValue().floatValue();
+        }
         p.mode=basic()?RotationProfile.Mode.BASIC:advanced()?RotationProfile.Mode.ADVANCED:RotationProfile.Mode.SMOOTH;
         p.yawSpeed=f(yawSpeed);p.pitchSpeed=f(pitchSpeed);p.jitter=f(jitter);p.minSpeed=f(minSpeed);p.maxSpeed=f(maxSpeed);p.interpolation=f(interpolation);
         p.randomization=randomization.getValue();p.noiseEnabled=!"Aus".equals(noise.getValue());p.strength=f(strength);
