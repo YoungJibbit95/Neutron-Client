@@ -6,6 +6,8 @@ import me.youngjibbit.module.Module;
 import me.youngjibbit.module.ModuleInfo;
 import me.youngjibbit.value.impl.ComboValue;
 import me.youngjibbit.value.impl.CheckBoxValue;
+import me.youngjibbit.theme.ThemeMode;
+import me.youngjibbit.clickgui.NeutronTwoGui;
 import net.minecraft.client.gui.GuiScreen;
 import org.lwjgl.input.Keyboard;
 
@@ -17,7 +19,10 @@ import org.lwjgl.input.Keyboard;
 public class ClickGUI  extends Module
 {
     private final CheckBoxValue headingGlow=new CheckBoxValue("Heading Glow",this,false);
-    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Panel", "iOS", "Dropdown"}, 0);
+    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Panel", "Dropdown"}, 0);
+
+    // A separate 2.0 screen; never instantiate it before the module manager is ready.
+    private NeutronTwoGui modern;
 
     public ClickGUI()
     {
@@ -34,8 +39,8 @@ public class ClickGUI  extends Module
     @Override
     public void onDisable()
     {
-        if (mc.currentScreen == Pulsar.INSTANCE.getPanel() || mc.currentScreen == Pulsar.INSTANCE.getIOS()
-                || mc.currentScreen == Pulsar.INSTANCE.getDropdown()) {
+        if (mc.currentScreen == Pulsar.INSTANCE.getPanel() || mc.currentScreen == Pulsar.INSTANCE.getDropdown()
+                || mc.currentScreen == modern) {
             mc.displayGuiScreen(null);
         }
         super.onDisable();
@@ -54,15 +59,12 @@ public class ClickGUI  extends Module
     }
 
     private GuiScreen resolveScreen(String modeValue) {
-        switch (modeValue) {
-            case "Panel":
-                return Pulsar.INSTANCE.getPanel();
-            case "iOS":
-                return Pulsar.INSTANCE.getIOS();
-            case "Dropdown":
-                return Pulsar.INSTANCE.getDropdown();
-            default:
-                return Pulsar.INSTANCE.getPanel();
+        if (ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())) {
+            if (modern == null) modern = new NeutronTwoGui();
+            return modern;
         }
+        // A historical iOS configuration resolves to Panel, not a hidden GUI.
+        return "Dropdown".equals(modeValue)
+                ? Pulsar.INSTANCE.getDropdown() : Pulsar.INSTANCE.getPanel();
     }
 }
