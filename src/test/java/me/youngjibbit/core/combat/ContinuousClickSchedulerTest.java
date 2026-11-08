@@ -86,7 +86,8 @@ public class ContinuousClickSchedulerTest {
         try {s.tryClick(1,true,()->0,()->{throw new IllegalStateException("cancel");});
              fail("expected exception");
         } catch(IllegalStateException expected) { }
-        assertTrue(s.hasAttackThisTick());assertFalse(s.allowControllerAttack(true));
+        assertFalse("a callback failure cannot claim a native C02",s.hasAttackThisTick());
+        assertFalse("its click still owns the budget",s.allowControllerAttack(true));
         s.beginTick();assertFalse(s.tryClick(2,true,()->0,()->true));
         now.set(1);s.beginTick();assertTrue(s.tryClick(3,true,()->0,()->true));
     }
