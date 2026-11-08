@@ -27,10 +27,11 @@ public final class HudPlacement {
         if(!Float.isFinite(x))x=4;
         if(!Float.isFinite(y))y=4;
         if(bounded) {
-            float mx=Math.max(0,screenW-Math.max(0,w)-4);
-            float my=Math.max(0,screenH-Math.max(0,h)-4);
-            x=Math.min(Math.max(4,x),Math.max(4,mx));
-            y=Math.min(Math.max(4,y),Math.max(4,my));
+            float maxX=Math.max(0,screenW-Math.max(0,w));
+            float maxY=Math.max(0,screenH-Math.max(0,h));
+            float gutterX=maxX>=8?4:0,gutterY=maxY>=8?4:0;
+            x=Math.max(gutterX,Math.min(x,maxX-gutterX));
+            y=Math.max(gutterY,Math.min(y,maxY-gutterY));
         }
         return new Point(x,y);
     }
