@@ -35,7 +35,7 @@ public final class IslandLayout {
             case MODULE_TOAST: return new Frame(width, height, 240, 44, 20, 1);
             case POSSIBLE_SETBACK: return new Frame(width, height, 300, 55, 22, 1);
             case IDLE:
-            default: return new Frame(width, height, 190, 34, 17, .96f);
+            default: return new Frame(width, height, 245, 34, 17, .96f);
         }
     }
 
