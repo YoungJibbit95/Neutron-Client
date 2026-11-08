@@ -60,7 +60,12 @@ public class ClickGui extends GuiScreen {
         setupModules();
     }
 
-    private ClipRect chromeBounds(int id){return id==0?searchBounds():id==1?themeBounds():new ClipRect(x+5,y+HEADER+4+(id-2)*categoryStep(),SIDEBAR-10,categoryStep()-4);}
+    /** Only the dedicated 2.0 screen changes geometry and material; Panel stays Legacy. */
+    protected boolean modernPresentation(){return false;}
+    private float sidebarWidth(){return modernPresentation()?148:SIDEBAR;}
+    private float headerHeight(){return modernPresentation()?44:HEADER;}
+
+    private ClipRect chromeBounds(int id){return id==0?searchBounds():id==1?themeBounds():new ClipRect(x+5,y+headerHeight()+4+(id-2)*categoryStep(),sidebarWidth()-10,categoryStep()-4);}
     private void resetMotion(){
         visualControl=null;visualChrome=-1;
         panelMotion.reset(selectedCategory.ordinal()*categoryStep());
@@ -100,6 +105,7 @@ public class ClickGui extends GuiScreen {
     }
 
     private void fitWindow() {
+        if(!positioned&&modernPresentation()){width=640;height=420;}
         float availableWidth = Math.max(1, super.width - MARGIN * 2);
         float availableHeight = Math.max(1, super.height - MARGIN * 2);
         width = Math.max(Math.min(320, availableWidth), Math.min(width, availableWidth));
@@ -114,7 +120,8 @@ public class ClickGui extends GuiScreen {
     }
 
     private float categoryStep() {
-        return Math.min(24, (height - HEADER - FOOTER - 8) / CATEGORIES.length);
+        return Math.min(modernPresentation()?32:24,
+                (height - headerHeight() - FOOTER - 8) / CATEGORIES.length);
     }
 
     @Override
@@ -139,7 +146,7 @@ public class ClickGui extends GuiScreen {
         advanceMotion(delta,mouseX,mouseY);
 
         Theme theme = Theme.resolve(Theme.getDefaultTheme());
-        boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
+        boolean modern=modernPresentation();
         // Only the Approach-2 paint changes; all hit/drag/resize rectangles stay fixed.
         themedSurface.panel(x,y,width,height,modern?9:5,theme,true,true,true,8,
                 modern?.80f:.72f,modern?.88f:1,()->{
@@ -152,19 +159,30 @@ public class ClickGui extends GuiScreen {
 
 
         try (GuiClip windowClip = GuiClip.push(new ClipRect(x + 2, y + 2, width - 4, height - 4))) {
-            UIUtils.drawRound(x + 1, y + 1, SIDEBAR - 2, height - 2, 4, new Color(8, 8, 9));
-            UIUtils.drawRound(x + 1, y + 1, width - 2, HEADER - 1, 4, new Color(13, 13, 14));
-            drawClientName(Pulsar.INSTANCE.getName(), (int) (x + 9), (int) (y + 10), theme);
+            UIUtils.drawRound(x + 1, y + 1, sidebarWidth() - 2, height - 2,
+                    modern?11:4, modern?new Color(29,11,39,220):new Color(8,8,9));
+            UIUtils.drawRound(x + 1, y + 1, width - 2, headerHeight() - 1,
+                    modern?11:4, modern?new Color(42,13,40,228):new Color(13,13,14));
+            if(modern){
+                UIUtils.drawDecorationGradientVertical(x+sidebarWidth()-1,y+headerHeight()+2,
+                        1,Math.max(0,height-headerHeight()-5),0,
+                        new Color(255,55,185,95),new Color(255,148,48,90));
+                UIUtils.drawGradientHorizontal(x+8,y+height-4,Math.min(width*.35f,170),2,1,
+                        new Color(239,48,181,170),new Color(255,136,61,130));
+            }
+            drawClientName(Pulsar.INSTANCE.getName(),(int)(x+(modern?17:9)),(int)(y+(modern?13:10)),theme);
             if(modern&&entry>.005f){
                 // Spring-driven entrance accent, not an extra FBO or input surface.
                 float stroke=(width-22)*entry;
-                UIUtils.drawLiteralGradient(x+11,y+HEADER-2,stroke,2,1,
+                UIUtils.drawLiteralGradient(x+11,y+headerHeight()-2,stroke,2,1,
                         theme.getPrimaryGradientColor(),theme.getSecondaryGradientColor());
             }
             Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString("o", x + width - 21, y + 13,
                     theme.getSecondaryGradientRGB());
             ClipRect searchBox=searchBounds();
-            GuiStyle.panel(searchBox.x,searchBox.y,searchBox.width,searchBox.height,3,searchFocus && showsKeyboardFocus()?1:0,new Color(22,22,24));
+            GuiStyle.panel(searchBox.x,searchBox.y,searchBox.width,searchBox.height,
+                    modern?10:3,searchFocus&&showsKeyboardFocus()?1:0,
+                    modern?new Color(53,24,54,214):new Color(22,22,24));
             GuiStyle.feedback(searchBox,chromeMotion[0]);
             try(GuiClip ignored=GuiClip.push(new ClipRect(searchBox.x+8,searchBox.y,searchBox.width-28,searchBox.height))){
                 String shown=search.isEmpty()&&!searchFocus?width<380?"Search...":"Search modules...":search+(searchFocus?"_":"");
@@ -173,15 +191,19 @@ public class ClickGui extends GuiScreen {
             }
             if(!search.isEmpty()||searchFocus)font().drawString("x",searchBox.x+searchBox.width-14,textY(font(),"x",searchBox),0xffb8bec8);
             ClipRect themes = GuiStyle.buttonBounds(themeBounds(), chromeMotion[1]);
-            UIUtils.drawRound(themes.x,themes.y,themes.width,themes.height,3,new Color(22,22,24));
+            UIUtils.drawRound(themes.x,themes.y,themes.width,themes.height,modern?8:3,
+                    modern?new Color(62,30,59,215):new Color(22,22,24));
             GuiStyle.feedback(themes,chromeMotion[1]);
             font().drawString("Library",themes.x+(themes.width-font().getWidth("Library"))/2,textY(font(),"Library",themes),GuiStyle.ink(theme.isCustom()?theme.getTextColor().getRGB():0xffd4d9e3,chromeMotion[1]));
-            float selectedY = y + HEADER + 4 + selectionOffset;
-            UIUtils.drawDecorationRound(x + 5, selectedY, SIDEBAR - 10, step - 4, 6,
+            float selectedY = y + headerHeight() + 4 + selectionOffset;
+            if(modern)
+                UIUtils.drawGradientHorizontal(x+5,selectedY,sidebarWidth()-10,step-4,8,
+                        new Color(204,39,151,230),new Color(241,63,163,230));
+            else UIUtils.drawDecorationRound(x + 5, selectedY, sidebarWidth() - 10, step - 4, 6,
                     me.youngjibbit.utils.render.UiEffects.accent(theme.getPrimaryGradientRGB(), .18f));
             String[] icons = {"c", "f", "d", "d", "e", "t", "f", "a"};
             for (int i = 0; i < CATEGORIES.length; i++) {
-                float rowY = y + HEADER + 4 + i * step;
+                float rowY = y + headerHeight() + 4 + i * step;
                 ClipRect category = GuiStyle.buttonBounds(chromeBounds(i+2), chromeMotion[i+2]);
                 rowY += category.y - chromeBounds(i+2).y;
                 GuiStyle.feedback(category,chromeMotion[i+2]);
@@ -193,8 +215,8 @@ public class ClickGui extends GuiScreen {
             String title=search.trim().isEmpty()?selectedCategory.name():"Search results";
             String count=modules.size()+(!search.trim().isEmpty()?(modules.size()==1?" result":" results"):(modules.size()==1?" module":" modules"));
             TTFFontRenderer heading=Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18");
-            heading.drawString(title,viewport.x+1,y+HEADER+8,0xffedf0f7);
-            font().drawString(count,viewport.x+viewport.width-font().getWidth(count)-2,y+HEADER+8,0xffaab3c3);
+            heading.drawString(title,viewport.x+1,y+headerHeight()+8,0xffedf0f7);
+            font().drawString(count,viewport.x+viewport.width-font().getWidth(count)-2,y+headerHeight()+8,0xffaab3c3);
             String shortcuts=width>=400?"/ Search  \u00b7  Tab Navigate  \u00b7  K Bind":"/ Search  \u00b7  Tab  \u00b7  K Bind";
             font().drawString(shortcuts,viewport.x,y+height-FOOTER+5,0xffaab3c3);
             if(maxScroll>0){
@@ -221,7 +243,7 @@ public class ClickGui extends GuiScreen {
     }
 
     private void layoutModules(float delta) {
-        viewport = new ClipRect(x + SIDEBAR + 8, y + HEADER + CONTENT_HEADER + 4, width - SIDEBAR - 20, height - HEADER - CONTENT_HEADER - FOOTER - 8);
+        viewport = new ClipRect(x + sidebarWidth() + 8, y + headerHeight() + CONTENT_HEADER + 4, width - sidebarWidth() - 20, height - headerHeight() - CONTENT_HEADER - FOOTER - 8);
         float contentHeight = 0;
         for (ClickModule module : modules) {
             module.updatePanelAnimation(delta);
@@ -256,7 +278,7 @@ public class ClickGui extends GuiScreen {
     }
 
     private List<ClickModule> categoryModules(Category category){
-        return moduleCache.computeIfAbsent(category,key->{List<ClickModule> result=new ArrayList<>();for(Module module:Pulsar.INSTANCE.getMm().getModules(key))result.add(ClickModule.forPanel(module, width - SIDEBAR - 12));return result;});
+        return moduleCache.computeIfAbsent(category,key->{List<ClickModule> result=new ArrayList<>();for(Module module:Pulsar.INSTANCE.getMm().getModules(key))result.add(ClickModule.forPanel(module, width - sidebarWidth() - 12));return result;});
     }
     private void setupModules(){
         modules.clear();String query=search.trim().toLowerCase(Locale.ROOT);
@@ -279,7 +301,7 @@ public class ClickGui extends GuiScreen {
             if(mouseX>=searchBox.x+searchBox.width-17){search="";updateSearch();}return;
         }
         searchFocus=false;
-        if (button == 0 && new ClipRect(x + width - 26, y + 2, 24, HEADER - 2).contains(mouseX, mouseY)) {
+        if (button == 0 && new ClipRect(x + width - 26, y + 2, 24, headerHeight() - 2).contains(mouseX, mouseY)) {
             releaseControls();
             setFocus(null);resizing = true;
             grabX = mouseX;
@@ -288,7 +310,7 @@ public class ClickGui extends GuiScreen {
             resizeHeight = height;
             return;
         }
-        if (button == 0 && new ClipRect(x, y, width, HEADER).contains(mouseX, mouseY)) {
+        if (button == 0 && new ClipRect(x, y, width, headerHeight()).contains(mouseX, mouseY)) {
             releaseControls();
             setFocus(null);dragging = true;
             grabX = mouseX - x;
@@ -296,7 +318,7 @@ public class ClickGui extends GuiScreen {
             return;
         }
         for (int i = 0; i < CATEGORIES.length; i++) {
-            if (button == 0 && new ClipRect(x + 5, y + HEADER + 4 + i * categoryStep(), SIDEBAR - 10, categoryStep() - 4).contains(mouseX, mouseY)) {
+            if (button == 0 && new ClipRect(x + 5, y + headerHeight() + 4 + i * categoryStep(), sidebarWidth() - 10, categoryStep() - 4).contains(mouseX, mouseY)) {
                 releaseControls();
                 cancelInputs();search="";
                 selectedCategory = CATEGORIES[i];
@@ -381,7 +403,7 @@ public class ClickGui extends GuiScreen {
     protected boolean shiftDown(){return Keyboard.isCreated()&&isShiftKeyDown();}
     protected boolean ctrlDown(){return Keyboard.isCreated()&&isCtrlKeyDown();}
     private TTFFontRenderer font(){return Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 18");}
-    protected ClipRect searchBounds(){return new ClipRect(x+SIDEBAR+8,y+6,width-SIDEBAR-104,24);}
+    protected ClipRect searchBounds(){return new ClipRect(x+sidebarWidth()+8,y+6,width-sidebarWidth()-104,24);}
     protected ClipRect themeBounds(){return new ClipRect(x+width-88,y+6,56,24);}
     private static float textY(TTFFontRenderer font,String text,ClipRect box){return box.y+(box.height-font.getHeight(text))/2;}
     protected ClickLibraryScreen createThemeLibrary(){return new ClickLibraryScreen(this,true);}
