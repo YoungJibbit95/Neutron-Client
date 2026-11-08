@@ -8,6 +8,7 @@ import me.youngjibbit.clickgui.utils.GuiClip;
 import me.youngjibbit.clickgui.utils.GuiStyle;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.utils.Theme;
+import me.youngjibbit.utils.font.TTFFontRenderer;
 import me.youngjibbit.utils.animations.Direction;
 import me.youngjibbit.utils.animations.impl.DecelerateAnimation;
 import me.youngjibbit.value.Value;
