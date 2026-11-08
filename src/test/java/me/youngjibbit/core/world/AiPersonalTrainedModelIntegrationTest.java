@@ -140,6 +140,15 @@ public class AiPersonalTrainedModelIntegrationTest {
             assertEquals(NeutronAiCheckpoint.SERIALIZED_BYTES,Files.size(model));
             assertEquals(108,Files.size(manifest));
             assertEquals(32,Files.size(key));
+            byte[] firstModel=Files.readAllBytes(model);
+            try {
+                run.loader.saveTrainedCandidate(trained(),run.scope);
+                fail("a second candidate may not silently replace the first");
+            } catch(java.io.IOException expected) {
+                assertFalse("failed replacement revokes consent",run.loader.isConsented());
+                assertArrayEquals(firstModel,Files.readAllBytes(model));
+            }
+            assertTrue(run.loader.allowSession(true,run.scope));
             assertFalse("load without current consent action",run.loader.loadExplicit(false,run.scope));
 
             for(Path path:new Path[]{model,manifest,key}) {
