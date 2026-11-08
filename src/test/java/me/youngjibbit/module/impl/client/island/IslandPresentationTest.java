@@ -24,11 +24,11 @@ public class IslandPresentationTest {
         assertEquals(IslandStateMachine.State.IDLE, none.state);
         assertEquals("", none.title);
         assertEquals("", none.trailing);
-        IslandPresentation styled = IslandPresentation.from(null, "\u00a7cNeutron\n  😀",
+        IslandPresentation styled = IslandPresentation.from(null, "\u00a7cNeutron\n\u0007  😀",
                 "\u00a7aDev", "12:30\t", true, true, true);
         assertFalse(styled.title.contains("\u00a7"));
         assertFalse(styled.title.contains("\n"));
-        assertFalse(styled.title.contains(""));
+        assertFalse(styled.title.contains("\u0007"));
         assertEquals("12:30", styled.trailing);
     }
 
@@ -86,7 +86,7 @@ public class IslandPresentationTest {
 
     @Test public void toastTextIsBoundedAndDoesNotChangeGameplayState() {
         IslandStateMachine model = new IslandStateMachine();
-        String name = "Very long module name 🛰️ with emojis and untrusted §c formatting;
+        String name = "Very long module name 🛰️ with emojis and untrusted §c formatting";
         assertTrue(model.offer(IslandStateMachine.State.MODULE_TOAST, "toggle-1", name, 1, 0));
         IslandPresentation presentation = IslandPresentation.from(
                 model.resolve(1, 1, null, null, false, false), "", "", "",
