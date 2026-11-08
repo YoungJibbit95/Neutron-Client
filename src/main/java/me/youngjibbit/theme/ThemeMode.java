@@ -17,6 +17,8 @@ public final class ThemeMode {
     }
     public static String selected(){return selected;}
     public static Theme global(Theme legacy){
-        return APPROACH_TWO.equals(selected)?Theme.approachTwo():legacy;
+        // The selected ThemeCatalog palette is authoritative in *both* layouts.
+        // Neutron 2.0 changes material/geometry, never the theme or saved reference.
+        return legacy;
     }
 }
