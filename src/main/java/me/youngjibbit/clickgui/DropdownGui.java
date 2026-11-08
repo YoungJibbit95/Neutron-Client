@@ -468,6 +468,7 @@ public class DropdownGui extends GuiScreen {
         searchFocus = false;
         for (CategoryPanel panel : panels) for (DropdownModule row : panel.all) {
             row.cancelInputs();
+            row.resetCompactMotion();
             row.getPresentation().reset();
             for (Component.Sub<?> value : row.presentationValues()) value.getPresentation().reset();
         }
