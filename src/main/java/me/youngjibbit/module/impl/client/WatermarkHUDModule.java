@@ -45,7 +45,7 @@ public class WatermarkHUDModule extends Module {
     public WatermarkHUDModule(){radius.setVisibility(m->localRadius.getValue());animated.setVisibility(m->!textStyle.getValue().equals("Theme"));speed.setVisibility(m->!textStyle.getValue().equals("Theme")&&animated.getValue());
         islandTarget.setVisibility(m->"Dynamic Island".equals(mode.getValue()));
         islandClock.setVisibility(m->"Dynamic Island".equals(mode.getValue()));}
-    @Subscribe private final Listener<Event2D> onRender2D=new Listener<>(event->{if(!mc.gameSettings.showDebugInfo)renderWatermark();});
+    @Subscribe private final Listener<Event2D> onRender2D=new Listener<>(event->{if(!mc.gameSettings.showDebugInfo)renderWatermark();else if(islandActive){resetIsland();surface.close();}});
     @Override public void onDisable(){resetIsland();surface.close();textEffects.close();super.onDisable();}
     void renderWatermark(){
         if(!HUD.visible()){resetIsland();surface.close();textEffects.close();return;}
@@ -141,8 +141,10 @@ public class WatermarkHUDModule extends Module {
                 showName,showVersion,showClock);
         final IslandPresentation fading=previous==null?null:IslandPresentation.from(previous,
                 clientName,clientVersion,clock,showName,showVersion,showClock);
+        // A queued bloom pass may outlive a world/mode/visibility change: fence it.
+        final long passEpoch=islandEpoch;
         // Reuse the single existing surface and shared halo/blur/RenderState pools.
-        GuiShaderBloom.afterBatch(()->surface.designedPanel(frame.x,frame.y,frame.width,frame.height,
+        final Runnable drawIsland=()->surface.designedPanel(frame.x,frame.y,frame.width,frame.height,
                 frame.radius,theme,panel,useBlur,useGlow,5,
                 .65f*frame.opacity,.48f*frame.opacity,false,
                 ()->{
@@ -151,7 +153,8 @@ public class WatermarkHUDModule extends Module {
                         if(fading!=null&&mix<1)paintIsland(fading,frame,font,theme,(1-mix)*frame.opacity);
                         paintIsland(present,frame,font,theme,mix*frame.opacity);
                     }
-                }));
+                });
+        GuiShaderBloom.afterBatch(()->{if(islandActive&&passEpoch==islandEpoch)drawIsland.run();});
     }
 
     private void paintIsland(IslandPresentation view,IslandLayout.Frame frame,
