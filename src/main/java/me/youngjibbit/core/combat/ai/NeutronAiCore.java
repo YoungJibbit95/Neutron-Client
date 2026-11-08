@@ -141,6 +141,7 @@ public final class NeutronAiCore {
             return hold;
         }
         if (order > 0) {
+            current = null; // never leave a previous valid session on a failed new warmup
             lastEpoch = acquisition.connectionEpoch;
             lastGeneration = acquisition.generation;
             State fresh = new State(acquisition, motionSequence, nanos, hold);
