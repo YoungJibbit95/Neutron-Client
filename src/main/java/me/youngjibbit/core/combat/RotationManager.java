@@ -971,6 +971,21 @@ public final class RotationManager {
             state.invalidateAdaptive();
             return null;
         }
+        final AdaptivePresetMotion.Configuration preset;
+        try {
+            preset = new AdaptivePresetMotion.Configuration(profile.adaptiveSpeed,
+                    profile.adaptiveHitpoint, profile.adaptiveVariation,
+                    profile.yawSpeed, profile.pitchSpeed);
+        } catch (IllegalArgumentException badPreset) {
+            state.invalidateAdaptive();
+            return null;
+        }
+        // Changed tuning invalidates the previous acquisition and recreates its fixed limits.
+        if(state.adaptivePreset!=null && !state.adaptivePreset.same(preset)) {
+            state.invalidateAdaptive();
+            state.adaptive=null;
+            state.adaptivePreset=null;
+        }
         // No second acquisition is permitted within a consumed physical motion sequence.
         if(state.adaptiveBlockedSequence==sequence) return new float[]{fromYaw,fromPitch};
         // A previously accepted different owner cannot carry an Adaptive trajectory.
@@ -985,7 +1000,6 @@ public final class RotationManager {
             state.invalidateAdaptive();
             return null;
         }
-        final float[] desired=angles(eyes,point);
         final long now=curveMotionTime();
         final long suspension=observation.getObservedSuspensionRevision();
         if(state.adaptiveToken==null || state.adaptiveTarget.get()!=target
@@ -998,13 +1012,8 @@ public final class RotationManager {
             }
             state.invalidateAdaptive();
             if(state.adaptive==null) {
-                // The old Aura yaw/pitch sliders remain operative; new presets follow in Phase 3.
-                double yaw=Math.min(720,Math.max(20,profile.yawSpeed*20.0));
-                double pitch=Math.min(720,Math.max(20,profile.pitchSpeed*20.0));
-                double acceleration=Math.min(4200,Math.max(300,Math.max(yaw,pitch)*6));
-                state.adaptive=new AdaptiveMotionController(state.adaptiveSeed,
-                        new AdaptiveMotionController.Limits(yaw,pitch,acceleration,
-                                Math.min(84000,Math.max(9000,acceleration*20)),.14,.12));
+                state.adaptive=new AdaptiveMotionController(state.adaptiveSeed, preset.limits());
+                state.adaptivePreset=preset;
             }
             state.adaptiveToken=new AdaptiveMotionController.Acquisition(state,mc.theWorld,target,
                     scene.getConnectionGeneration(),++state.adaptiveOrdinal);
@@ -1012,10 +1021,25 @@ public final class RotationManager {
             state.adaptiveScene=scene;
             state.adaptiveSuspension=suspension;
             state.adaptiveStartNanos=now;
+            state.adaptiveHitpoint=new AdaptivePresetMotion.HitpointTrajectory(
+                    state.adaptiveSeed ^ (state.adaptiveOrdinal * 0x9e3779b97f4a7c15L),
+                    preset.hitpoint);
         }
         // Relative monotonic time is safe even when the VM's System.nanoTime origin is negative.
         long elapsed=now-state.adaptiveStartNanos;
         if(elapsed<0) { state.invalidateAdaptive(); return null; }
+        if(state.adaptiveHitpoint==null) { state.invalidateAdaptive(); return null; }
+        double[] hit=state.adaptiveHitpoint.point(
+                point.xCoord,point.yCoord,point.zCoord,
+                box.minX,box.minY,box.minZ,box.maxX,box.maxY,box.maxZ,
+                elapsed * 1e-9);
+        if(hit==null) { state.invalidateAdaptive(); return null; }
+        if(preset.hitpoint!=AdaptivePresetMotion.Hitpoint.STABLE) {
+            Vec3 candidate=new Vec3(hit[0],hit[1],hit[2]);
+            // Preserve the original raycast/visibility policy: an invalid point is never sent.
+            if(hitsPoint(rays,feet,target,candidate,profile)) point=candidate;
+        }
+        final float[] desired=angles(eyes,point);
         AdaptiveMotionController.Result result=state.adaptive.advance(state.adaptiveToken,sequence,
                 elapsed,fromYaw,fromPitch,desired[0],desired[1],true);
         state.adaptiveLastSequence=sequence;
@@ -1169,6 +1193,8 @@ public final class RotationManager {
         final ArsenicAimTrajectory arsenic;
         final long adaptiveSeed;
         AdaptiveMotionController adaptive;
+        AdaptivePresetMotion.Configuration adaptivePreset;
+        AdaptivePresetMotion.HitpointTrajectory adaptiveHitpoint;
         AdaptiveMotionController.Acquisition adaptiveToken;
         SceneContext adaptiveScene;
         WeakReference<Object> adaptiveTarget=new WeakReference<>(null);
@@ -1180,6 +1206,7 @@ public final class RotationManager {
         void invalidateAdaptive() {
             if(adaptive!=null && adaptiveToken!=null) adaptive.invalidateIfCurrent(adaptiveToken);
             adaptiveToken=null;
+            adaptiveHitpoint=null;
             adaptiveScene=null;
             adaptiveTarget.clear();
         }

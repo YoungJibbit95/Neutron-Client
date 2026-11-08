@@ -142,6 +142,10 @@ public class Aura extends Module {
         rotationSettings.softArsenicMotion.reset();
         rotationSettings.hitpointVariation.reset();
         rotationSettings.speedCurve.reset();
+        // Missing Adaptive-only keys in a warm import revert to new-mode defaults.
+        rotationSettings.adaptiveSpeedPreset.reset();
+        rotationSettings.adaptiveHitpointPreset.reset();
+        rotationSettings.adaptiveVariationStrength.reset();
         if(rotationSettings.arsenic() || rotationSettings.adaptive())rotationSettings.mode.reset();
     }
 
