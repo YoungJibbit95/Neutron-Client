@@ -55,7 +55,11 @@ public class NeutronTwoGuiTest {
         throw new NoSuchFieldException(name);
     }
     private static class Screen extends NeutronTwoGui {
-        void setup(int w,int h){((GuiScreen)this).width=w;((GuiScreen)this).height=h;initGui();}
+        void setup(int w,int h)throws Exception{
+            ((GuiScreen)this).width=w;((GuiScreen)this).height=h;initGui();
+            Method layout=ClickGui.class.getDeclaredMethod("layoutModules",float.class);
+            layout.setAccessible(true);layout.invoke(this,0f);
+        }
         void click(int mx,int my,int button)throws Exception{mouseClicked(mx,my,button);}
         void release(){mouseReleased(-1,-1,0);}
         void key(int code)throws Exception{keyTyped(' ',code);}
