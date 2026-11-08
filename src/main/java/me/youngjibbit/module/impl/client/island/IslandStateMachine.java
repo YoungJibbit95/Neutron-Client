@@ -1,6 +1,7 @@
 package me.youngjibbit.module.impl.client.island;
 
 import java.util.Locale;
+import java.util.Arrays;
 
 /**
  * Pure, bounded view state. Callers supply already validated, immutable observations.
@@ -61,7 +62,25 @@ public final class IslandStateMachine {
     private long epoch = Long.MIN_VALUE, lastNow, warningCooldownUntil;
     private boolean clockValid, warningSeen;
     private Event active;
-    private String lastEventId;
+    // Bounded idempotency window: no duplicate toasts during rapid toggle bursts.
+    private static final int RECENT_EVENTS = 32;
+    private final String[] recentEventIds = new String[RECENT_EVENTS];
+    private int recentCursor, recentCount;
+
+    private void clearRecent() {
+        Arrays.fill(recentEventIds, null);
+        recentCursor = recentCount = 0;
+    }
+    private boolean seen(String id) {
+        for (int i = 0; i < recentCount; i++)
+            if (id.equals(recentEventIds[i])) return true;
+        return false;
+    }
+    private void remember(String id) {
+        recentEventIds[recentCursor] = id;
+        recentCursor = (recentCursor + 1) % RECENT_EVENTS;
+        if (recentCount < RECENT_EVENTS) recentCount++;
+    }
 
     private static final class Event {
         final State state;
@@ -74,7 +93,7 @@ public final class IslandStateMachine {
 
     private void enterEpoch(long next) {
         if (epoch == next) return;
-        epoch = next; active = null; lastEventId = null;
+        epoch = next; active = null; clearRecent();
         warningCooldownUntil = 0; lastNow = 0; clockValid = false; warningSeen = false;
     }
     private long time(long nanos) {
@@ -91,14 +110,14 @@ public final class IslandStateMachine {
         enterEpoch(sourceEpoch);
         long now = time(nowNanos);
         if (state != State.MODULE_TOAST && state != State.POSSIBLE_SETBACK) return false;
-        if (eventId == null || eventId.trim().isEmpty() || eventId.equals(lastEventId)) return false;
+        if (eventId == null || eventId.trim().isEmpty() || seen(eventId)) return false;
         if (state == State.POSSIBLE_SETBACK && warningSeen && now < warningCooldownUntil) return false;
         if (active != null && active.expires > now && active.state == State.POSSIBLE_SETBACK
                 && state == State.MODULE_TOAST) return false;
         long ttl = state == State.POSSIBLE_SETBACK ? WARNING_NANOS : TOAST_NANOS;
         active = new Event(state, state == State.POSSIBLE_SETBACK ? "Possible setback"
                 : IslandLayout.limitText(label, 42), now + ttl);
-        lastEventId = eventId;
+        remember(eventId);
         if (state == State.POSSIBLE_SETBACK) { warningCooldownUntil = now + WARNING_COOLDOWN_NANOS; warningSeen = true; }
         return true;
     }
@@ -118,10 +137,11 @@ public final class IslandStateMachine {
     }
 
     public int pendingEventCount() { return active == null ? 0 : 1; }
+    public int rememberedEventCount() { return recentCount; }
 
     public void reset() {
         epoch = Long.MIN_VALUE; lastNow = 0; warningCooldownUntil = 0;
-        lastEventId = null; active = null; clockValid = false; warningSeen = false;
+        active = null; clearRecent(); clockValid = false; warningSeen = false;
     }
 
     private static float clamp(float value, float min, float max) {
