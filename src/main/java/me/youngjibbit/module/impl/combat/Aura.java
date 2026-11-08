@@ -282,23 +282,22 @@ public class Aura extends Module {
     @Subscribe private final Listener<EventRotation> prepareRotation = new Listener<>(preparation -> handleMotion(preparation.motion()));
 
     private void handleMotion(EventMotion event) {
-        // Isolate the client reference for the full early PRE boundary. A test
-        // scene (or a reentrant lifecycle callback) may exchange the shared
-        // client while a listener is still processing an old motion event.
-        final net.minecraft.client.Minecraft entryClient=mc;
-        if (entryClient == null || !usable()) {
-            clearCombat(entryClient == null || entryClient.thePlayer == null || entryClient.theWorld == null);
+        // Retain the historical POST eligibility and scheduler invocation order.
+        // Only the initial PRE scene comparison requires a stable local client.
+        if (!usable()) {
+            clearCombat(mc == null || mc.thePlayer == null || mc.theWorld == null);
             return;
         }
-        // A selected AI rotation approach never silently becomes camera-only Aura.
         if(rotationSettings.aiLearned() && !rotations.getValue())return;
 
         if (event.isPre()) {
+            final net.minecraft.client.Minecraft entryClient=mc;
+            if(entryClient==null)return; // stale synthetic/reentrant client; no new authority
             if (worldContext != entryClient.theWorld || playerContext != entryClient.thePlayer) {
                 clearCombat(true);
-                // The first real PRE can invalidate a prior scene and callbacks
-                // may replace the client. Do not consume stale state afterward.
-                if (mc != entryClient || !usable()) return;
+                // Only AI's new candidate path needs the stronger post-reset
+                // scene gate. All older PRE/POST modes retain their original flow.
+                if(rotationSettings.aiLearned() && (mc!=entryClient || !usable()))return;
             }
             worldContext = entryClient.theWorld;
             playerContext = entryClient.thePlayer;

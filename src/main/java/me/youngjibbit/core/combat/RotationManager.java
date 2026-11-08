@@ -1038,12 +1038,16 @@ public final class RotationManager {
         long suspension=obs.getObservedSuspensionRevision();
         NeutronAiCore.Candidate candidate=s.ai.advance(s.aiToken,o,sequence,curveMotionTime(),true);
         s.aiLastSequence=sequence;
-        if(!candidate.hasRotation)return null; // no model, warm-up or settled goal: HOLD
+        // Core can HOLD because it has settled OR because a pause/backwards
+        // clock invalidated its acquisition. Only the former may retain a
+        // previously accepted same-target Aura C03.
+        if(!s.ai.hasCurrentAcquisition(s.aiToken)) {s.invalidateAi();return null;}
         if(!collecting || !obs.isCurrent(scene)
                 || obs.getObservedSuspensionRevision()!=suspension
                 || mc.currentScreen!=null || !mc.inGameHasFocus) {
             s.invalidateAi();return null;
         }
+        if(!candidate.hasRotation)return aiAcceptedHold(s,fromYaw,fromPitch);
         float wanted=fromYaw+MathHelper.wrapAngleTo180_float((float)candidate.yaw-fromYaw);
         float[] snapped=quantize(wanted,(float)candidate.pitch,fromYaw,fromPitch,
                 mc.gameSettings.mouseSensitivity);
@@ -1051,9 +1055,27 @@ public final class RotationManager {
             s.invalidateAi();return null;
         }
         if(Math.abs(MathHelper.wrapAngleTo180_float(snapped[0]-fromYaw))<.0001f
-                && Math.abs(snapped[1]-fromPitch)<.0001f)return null;
+                && Math.abs(snapped[1]-fromPitch)<.0001f)
+            return aiAcceptedHold(s,fromYaw,fromPitch);
         s.aiOfferedSequence=sequence;
         return snapped;
+    }
+
+    /**
+     * Reoffer only the *already accepted* prior AI pose for a still-live
+     * acquisition. This must win fresh request arbitration and fresh C03
+     * acceptance before the existing controller/raycast can act in POST.
+     * A first-sample HOLD, foreign owner, rejected packet, changed target or
+     * lost Core acquisition can never take this path.
+     */
+    private float[] aiAcceptedHold(RotationState state,float yaw,float pitch) {
+        if(previousAccepted && "aura".equals(owner)
+                && state.aiOfferedSequence!=Long.MIN_VALUE
+                && state.aiOfferedSequence+1==sequence) {
+            state.aiOfferedSequence=sequence;
+            return new float[]{yaw,pitch};
+        }
+        return null;
     }
 
     /**
