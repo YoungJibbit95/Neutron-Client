@@ -69,10 +69,11 @@ public class NeutronTwoGuiTest {
         Screen modern=new Screen();modern.setup(854,480);
         assertTrue(modern.modernPresentation());
         assertEquals(640f,(Float)field(modern,"width"),.01f);
-        assertEquals(420f,(Float)field(modern,"height"),.01f);
+        assertEquals(440f,(Float)field(modern,"height"),.01f);
         float left=(Float)field(modern,"x");
         ClipRect viewport=(ClipRect)field(modern,"viewport");
-        assertEquals(left+156,viewport.x,.01f);
+        assertEquals(left+me.youngjibbit.gui.NeutronVisualTokens.sidebar(640)+16,
+                viewport.x,.01f);
         ClickGui legacy=new ClickGui();
         assertFalse(legacy.modernPresentation());
         modern.setup(320,240);
@@ -95,7 +96,9 @@ public class NeutronTwoGuiTest {
         assertEquals(1,dummy.enabledCount);
         screen.release();screen.release();assertEquals(1,dummy.enabledCount);
         float x=(Float)field(screen,"x"),y=(Float)field(screen,"y");
-        screen.click((int)x+15,(int)y+44+4+32+12,0);
+        screen.click((int)x+15,(int)y+56+4+
+                (int)me.youngjibbit.gui.NeutronVisualTokens.categoryPitch(
+                        (Float)field(screen,"height"),Category.values().length)+12,0);
         assertEquals(Category.Movement,field(screen,"selectedCategory"));
         screen.key(Keyboard.KEY_PRIOR);
         assertEquals(Category.Combat,field(screen,"selectedCategory"));
@@ -106,7 +109,9 @@ public class NeutronTwoGuiTest {
     @Test public void reopeningKeepsLogicalCategoryButDiscardsPointerCapture()throws Exception {
         Screen screen=new Screen();screen.setup(854,480);
         float x=(Float)field(screen,"x"),y=(Float)field(screen,"y");
-        screen.click((int)x+15,(int)y+44+4+32+12,0);
+        screen.click((int)x+15,(int)y+56+4+
+                (int)me.youngjibbit.gui.NeutronVisualTokens.categoryPitch(
+                        (Float)field(screen,"height"),Category.values().length)+12,0);
         screen.release();
         assertEquals(Category.Movement,field(screen,"selectedCategory"));
         screen.click((int)x+38,(int)y+14,0);

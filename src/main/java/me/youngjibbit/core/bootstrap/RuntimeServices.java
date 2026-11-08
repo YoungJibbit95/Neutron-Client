@@ -4,6 +4,7 @@ import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.combat.AttackScheduler;
 import me.youngjibbit.core.combat.RaycastService;
 import me.youngjibbit.core.combat.RotationManager;
+import me.youngjibbit.core.combat.NeutronAiPersonalModelLoader;
 import me.youngjibbit.core.combat.TargetingService;
 import me.youngjibbit.core.world.ScaffoldPlacementService;
 import me.youngjibbit.core.observation.RuntimeObservation;
@@ -37,6 +38,12 @@ public final class RuntimeServices {
     public static TargetingService targeting() {
         ClientRuntime runtime = runtime();
         return runtime != null ? runtime.getTargetingService() : FALLBACK_TARGETING;
+    }
+
+    /** Explicit-only personal AI loader; no implicit activation or model I/O. */
+    public static NeutronAiPersonalModelLoader personalAiLoader() {
+        ClientRuntime runtime=runtime();
+        return runtime==null?null:runtime.getPersonalAiLoader();
     }
 
     public static RotationManager rotation() {
