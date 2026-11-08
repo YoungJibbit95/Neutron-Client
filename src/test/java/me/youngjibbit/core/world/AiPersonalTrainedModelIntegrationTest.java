@@ -11,6 +11,10 @@ import net.minecraft.network.play.client.C03PacketPlayer;
 import net.minecraft.util.Session;
 import org.junit.Rule;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import java.util.Arrays;
+import java.util.Collection;
 import org.junit.rules.TemporaryFolder;
 
 import java.nio.file.Files;
@@ -26,7 +30,20 @@ import static org.junit.Assert.*;
  * training and personal local HMAC save/load, then observes actual Aura and
  * Minecraft walking C03/C02 gates. No imported/predefined fake model weights.
  */
+@RunWith(Parameterized.class)
 public class AiPersonalTrainedModelIntegrationTest {
+    @Parameterized.Parameters(name="{0}")
+    public static Collection<Object[]> cases() {return Arrays.asList(new Object[][]{
+        {"realTrainerCheckpointEntersExistingAuraC03PipelineButNeverOverridesC02Gates"},
+        {"tamperedModelManifestAndLocalKeyAreAlwaysRejectedAndDeletionPreservesOtherFiles"},
+        {"accountChangeConnectionEpochAndWorldChangeDisposePrivateWeights"}
+    });}
+    private final String caseName;
+    public AiPersonalTrainedModelIntegrationTest(String caseName) {this.caseName=caseName;}
+    @Test public void trainedCheckpointThroughRealAuraInFreshJvm() throws Exception {
+        Wave2IsolatedCase.run(Checks.class,caseName);
+    }
+
     @Rule public TemporaryFolder temp=new TemporaryFolder();
 
     private static NeutronAiTrainer.Result trained;
@@ -99,7 +116,7 @@ public class AiPersonalTrainedModelIntegrationTest {
         }
     }
 
-    @Test public void realTrainerCheckpointEntersExistingAuraC03PipelineButNeverOverridesC02Gates() throws Exception {
+    public void realTrainerCheckpointEntersExistingAuraC03PipelineButNeverOverridesC02Gates() throws Exception {
         try(Run run=new Run(temp.newFolder().toPath())) {
             run.scene.run.fixture.player.usingItem=true;
             run.authorizeSaveAndLoad();
@@ -128,7 +145,7 @@ public class AiPersonalTrainedModelIntegrationTest {
         }
     }
 
-    @Test public void tamperedModelManifestAndLocalKeyAreAlwaysRejectedAndDeletionPreservesOtherFiles() throws Exception {
+    public void tamperedModelManifestAndLocalKeyAreAlwaysRejectedAndDeletionPreservesOtherFiles() throws Exception {
         Path root=temp.newFolder().toPath();
         try(Run run=new Run(root)) {
             assertTrue(run.loader.allowSession(true,run.scope));
@@ -175,7 +192,7 @@ public class AiPersonalTrainedModelIntegrationTest {
         }
     }
 
-    @Test public void accountChangeConnectionEpochAndWorldChangeDisposePrivateWeights() throws Exception {
+    public void accountChangeConnectionEpochAndWorldChangeDisposePrivateWeights() throws Exception {
         for(int scenario=0;scenario<3;scenario++) {
             try(Run run=new Run(temp.newFolder().toPath())) {
                 run.authorizeSaveAndLoad();
@@ -197,4 +214,24 @@ public class AiPersonalTrainedModelIntegrationTest {
             }
         }
     }
+    /** Only the fixture is isolated; production and assertion paths are identical. */
+    public static final class Checks {
+        @Rule public TemporaryFolder temp=new TemporaryFolder();
+        @Test public void realTrainerCheckpointEntersExistingAuraC03PipelineButNeverOverridesC02Gates() throws Exception {
+            AiPersonalTrainedModelIntegrationTest suite=new AiPersonalTrainedModelIntegrationTest("realTrainerCheckpointEntersExistingAuraC03PipelineButNeverOverridesC02Gates");
+            suite.temp=temp;
+            suite.realTrainerCheckpointEntersExistingAuraC03PipelineButNeverOverridesC02Gates();
+        }
+        @Test public void tamperedModelManifestAndLocalKeyAreAlwaysRejectedAndDeletionPreservesOtherFiles() throws Exception {
+            AiPersonalTrainedModelIntegrationTest suite=new AiPersonalTrainedModelIntegrationTest("tamperedModelManifestAndLocalKeyAreAlwaysRejectedAndDeletionPreservesOtherFiles");
+            suite.temp=temp;
+            suite.tamperedModelManifestAndLocalKeyAreAlwaysRejectedAndDeletionPreservesOtherFiles();
+        }
+        @Test public void accountChangeConnectionEpochAndWorldChangeDisposePrivateWeights() throws Exception {
+            AiPersonalTrainedModelIntegrationTest suite=new AiPersonalTrainedModelIntegrationTest("accountChangeConnectionEpochAndWorldChangeDisposePrivateWeights");
+            suite.temp=temp;
+            suite.accountChangeConnectionEpochAndWorldChangeDisposePrivateWeights();
+        }
+    }
+
 }
