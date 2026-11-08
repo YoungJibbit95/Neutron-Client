@@ -191,6 +191,12 @@ public class AdaptiveAuraIntegrationTest {
                     }
                     h.rotation.request("aura", RotationManager.AURA_PRIORITY, first[0], first[1]);
                     h.rotation.finishMotion(first[0], first[1], true);
+                    // A POST/HUD read is never another motion step and must not clear history.
+                    for (int render = 0; render < fps / 20; render++) {
+                        float[] idle = h.rotation.calculateRotations("aura", h.f.player.rotationYaw,
+                                h.f.player.rotationPitch, h.first, false, profile(), false);
+                        assertArrayEquals(first, idle, 0f);
+                    }
                     angles.add(first[0]);
                     angles.add(first[1]);
                 } finally {
@@ -209,6 +215,34 @@ public class AdaptiveAuraIntegrationTest {
         p.yawSpeed = 28;
         p.pitchSpeed = 28;
         return p;
+    }
+
+    @Test public void targetFlappingInsideOneMotionSequenceCannotReacquireRepeatedly() throws Exception {
+        try (Harness h = new Harness()) {
+            RuntimeObservation observed = h.f.runtime.getObservation();
+            observed.beginOuterTick();
+            try {
+                h.rotation.bindConnection(h.f.network.getClientPackets());
+                h.rotation.beginMotion(h.f.player, h.scene, 0, 0);
+                RotationBehaviorHookTest.Player other = h.target(2.5, 2.5);
+                float[] first = h.rotation.calculateRotations("aura", 0, 0,
+                        h.first, false, profile(), false);
+                assertNotNull(first);
+                assertArrayEquals(first, h.rotation.calculateRotations("aura", 0, 0,
+                        other, false, profile(), false), 0f);
+                assertArrayEquals(first, h.rotation.calculateRotations("aura", 0, 0,
+                        h.first, false, profile(), false), 0f);
+                java.lang.reflect.Field states = RotationManager.class.getDeclaredField("states");
+                states.setAccessible(true);
+                Object state = ((java.util.Map<?, ?>) states.get(h.rotation)).get("aura");
+                java.lang.reflect.Field ordinal = state.getClass().getDeclaredField("adaptiveOrdinal");
+                ordinal.setAccessible(true);
+                assertEquals("no additional acquisition within the same physical motion", 1L,
+                        ordinal.getLong(state));
+            } finally {
+                observed.endOuterTick();
+            }
+        }
     }
 
     @Test public void rejectedC03AndForeignOwnerCannotRetainAdaptiveAuthority() throws Exception {
