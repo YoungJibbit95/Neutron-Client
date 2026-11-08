@@ -6,6 +6,8 @@ import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.font.TTFFontRenderer;
 import me.youngjibbit.utils.render.UIUtils;
 import me.youngjibbit.utils.render.UiEffects;
+import me.youngjibbit.gui.HudSpring;
+import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.value.impl.SliderValue;
 import java.awt.Color;
 import java.math.BigDecimal;
@@ -15,6 +17,8 @@ public class ClickSlider extends Component.Sub<SliderValue> {
     private boolean dragging,editing,replaceInput,error;
     private String input="";
     private float displayedFraction = Float.NaN;
+    private final HudSpring panelValue=new HudSpring();
+    public void resetPanelMotion(){displayedFraction=Float.NaN;panelValue.reset();}
 
     private float fraction() {
         double range = value.getMax() - value.getMin();
@@ -25,12 +29,19 @@ public class ClickSlider extends Component.Sub<SliderValue> {
         super.advanceMotion(dt, mx, my, focused, pressed, visible);
         if (!panelStyle) return;
         if (!visible) {
-            displayedFraction = Float.NaN;
+            resetPanelMotion();
             return;
         }
         float target = fraction();
-        if (dragging || Float.isNaN(displayedFraction)) displayedFraction = target;
-        else displayedFraction += (target - displayedFraction) * UiEffects.response(dt, 24);
+        if (dragging || Float.isNaN(displayedFraction)) displayedFraction=panelValue.snap(target);
+        else {
+            ClientSettings settings=ClientSettings.current();
+            float response=panelValue.step(target,dt,
+                    settings==null||settings.animations.getValue(),
+                    settings!=null&&settings.reducedMotion.getValue(),
+                    settings==null?"Balanced":settings.motionIntensity.getValue());
+            displayedFraction=Math.max(0,Math.min(1,response));
+        }
     }
     public boolean isEditing(){return editing;}
     public void cancelInput(){editing=false;dragging=false;error=false;}
@@ -128,7 +139,7 @@ public class ClickSlider extends Component.Sub<SliderValue> {
         double progress=Math.max(0,Math.min(1,(mouseX-trackX())/trackWidth()));
         double next=value.getMin()+progress*(value.getMax()-value.getMin());
         value.setValue(BigDecimal.valueOf(next).setScale(2,RoundingMode.HALF_UP).doubleValue());
-        if (panelStyle) displayedFraction = fraction();
+        if (panelStyle) displayedFraction=panelValue.snap(fraction());
     }
     @Override public void mouseClicked(int mouseX,int mouseY,int button){
         if(button==0&&hit(mouseX,mouseY,valueX(),badgeY(),valueWidth(),badgeHeight())){beginInput();return;}
