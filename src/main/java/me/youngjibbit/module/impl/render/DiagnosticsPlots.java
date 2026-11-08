@@ -19,6 +19,15 @@ final class DiagnosticsPlots {
 
     private DiagnosticsPlots() {}
 
+    /** Pure presentation view: raw samples/history are never rewritten or fabricated. */
+    static double[] easedTail(double[] source,float displayed) {
+        double[] view=source==null?new double[0]:source.clone();
+        if(view.length>0 && Double.isFinite(view[view.length-1])
+                && view[view.length-1]>=0 && Float.isFinite(displayed) && displayed>=0)
+            view[view.length-1]=displayed;
+        return view;
+    }
+
     static void series(double[] values, double floor, Theme theme, TTFFontRenderer font, int ink, String axis) {
         double maximum = floor;
         for (double sample : values) if (sample >= 0 && Double.isFinite(sample)) maximum = Math.max(maximum, sample);
