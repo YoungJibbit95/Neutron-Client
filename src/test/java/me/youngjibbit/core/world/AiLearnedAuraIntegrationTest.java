@@ -55,6 +55,14 @@ public class AiLearnedAuraIntegrationTest {
     }
     private static void inject(Wave05AuraSelectionChecks.SelectionRun f,
                                NeutronAiCheckpoint checkpoint) throws Exception {
+        // Production's first PRE binds the world/player and resets previously
+        // unscoped rotation state. Prime that *actual* walking boundary before
+        // installing the synthetic checkpoint; otherwise we test a model that
+        // was correctly disposed by the subsequent first scene acquisition.
+        // No model means this priming step is required to HOLD without C02.
+        List<Object> priming=f.walk();
+        assertEquals(0,count(priming,C02PacketUseEntity.class));
+        assertFalse(rotation(f).isAiAuraMotionAccepted());
         RotationManager manager=rotation(f);
         manager.bindConnection(f.run.fixture.network.getClientPackets());
         // No production model loader; this package-private entry is only for JUnit.

@@ -282,17 +282,26 @@ public class Aura extends Module {
     @Subscribe private final Listener<EventRotation> prepareRotation = new Listener<>(preparation -> handleMotion(preparation.motion()));
 
     private void handleMotion(EventMotion event) {
-        if (!usable()) {
-            clearCombat(mc == null || mc.thePlayer == null || mc.theWorld == null);
+        // Isolate the client reference for the full early PRE boundary. A test
+        // scene (or a reentrant lifecycle callback) may exchange the shared
+        // client while a listener is still processing an old motion event.
+        final Minecraft entryClient=mc;
+        if (entryClient == null || !usable()) {
+            clearCombat(entryClient == null || entryClient.thePlayer == null || entryClient.theWorld == null);
             return;
         }
         // A selected AI rotation approach never silently becomes camera-only Aura.
         if(rotationSettings.aiLearned() && !rotations.getValue())return;
 
         if (event.isPre()) {
-            if (worldContext != mc.theWorld || playerContext != mc.thePlayer) clearCombat(true);
-            worldContext = mc.theWorld;
-            playerContext = mc.thePlayer;
+            if (worldContext != entryClient.theWorld || playerContext != entryClient.thePlayer) {
+                clearCombat(true);
+                // The first real PRE can invalidate a prior scene and callbacks
+                // may replace the client. Do not consume stale state afterward.
+                if (mc != entryClient || !usable()) return;
+            }
+            worldContext = entryClient.theWorld;
+            playerContext = entryClient.thePlayer;
             final long generation = lifecycleGeneration;
 
             List<EntityLivingBase> collected = RuntimeServices.targeting().collectTargets(acquisitionOptions(), mapSort(sortMode.getValue()));
