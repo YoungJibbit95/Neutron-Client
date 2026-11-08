@@ -59,6 +59,7 @@ public final class IslandStateMachine {
     private static final long WARNING_NANOS = 2_400_000_000L;
     private static final long WARNING_COOLDOWN_NANOS = 4_000_000_000L;
     private long epoch = Long.MIN_VALUE, lastNow, warningCooldownUntil;
+    private boolean clockValid, warningSeen;
     private Event active;
     private String lastEventId;
 
@@ -74,10 +75,11 @@ public final class IslandStateMachine {
     private void enterEpoch(long next) {
         if (epoch == next) return;
         epoch = next; active = null; lastEventId = null;
-        warningCooldownUntil = 0; lastNow = 0;
+        warningCooldownUntil = 0; lastNow = 0; clockValid = false; warningSeen = false;
     }
     private long time(long nanos) {
-        if (nanos > lastNow) lastNow = nanos;
+        if (!clockValid || nanos > lastNow) lastNow = nanos;
+        clockValid = true;
         return lastNow;
     }
 
@@ -90,14 +92,14 @@ public final class IslandStateMachine {
         long now = time(nowNanos);
         if (state != State.MODULE_TOAST && state != State.POSSIBLE_SETBACK) return false;
         if (eventId == null || eventId.trim().isEmpty() || eventId.equals(lastEventId)) return false;
-        if (state == State.POSSIBLE_SETBACK && now < warningCooldownUntil) return false;
+        if (state == State.POSSIBLE_SETBACK && warningSeen && now < warningCooldownUntil) return false;
         if (active != null && active.expires > now && active.state == State.POSSIBLE_SETBACK
                 && state == State.MODULE_TOAST) return false;
         long ttl = state == State.POSSIBLE_SETBACK ? WARNING_NANOS : TOAST_NANOS;
         active = new Event(state, state == State.POSSIBLE_SETBACK ? "Possible setback"
                 : IslandLayout.limitText(label, 42), now + ttl);
         lastEventId = eventId;
-        if (state == State.POSSIBLE_SETBACK) warningCooldownUntil = now + WARNING_COOLDOWN_NANOS;
+        if (state == State.POSSIBLE_SETBACK) { warningCooldownUntil = now + WARNING_COOLDOWN_NANOS; warningSeen = true; }
         return true;
     }
 
@@ -119,7 +121,7 @@ public final class IslandStateMachine {
 
     public void reset() {
         epoch = Long.MIN_VALUE; lastNow = 0; warningCooldownUntil = 0;
-        lastEventId = null; active = null;
+        lastEventId = null; active = null; clockValid = false; warningSeen = false;
     }
 
     private static float clamp(float value, float min, float max) {
