@@ -712,7 +712,10 @@ public final class RotationManager {
         for (Map.Entry<String,RotationState> entry : states.entrySet()) {
             RotationTrajectory trajectory=entry.getValue().trajectory;
             if(trajectory.hasSpeedCurve() && !entry.getKey().equals(acceptedSource))trajectory.resetSpeedCurve();
-            if(!entry.getKey().equals(acceptedSource))entry.getValue().arsenic.reset();
+            if(!entry.getKey().equals(acceptedSource)) {
+                entry.getValue().arsenic.reset();
+                entry.getValue().invalidateAdaptive();
+            }
         }
     }
 
@@ -892,6 +895,7 @@ public final class RotationManager {
                                       boolean bestHitVec,RotationProfile profile,boolean visible) {
         if(target==null || mc==null || mc.thePlayer==null) return null;
         RotationState state=state(source);
+        if(!profile.adaptive) state.invalidateAdaptive();
         state.softVisible = visible && profile.arsenic != RotationProfile.ArsenicMode.OFF && profile.softArsenicMotion;
         AxisAlignedBB box=target.getEntityBoundingBox();
         Vec3 feet=new Vec3(mc.thePlayer.posX,mc.thePlayer.posY,mc.thePlayer.posZ);
@@ -905,6 +909,10 @@ public final class RotationManager {
                 if(collecting)state.trajectory.pauseMotion(target,sequence,curveMotionTime());
             } else state.trajectory.pause(target);
             return new float[]{fromYaw,fromPitch};
+        }
+        if(profile.adaptive) {
+            if(!"aura".equals(source) || visible) { state.invalidateAdaptive(); return null; }
+            return adaptiveRotations(state,target,box,feet,eyes,bestHitVec,profile,fromYaw,fromPitch);
         }
         if(profile.arsenic!=RotationProfile.ArsenicMode.OFF) {
             if(!collecting)return new float[]{fromYaw,fromPitch};
@@ -925,6 +933,92 @@ public final class RotationManager {
         if((profile.smartAim || profile.heuristics) && !hitsPoint(rays,feet,target,aim,profile))aim=base;
         float[] desired=angles(eyes,aim);
         return profileStep(source,cameraYaw,cameraPitch,target,desired[0],desired[1],eyes.distanceTo(aim),profile,visible);
+    }
+
+    /**
+     * Adaptive is only an Aura candidate consumer. The existing Request arbitration,
+     * sensitivity grid, transport-accepted C03 and AttackScheduler remain authoritative.
+     * No new packet/action path exists here.
+     */
+    private float[] adaptiveRotations(RotationState state, EntityLivingBase target, AxisAlignedBB box,
+                                      Vec3 feet, Vec3 eyes, boolean bestHitVec,
+                                      RotationProfile profile, float fromYaw, float fromPitch) {
+        if(!collecting || mc==null || mc.thePlayer==null || mc.theWorld==null
+                || mc.gameSettings==null || mc.currentScreen!=null || !mc.inGameHasFocus
+                || mc.isGamePaused() || mc.getRenderViewEntity()!=mc.thePlayer
+                || motionPlayer.get()!=mc.thePlayer || motionWorld.get()!=mc.theWorld
+                || !Float.isFinite(profile.yawSpeed) || !Float.isFinite(profile.pitchSpeed)
+                || profile.yawSpeed<=0 || profile.pitchSpeed<=0) {
+            state.invalidateAdaptive();
+            return null;
+        }
+        final RuntimeObservation observation=RuntimeServices.observation();
+        final SceneContext scene=observation==null?null:observation.captureScene();
+        if(scene==null || !scene.isValid() || scene.isSuspended()
+                || observation.getActiveOuterTickId()<0
+                || !isConnection(mc.thePlayer.sendQueue==null?null:
+                        mc.thePlayer.sendQueue.getNetworkManager().getClientPackets())) {
+            state.invalidateAdaptive();
+            return null;
+        }
+        // A previously accepted different owner cannot carry an Adaptive trajectory.
+        if(owner!=null && previousAccepted && !"aura".equals(owner)) {
+            state.invalidateAdaptive();
+            return new float[]{fromYaw,fromPitch};
+        }
+        Vec3 point=baseAimPoint(target,bestHitVec,box);
+        if(profile.smartAim || profile.heuristics)
+            point=visibleAimPoint(target,box,point,feet,fromYaw,fromPitch,profile,rays);
+        if(point==null || !observation.isCurrent(scene)) {
+            state.invalidateAdaptive();
+            return null;
+        }
+        final float[] desired=angles(eyes,point);
+        final long now=curveMotionTime();
+        final long suspension=observation.getObservedSuspensionRevision();
+        if(state.adaptiveToken==null || state.adaptiveTarget.get()!=target
+                || state.adaptiveScene==null || !state.adaptiveScene.sameSceneAs(scene)
+                || state.adaptiveSuspension!=suspension) {
+            state.invalidateAdaptive();
+            if(state.adaptive==null) {
+                // The old Aura yaw/pitch sliders remain operative; new presets follow in Phase 3.
+                double yaw=Math.min(720,Math.max(20,profile.yawSpeed*20.0));
+                double pitch=Math.min(720,Math.max(20,profile.pitchSpeed*20.0));
+                double acceleration=Math.min(4200,Math.max(300,Math.max(yaw,pitch)*6));
+                state.adaptive=new AdaptiveMotionController(state.adaptiveSeed,
+                        new AdaptiveMotionController.Limits(yaw,pitch,acceleration,
+                                Math.min(84000,Math.max(9000,acceleration*20)),.14,.12));
+            }
+            state.adaptiveToken=new AdaptiveMotionController.Acquisition(state,mc.theWorld,target,
+                    scene.getConnectionGeneration(),++state.adaptiveOrdinal);
+            state.adaptiveTarget=new WeakReference<>(target);
+            state.adaptiveScene=scene;
+            state.adaptiveSuspension=suspension;
+            state.adaptiveStartNanos=now;
+        }
+        // Relative monotonic time is safe even when the VM's System.nanoTime origin is negative.
+        long elapsed=now-state.adaptiveStartNanos;
+        if(elapsed<0) { state.invalidateAdaptive(); return null; }
+        AdaptiveMotionController.Result result=state.adaptive.advance(state.adaptiveToken,sequence,
+                elapsed,fromYaw,fromPitch,desired[0],desired[1],true);
+        if(state.adaptive.profile()==null) {
+            state.invalidateAdaptive(); // Deadline/long-pause tombstone; next motion re-acquires.
+            return new float[]{fromYaw,fromPitch};
+        }
+        if(!observation.isCurrent(scene) || observation.getObservedSuspensionRevision()!=suspension
+                || !collecting || mc.currentScreen!=null || !mc.inGameHasFocus) {
+            state.invalidateAdaptive();
+            return null;
+        }
+        // Unwrap around the accepted pose *before* Neutron's nearest-mouse-grid rounding.
+        float wantedYaw=fromYaw+MathHelper.wrapAngleTo180_float((float)result.yaw-fromYaw);
+        float[] snapped=quantize(wantedYaw,(float)result.pitch,fromYaw,fromPitch,
+                mc.gameSettings.mouseSensitivity);
+        if(!Float.isFinite(snapped[0]) || !Float.isFinite(snapped[1])) {
+            state.invalidateAdaptive();
+            return null;
+        }
+        return snapped;
     }
 
     private boolean hitsPoint(RaycastService rays,Vec3 feet,EntityLivingBase target,Vec3 point,RotationProfile profile) {
@@ -1042,7 +1136,8 @@ public final class RotationManager {
         if (state == null) {
             long epoch=trajectoryEpochs.merge(key,1L,Long::sum);
             long trajectorySeed=seed ^ sourceHash(key) ^ epoch*0x54ab183dL;
-            state = new RotationState(new RotationTrajectory(clock,(int)trajectorySeed),new ArsenicAimTrajectory(trajectorySeed));
+            state = new RotationState(new RotationTrajectory(clock,(int)trajectorySeed),
+                    new ArsenicAimTrajectory(trajectorySeed),trajectorySeed ^ 0x5ea31cb92af17d4cL);
             states.put(key, state);
         }
         return state;
@@ -1053,7 +1148,21 @@ public final class RotationManager {
     private static final class RotationState {
         final RotationTrajectory trajectory;
         final ArsenicAimTrajectory arsenic;
-        RotationState(RotationTrajectory trajectory,ArsenicAimTrajectory arsenic) { this.trajectory=trajectory;this.arsenic=arsenic; }
+        final long adaptiveSeed;
+        AdaptiveMotionController adaptive;
+        AdaptiveMotionController.Acquisition adaptiveToken;
+        SceneContext adaptiveScene;
+        WeakReference<Object> adaptiveTarget=new WeakReference<>(null);
+        long adaptiveOrdinal,adaptiveStartNanos,adaptiveSuspension;
+        RotationState(RotationTrajectory trajectory,ArsenicAimTrajectory arsenic,long adaptiveSeed) {
+            this.trajectory=trajectory;this.arsenic=arsenic;this.adaptiveSeed=adaptiveSeed;
+        }
+        void invalidateAdaptive() {
+            if(adaptive!=null && adaptiveToken!=null) adaptive.invalidateIfCurrent(adaptiveToken);
+            adaptiveToken=null;
+            adaptiveScene=null;
+            adaptiveTarget.clear();
+        }
         private float yaw;
         private float pitch;
         private boolean active, softVisible;
