@@ -355,47 +355,73 @@ public class Aura extends Module {
                         // old off-camera and rotation-return paths must never swing.
                         && (rotations.getValue() || hit);
                 final long clickGeneration=lifecycleGeneration;
-                attackAccepted=RuntimeServices.attackScheduler().tryClick(
-                        rotationManager.getMotionSequence(), clickEligible, () -> {
+                // The legacy overload's false eligibility preserves the old
+                // attempted-motion tombstone without spending any click or RNG.
+                final java.util.function.LongSupplier nextClickDelay = () -> {
                     clickSample=clickTiming.sample();
                     return clickSample.delayMillis;
-                }, () -> {
-                    if (clickGeneration!=lifecycleGeneration || !usable()
-                            || getActiveTarget()!=selected || RuntimeServices.rotation()!=rotationManager
-                            || !rotationManager.isMotionAccepted()
-                            || (rotations.getValue() ? !rotationManager.isOwner(ROTATION_SOURCE)
-                                    : rotationManager.isOwner("scaffold")
-                                      || rotationManager.getRotationRelease()!=null)) return false;
-                    net.minecraft.client.entity.EntityPlayerSP attackingPlayer=mc.thePlayer;
-                    net.minecraft.client.multiplayer.PlayerControllerMP attackingController=mc.playerController;
-                    boolean valid=validHit(selected,yaw,pitch);
-                    if (valid) autoblockController.beforeAttack();
-                    if (clickGeneration!=lifecycleGeneration || !usable()
-                            || mc.thePlayer!=attackingPlayer || mc.playerController!=attackingController
-                            || getActiveTarget()!=selected || RuntimeServices.rotation()!=rotationManager
-                            || !rotationManager.isMotionAccepted()) return false;
-                    float cameraYaw=attackingPlayer.rotationYaw, cameraPitch=attackingPlayer.rotationPitch;
-                    try {
-                        // A miss is only a visual swing; there is no fabricated target hit.
-                        attackingPlayer.rotationYaw=yaw;
-                        attackingPlayer.rotationPitch=pitch;
-                        attackingPlayer.swingItem();
-                        if (!valid || (raycast.getValue() && !validHit(selected,yaw,pitch))
+                };
+                if (!clickEligible) {
+                    attackAccepted=RuntimeServices.attackScheduler().tryClick(
+                            rotationManager.getMotionSequence(), false, nextClickDelay, () -> false);
+                } else {
+                    // Local swing and controller C02 permission are different effects.
+                    // In particular, a valid C03-owned miss may swing but never attack.
+                    attackAccepted=RuntimeServices.attackScheduler().tryClick(
+                            rotationManager.getMotionSequence(), hit, nextClickDelay, () -> {
+                        if (clickGeneration!=lifecycleGeneration || !usable()
+                                || getActiveTarget()!=selected || RuntimeServices.rotation()!=rotationManager
+                                || !rotationManager.isMotionAccepted()
+                                || (rotations.getValue() ? !rotationManager.isOwner(ROTATION_SOURCE)
+                                        : rotationManager.isOwner("scaffold")
+                                          || rotationManager.getRotationRelease()!=null)
                                 || !validHit(selected,yaw,pitch)) return false;
-                        boolean attacked=attackingController.tryAttackEntity(attackingPlayer,selected,
-                                () -> clickGeneration==lifecycleGeneration && validHit(selected,yaw,pitch));
-                        if (attacked) {
-                            advanceTarget=true;
-                            if (clickTiming.debugging.getValue() && clickSample!=null)
-                                me.youngjibbit.Pulsar.INSTANCE.debugMessage("[Aura/" + clickTiming.mode.getValue() + "] "
-                                        + me.youngjibbit.utils.MathUtils.round(clickSample.cps,1) + " cps");
+                        net.minecraft.client.entity.EntityPlayerSP attackingPlayer=mc.thePlayer;
+                        net.minecraft.client.multiplayer.PlayerControllerMP attackingController=mc.playerController;
+                        if(attackingPlayer==null || attackingController==null) return false;
+                        float cameraYaw=attackingPlayer.rotationYaw, cameraPitch=attackingPlayer.rotationPitch;
+                        try {
+                            attackingPlayer.rotationYaw=yaw;
+                            attackingPlayer.rotationPitch=pitch;
+                            boolean attacked=attackingController.tryAttackEntity(attackingPlayer,selected,
+                                    () -> clickGeneration==lifecycleGeneration && validHit(selected,yaw,pitch));
+                            if (attacked) {
+                                advanceTarget=true;
+                                if (clickTiming.debugging.getValue() && clickSample!=null)
+                                    me.youngjibbit.Pulsar.INSTANCE.debugMessage("[Aura/" + clickTiming.mode.getValue() + "] "
+                                            + me.youngjibbit.utils.MathUtils.round(clickSample.cps,1) + " cps");
+                            }
+                            return attacked;
+                        } finally {
+                            attackingPlayer.rotationYaw=cameraYaw;
+                            attackingPlayer.rotationPitch=cameraPitch;
                         }
-                        return attacked;
-                    } finally {
-                        attackingPlayer.rotationYaw=cameraYaw;
-                        attackingPlayer.rotationPitch=cameraPitch;
-                    }
-                });
+                    }, () -> {
+                        if(clickGeneration!=lifecycleGeneration || !usable()
+                                || getActiveTarget()!=selected || RuntimeServices.rotation()!=rotationManager
+                                || !rotationManager.isMotionAccepted()
+                                || (rotations.getValue() ? !rotationManager.isOwner(ROTATION_SOURCE)
+                                        : rotationManager.isOwner("scaffold")
+                                          || rotationManager.getRotationRelease()!=null)) return;
+                        net.minecraft.client.entity.EntityPlayerSP player=mc.thePlayer;
+                        if(player==null) return;
+                        boolean canAttack=hit && validHit(selected,yaw,pitch);
+                        if(canAttack) autoblockController.beforeAttack();
+                        if(clickGeneration!=lifecycleGeneration || !usable()
+                                || mc.thePlayer!=player || getActiveTarget()!=selected
+                                || RuntimeServices.rotation()!=rotationManager
+                                || !rotationManager.isMotionAccepted()) return;
+                        float cameraYaw=player.rotationYaw, cameraPitch=player.rotationPitch;
+                        try {
+                            player.rotationYaw=yaw;
+                            player.rotationPitch=pitch;
+                            player.swingItem();
+                        } finally {
+                            player.rotationYaw=cameraYaw;
+                            player.rotationPitch=cameraPitch;
+                        }
+                    });
+                }
                 CombatDiagnostics.opportunityResult(opportunity,Stage.SCHEDULER_RESULT,attackAccepted);
                 if (!usable()) {
                     clearCombat(mc == null || mc.thePlayer == null || mc.theWorld == null);

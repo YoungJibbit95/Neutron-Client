@@ -17,6 +17,8 @@ public final class AttackScheduler {
     private long lastClickAt = Long.MIN_VALUE;
     private long delay;
     private boolean automatic, controllerUsed, controllerInFlight;
+    /** Abort a pending click-to-controller handoff after lifecycle reset. */
+    private long resetRevision;
 
     public AttackScheduler() {
         this(() -> System.nanoTime() / 1_000_000L,
@@ -66,7 +68,7 @@ public final class AttackScheduler {
 
     /** Sample one interval per accepted attack, never on every hit-check or catch-up step. */
     public boolean tryAttack(long motion, boolean hitValidated, LongSupplier nextDelay, BooleanSupplier action) {
-        if (controllerInFlight) return false;
+        if (controllerInFlight || automatic) return false;
         if (attemptedMotion == motion) return false;
         attemptedMotion = motion;
         if (!hitValidated || hasSpentClickBudget()) return false;
@@ -86,37 +88,57 @@ public final class AttackScheduler {
     }
 
     /**
-     * Schedule a continuous Aura click opportunity. Unlike tryAttack, the
-     * interval advances after every actual click, including a cancelled or
-     * raycast-rejected attack. The BooleanSupplier must return ONLY the original
-     * controller's accepted attack result. False is never promoted into C02.
-     *
-     * clickEligible requires a real selected target, owned/accepted C03 and
-     * current scene; the final raycast/controller check belongs to the callback.
-     * A repeated motion, nested callback or spent client-tick budget cannot click.
+     * Existing four-argument API. Its boolean is CLICK ELIGIBILITY, not a
+     * prevalidated ray hit. Older callers still own any swing inside their
+     * controller callback; false never draws a CPS sample.
      */
     public boolean tryClick(long motion, boolean clickEligible, LongSupplier nextDelay,
                             BooleanSupplier controllerAttack) {
-        if (controllerInFlight || attemptedMotion == motion) return false;
+        return click(motion, clickEligible, true, nextDelay, controllerAttack, () -> { });
+    }
+
+    /**
+     * Continuous click contract with independently observable swing and attack.
+     * The boolean here is HIT VALIDATION, not general eligibility: the caller
+     * MUST first gate target/scene/accepted C03/owner (or use the four-argument
+     * API with clickEligible=false). A ray MISS may swing but must never call
+     * controllerAttack. Only the original controller can authorize C02.
+     *
+     * A reset/reconfiguration triggered by swing revokes this exact click's
+     * pending controller action; the spent tick and last click time survive.
+     */
+    public boolean tryClick(long motion, boolean hitValidated, LongSupplier nextDelay,
+                            BooleanSupplier controllerAttack, Runnable swing) {
+        return click(motion, true, hitValidated, nextDelay, controllerAttack, swing);
+    }
+
+    private boolean click(long motion, boolean clickEligible, boolean hitValidated,
+                          LongSupplier nextDelay, BooleanSupplier controllerAttack, Runnable swing) {
+        if (controllerInFlight || automatic || attemptedMotion == motion) return false;
         attemptedMotion = motion;
         if (!clickEligible || hasSpentClickBudget()) return false;
         if (delay == 0) delay = Math.max(1, nextDelay.getAsLong());
         long now = clock.getAsLong();
         if (!cadenceReady(now)) return false;
 
-        // A visible click-only swing blocks further automation this tick, but
-        // MUST NOT masquerade as an accepted attack for sprint/physics consumers.
+        // A missed swing consumes one click but is never an accepted C02/sprint impulse.
         lastClickTick = tick;
         lastClickAt = now;
         automatic = true;
         controllerUsed = false;
+        final long admissionRevision = resetRevision;
         try {
-            return controllerAttack.getAsBoolean();
+            // Reserves the physical motion/tick before the user-visible callback.
+            swing.run();
+            if (admissionRevision != resetRevision || controllerUsed) return false;
+            // No hit means no controller call, even if a model/callback wants one.
+            return hitValidated && controllerAttack.getAsBoolean();
         } finally {
-            // No CPS catch-up or hidden second attack after a refused controller.
-            // Drop automatic ownership even if sampling throws.
-            try { delay = Math.max(1, nextDelay.getAsLong()); }
-            finally { automatic = false; }
+            // Reset inside swing/attack revokes resampling of a stale session;
+            // otherwise each real click draws exactly one next CPS interval.
+            try {
+                if (admissionRevision == resetRevision) delay = Math.max(1, nextDelay.getAsLong());
+            } finally { automatic = false; }
         }
     }
 
@@ -127,9 +149,11 @@ public final class AttackScheduler {
     }
 
     public void reset() {
-        attemptedMotion = Long.MIN_VALUE;
-        delay = 0;
-        // Keep the real click/attack timestamps and shared tick budget across
-        // disable, target loss or world change; resets cannot create click bursts.
+        resetRevision++;
+        // A nested reset during swing is a revocation, never fresh admission.
+        if (automatic) controllerUsed = true;
+        else attemptedMotion = Long.MIN_VALUE;
+        // Preserve due interval and click/C02 timestamps, plus current tick
+        // reservations across disable, target loss or world change.
     }
 }
