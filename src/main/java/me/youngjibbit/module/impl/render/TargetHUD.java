@@ -7,6 +7,7 @@ import me.youngjibbit.gui.HudReveal;
 import me.youngjibbit.gui.HudSpring;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.module.impl.client.HUD;
+import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.event.render.Event2D;
 import me.youngjibbit.module.*;
 import me.youngjibbit.module.Module;
@@ -31,14 +32,14 @@ import static org.lwjgl.opengl.GL11.*;
 /** Freeze living-entity data and geometry before any deferred surface pass is submitted. */
 @ModuleInfo(name="TargetHUD", category=Category.Render)
 public class TargetHUD extends Module {
-    private final ComboValue mode=new ComboValue("Mode",this,new String[]{"Neutron Default","Neutron White","Neutron Outline","Rise","Tenacity","Basic","Test"},1);
+    private final ComboValue mode=new ComboValue("Mode",this,new String[]{"Neutron Default","Neutron White","Neutron Outline","Rise","Tenacity","Basic","Test","Neutron 2.0"},1);
     public final SliderValue gradientSpeed=new SliderValue("Gradient Speed",this,5000.0,1000,10000,true);
     private final ArrayListSurface surface=new ArrayListSurface(this);
     // Append after the existing values and material controls to preserve saved settings.
     private final SliderValue positionX=new SliderValue("Position X",this,0.0,-16384,16384);
     private final SliderValue positionY=new SliderValue("Position Y",this,0.0,-16384,16384);
     private final HudSpring healthSpring=new HudSpring(),absorptionSpring=new HudSpring(),
-            portraitSpring=new HudSpring();
+            portraitSpring=new HudSpring(),distanceSpring=new HudSpring();
     private final HudReveal reveal=new HudReveal();
     private EntityLivingBase animatedTarget;
     private float animatedHealth,animatedAbsorption,portraitPulse;
@@ -59,7 +60,7 @@ public class TargetHUD extends Module {
     private void resetTarget(){
         animatedTarget=null;animatedHealth=animatedAbsorption=portraitPulse=0;
         lastFrame=lastVisualFrame=0;sceneEpoch++;lastDisplayed=null;worldContext=null;
-        healthSpring.reset();absorptionSpring.reset();portraitSpring.reset();reveal.reset();
+        healthSpring.reset();absorptionSpring.reset();portraitSpring.reset();distanceSpring.reset();reveal.reset();
         dragging=false;HudDrag.cancel(this);
     }
     @Subscribe private final Listener<Event2D> render=new Listener<>(e->{if(isToggled())renderTarget(resolveTarget());});
@@ -84,7 +85,7 @@ public class TargetHUD extends Module {
         if(target==null){
             // Fade the frozen final frame only; discard all live target motion.
             animatedTarget=null;lastFrame=0;
-            healthSpring.reset();absorptionSpring.reset();portraitSpring.reset();
+            healthSpring.reset();absorptionSpring.reset();portraitSpring.reset();distanceSpring.reset();
         }
         if(live==null&&chat)live=editorPreview(sw,sh);
         if(!chat&&lastDisplayed!=null&&"Preview".equals(lastDisplayed.kind)){
@@ -127,18 +128,36 @@ public class TargetHUD extends Module {
         }
         previousButton=down;
     }
+    /** Presentation-only theme overlay; all seven original modes/default remain saved. */
+    static String effectiveDesign(String saved,boolean modernTheme){
+        return modernTheme&&"Neutron White".equals(saved)?"Neutron 2.0":saved;
+    }
+    static float modernWidth(int viewport,float content){
+        return Math.min(Math.max(1,viewport-8),Math.max(240,Math.min(310,content)));
+    }
+    static float modernHeight(int viewport){
+        return Math.min(Math.max(1,viewport-8),64);
+    }
+    private static Theme targetTheme(String design){
+        return "Neutron 2.0".equals(design)?Theme.approachTwo():
+                Theme.resolve(Theme.getDefaultTheme());
+    }
+
     private Frame editorPreview(int sw,int sh){
-        String design=mode.getValue();
+        String design=effectiveDesign(mode.getValue(),
+                ThemeMode.APPROACH_TWO.equals(ThemeMode.selected()));
+        boolean modern="Neutron 2.0".equals(design);
         boolean test="Test".equals(design),basic="Basic".equals(design),rise="Rise".equals(design);
         TTFFontRenderer nameFont=Pulsar.INSTANCE.fontManager.getFont((basic?"Product-Sans-Bold":"Poppins-Medium")+" 18");
         TTFFontRenderer infoFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 16");
-        float w=Math.min(Math.max(1,sw-8),190),h=Math.min(Math.max(1,sh-8),rise||basic?50:44);
+        float w=modern?modernWidth(sw,258):Math.min(Math.max(1,sw-8),190);
+        float h=modern?modernHeight(sh):Math.min(Math.max(1,sh-8),rise||basic?50:44);
         HudPlacement.Point p=position(sw,sh,w,h);
-        float rad=basic?.5f:rise?14:"Neutron White".equals(design)?10:UiEffects.radius(5,w,h);
-        float textX=test?8:44;
+        float rad=modern?16:basic?.5f:rise?14:"Neutron White".equals(design)?10:UiEffects.radius(5,w,h);
+        float textX=test?8:modern?58:44;
         return new Frame(p.x,p.y,w,h,Math.min(rad,h/2),textX,
-                fit("TargetHUD preview",nameFont,w-textX-8),"-- / --","Preview",null,
-                1,0,design,nameFont,infoFont,Theme.resolve(Theme.getDefaultTheme()));
+                fit("TargetHUD preview",nameFont,w-textX-8),"Health: --  |  Dist: --","Preview",null,
+                1,0,design,nameFont,infoFont,targetTheme(design));
     }
     Frame layout(EntityLivingBase target,int sw,int sh){
         if(target==null||target.isDead||!target.isEntityAlive())return null;
@@ -162,7 +181,9 @@ public class TargetHUD extends Module {
         }
         portraitPulse=Math.max(0,Math.min(1,portraitSpring.step(0,dt,enabled,reduced,intensity)));
         lastFrame=now;
-        String design=mode.getValue();
+        String design=effectiveDesign(mode.getValue(),
+                ThemeMode.APPROACH_TWO.equals(ThemeMode.selected()));
+        boolean modern="Neutron 2.0".equals(design);
         boolean test="Test".equals(design),basic="Basic".equals(design),rise="Rise".equals(design);
         TTFFontRenderer nameFont=Pulsar.INSTANCE.fontManager.getFont((basic?"Product-Sans-Bold":"Poppins-Medium")+" 18");
         TTFFontRenderer infoFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 16");
