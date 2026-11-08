@@ -125,7 +125,9 @@ public class ClickLibraryScreen extends GuiScreen {
     @Override public void drawScreen(int mx, int my, float partialTicks) {
         layout(); long now = System.nanoTime(); float dt = Math.min(.05f, Math.max(0, (now - lastFrame) / 1e9f)); lastFrame = now;
         scroll += (targetScroll - scroll) * UiEffects.response(dt, 22);
-        Theme theme = Theme.getDefaultTheme(); int ink = theme.getTextColor().getRGB();
+        Theme theme=Theme.getDefaultTheme();
+        int ink=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())?
+                NeutronVisualTokens.ink(theme):theme.getTextColor().getRGB();
         try (RenderState state = new RenderState()) {
             state.screenSpace();
             if(mc.theWorld==null)me.youngjibbit.gui.MainMenu.drawBackdrop(theme);else UIUtils.drawDecorationRound(0, 0, width, height, 0, new Color(5, 7, 12, 115));
