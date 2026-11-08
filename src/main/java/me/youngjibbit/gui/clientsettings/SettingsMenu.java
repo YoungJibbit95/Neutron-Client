@@ -7,6 +7,8 @@ import me.youngjibbit.value.impl.*;
 import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.font.TTFFontRenderer;
 import me.youngjibbit.utils.render.*;
+import me.youngjibbit.gui.NeutronVisualTokens;
+import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.clickgui.utils.*;
 import me.youngjibbit.notifications.*;
 import net.minecraft.client.gui.*;
@@ -80,8 +82,8 @@ public class SettingsMenu extends GuiScreen {
     }
     private List<String> names(){groups();return sectionNames;}
     private List<Value<?>> rows(){List<String> names=names();if(names.isEmpty())return Collections.emptyList();group=Math.max(0,Math.min(group,names.size()-1));List<Value<?>> values=new ArrayList<>();for(Value<?> v:groups().get(names.get(group)))if(v.isVisible())values.add(v);return values;}
-    private boolean rail(){return w>=560 && h>=330;}
-    private float inset(){return rail()?154:14;}
+    private boolean rail(){return w>=560&&h>=330;}
+    private float inset(){return rail()?ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())?190:154:14;}
     private void layout(){
         w=Math.min(740,Math.max(1,width-16));h=Math.min(464,Math.max(1,height-12));x=(width-w)/2;y=(height-h)/2;
         List<Value<?>> visible=rows();
@@ -95,7 +97,11 @@ public class SettingsMenu extends GuiScreen {
     protected ClipRect view(){return new ClipRect(x+inset(),y+94,w-inset()-14,Math.max(1,h-186));}
     protected ClipRect rowBounds(int row){ClipRect v=view();return new ClipRect(v.x,v.y+row*42-scroll,v.width,38);}
     protected ClipRect controlBounds(int row){ClipRect r=rowBounds(row);float cw=Math.min(180,r.width*.45f);return new ClipRect(r.x+r.width-cw-7,r.y+4,cw,30);}
-    protected ClipRect categoryBounds(int index){return new ClipRect(x+12,y+61+index*28,126,25);}
+    protected ClipRect categoryBounds(int index){
+        return ThemeMode.APPROACH_TWO.equals(ThemeMode.selected()) && rail()?
+                new ClipRect(x+15,y+68+index*35,162,31):
+                new ClipRect(x+12,y+61+index*28,126,25);
+    }
     protected ClipRect actionBounds(int action){
         if(action==0)return new ClipRect(rail()?x+inset():x+10,y+52,25,22);
         if(action==1)return new ClipRect(x+w-39,y+52,25,22);
@@ -107,7 +113,9 @@ public class SettingsMenu extends GuiScreen {
     private void button(int id,String title,int mx,int my){
         me.youngjibbit.gui.UiSpring state=actionMotion[id];
         ClipRect b=GuiStyle.buttonBounds(actionBounds(id),state);
-        UIUtils.drawDecorationRound(b.x,b.y,b.width,b.height,4,new Color(31,38,50));
+        boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
+        UIUtils.drawRound(b.x,b.y,b.width,b.height,modern?7:4,
+                modern?NeutronVisualTokens.CONTROL:new Color(31,38,50));
         GuiStyle.feedback(b,state);
         text(fit(title,b.width-10),b.x+5,b.y+6,GuiStyle.ink(0xffe4ebf6,state));
     }
@@ -133,12 +141,29 @@ public class SettingsMenu extends GuiScreen {
             frameState.screenSpace();
             Theme theme=Theme.getDefaultTheme();
             if(mc.theWorld==null)me.youngjibbit.gui.MainMenu.drawBackdrop(theme);else drawDefaultBackground();
-            surface.panel(x,y,w,h,8,theme,true,true,true,5,.9f,.8f,()->{
-                // A constant contrast layer, independent of hover and of the material preset.
-                UIUtils.drawDecorationRound(x+1,y+1,w-2,h-2,7,new Color(13,16,23,175));
+            boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
+            surface.panel(x,y,w,h,modern?14:8,theme,true,true,!modern,
+                    modern?4:5,modern?.98f:.9f,modern?.2f:.8f,()->{
+                if(modern){
+                    UIUtils.drawRound(x+1,y+1,w-2,h-2,14,NeutronVisualTokens.FRAME);
+                    UIUtils.drawRound(x+5,y+58,Math.max(1,inset()-10),h-96,11,
+                            NeutronVisualTokens.SIDEBAR);
+                    UIUtils.drawRound(x+inset()+1,y+88,
+                            Math.max(1,w-inset()-8),Math.max(1,h-137),11,
+                            NeutronVisualTokens.PANEL);
+                    UIUtils.drawRound(x+1,y+1,w-2,53,14,NeutronVisualTokens.HEADER);
+                    UIUtils.drawDecorationRound(x+17,y+51,
+                            Math.max(1,w-34),1,.5f,NeutronVisualTokens.HAIRLINE);
+                }else{
+                    // The historical Legacy contrast layer remains byte-for-byte equivalent.
+                    UIUtils.drawDecorationRound(x+1,y+1,w-2,h-2,7,
+                            new Color(13,16,23,175));
+                }
                 TTFFontRenderer heading=Pulsar.INSTANCE.fontManager.getFont("DmSansMedium 26");
-                heading.drawString("Client settings",x+16,y+11,0xfff1f4fa);
-                text(fit("Appearance, motion and type â€” changes apply live",w-32),x+16,y+33,0xffa6b2c5);
+                heading.drawString("Client settings",x+16,y+11,
+                        modern?NeutronVisualTokens.INK:0xfff1f4fa);
+                text(fit("Appearance, motion and type — changes apply live",w-32),
+                        x+16,y+33,modern?NeutronVisualTokens.MUTED:0xffa6b2c5);
                 // The global screen exit animation stays owned by GuiTransitions.
                 // The entry accent uses the same spring policy; text/input remain ready.
                 if(me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(me.youngjibbit.theme.ThemeMode.selected())
