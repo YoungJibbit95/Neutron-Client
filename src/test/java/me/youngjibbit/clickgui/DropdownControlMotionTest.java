@@ -73,6 +73,8 @@ public class DropdownControlMotionTest {
         void up(){mouseReleased(-1,-1,0);}
         void key(int code)throws Exception{keyTyped(' ',code);}
         void wheel(int x,int y,int steps){scrollAt(x,y,steps);}
+        /** Calls the exact production cleanup path without touching native GL resources. */
+        void closeInputHeadless(){cancelInteraction();}
     }
     private static Object category(Screen screen,Category wanted)throws Exception{
         @SuppressWarnings("unchecked") List<Object> list=(List<Object>)reflect(screen,"panels");
@@ -101,7 +103,12 @@ public class DropdownControlMotionTest {
             float value=(Float)reflect(combat,"height");
             assertTrue(Float.isFinite(value)&&value>=17);
         }
-        screen.onGuiClosed();
+        screen.closeInputHeadless();
+        assertNull(reflect(screen,"dragging"));
+        assertNull(reflect(screen,"scrolling"));
+        assertNull(reflect(screen,"focus"));
+        assertNull(reflect(screen,"pressed"));
+        assertNull(reflect(screen,"binding"));
     }
 
     @Test public void logicalClosedColumnCannotToggleItsChildInVisibleSpringTail() throws Exception {
@@ -113,7 +120,65 @@ public class DropdownControlMotionTest {
         screen.click((int)x+15,(int)y+25,0);
         assertFalse(dummy.isToggled());assertEquals(0,dummy.enable);
         assertTrue((Boolean)reflect(combat,"open")==false);
-        screen.onGuiClosed();
+        screen.closeInputHeadless();
+        assertNull(reflect(screen,"dragging"));
+        assertNull(reflect(screen,"scrolling"));
+        assertNull(reflect(screen,"focus"));
+        assertNull(reflect(screen,"pressed"));
+        assertNull(reflect(screen,"binding"));
+    }
+
+    @Test public void scrollAndDragCaptureUseTheRealCategoryHandlers() throws Exception {
+        Screen screen=new Screen();screen.size(640,480);
+        Object combat=category(screen,Category.Combat);
+        float x=(Float)reflect(combat,"x"),y=(Float)reflect(combat,"y");
+        // Supply a deterministic scrollable content range without starting GL drawing.
+        Field max=combat.getClass().getDeclaredField("maxScroll");max.setAccessible(true);
+        max.setFloat(combat,96f);
+        screen.wheel((int)x+12,(int)y+23,-120);
+        assertEquals(-32f,(Float)reflect(combat,"targetScroll"),.0001f);
+        screen.click((int)x+9,(int)y+7,0);
+        assertSame(combat,reflect(screen,"dragging"));
+        screen.wheel((int)x+12,(int)y+23,-120);
+        assertEquals("Captured drag blocks scroll", -32f,
+                (Float)reflect(combat,"targetScroll"),.0001f);
+        screen.up();
+        assertNull(reflect(screen,"dragging"));
+        screen.closeInputHeadless();
+        assertNull(reflect(screen,"scrolling"));
+        assertNull(reflect(screen,"pressed"));
+        assertNull(reflect(screen,"focus"));
+    }
+
+    @Test public void keyboardFocusTogglesModuleWithoutPresentationCallbacks() throws Exception {
+        Screen screen=new Screen();screen.size(640,480);
+        screen.key(Keyboard.KEY_TAB);
+        assertTrue(reflect(screen,"focus") instanceof DropdownModule);
+        assertFalse(dummy.isToggled());
+        screen.key(Keyboard.KEY_SPACE);
+        assertTrue(dummy.isToggled());
+        assertEquals(1,dummy.enable);
+        screen.up();screen.up();
+        assertEquals(1,dummy.enable);
+        screen.closeInputHeadless();
+        assertNull(reflect(screen,"focus"));
+    }
+
+    @Test public void compactComboMouseOptionCommitsImmediatelyAfterReveal() throws Exception {
+        DropdownModule row=new DropdownModule(dummy);
+        row.setOpen(true);
+        for(int i=0;i<70;i++)row.updateCompactMotion(.016f);
+        row.layout(10,10,104,new ClipRect(0,0,500,500));
+        ClickCombo combo=child(row,ClickCombo.class);
+        combo.keyTyped(' ',Keyboard.KEY_RETURN);
+        for(int i=0;i<70;i++)row.updateCompactMotion(.016f);
+        row.layout(10,10,104,new ClipRect(0,0,500,500));
+        assertTrue(combo.isOpen());
+        // Compact field height is 36, visible option height 19; choose the second option.
+        combo.mouseClicked((int)combo.getX()+17,(int)combo.getY()+36+19+9,0);
+        assertEquals("B",dummy.combo.getValue());
+        assertFalse(combo.isOpen());
+        assertEquals(1,dummy.changes);
     }
 
     @Test public void compactComboReversesWithoutCommittingDuringClose() {
