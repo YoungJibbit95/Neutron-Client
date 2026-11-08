@@ -25,7 +25,10 @@ function packageOnce(env) {
 }
 let attempt = packageOnce(process.env);
 if (attempt.code !== 0 && process.env.GITHUB_ACTIONS === 'true' && /(?:Response code 504|HTTP 504|Gateway Time-out)/i.test(attempt.output)) {
-  console.error('Official electron-builder binary CDN returned HTTP 504. Retrying the same pinned toolset via a public mirror (upstream checksums still enforced).');
-  attempt = packageOnce({ ...process.env, ELECTRON_BUILDER_BINARIES_MIRROR: 'https://mirrors.huaweicloud.com/electron-builder-binaries/' });
+  console.error('GitHub Electron/NSIS binary CDN returned HTTP 504. Retrying with Electron and NSIS mirrors; build remains subject to package integrity checks and lifecycle acceptance.');
+  attempt = packageOnce({ ...process.env,
+    ELECTRON_MIRROR: 'https://npmmirror.com/mirrors/electron/',
+    ELECTRON_BUILDER_BINARIES_MIRROR: 'https://npmmirror.com/mirrors/electron-builder-binaries/'
+  });
 }
 if (attempt.code !== 0) process.exit(attempt.code);
