@@ -26,13 +26,36 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Temurin 8u482
+      - name: Temurin 8u482 (preferred release toolchain)
+        id: temurin
+        continue-on-error: true
         uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
         with:
           distribution: temurin
           java-version: '8.0.482+8'
           architecture: x64
           check-latest: false
+
+      # The full release-bundle job still verifies the exact Temurin 8u482.
+      # Only the PR regression may use a checksum-verified independent Java 8
+      # distribution when GitHub's Temurin release CDN returns HTTP 504.
+      - name: Fallback Java 8 from Azul when Temurin release is unreachable
+        if: steps.temurin.outcome == 'failure'
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: zulu
+          java-version: '8'
+          architecture: x64
+          check-latest: false
+
+      - name: Enforce Java 8 compiler/runtime
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = & "$env:JAVA_HOME/bin/java.exe" -version 2>&1 | Out-String
+          Write-Host $version
+          if ($version -notmatch '1\\.8\\.0_') { throw 'Java 8 was not installed. Release toolchain remains pinned to Temurin 8u482.' }
+          & "$env:JAVA_HOME/bin/javac.exe" -version
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Maven 3.9.15 (verified Apache archive)
         run: |
