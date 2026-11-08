@@ -893,7 +893,13 @@ public final class RotationManager {
 
     public float[] calculateRotations(String source,float cameraYaw,float cameraPitch,EntityLivingBase target,
                                       boolean bestHitVec,RotationProfile profile,boolean visible) {
-        if(target==null || mc==null || mc.thePlayer==null) return null;
+        if(target==null || mc==null || mc.thePlayer==null) {
+            if(profile!=null && profile.adaptive) {
+                RotationState old=states.get(source);
+                if(old!=null) old.invalidateAdaptive();
+            }
+            return null;
+        }
         RotationState state=state(source);
         if(!profile.adaptive) state.invalidateAdaptive();
         state.softVisible = visible && profile.arsenic != RotationProfile.ArsenicMode.OFF && profile.softArsenicMotion;
@@ -904,6 +910,7 @@ public final class RotationManager {
         float fromYaw=visible?cameraYaw:collecting?baseYaw:state.active?state.yaw:cameraYaw;
         float fromPitch=visible?cameraPitch:collecting?basePitch:state.active?state.pitch:cameraPitch;
         if(profile.stopOnTarget && rays.canHitFrom(feet,target,fromYaw,fromPitch,profile.reach,profile.throughWalls)) {
+            state.invalidateAdaptive();
             state.arsenic.reset();
             if(profile.speedCurve==RotationProfile.SpeedCurve.BEZIER) {
                 if(collecting)state.trajectory.pauseMotion(target,sequence,curveMotionTime());
