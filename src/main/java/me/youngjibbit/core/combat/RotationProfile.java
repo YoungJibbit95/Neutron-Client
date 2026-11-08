@@ -9,6 +9,10 @@ public final class RotationProfile {
     public ArsenicMode arsenic=ArsenicMode.OFF;
     /** Aura-only optional approach; false keeps every historical profile and default unchanged. */
     public boolean adaptive;
+    /** Used only when adaptive=true; all old modes ignore these three values. */
+    public AdaptivePresetMotion.Speed adaptiveSpeed = AdaptivePresetMotion.Speed.BALANCED;
+    public AdaptivePresetMotion.Hitpoint adaptiveHitpoint = AdaptivePresetMotion.Hitpoint.STABLE;
+    public float adaptiveVariation = .5f;
     public boolean softArsenicMotion;
     public enum HitpointNoise {
         CALM(.45, .25), BALANCED(.85, .48), DYNAMIC(1.4, .8);
