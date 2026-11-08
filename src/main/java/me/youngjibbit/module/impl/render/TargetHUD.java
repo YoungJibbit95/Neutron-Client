@@ -181,7 +181,7 @@ public class TargetHUD extends Module {
                 design,nameFont,infoFont,Theme.resolve(Theme.getDefaultTheme()),portraitPulse);
     }
     private static String number(float value){return String.format(Locale.ROOT,value>=10000?"%.1fk":value==Math.rint(value)?"%.0f":"%.1f",value>=10000?value/1000:value);}
-    private static String fit(String text,TTFFontRenderer font,float available){if(font.getWidth(text)<=available)return text;int end=text.length();while(end>0&&font.getWidth(text.substring(0,end)+"...")>available)end--;return end==0?"":text.substring(0,end)+"...";}
+    private static String fit(String text,TTFFontRenderer font,float available){if(font.getWidth(text)<=available)return text;int end=text.length();while(end>0&&font.getWidth(text.substring(0,end)+"...")>available)end=text.offsetByCodePoints(end,-1);return end==0?"":text.substring(0,end)+"...";}
     void paint(Frame f){paint(f,1,1,0);}
     void paint(Frame f,float opacity,float scale,float slideY){
         boolean basic="Basic".equals(f.design),outlined="Neutron Outline".equals(f.design),
