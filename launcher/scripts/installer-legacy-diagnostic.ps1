@@ -89,7 +89,15 @@ function Get-PinnedInstaller([hashtable]$Artifact) {
         } catch {
             $status=$null
             try { $status=[int]$_.Exception.Response.StatusCode } catch { }
-            if($attempt -eq 4 -or ($null -ne $status -and $status -ne 429 -and $status -lt 500)){throw}
+            if($null -ne $status -and $status -ne 429 -and $status -lt 500){throw}
+            if($attempt -eq 4){
+                # The GitHub releases/download route sometimes times out while
+                # the release-assets REST endpoint can still serve immutable bytes.
+                Write-Host ('Public download failed (HTTP '+$status+'); trying the pinned public GitHub asset API.')
+                $api='https://api.github.com/repos/YoungJibbit95/Neutron-Client/releases/assets/'+$Artifact.assetId
+                Invoke-WebRequest -Uri $api -OutFile $Artifact.path -TimeoutSec 180 -Headers @{Accept='application/octet-stream';'X-GitHub-Api-Version'='2022-11-28'}
+                break
+            }
             Write-Host ('Public release download failed on attempt '+$attempt+' (HTTP '+$status+'); retrying transport.')
             Start-Sleep -Seconds (5*$attempt)
         }
@@ -100,7 +108,7 @@ function Get-PinnedInstaller([hashtable]$Artifact) {
 try {
     $old=Join-Path $downloads 'Neutron-Launcher-0.2.0-Windows-x64.exe'
     $new=Join-Path $downloads 'Neutron-Launcher-0.2.2-Windows-x64.exe'
-    foreach($artifact in @(@{path=$old;version='0.2.0';hash='20e8c8a8b0a71a8e3540d87eeae7bce7c4fa2c6323777b0cbce136e12f9091d3'},@{path=$new;version='0.2.2';hash='acfc43e605fc0af9d591068bd12b08d1e05a1a6b5936cdc3af312aaddd6a27bc'})) {
+    foreach($artifact in @(@{path=$old;version='0.2.0';assetId=721507262;hash='20e8c8a8b0a71a8e3540d87eeae7bce7c4fa2c6323777b0cbce136e12f9091d3'},@{path=$new;version='0.2.2';assetId=722300068;hash='acfc43e605fc0af9d591068bd12b08d1e05a1a6b5936cdc3af312aaddd6a27bc'})) {
         Get-PinnedInstaller $artifact
     }
     $reference=Join-Path $root 'reference'; [IO.Directory]::CreateDirectory($reference) | Out-Null
