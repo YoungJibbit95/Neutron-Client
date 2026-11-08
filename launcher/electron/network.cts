@@ -36,7 +36,7 @@ export async function download(item: Download, target: string, signal: AbortSign
   await fs.mkdir(path.dirname(target), { recursive: true });
   const partial = target + '.partial';
   // Interrupted objects restart; only complete, hashed cache objects are reused.
-  let result: Response;
+  let result: Response | undefined;
   try { result = await response(item.url, signal); }
   catch (error) {
     // This is a transport fallback only. Never retry a bad checksum, bad
@@ -51,6 +51,7 @@ export async function download(item: Download, target: string, signal: AbortSign
     }
     if (lastError) throw lastError;
   }
+  if (!result) throw new Error('Download did not provide a response.');
   const total = item.size ?? (Number(result.headers.get('content-length')) || null);
   const max = item.maxBytes ?? item.size ?? 512 * 1024 * 1024;
   const handle = await fs.open(partial, 'w'); let received = 0;
