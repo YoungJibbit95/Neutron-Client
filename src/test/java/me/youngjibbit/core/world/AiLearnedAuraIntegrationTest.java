@@ -82,11 +82,27 @@ public class AiLearnedAuraIntegrationTest {
     private static String aiDebug(Wave05AuraSelectionChecks.SelectionRun f,int tick,List<Object> sent)
             throws Exception {
         RotationManager r=rotation(f);
+        java.lang.reflect.Field statesField=RotationManager.class.getDeclaredField("states");
+        statesField.setAccessible(true);
+        java.util.Map<?,?> states=(java.util.Map<?,?>)statesField.get(r);
+        Object auraState=states.get("aura");
+        String model="missing-state";
+        if(auraState!=null) {
+            java.lang.reflect.Field aiField=auraState.getClass().getDeclaredField("ai");
+            aiField.setAccessible(true);
+            Object ai=aiField.get(auraState);
+            model=ai==null?"missing-core":
+                    ((me.youngjibbit.core.combat.ai.NeutronAiCore)ai).hasModel()?"present":"disposed";
+        }
         return tick+":t="+f.run.scene.motionTime.get()
                 +" owner="+r.getConfirmedOwner()
                 +" accepted="+r.isAiAuraMotionAccepted()
                 +" yaw="+r.getEffectiveYaw()+" pitch="+r.getEffectivePitch()
-                +" infer="+inferences(r)
+                +" infer="+inferences(r)+" model="+model
+                +" seq="+r.getMotionSequence()
+                +" mode="+f.run.fixture.aura.getModeSetting("Rot Mode").getValue()
+                +" focused="+f.run.fixture.mc.inGameHasFocus
+                +" pipeline="+f.run.fixture.network.getClientPackets().isActive()
                 +" C03="+count(sent,C03PacketPlayer.class)
                 +" C02="+count(sent,C02PacketUseEntity.class)
                 +" targetFirst="+(f.run.fixture.aura.getActiveTarget()==f.first);
