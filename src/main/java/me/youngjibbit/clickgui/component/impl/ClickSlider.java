@@ -27,7 +27,13 @@ public class ClickSlider extends Component.Sub<SliderValue> {
 
     @Override public void advanceMotion(float dt, int mx, int my, boolean focused, boolean pressed, boolean visible) {
         super.advanceMotion(dt, mx, my, focused, pressed, visible);
-        if (!panelStyle) return;
+        boolean compactModern=compact()&&
+                me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(
+                        me.youngjibbit.theme.ThemeMode.selected());
+        if (!panelStyle && !compactModern){
+            resetPanelMotion(); // Current Legacy compact slider remains input-direct.
+            return;
+        }
         if (!visible) {
             resetPanelMotion();
             return;
@@ -84,7 +90,12 @@ public class ClickSlider extends Component.Sub<SliderValue> {
             return;
         }
         float range=(float)Math.max(.001,value.getMax()-value.getMin());
-        float fill=trackWidth()*Math.max(0,Math.min(1,(float)((value.getValue()-value.getMin())/range)));
+        boolean compactModern=compact()&&
+                me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(
+                        me.youngjibbit.theme.ThemeMode.selected());
+        float raw=(float)((value.getValue()-value.getMin())/range);
+        float drawn=compactModern&&Float.isFinite(displayedFraction)?displayedFraction:raw;
+        float fill=trackWidth()*Math.max(0,Math.min(1,drawn));
         UIUtils.drawDecorationRound(trackX(),trackY()-2,trackWidth(),4,2,new Color(64,68,77));
         if(fill>.5f)UIUtils.drawDecorationGradientVertical(trackX(),trackY()-2,fill,4,Math.min(2,fill/2),theme.getPrimaryGradientColor(),theme.getSecondaryGradientColor());
         UIUtils.drawDecorationRound(trackX()+fill-3,trackY()-4,6,8,3,new Color(dragging?UiEffects.gradientAt(theme,UiEffects.Channel.BORDER,trackX()+fill,trackY()):0xffe0e4ed,true));
@@ -139,7 +150,10 @@ public class ClickSlider extends Component.Sub<SliderValue> {
         double progress=Math.max(0,Math.min(1,(mouseX-trackX())/trackWidth()));
         double next=value.getMin()+progress*(value.getMax()-value.getMin());
         value.setValue(BigDecimal.valueOf(next).setScale(2,RoundingMode.HALF_UP).doubleValue());
-        if (panelStyle) displayedFraction=panelValue.snap(fraction());
+        if (panelStyle || compact()&&
+                me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(
+                        me.youngjibbit.theme.ThemeMode.selected()))
+            displayedFraction=panelValue.snap(fraction());
     }
     @Override public void mouseClicked(int mouseX,int mouseY,int button){
         if(button==0&&hit(mouseX,mouseY,valueX(),badgeY(),valueWidth(),badgeHeight())){beginInput();return;}
