@@ -47,7 +47,7 @@ public class Wave07VisualTokensTest {
                 NeutronVisualTokens.accent(Theme.Purple,200).getRGB()&0xffffff);
         assertEquals(200,NeutronVisualTokens.accent(Theme.Purple,200).getAlpha());
         assertEquals(NeutronVisualTokens.INK,NeutronVisualTokens.ink(
-                Theme.custom("dark","dark",
+                Theme.custom("custom:00000000-0000-0000-0000-000000000007","dark",
                         java.util.Arrays.asList(Color.BLACK,Color.WHITE),
                         false,false,.18f,Color.BLACK,new Color(11,13,20),
                         Color.RED,.3f,5,.4f,1)));
