@@ -20,6 +20,7 @@ import me.youngjibbit.gui.HudSpring;
 import me.youngjibbit.module.impl.exploit.*;
 import me.youngjibbit.notifications.*;
 import me.youngjibbit.utils.Theme;
+import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.utils.font.TTFFontRenderer;
 import me.youngjibbit.utils.render.*;
 import me.youngjibbit.value.Value;
@@ -430,21 +431,31 @@ public final class Diagnostics extends Module {
     }
     void paint(Panel p,float dt) {
         Widget w=p.widget;float x=w.x,y=w.y,s=p.scale;
-        // Immutable geometry is captured before the shared bloom batch executes this panel.
+        final boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
+        final boolean filled=background.getValue(),blurred=blur.getValue(),
+                glowing=!modern&&glow.getValue();
+        // Immutable geometry, policy and theme are frozen before deferred execution.
         Theme theme=surface.theme(Theme.resolve(Theme.getDefaultTheme()));
-        GuiShaderBloom.afterBatch(()->surface.panel(x,y,252*s,p.height*s,6*s,theme,background.getValue(),blur.getValue(),glow.getValue(),4,.91f,.4f,()->{
+        GuiShaderBloom.afterBatch(()->surface.panel(x,y,252*s,p.height*s,
+                (modern?10:6)*s,theme,filled,blurred,glowing,modern?3.5f:4,
+                modern?.84f:.91f,modern?.14f:.4f,()->{
             try(RenderState state=new RenderState()) {
                 state.screenSpace();glTranslatef(x,y,0);glScalef(s,s,1);
+                if(modern&&filled)
+                    UIUtils.drawRound(2,2,248,Math.max(1,p.height-4),9,
+                            new Color(20,22,32,188));
                 TTFFontRenderer heading=font("Product-Sans-Bold 18"),body=font("Product-Sans-Regular 16"),small=font("Product-Sans-Regular 12");
-                int ink=theme.isCustom()?theme.getTextColor().getRGB():0xfff0f3fa;
-                int muted=Theme.interpolateRGB(ink,theme.getPrimaryGradientRGB(),.22f)|0xff000000;
-                heading.drawString(p.title,9,7,ink);
+                int ink=modern?0xfff5f0f8:theme.isCustom()?theme.getTextColor().getRGB():0xfff0f3fa;
+                int muted=modern?0xffc6bdd0:
+                        Theme.interpolateRGB(ink,theme.getPrimaryGradientRGB(),.22f)|0xff000000;
+                heading.drawString(p.title,modern?12:9,7,ink);
                 small.drawString(p.status,243-small.getWidth(p.status),10,muted);
                 if (p.plot != null) {
                     p.plot.draw(theme, small, muted);
                     return;
                 }
-                UIUtils.drawGradientHorizontal(9,23,234,1,.5f,theme.getPrimaryGradientColor(),theme.getSecondaryGradientColor());
+                UIUtils.drawGradientHorizontal(9,23,234,modern?1.2f:1,.5f,
+                        theme.getPrimaryGradientColor(),theme.getSecondaryGradientColor());
                 float yy=29;
                 for(Line line:p.lines.subList(w.scroll,Math.min(p.lines.size(),w.scroll+p.visibleRows))) {
                     String right=fit(line.value,body,107),left=fit(line.label,body,right.isEmpty()?234:Math.max(0,226-body.getWidth(right)));
@@ -464,19 +475,34 @@ public final class Diagnostics extends Module {
             }
         }));
     }
+    static boolean graphSampleValid(double sample){
+        return Double.isFinite(sample)&&sample>=0;
+    }
+    /** No invented point for absent frame measurements; data gaps stay visible. */
     private static void graph(double[] samples,float x,float y,float width,float height,Theme theme) {
         try(RenderState state=new RenderState()) {
-            glDisable(GL_TEXTURE_2D);glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-            double maximum=33.3;for(double v:samples)maximum=Math.max(maximum,v);
-            glLineWidth(1);glColor4f(1,1,1,.14f);glBegin(GL_LINES);glVertex2f(x,y+height);glVertex2f(x+width,y+height);glEnd();
+            glDisable(GL_TEXTURE_2D);glEnable(GL_BLEND);
+            glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+            double maximum=33.3;
+            for(double sample:samples)if(graphSampleValid(sample))maximum=Math.max(maximum,sample);
+            glLineWidth(1);glColor4f(1,1,1,.14f);
+            glBegin(GL_LINES);glVertex2f(x,y+height);glVertex2f(x+width,y+height);glEnd();
             if(samples.length<2)return;
-            glBegin(GL_LINE_STRIP);
-            for(int i=0;i<samples.length;i++) {
-                int rgb=Theme.interpolateRGB(theme.getPrimaryGradientRGB(),theme.getSecondaryGradientRGB(),i/(float)(samples.length-1));
+            boolean connected=false;
+            for(int i=0;i<samples.length;i++){
+                double sample=samples[i];
+                if(!graphSampleValid(sample)){
+                    if(connected){glEnd();connected=false;}
+                    continue;
+                }
+                if(!connected){glBegin(GL_LINE_STRIP);connected=true;}
+                int rgb=Theme.interpolateRGB(theme.getPrimaryGradientRGB(),
+                        theme.getSecondaryGradientRGB(),i/(float)(samples.length-1));
                 glColor4f((rgb>>16&255)/255f,(rgb>>8&255)/255f,(rgb&255)/255f,1);
-                glVertex2f(x+width*i/(samples.length-1),y+height-(float)(Math.min(maximum,Math.max(0,samples[i]))/maximum*height));
+                glVertex2f(x+width*i/(samples.length-1),
+                        y+height-(float)(Math.min(maximum,sample)/maximum*height));
             }
-            glEnd();
+            if(connected)glEnd();
         }
     }
     private static TTFFontRenderer font(String key){return Pulsar.INSTANCE.fontManager.getFont(key);}
