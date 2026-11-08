@@ -87,6 +87,8 @@ public class TickbaseStableFrameFlowTest {
             try {
                 frame(f,1,50);assertEquals(0,step(f));
                 assertEquals(1,tick.getDiagnostics().credit);
+                // The real NetHandler resolves S12 by entity ID from the loaded world.
+                f.world.entities.put(f.player.getEntityId(),f.player);
                 f.receive(new S12PacketEntityVelocity(1,.3,.3,0));
                 assertEquals(0,tick.getDiagnostics().credit);
                 assertEquals(1,step(f));
