@@ -83,6 +83,9 @@ public class LagRangeBoundedFrameFlowTest {
                 AtomicLong time=new AtomicLong();
                 LagRange lag=enable(f,time);
                 try {
+                    // Context must be observed before the first eligible frame:
+                    // binding a new player/world legitimately invalidates an old frame.
+                    Pulsar.BUS.post(new TickEvent());
                     LagRange.beginFrame(f.client,false,1,50);
                     Pulsar.BUS.post(new TickEvent());
                     C03PacketPlayer movement=new C03PacketPlayer(true);
@@ -107,6 +110,8 @@ public class LagRangeBoundedFrameFlowTest {
             AtomicLong time=new AtomicLong();
             LagRange lag=enable(f,time);
             try {
+                // Register the lifetime/transport before the first fresh sample.
+                Pulsar.BUS.post(new TickEvent());
                 LagRange.beginFrame(f.client,false,1,50);
                 Pulsar.BUS.post(new TickEvent());
                 C03PacketPlayer movement=new C03PacketPlayer(true);
@@ -117,6 +122,8 @@ public class LagRangeBoundedFrameFlowTest {
                 assertSame("control reply cannot be trapped behind movement",confirmation,
                         f.connection.channel.readOutbound());
                 assertEquals(1,f.pipe().delays().size());
+                // Actual NetHandler resolves the local player from the loaded world.
+                f.world.entities.put(f.player.getEntityId(),f.player);
                 f.receive(new S12PacketEntityVelocity(1,.2,.3,0));
                 assertEquals("local impulse requires immediate FIFO recovery",0,f.pipe().delays().size());
                 assertSame(movement,f.connection.channel.readOutbound());
