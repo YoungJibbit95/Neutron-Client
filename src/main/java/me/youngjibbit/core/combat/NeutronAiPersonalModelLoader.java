@@ -131,6 +131,12 @@ public final class NeutronAiPersonalModelLoader {
             Path model=directory.resolve(MODEL),manifest=directory.resolve(PROOF);
             Path stagingModel=directory.resolve(STAGED_MODEL),stagingProof=directory.resolve(STAGED_PROOF);
             requireWritableFile(model);requireWritableFile(manifest);
+            // An explicit new training run still must not silently replace an
+            // existing personal model: cross-session losses are incomparable.
+            // The user must revoke/delete the old checkpoint first.
+            if(Files.exists(model,LinkOption.NOFOLLOW_LINKS)
+                    || Files.exists(manifest,LinkOption.NOFOLLOW_LINKS))
+                throw new IOException("personal model already saved; explicit deletion required");
             if(Files.exists(stagingModel,LinkOption.NOFOLLOW_LINKS)
                     || Files.exists(stagingProof,LinkOption.NOFOLLOW_LINKS))
                 throw new IOException("unresolved personal model staging files");
@@ -139,10 +145,8 @@ public final class NeutronAiPersonalModelLoader {
                 Files.write(stagingProof,proof,StandardOpenOption.CREATE_NEW,StandardOpenOption.WRITE);
                 // Manifest is the final commit marker; partial two-file updates fail
                 // verification, rather than silently falling back to stale models.
-                Files.move(stagingModel,model,StandardCopyOption.ATOMIC_MOVE,
-                        StandardCopyOption.REPLACE_EXISTING);
-                Files.move(stagingProof,manifest,StandardCopyOption.ATOMIC_MOVE,
-                        StandardCopyOption.REPLACE_EXISTING);
+                Files.move(stagingModel,model,StandardCopyOption.ATOMIC_MOVE);
+                Files.move(stagingProof,manifest,StandardCopyOption.ATOMIC_MOVE);
             } finally {
                 Files.deleteIfExists(stagingModel);
                 Files.deleteIfExists(stagingProof);
