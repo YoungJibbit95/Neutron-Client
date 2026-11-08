@@ -28,6 +28,7 @@ public class ClickModule extends Component {
     private final DecelerateAnimation toggleAnimation = new me.youngjibbit.clickgui.utils.ClickAnimation(180, 1, Direction.BACKWARDS);
     private final me.youngjibbit.gui.UiSpring panelReveal = new me.youngjibbit.gui.UiSpring();
     private final HudSpring panelToggle=new HudSpring();
+    private final HudSpring compactReveal=new HudSpring();
     private float toggleBounce;
     private float openProgress, toggleProgress, settingsContentHeight;
     private ClipRect settingsClip = new ClipRect(0, 0, 0, 0);
@@ -88,6 +89,36 @@ public class ClickModule extends Component {
             if(value instanceof ClickCombo)((ClickCombo)value).resetPanelMotion();
             if(value instanceof ClickCheckBox)((ClickCheckBox)value).resetPanelMotion();
             if(value instanceof ClickSlider)((ClickSlider)value).resetPanelMotion();
+        }
+    }
+
+    /** The compact dropdown Spring is opt-in; legacy ClickAnimation fields stay intact. */
+    public void resetCompactMotion(){
+        compactReveal.snap(open?1:0);
+        panelToggle.snap(module.isToggled()?1:0);
+        toggleBounce=0;
+        for(Sub<?> value:values)
+            if(value instanceof ClickCombo)((ClickCombo)value).resetPanelMotion();
+    }
+
+    public void updateCompactMotion(float seconds) {
+        updateAnimation(); // Preserve the exact Legacy path when the mode is not active.
+        if(!compactSettings() || !me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(
+                me.youngjibbit.theme.ThemeMode.selected()))return;
+        ClientSettings settings=ClientSettings.current();
+        boolean animated=settings==null||settings.animations.getValue();
+        boolean reduced=settings!=null&&settings.reducedMotion.getValue();
+        String intensity=settings==null?"Balanced":settings.motionIntensity.getValue();
+        float toggle=panelToggle.step(module.isToggled()?1:0,seconds,animated,reduced,intensity);
+        toggleProgress=Math.max(0,Math.min(1,toggle));
+        toggleBounce=Math.min(.1f,Math.abs(toggle-toggleProgress));
+        float openValue=compactReveal.step(open?1:0,seconds,animated,reduced,intensity);
+        openProgress=Math.max(0,Math.min(1,openValue));
+        settingsContentHeight=settingsTop()+2;
+        for(Sub<?> value:values){
+            if(!visible(value))continue;
+            if(value instanceof ClickCombo)((ClickCombo)value).updatePanelAnimation(seconds);
+            settingsContentHeight+=value.getHeight()+valueGap();
         }
     }
 

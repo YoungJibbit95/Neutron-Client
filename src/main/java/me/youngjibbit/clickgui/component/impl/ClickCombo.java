@@ -34,7 +34,10 @@ public class ClickCombo extends Component.Sub<ComboValue> {
     }
 
     public void updatePanelAnimation(float dt){
-        if(!panelStyle)return;
+        // Compact Disclosure shares this spring only in the optional 2.0 theme.
+        if(!panelStyle && !(compact() &&
+                me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(
+                        me.youngjibbit.theme.ThemeMode.selected())))return;
         ClientSettings settings=ClientSettings.current();
         float response=panelDisclosure.step(open?1:0,dt,
                 settings==null||settings.animations.getValue(),
