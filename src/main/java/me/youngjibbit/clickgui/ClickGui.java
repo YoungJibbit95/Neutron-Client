@@ -158,7 +158,7 @@ public class ClickGui extends GuiScreen {
             if(modern&&entry>.005f){
                 // Spring-driven entrance accent, not an extra FBO or input surface.
                 float stroke=(width-22)*entry;
-                UIUtils.drawDecorationGradientHorizontal(x+11,y+HEADER-2,stroke,2,1,
+                UIUtils.drawLiteralGradient(x+11,y+HEADER-2,stroke,2,1,
                         theme.getPrimaryGradientColor(),theme.getSecondaryGradientColor());
             }
             Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString("o", x + width - 21, y + 13,
