@@ -8,7 +8,7 @@ permissions:
 jobs:
   candidate:
     runs-on: windows-latest
-    timeout-minutes: 60
+    timeout-minutes: 90
     defaults:
       run:
         working-directory: launcher
@@ -41,11 +41,20 @@ jobs:
         run: '& "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -File scripts/test-storage-preflight.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'
       - name: Check the tracked durable Alpha source pin
         run: node scripts/pin-alpha.mjs --check
-      - run: node scripts/package-windows.mjs
+      - name: Package Windows NSIS candidate (log exact tool downloads)
+        run: node scripts/package-windows.mjs
+        env:
+          DEBUG: electron-builder*
+          NODE_OPTIONS: --require=./scripts/trace-download-failures.cjs
       - name: Install, start, reinstall and uninstall the actual candidate
         run: ./scripts/windows-installer-smoke.ps1
       - name: Installer checksum
         run: Get-ChildItem -Path (Join-Path $env:NEUTRON_PACKAGE_OUTPUT '*.exe') -File | Get-FileHash -Algorithm SHA256 | Format-Table -AutoSize
+      - name: Upgrade public 0.2.0 to the exact new Windows candidate
+        run: |
+          $candidate = @(Get-ChildItem -LiteralPath $env:NEUTRON_PACKAGE_OUTPUT -Filter '*.exe' -File)
+          if ($candidate.Count -ne 1) { throw 'Exactly one reviewed NSIS candidate is required for the real upgrade test.' }
+          & ./scripts/run-installer-legacy-diagnostic.ps1 -CandidateExe $candidate[0].FullName
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
@@ -54,5 +63,7 @@ jobs:
             ${{ runner.temp }}\neutron-installer\*.exe
             ${{ runner.temp }}\neutron-installer\installer-acceptance.json
             ${{ runner.temp }}\neutron-installer\installer-standard-user.log
+            ${{ runner.temp }}\neutron-legacy-*\legacy-diagnostic.json
+            ${{ runner.temp }}\neutron-legacy-*\diagnostic.log
           retention-days: 7
           if-no-files-found: error

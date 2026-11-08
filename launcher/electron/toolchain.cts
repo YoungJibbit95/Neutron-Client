@@ -7,7 +7,7 @@ import { atomicJson, files, hash, owned } from './files.cjs';
 import { childEnvironment, runProcess, type ProcessGroup } from './processes.cjs';
 
 export const toolchainId = 'temurin8u482b08-maven3.9.15';
-export const javaPackage = { url: 'https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u482-b08/OpenJDK8U-jdk_x64_windows_hotspot_8u482b08.zip', digest: '51637ae41af1bce379a9d059109820864949c8d57ca302e0d502fcf329d33a72', size: 106448448 };
+export const javaPackage = { url: 'https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u482-b08/OpenJDK8U-jdk_x64_windows_hotspot_8u482b08.zip', digest: '51637ae41af1bce379a9d059109820864949c8d57ca302e0d502fcf329d33a72', size: 106448448, fallbackUrls: ['https://api.github.com/repos/adoptium/temurin8-binaries/releases/assets/350779158'] };
 export const mavenPackage = { url: 'https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.15/apache-maven-3.9.15-bin.zip', algorithm: 'sha512' as const, digest: '251c676eb88684d6dd86c666817979d256a335c31ad34ab0e1df17eeca1cd504a6c890e906a46d04e51cc7a4fb02f33a75971ef750558034e0a81c257be02267' };
 export interface Tools { toolchainId: string; javaHome: string; mavenHome: string; files: { path: string; sha256: string }[] }
 export async function verifyTools(root: string): Promise<Tools> {
