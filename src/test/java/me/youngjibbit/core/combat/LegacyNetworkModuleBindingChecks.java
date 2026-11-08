@@ -90,14 +90,21 @@ public class LegacyNetworkModuleBindingChecks {
             Pulsar.BUS.post(new AttackResultEvent(s.target));assertFalse(active(lag));assertEquals(held,s.sent.get(3));
         }
     }
-    @Test public void overlappingWindowsReleaseOnlyTheirOwnHoldsAndDiscardTheOldWorld() throws Exception {
+    @Test public void moduleWindowsSerializeAndIndependentHoldsDiscardTheOldWorld() throws Exception {
         try(Setup s=new Setup()) {
-            Backtrack back=back(s);back.getNumberSetting("Delay").setValue(200D);s.enable(back);
-            LagRange lag=new LagRange(s.clock::get,(min,max)->min); lag.getBooleanSetting("Only Aura").setValue(false);lag.getModeSetting("Delay Mode").setValue("Ticks");s.enable(lag);s.tick(0);
-            lag.getNumberSetting("Start Distance").setValue(0D);s.tick(0);
-            Packet<?> inbound=new S14PacketEntity.S15PacketEntityRelMove(7,(byte)32,(byte)0,(byte)0,true);s.receive(inbound);Packet<?> outbound=new C03PacketPlayer(true);s.send(outbound);
-            assertTrue(s.applied.isEmpty());assertTrue(s.sent.isEmpty());s.tick(100);assertEquals(Collections.singletonList(outbound),s.sent);assertTrue(s.applied.isEmpty());assertTrue(active(back));
-            s.pump(200);assertEquals(Collections.singletonList(inbound),s.applied);s.tick(250);s.receive(new S14PacketEntity.S15PacketEntityRelMove(7,(byte)1,(byte)0,(byte)0,true));s.send(new C03PacketPlayer(true));
+            Backtrack back=back(s);back.getNumberSetting("Delay").setValue(200D);s.enable(back);s.tick(0);
+            Packet<?> inbound=new S14PacketEntity.S15PacketEntityRelMove(7,(byte)32,(byte)0,(byte)0,true);s.receive(inbound);
+            LagRange lag=new LagRange(s.clock::get,(min,max)->min);lag.getBooleanSetting("Only Aura").setValue(false);
+            lag.getModeSetting("Delay Mode").setValue("Ticks");lag.getNumberSetting("Start Distance").setValue(0D);s.enable(lag);s.tick(0);
+            Packet<?> outbound=new C03PacketPlayer(true);s.send(outbound);
+            assertTrue(s.applied.isEmpty());assertEquals(Collections.singletonList(outbound),s.sent);
+            assertTrue(active(back));assertFalse("Backtrack already owns this window",active(lag));
+            s.tick(100);assertTrue(s.applied.isEmpty());
+            s.pump(200);assertEquals(Collections.singletonList(inbound),s.applied);
+            s.tick(250);s.receive(new S14PacketEntity.S15PacketEntityRelMove(7,(byte)1,(byte)0,(byte)0,true));
+            Object independent=new Object();s.pipe.delays().request(independent,500,(packet,flow)->flow==me.youngjibbit.event.EventFlow.OUTBOUND);
+            s.send(new C03PacketPlayer(true));
+            assertEquals(1,s.sent.size());assertEquals(1,s.applied.size());
             s.pipe.worldChanged();net.minecraft.client.multiplayer.WorldClient previous=s.f.mc.theWorld;s.f.mc.theWorld=null;Pulsar.BUS.post(new WorldEvent.Unload(previous));s.pump(1000);
             assertEquals(1,s.sent.size());assertEquals(1,s.applied.size());assertFalse(active(back));assertFalse(active(lag));
         }

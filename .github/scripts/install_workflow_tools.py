@@ -7,7 +7,10 @@ import json
 import os
 from pathlib import Path
 import platform
+import sys
 import tarfile
+import time
+from urllib.error import HTTPError, URLError
 from urllib.request import urlopen
 import zipfile
 
@@ -15,13 +18,28 @@ ROOT = Path(__file__).resolve().parents[2]
 MAX_DOWNLOAD = 128 * 1024 * 1024
 
 
+def download_locked_archive(url, fetch):
+    # GitHub release CDN may transiently answer 429/5xx. Keep the pinned URL,
+    # size cap, and SHA256 check; corrupt or missing artifacts never retry as valid.
+    for attempt in range(4):
+        try:
+            with fetch(url, timeout=60) as response:
+                return response.read(MAX_DOWNLOAD + 1)
+        except HTTPError as exc:
+            if exc.code not in (429, 500, 502, 503, 504) or attempt == 3:
+                raise
+        except (URLError, TimeoutError):
+            if attempt == 3:
+                raise
+        time.sleep(3 * (attempt + 1))
+
+
 def install(entry, destination, binary, fetch=urlopen):
     if Path(binary).name != binary or any(c in binary for c in ("/", "\\")):
         raise ValueError("Expected a binary filename")
     if not entry["url"].startswith("https://github.com/") or "/releases/download/" not in entry["url"]:
         raise ValueError("Expected a pinned GitHub release URL")
-    with fetch(entry["url"], timeout=60) as response:
-        data = response.read(MAX_DOWNLOAD + 1)
+    data = download_locked_archive(entry["url"], fetch)
     if len(data) > MAX_DOWNLOAD or hashlib.sha256(data).hexdigest() != entry["sha256"]:
         raise ValueError("Workflow tool download size/checksum mismatch")
     if entry["url"].endswith(".zip"):
@@ -55,6 +73,15 @@ if __name__ == "__main__":
     if system not in ("windows", "linux") or platform.machine().lower() not in ("amd64", "x86_64"):
         raise SystemExit("Workflow tools are locked for Windows/Linux x64")
     lock = json.loads((ROOT / ".github/workflow-tools.json").read_text(encoding="utf-8"))
-    for name, metadata in lock.items():
-        binary = name + (".exe" if system == "windows" else "")
-        print(install(metadata[system], args.destination, binary))
+    try:
+        for name, metadata in lock.items():
+            binary = name + (".exe" if system == "windows" else "")
+            print(install(metadata[system], args.destination, binary))
+    except HTTPError as error:
+        if error.code not in (429, 500, 502, 503, 504):
+            raise
+        print("Verified GitHub release mirror unavailable (HTTP {}); only a separately verified registry source may be used.".format(error.code), file=sys.stderr)
+        sys.exit(75)
+    except (URLError, TimeoutError) as error:
+        print("Verified GitHub release mirror unavailable; only a separately verified registry source may be used: {}".format(error), file=sys.stderr)
+        sys.exit(75)

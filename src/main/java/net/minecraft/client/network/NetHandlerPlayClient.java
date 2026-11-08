@@ -532,6 +532,12 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
                 return;
             }
 
+            if (localPlayer) {
+                me.youngjibbit.core.network.PacketPipeline pipeline = netManager.getClientPackets();
+                if (gameController.thePlayer != entity || gameController.theWorld != clientWorldController
+                        || !pipeline.beforeLocalImpulse(gameController.thePlayer)
+                        || gameController.thePlayer != entity || gameController.theWorld != clientWorldController) return;
+            }
             entity.setVelocity(knockBack.getX(), knockBack.getY(), knockBack.getZ());
 
             if (localPlayer) {
@@ -1242,6 +1248,12 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
         PacketThreadUtil.checkThreadAndEnqueue(packetIn, this, this.gameController);
         Explosion explosion = new Explosion(this.gameController.theWorld, (Entity)null, packetIn.getX(), packetIn.getY(), packetIn.getZ(), packetIn.getStrength(), packetIn.getAffectedBlockPositions());
         explosion.doExplosionB(true);
+        EntityPlayerSP player = this.gameController.thePlayer;
+        if (packetIn.func_149149_c() != 0 || packetIn.func_149144_d() != 0 || packetIn.func_149147_e() != 0) {
+            if (player == null || gameController.theWorld != clientWorldController
+                    || !netManager.getClientPackets().beforeLocalImpulse(player)
+                    || gameController.thePlayer != player || gameController.theWorld != clientWorldController) return;
+        }
         this.gameController.thePlayer.motionX += (double)packetIn.func_149149_c();
         this.gameController.thePlayer.motionY += (double)packetIn.func_149144_d();
         this.gameController.thePlayer.motionZ += (double)packetIn.func_149147_e();
