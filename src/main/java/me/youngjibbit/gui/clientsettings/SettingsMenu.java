@@ -143,7 +143,7 @@ public class SettingsMenu extends GuiScreen {
                 // The entry accent uses the same spring policy; text/input remain ready.
                 if(me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(me.youngjibbit.theme.ThemeMode.selected())
                         &&entry.opacity>.01f)
-                    UIUtils.drawDecorationGradientHorizontal(x+16,y+49+Math.max(0,entry.slideY*.22f),
+                    UIUtils.drawLiteralGradient(x+16,y+49+Math.max(0,entry.slideY*.22f),
                             Math.max(.01f,(w-32)*entry.opacity),2,1,
                             theme.getPrimaryGradientColor(),theme.getSecondaryGradientColor());
                 List<String> sections=names();
