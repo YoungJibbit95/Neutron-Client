@@ -191,8 +191,14 @@ public class ClickGui extends GuiScreen {
                 logo.drawString("N",x+25,y+17,theme.getPrimaryGradientRGB());
                 TTFFontRenderer brand=Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 20");
                 brand.drawString("Neutron",x+56,y+17,NeutronVisualTokens.INK);
-                UIUtils.drawRound(x+140,y+18,30,16,7,NeutronVisualTokens.CONTROL);
-                font().drawCenteredString("2.0",x+155,y+21,theme.getPrimaryGradientRGB());
+                // A small viewport leaves the short header to Search + Library.
+                // Keep the version badge only when the rail has room for it.
+                if(sidebarWidth()>=175){
+                    float pillX=x+sidebarWidth()-40;
+                    UIUtils.drawRound(pillX,y+18,30,16,7,NeutronVisualTokens.CONTROL);
+                    font().drawCenteredString("2.0",pillX+15,y+21,
+                            theme.getPrimaryGradientRGB());
+                }
                 if(entry>.01f)
                     UIUtils.drawLiteralGradient(x+sidebarWidth()+14,y+headerHeight()+1,
                             Math.max(.5f,(width-sidebarWidth()-40)*entry),
