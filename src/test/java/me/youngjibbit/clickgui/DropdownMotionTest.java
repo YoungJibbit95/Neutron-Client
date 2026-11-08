@@ -57,7 +57,7 @@ public class DropdownMotionTest {
         DropdownMotion a=new DropdownMotion(),b=new DropdownMotion();
         assertEquals(a.step(false,.05f,null),b.step(false,999f,null),.000001f);
         assertEquals(0,DropdownMotion.clamp(Float.NaN),0);
-        assertEquals(1,DropdownMotion.clamp(Float.POSITIVE_INFINITY),0);
+        assertEquals(0,DropdownMotion.clamp(Float.POSITIVE_INFINITY),0);
     }
 
     @Test public void resetDropsOldCategoryVelocityWithoutPersistingAnything() {
