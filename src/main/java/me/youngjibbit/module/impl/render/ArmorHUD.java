@@ -113,6 +113,11 @@ public class ArmorHUD extends Module {
         clamp(sw,sh);f.x=x;f.y=y;f.horizontal=horizontal;
         f.theme=Theme.resolve(Theme.getDefaultTheme());f.background=background.getValue();f.blur=blur.getValue();f.glow=glow.getValue();f.bar=bar.getValue();return f;
     }
+    private String formatDurability(ItemStack item){
+        int max=item.getMaxDamage();
+        float ratio=max<=0?1:Math.max(0,Math.min(1,(max-item.getItemDamage())/(float)max));
+        return formatDurability(item,ratio);
+    }
     private String formatDurability(ItemStack item,float shownRatio){
         int max=item.getMaxDamage();if(max<=0)return item.stackSize>1?Integer.toString(item.stackSize):"";
         int remaining=Math.max(0,Math.min(max,Math.round(max*shownRatio)));int percent=(int)(100L*remaining/max);
