@@ -84,6 +84,33 @@ public final class NeutronAiCheckpoint {
                 trainEpochs, trainLoss, validationLoss);
     }
 
+    /**
+     * Internal training-only encoder for the EXISTING NAI1 schema. No file IO,
+     * trust assertion, auto-installation or second model format. Decode remains
+     * the authoritative validation gate for any candidate.
+     */
+    static byte[] encodeLocalCandidate(float[] learned,int frames,int clicks,
+                                       int reactions,int epochs,float trainingLoss,float validationLoss) {
+        if(learned==null || learned.length!=PARAMETERS
+                || frames<600 || frames>60_000 || clicks<15 || clicks>frames
+                || reactions<3 || reactions>frames || epochs<1 || epochs>1_000
+                || !goodLoss(trainingLoss) || !goodLoss(validationLoss))return null;
+        for(float weight:learned)
+            if(!Float.isFinite(weight) || Math.abs(weight)>8)return null;
+        byte[] encoded=new byte[SERIALIZED_BYTES];
+        ByteBuffer out=ByteBuffer.wrap(encoded).order(ByteOrder.BIG_ENDIAN);
+        out.putInt(MAGIC);out.putInt(VERSION);
+        out.putInt(WIDTH);out.putInt(HISTORY);out.putInt(HIDDEN);
+        out.putInt(OUTPUTS);out.putInt(PARAMETERS);
+        out.putInt(frames);out.putInt(clicks);out.putInt(reactions);out.putInt(epochs);
+        out.putFloat(trainingLoss);out.putFloat(validationLoss);
+        for(float weight:learned)out.putFloat(weight);
+        if(out.position()!=SERIALIZED_BYTES-SHA_BYTES)
+            throw new IllegalStateException("incompatible fixed checkpoint schema");
+        out.put(sha256(encoded,SERIALIZED_BYTES-SHA_BYTES));
+        return decode(encoded)==null?null:encoded;
+    }
+
     private static boolean goodLoss(float value) {
         return Float.isFinite(value) && value >= 0 && value <= 20;
     }

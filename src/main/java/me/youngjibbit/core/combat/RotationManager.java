@@ -36,6 +36,7 @@ import java.util.function.Predicate;
 public final class RotationManager {
 
     private final Minecraft mc = Minecraft.getMinecraft();
+    private PersonalModelGate personalModelGate;
     private final RaycastService rays=new RaycastService(mc);
     private final Map<String, RotationState> states = new HashMap<>();
     private final Map<String,Long> trajectoryEpochs = new HashMap<>();
@@ -50,6 +51,53 @@ public final class RotationManager {
         if(s.ai==null)s.ai=new NeutronAiCore();
         return s.ai.install(checkpoint);
     }
+    /**
+     * Explicit, locally authenticated personal model installation. Package
+     * access keeps this entry owned by the consent/provenance loader; JUnit's
+     * separate synthetic injection keeps its existing contract.
+     */
+    boolean installAiPersonalCheckpoint(NeutronAiCheckpoint checkpoint,Object account,
+                                         Object world,Object player,Object connection,long epoch) {
+        PersonalModelGate gate=new PersonalModelGate(account,world,player,connection,epoch);
+        if(checkpoint==null || collecting || !gate.current(mc))return false;
+        reset("aura");
+        RotationState active=state("aura");
+        if(active.ai==null)active.ai=new NeutronAiCore();
+        if(!active.ai.install(checkpoint))return false;
+        personalModelGate=gate;
+        return true;
+    }
+    /** Consent revoke, scene switch or model corruption eliminates all AI state. */
+    void clearAiPersonalCheckpoint() {
+        if(personalModelGate!=null)reset("aura");
+        personalModelGate=null;
+    }
+    boolean hasAiPersonalCheckpoint() {
+        RotationState aura=states.get("aura");
+        return personalModelGate!=null && personalModelGate.current(mc)
+                && aura!=null && aura.ai!=null && aura.ai.hasModel();
+    }
+
+    /** Identity check is independent from Aura's ordinary target acquisition. */
+    private static final class PersonalModelGate {
+        final Object account,world,player,connection;
+        final long epoch;
+        PersonalModelGate(Object account,Object world,Object player,Object connection,long epoch) {
+            this.account=account;this.world=world;this.player=player;
+            this.connection=connection;this.epoch=epoch;
+        }
+        boolean current(Minecraft mc) {
+            if(mc==null || account==null || world==null || player==null
+                    || connection==null || epoch<0 || mc.theWorld!=world
+                    || mc.thePlayer!=player || mc.getSession()!=account
+                    || mc.thePlayer.sendQueue==null
+                    || mc.thePlayer.sendQueue.getNetworkManager()==null)return false;
+            PacketPipeline pipeline=mc.thePlayer.sendQueue.getNetworkManager().getClientPackets();
+            return pipeline==connection && pipeline!=null && pipeline.isActive()
+                    && pipeline.getContextVersion()==epoch;
+        }
+    }
+
     /** Same-motion offered candidate PLUS locally accepted Aura C03. */
     public boolean isAiAuraMotionAccepted() {
         RotationState s=states.get("aura");
@@ -240,6 +288,8 @@ public final class RotationManager {
     }
 
     public void beginMotion(Object player, Object world, float cameraYaw, float cameraPitch) {
+        if (personalModelGate!=null && !personalModelGate.current(mc))
+            clearAiPersonalCheckpoint();
         if (motionPlayer.get() != player || motionWorld.get() != world) {
             reset();
             motionPlayer = new WeakReference<>(player);
@@ -971,6 +1021,9 @@ public final class RotationManager {
     /** AI Learned is an opt-in mathematical candidate, never rotation/attack authority. */
     private float[] aiRotations(RotationState s,EntityLivingBase target,AxisAlignedBB box,
                                 Vec3 eyes,RotationProfile profile,float fromYaw,float fromPitch) {
+        if(personalModelGate!=null && !personalModelGate.current(mc)) {
+            clearAiPersonalCheckpoint();return null;
+        }
         // Render/POST callbacks cannot spend a second neural sample.
         if(!collecting && mc!=null && mc.currentScreen==null && mc.inGameHasFocus)return null;
         if(!collecting || mc==null || mc.thePlayer==null || mc.theWorld==null
@@ -1261,6 +1314,11 @@ public final class RotationManager {
         if (source == null) {
             return;
         }
+        if("aura".equals(source) && personalModelGate!=null) {
+            RotationState prior=states.get("aura");
+            if(prior!=null && prior.ai!=null)prior.ai.dispose();
+            personalModelGate=null;
+        }
         if (releaseAcceptance != null && source.equals(releaseAcceptance.source)) releaseAcceptance = null;
         if (isReleaseSource(source) && rotationRelease != null && source.equals(rotationRelease.releaseSource)) cancelRotationRelease();
         states.remove(source);
@@ -1274,6 +1332,11 @@ public final class RotationManager {
     }
 
     public void reset() {
+        if(personalModelGate!=null) {
+            RotationState prior=states.get("aura");
+            if(prior!=null && prior.ai!=null)prior.ai.dispose();
+            personalModelGate=null;
+        }
         cancelVisibleAssistStop();
         movementFrame = null;
         curveMotionSequence=Long.MIN_VALUE;
