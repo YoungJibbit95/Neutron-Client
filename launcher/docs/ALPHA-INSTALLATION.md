@@ -1,11 +1,29 @@
 # Windows x64 installation
 
-Version 0.2.1 targets the requested stable channel; prerelease metadata remains
+Version 0.2.2 targets the requested stable channel; prerelease metadata remains
 validated separately. The installer contains the launcher and an immutable source pin. It does
 not contain a combined Minecraft/OptiFine client JAR, Minecraft assets, accounts,
 worlds or developer build directories.
 
 On a fresh machine, installation needs internet and at least 3 GiB free space.
+Setup checks the **data drive**, not only the launcher program drive, before
+replacing launcher files. Select a dedicated local data folder outside the
+program directory. Fresh installs default to a sibling `Neutron Launcher Data`
+folder; existing installs keep their current data folder. The successful selection
+is saved in `%APPDATA%\Neutron Launcher\data-directory.txt`; subsequent launches
+and reinstalls use it without environment variables. A missing drive/profile
+stops explicitly instead of creating an empty replacement profile on C:.
+
+If an existing data drive is full, close Neutron and copy its **complete** data
+folder to a dedicated folder on a drive with sufficient space, retaining the
+original. Select that copy in setup. Setup compares saved files before replacing
+the EXE and activates the new location only after successful client preparation.
+It never moves or deletes personal data automatically. A separately configured
+game directory stays at its existing absolute location; do not delete the old
+folder indiscriminately. For unattended setup, `/DATA="F:\Neutron Data"` selects
+the folder; `/D=...` remains the last argument and selects only the program folder.
+An explicit `NEUTRON_DATA_ROOT` is process-only and never writes the saved selection.
+
 This installer installs for the current Windows user only. Start it normally;
 elevated or all-users installation is refused before launcher files are replaced.
 The final NSIS step runs the installed launcher without opening a window. It
@@ -61,7 +79,7 @@ invalid metadata. Optional pin generation from explicit environment inputs refus
 to overwrite an existing file.
 
 Publish the exact EXE that passed installer acceptance, without rebuilding it.
-Publish under the separate `launcher-v0.2.1` tag so the full-client release
+Publish under the separate `launcher-v0.2.2` tag so the full-client release
 workflow is not triggered. Attach only the reviewed installer, SHA256 text and
 release metadata. Verify the downloaded asset against the local SHA256 after
 publication. The human authorized unsigned publication and subsequently requested
