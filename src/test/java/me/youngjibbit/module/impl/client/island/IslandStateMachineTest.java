@@ -111,4 +111,31 @@ public class IslandStateMachineTest {
         model.reset();
         assertEquals(IslandStateMachine.State.IDLE, model.resolve(5, 1, null, null, true, true).state);
     }
+    @Test public void idempotencyWindowSuppressesInterleavedDuplicatesWithoutGrowing() {
+        IslandStateMachine model = new IslandStateMachine();
+        for (int i = 0; i < 30; i++)
+            assertTrue(model.offer(IslandStateMachine.State.MODULE_TOAST,
+                    "id-" + i, "Toggle " + i, 1, i * 1_000_000L));
+        assertEquals(30, model.rememberedEventCount());
+        assertEquals(1, model.pendingEventCount());
+        assertFalse(model.offer(IslandStateMachine.State.MODULE_TOAST,
+                "id-0", "Duplicate old toggle", 1, 30_000_000L));
+        assertEquals(30, model.rememberedEventCount());
+        for (int i = 30; i < 90; i++) {
+            assertTrue(model.offer(IslandStateMachine.State.MODULE_TOAST,
+                    "id-" + i, "Toggle " + i, 1, i * 1_000_000L));
+            assertTrue(model.rememberedEventCount() <= 32);
+            assertEquals(1, model.pendingEventCount());
+        }
+        assertEquals(32, model.rememberedEventCount());
+        // After the bounded replay horizon, IDs can be legitimately reused.
+        assertTrue(model.offer(IslandStateMachine.State.MODULE_TOAST,
+                "id-0", "Fresh later", 1, 90_000_000L));
+        assertEquals(32, model.rememberedEventCount());
+        assertEquals(IslandStateMachine.State.IDLE,
+                model.resolve(2, 0, null, null, true, true).state);
+        assertEquals(0, model.rememberedEventCount());
+        assertEquals(0, model.pendingEventCount());
+    }
+
 }
