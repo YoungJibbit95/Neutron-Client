@@ -33,6 +33,7 @@ public class Wave07ModernHudCardsTest {
         }
         assertEquals(20,Theme.values().length);
         assertEquals(0xfff71ec0,Theme.approachTwo().getPrimaryGradientRGB());
+        isolated.select("Purple");
         assertSame(Theme.Purple,theme.invoke(null,"Neutron 2.0"));
     }
 
