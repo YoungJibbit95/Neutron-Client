@@ -24,7 +24,7 @@ public class DropdownControlMotionTest {
     public static class Dummy extends Module {
         final CheckBoxValue check=new CheckBoxValue("Check",this,false);
         final ComboValue combo=new ComboValue("Combo",this,new String[]{"A","B","C"},0);
-        final SliderValue slider=new SliderValue("Slider",this,5,0,10);
+        final SliderValue slider=new SliderValue("Slider",this,5d,0,10);
         int changes,enable,disable;
         @Override public void onValueChange(){changes++;}
         @Override public void onEnable(){enable++;}
