@@ -234,7 +234,7 @@ public class TargetHUD extends Module {
             // The compositor can run after a target/world/HUD disable event.
             if(!isToggled()||!HUD.visible()||epoch!=sceneEpoch||mc.gameSettings.showDebugInfo)return;
             surface.designedPanel(x,y,w,h,Math.min(f.radius*scale,h/2),f.theme,true,
-                    !basic,modern?false:!basic,modern?false:!basic,modern?3.5f:5,
+                    modern?false:!basic,modern?false:!basic,modern?3.5f:5,
                     (modern?.86f:.62f)*opacity,
                     (modern?.10f:outlined?.9f:0)*opacity,tenacity,()->{
                 try(RenderState state=new RenderState()){
