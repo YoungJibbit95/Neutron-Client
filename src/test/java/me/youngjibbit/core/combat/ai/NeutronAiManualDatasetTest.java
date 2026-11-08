@@ -27,7 +27,7 @@ public class NeutronAiManualDatasetTest {
         assertEquals(.1f,first.input()[0],0);
         NeutronAiManualDataset dataset=NeutronAiManualDataset.of(Arrays.asList(first,row(50)));
         assertEquals(2,dataset.size());
-        assertEquals(2,dataset.manualClicks());
+        assertEquals(1,dataset.manualClicks());
         assertEquals(1,dataset.manualReactions());
         byte[] bytes=dataset.encode();
         assertEquals(32+2*(8+4+4*(NeutronAiCheckpoint.INPUTS+2))+32,bytes.length);
