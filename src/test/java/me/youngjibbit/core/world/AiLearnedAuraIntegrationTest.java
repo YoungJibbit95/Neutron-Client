@@ -16,11 +16,36 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.security.MessageDigest;
 import java.util.List;
+import java.util.Arrays;
+import java.util.Collection;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
 /** Real Aura, rotation, walking and controller C03/C02; model weights are test-only. */
+@RunWith(Parameterized.class)
 public class AiLearnedAuraIntegrationTest {
+    @Parameterized.Parameters(name="{0}")
+    public static Collection<Object[]> cases() {
+        return Arrays.asList(new Object[][]{
+            {"missingOrCorruptedModelNeverGrantsAiC03OrC02"},
+            {"validSyntheticModelReachesAcceptedWalkingC03"},
+            {"acceptedAiPoseReusesExistingRaycastAndControllerC02"},
+            {"targetSwitchBeginsNewHoldAndDoesNotReuseOldC03"},
+            {"accountSwitchAndFocusLossDiscardOldModelState"},
+            {"cancelledC03NeverConfersC02Authority"},
+            {"twentySixtyOneFortyFourTwoFortyHzRenderQueriesDoNotInfer"},
+            {"rotationsOffNeverFallsBackToCameraOnlyAiAttack"}
+        });
+    }
+    private final String caseName;
+    public AiLearnedAuraIntegrationTest(String caseName) { this.caseName=caseName; }
+    @Test public void realAuraPathInIsolatedJava8Jvm() throws Exception {
+        Wave2IsolatedCase.run(Checks.class,caseName);
+    }
+
+    /** The original production-contract assertions run without JIT-inlined static fixture state. */
     private static Session session() {
         return new Session("SyntheticAI", "synthetic-id", "not-a-user-token", "legacy");
     }
@@ -108,7 +133,7 @@ public class AiLearnedAuraIntegrationTest {
                 +" targetFirst="+(f.run.fixture.aura.getActiveTarget()==f.first);
     }
 
-    @Test public void missingOrCorruptedModelNeverGrantsAiC03OrC02() throws Exception {
+    private static void missingOrCorruptedModelNeverGrantsAiC03OrC02() throws Exception {
         try(Wave05AuraSelectionChecks.SelectionRun f=new Wave05AuraSelectionChecks.SelectionRun("Single")) {
             select(f);
             assertNull(NeutronAiCheckpoint.decode(new byte[NeutronAiCheckpoint.SERIALIZED_BYTES]));
@@ -120,7 +145,7 @@ public class AiLearnedAuraIntegrationTest {
         }
     }
 
-    @Test public void validSyntheticModelReachesAcceptedWalkingC03() throws Exception {
+    private static void validSyntheticModelReachesAcceptedWalkingC03() throws Exception {
         try(Wave05AuraSelectionChecks.SelectionRun f=new Wave05AuraSelectionChecks.SelectionRun("Single")) {
             select(f);f.run.fixture.player.usingItem=true;inject(f,testModel(3,3));
             f.walk(); // first acquisition must HOLD
@@ -136,7 +161,7 @@ public class AiLearnedAuraIntegrationTest {
         }
     }
 
-    @Test public void acceptedAiPoseReusesExistingRaycastAndControllerC02() throws Exception {
+    private static void acceptedAiPoseReusesExistingRaycastAndControllerC02() throws Exception {
         try(Wave05AuraSelectionChecks.SelectionRun f=new Wave05AuraSelectionChecks.SelectionRun("Single")) {
             select(f);inject(f,testModel(3,3));
             boolean acceptedHit=false;
@@ -154,7 +179,7 @@ public class AiLearnedAuraIntegrationTest {
         }
     }
 
-    @Test public void targetSwitchBeginsNewHoldAndDoesNotReuseOldC03() throws Exception {
+    private static void targetSwitchBeginsNewHoldAndDoesNotReuseOldC03() throws Exception {
         try(Wave05AuraSelectionChecks.SelectionRun f=new Wave05AuraSelectionChecks.SelectionRun("Single")) {
             select(f);f.run.fixture.player.usingItem=true;inject(f,testModel(3,3));
             for(int i=0;i<12;i++)f.walk();
@@ -167,7 +192,7 @@ public class AiLearnedAuraIntegrationTest {
         }
     }
 
-    @Test public void accountSwitchAndFocusLossDiscardOldModelState() throws Exception {
+    private static void accountSwitchAndFocusLossDiscardOldModelState() throws Exception {
         try(Wave05AuraSelectionChecks.SelectionRun f=new Wave05AuraSelectionChecks.SelectionRun("Single")) {
             select(f);f.run.fixture.player.usingItem=true;inject(f,testModel(3,3));
             java.util.List<String> trace=new java.util.ArrayList<>();
@@ -191,7 +216,7 @@ public class AiLearnedAuraIntegrationTest {
                 event.cancel();
         });
     }
-    @Test public void cancelledC03NeverConfersC02Authority() throws Exception {
+    private static void cancelledC03NeverConfersC02Authority() throws Exception {
         try(Wave05AuraSelectionChecks.SelectionRun f=new Wave05AuraSelectionChecks.SelectionRun("Single")) {
             select(f);inject(f,testModel(3,3));f.walk();
             RejectC03 rejected=new RejectC03();
@@ -206,7 +231,7 @@ public class AiLearnedAuraIntegrationTest {
         }
     }
 
-    @Test public void twentySixtyOneFortyFourTwoFortyHzRenderQueriesDoNotInfer() throws Exception {
+    private static void twentySixtyOneFortyFourTwoFortyHzRenderQueriesDoNotInfer() throws Exception {
         try(Wave05AuraSelectionChecks.SelectionRun f=new Wave05AuraSelectionChecks.SelectionRun("Single")) {
             select(f);f.run.fixture.player.usingItem=true;inject(f,testModel(3,3));
             for(int hz:new int[]{20,60,144,240}) {
@@ -220,7 +245,7 @@ public class AiLearnedAuraIntegrationTest {
         }
     }
 
-    @Test public void rotationsOffNeverFallsBackToCameraOnlyAiAttack() throws Exception {
+    private static void rotationsOffNeverFallsBackToCameraOnlyAiAttack() throws Exception {
         try(Wave05AuraSelectionChecks.SelectionRun f=new Wave05AuraSelectionChecks.SelectionRun("Single")) {
             select(f);f.run.fixture.aura.getBooleanSetting("Rotations").setValue(false);
             for(int i=0;i<5;i++) {
@@ -229,4 +254,32 @@ public class AiLearnedAuraIntegrationTest {
             }
         }
     }
+    /** The unchanged assertions are executed one-by-one through Wave2IsolatedCase. */
+    public static final class Checks {
+        @Test public void missingOrCorruptedModelNeverGrantsAiC03OrC02() throws Exception {
+            AiLearnedAuraIntegrationTest.missingOrCorruptedModelNeverGrantsAiC03OrC02();
+        }
+        @Test public void validSyntheticModelReachesAcceptedWalkingC03() throws Exception {
+            AiLearnedAuraIntegrationTest.validSyntheticModelReachesAcceptedWalkingC03();
+        }
+        @Test public void acceptedAiPoseReusesExistingRaycastAndControllerC02() throws Exception {
+            AiLearnedAuraIntegrationTest.acceptedAiPoseReusesExistingRaycastAndControllerC02();
+        }
+        @Test public void targetSwitchBeginsNewHoldAndDoesNotReuseOldC03() throws Exception {
+            AiLearnedAuraIntegrationTest.targetSwitchBeginsNewHoldAndDoesNotReuseOldC03();
+        }
+        @Test public void accountSwitchAndFocusLossDiscardOldModelState() throws Exception {
+            AiLearnedAuraIntegrationTest.accountSwitchAndFocusLossDiscardOldModelState();
+        }
+        @Test public void cancelledC03NeverConfersC02Authority() throws Exception {
+            AiLearnedAuraIntegrationTest.cancelledC03NeverConfersC02Authority();
+        }
+        @Test public void twentySixtyOneFortyFourTwoFortyHzRenderQueriesDoNotInfer() throws Exception {
+            AiLearnedAuraIntegrationTest.twentySixtyOneFortyFourTwoFortyHzRenderQueriesDoNotInfer();
+        }
+        @Test public void rotationsOffNeverFallsBackToCameraOnlyAiAttack() throws Exception {
+            AiLearnedAuraIntegrationTest.rotationsOffNeverFallsBackToCameraOnlyAiAttack();
+        }
+    }
+
 }
