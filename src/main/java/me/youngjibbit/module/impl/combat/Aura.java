@@ -285,7 +285,7 @@ public class Aura extends Module {
         // Isolate the client reference for the full early PRE boundary. A test
         // scene (or a reentrant lifecycle callback) may exchange the shared
         // client while a listener is still processing an old motion event.
-        final Minecraft entryClient=mc;
+        final net.minecraft.client.Minecraft entryClient=mc;
         if (entryClient == null || !usable()) {
             clearCombat(entryClient == null || entryClient.thePlayer == null || entryClient.theWorld == null);
             return;
