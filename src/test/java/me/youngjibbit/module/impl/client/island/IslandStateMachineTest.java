@@ -1,0 +1,114 @@
+package me.youngjibbit.module.impl.client.island;
+
+import org.junit.Test;
+import static org.junit.Assert.*;
+
+public class IslandStateMachineTest {
+    private static IslandStateMachine.Target target(String name) {
+        return new IslandStateMachine.Target(17, name, 12, 20, 2);
+    }
+
+    @Test public void idleAndUnknownStatesAreSafe() {
+        IslandStateMachine model = new IslandStateMachine();
+        assertEquals(IslandStateMachine.State.IDLE, IslandStateMachine.State.fromName("unregistered"));
+        assertEquals(IslandStateMachine.State.IDLE, IslandStateMachine.State.fromName(null));
+        assertEquals(IslandStateMachine.State.TARGET, IslandStateMachine.State.fromName("target"));
+        assertEquals(IslandStateMachine.State.IDLE, model.resolve(1, 0, null, null, true, true).state);
+    }
+
+    @Test public void priorityWarningToastTargetScaffoldIdle() {
+        IslandStateMachine model = new IslandStateMachine();
+        IslandStateMachine.Target live = target("Neutron victim");
+        IslandStateMachine.Scaffold scaffold = new IslandStateMachine.Scaffold(true, 32, "Normal");
+        assertEquals(IslandStateMachine.State.TARGET, model.resolve(1, 0, live, scaffold, true, true).state);
+        assertEquals(IslandStateMachine.State.SCAFFOLD, model.resolve(1, 0, live, scaffold, false, true).state);
+        assertTrue(model.offer(IslandStateMachine.State.MODULE_TOAST, "toggle1", "Module enabled", 1, 10));
+        assertEquals(IslandStateMachine.State.MODULE_TOAST, model.resolve(1, 20, live, scaffold, true, true).state);
+        assertTrue(model.offer(IslandStateMachine.State.POSSIBLE_SETBACK, "local1", "correction", 1, 100));
+        assertEquals(IslandStateMachine.State.POSSIBLE_SETBACK, model.resolve(1, 120, live, scaffold, true, true).state);
+        assertFalse(model.offer(IslandStateMachine.State.MODULE_TOAST, "toggle2", "enabled", 1, 200));
+        assertEquals(IslandStateMachine.State.TARGET,
+                model.resolve(1, 2_400_000_200L, live, scaffold, true, true).state);
+    }
+
+    @Test public void expiryReturnsToFreshSnapshotNotCachedName() {
+        IslandStateMachine model = new IslandStateMachine();
+        assertTrue(model.offer(IslandStateMachine.State.MODULE_TOAST, "t1", "Test", 4, 200));
+        assertEquals(IslandStateMachine.State.MODULE_TOAST,
+                model.resolve(4, 200, target("Old"), null, true, true).state);
+        assertEquals("New", model.resolve(4, 1_900_000_201L, target("New"), null, true, true).target.name);
+        assertEquals(IslandStateMachine.State.IDLE, model.resolve(4, 1_900_000_202L, null, null, true, true).state);
+    }
+
+    @Test public void worldEpochRejectsOldEventsAndDoesNotCacheTarget() {
+        IslandStateMachine model = new IslandStateMachine();
+        assertEquals(IslandStateMachine.State.TARGET, model.resolve(8, 4, target("Before"), null, true, false).state);
+        assertTrue(model.offer(IslandStateMachine.State.MODULE_TOAST, "epoch8", "Old", 8, 10));
+        assertEquals(IslandStateMachine.State.IDLE, model.resolve(9, 0, null, null, true, true).state);
+        assertEquals(0, model.pendingEventCount());
+        assertTrue(model.offer(IslandStateMachine.State.MODULE_TOAST, "epoch8", "New scene", 9, 20));
+        assertEquals("New scene", model.resolve(9, 20, null, null, true, true).label);
+    }
+
+    @Test public void thirtyRapidTogglesKeepOnlyTheMostRecentEvent() {
+        IslandStateMachine model = new IslandStateMachine();
+        for (int i = 0; i < 30; i++) {
+            assertTrue(model.offer(IslandStateMachine.State.MODULE_TOAST,
+                    "t" + i, "Toggle " + i, 1, i * 1_000_000L));
+            assertEquals(1, model.pendingEventCount());
+            assertEquals("Toggle " + i, model.resolve(1, i * 1_000_000L, null, null, true, true).label);
+            assertFalse(model.offer(IslandStateMachine.State.MODULE_TOAST,
+                    "t" + i, "Replay", 1, i * 1_000_000L));
+        }
+        assertEquals(IslandStateMachine.State.IDLE,
+                model.resolve(1, 2_000_000_000L, null, null, true, true).state);
+        assertEquals(0, model.pendingEventCount());
+    }
+
+    @Test public void warningIsOnlyAnUnconfirmedLocalHintWithCooldown() {
+        IslandStateMachine model = new IslandStateMachine();
+        assertTrue(model.offer(IslandStateMachine.State.POSSIBLE_SETBACK, "a", "Confirmed flag!", 1, 1));
+        assertEquals("Possible setback", model.resolve(1, 10, null, null, true, true).label);
+        assertFalse(model.offer(IslandStateMachine.State.POSSIBLE_SETBACK, "b", "Again", 1, 2_500_000_000L));
+        assertEquals(IslandStateMachine.State.IDLE, model.resolve(1, 2_500_000_000L, null, null, true, true).state);
+        assertTrue(model.offer(IslandStateMachine.State.POSSIBLE_SETBACK, "c", "Local", 1, 4_100_000_000L));
+    }
+
+    @Test public void invalidProvidersNeverCreateGameplayClaims() {
+        IslandStateMachine model = new IslandStateMachine();
+        IslandStateMachine.Scaffold absent = new IslandStateMachine.Scaffold(false, 99, "Spoofed");
+        IslandStateMachine.Scaffold unknown = new IslandStateMachine.Scaffold(true, -1, "Unknown");
+        assertEquals(IslandStateMachine.State.IDLE, model.resolve(1, 0, null, absent, true, true).state);
+        assertEquals(IslandStateMachine.State.IDLE, model.resolve(1, 0, null, unknown, true, true).state);
+        assertFalse(model.offer(IslandStateMachine.State.TARGET, "t", "no", 1, 3));
+        assertFalse(model.offer(IslandStateMachine.State.IDLE, "i", "no", 1, 3));
+        assertEquals(IslandStateMachine.State.SCAFFOLD,
+                model.resolve(1, 0, null, new IslandStateMachine.Scaffold(true, 0, "Safe fixture"), true, true).state);
+    }
+
+    @Test public void healthAndAbsorptionAreFiniteAndClamped() {
+        IslandStateMachine.Target invalid = new IslandStateMachine.Target(1, "Ä😀", Float.NaN,
+                Float.NaN, Float.POSITIVE_INFINITY);
+        assertTrue(invalid.valid());
+        assertEquals(20f, invalid.maxHealth, 0);
+        assertEquals(0f, invalid.health, 0);
+        assertEquals(0f, invalid.absorption, 0);
+        assertEquals(0f, invalid.fraction(), 0);
+        IslandStateMachine.Target other = new IslandStateMachine.Target(2, "x", 999, 30, 9000);
+        assertEquals(30f, other.health, 0);
+        assertEquals(2048f, other.absorption, 0);
+        assertEquals(1f, other.fraction(), 0);
+        assertFalse(new IslandStateMachine.Target(-1, "x", 1, 20, 0).valid());
+        assertFalse(new IslandStateMachine.Target(3, "", 1, 20, 0).valid());
+    }
+
+    @Test public void backwardAndInvalidEpochTimesCannotResurrectEvents() {
+        IslandStateMachine model = new IslandStateMachine();
+        assertTrue(model.offer(IslandStateMachine.State.MODULE_TOAST, "one", "A", 5, 100));
+        model.resolve(5, 1_900_000_101L, null, null, true, true);
+        assertEquals(0, model.pendingEventCount());
+        assertEquals(IslandStateMachine.State.IDLE, model.resolve(5, 1, null, null, true, true).state);
+        model.reset();
+        assertEquals(IslandStateMachine.State.IDLE, model.resolve(5, 1, null, null, true, true).state);
+    }
+}
