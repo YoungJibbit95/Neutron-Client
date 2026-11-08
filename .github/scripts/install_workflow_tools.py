@@ -7,6 +7,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import sys
 import tarfile
 import time
 from urllib.error import HTTPError, URLError
@@ -72,6 +73,15 @@ if __name__ == "__main__":
     if system not in ("windows", "linux") or platform.machine().lower() not in ("amd64", "x86_64"):
         raise SystemExit("Workflow tools are locked for Windows/Linux x64")
     lock = json.loads((ROOT / ".github/workflow-tools.json").read_text(encoding="utf-8"))
-    for name, metadata in lock.items():
-        binary = name + (".exe" if system == "windows" else "")
-        print(install(metadata[system], args.destination, binary))
+    try:
+        for name, metadata in lock.items():
+            binary = name + (".exe" if system == "windows" else "")
+            print(install(metadata[system], args.destination, binary))
+    except HTTPError as error:
+        if error.code not in (429, 500, 502, 503, 504):
+            raise
+        print("Verified GitHub release mirror unavailable (HTTP {}); only a separately verified registry source may be used.".format(error.code), file=sys.stderr)
+        sys.exit(75)
+    except (URLError, TimeoutError) as error:
+        print("Verified GitHub release mirror unavailable; only a separately verified registry source may be used: {}".format(error), file=sys.stderr)
+        sys.exit(75)
