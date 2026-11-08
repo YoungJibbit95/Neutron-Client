@@ -156,7 +156,8 @@ public class TargetHUD extends Module {
         float rad=modern?16:basic?.5f:rise?14:"Neutron White".equals(design)?10:UiEffects.radius(5,w,h);
         float textX=test?8:modern?58:44;
         return new Frame(p.x,p.y,w,h,Math.min(rad,h/2),textX,
-                fit("TargetHUD preview",nameFont,w-textX-8),"Health: --  |  Dist: --","Preview",null,
+                fit("TargetHUD preview",nameFont,w-textX-8),
+                modern?"Health: --  |  Dist: --":"-- / --","Preview",null,
                 1,0,design,nameFont,infoFont,targetTheme(design));
     }
     Frame layout(EntityLivingBase target,int sw,int sh){
