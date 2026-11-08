@@ -7,6 +7,8 @@ import me.youngjibbit.clickgui.utils.*;
 import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.impl.render.ClickGUI;
+import me.youngjibbit.module.impl.client.ClientSettings;
+import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.font.TTFFontRenderer;
 import me.youngjibbit.utils.render.ArrayListSurface;
@@ -49,6 +51,7 @@ public class DropdownGui extends GuiScreen {
         float x, y, width, height, slotHeight, scroll, targetScroll, maxScroll;
         boolean open = true;
         final ClickAnimation reveal = new ClickAnimation(200, 1, me.youngjibbit.utils.animations.Direction.FORWARDS);
+        final DropdownMotion motion = new DropdownMotion();
         float expandedBody, contentHeight, openness=1;
         final me.youngjibbit.gui.UiSpring headerMotion=new me.youngjibbit.gui.UiSpring();
         ClipRect viewport = new ClipRect(0, 0, 0, 0);
@@ -69,6 +72,8 @@ public class DropdownGui extends GuiScreen {
     @Override public void initGui() {
         super.initGui();
         cancelInteraction();
+        // Keep the same logical category/scroll, but no stale spring tail on GUI reopen.
+        for(CategoryPanel panel:panels)panel.motion.reset(panel.open||!search.trim().isEmpty());
         if (layoutWidth != width || layoutHeight != height) resetLayout();
         layout(0);
         lastFrame = System.nanoTime();
@@ -97,12 +102,15 @@ public class DropdownGui extends GuiScreen {
     }
 
     protected void layout(float dt) {
+        ClientSettings motionSettings=ClientSettings.current();
+        boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
         for (CategoryPanel panel : panels) {
             float content = 0;
             panel.width = Math.min(compactWidth, width - 2 * MARGIN);
             for (DropdownModule row : panel.rows) {
                 row.setWidth(panel.width - 2);
-                row.updateAnimation();
+                if(modern)row.updateCompactMotion(dt);
+                else row.updateAnimation();
                 content += row.getHeight();
             }
             panel.x = Math.max(MARGIN, Math.min(panel.x, width - panel.width - MARGIN));
@@ -111,7 +119,8 @@ public class DropdownGui extends GuiScreen {
             panel.reveal.setDirection(visible ? me.youngjibbit.utils.animations.Direction.FORWARDS : me.youngjibbit.utils.animations.Direction.BACKWARDS);
             panel.expandedBody = Math.min(Math.max(DropdownModule.ROW_HEIGHT, content),
                     Math.max(0, Math.min(panel.slotHeight - HEADER - 2, bottom() - panel.y - HEADER - 2)));
-            float reveal = UiEffects.motion() ? panel.reveal.getOutput().floatValue() : visible ? 1 : 0;
+            float legacy=UiEffects.motion()?panel.reveal.getOutput().floatValue():visible?1:0;
+            float reveal=modern?panel.motion.step(visible,dt,motionSettings):legacy;
             panel.openness=reveal;
             float body = panel.expandedBody * reveal;
             panel.contentHeight = content;
@@ -166,7 +175,9 @@ public class DropdownGui extends GuiScreen {
 
     private void drawPanel(CategoryPanel panel, Theme theme, int mouseX, int mouseY) {
         try (UiEffects.GradientSpace gradient = UiEffects.gradientSpace(panel.x,panel.y,panel.width,Math.max(HEADER,panel.height))) {
-        panel.surface.panel(panel.x, panel.y, panel.width, panel.height, 3, theme, true, true, true, 8, .88f, 1, () -> {
+        boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
+        panel.surface.panel(panel.x, panel.y, panel.width, panel.height, modern?6:3,
+                theme,true,true,true,8,modern?.91f:.88f,1,()->{
             try (GuiClip ignored = GuiClip.push(panel.bounds())) {
                 // The entire column, including its halo, uses the same gradient domain and clock.
                 UIUtils.drawDecorationGradientVertical(panel.x, panel.y, panel.width, HEADER, 3,
