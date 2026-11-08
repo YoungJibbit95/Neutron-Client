@@ -57,6 +57,34 @@ describe('real file and process boundaries — no Electron or client start', () 
     await expect(download({ url: 'https://repo.maven.apache.org/a', digest: digest('new') }, target, cancelled.signal)).rejects.toThrow('cancelled');
     expect(await fs.readFile(target, 'utf8')).toBe('old');
   });
+  test('release CDN 504 uses exact pinned asset API and still hashes every byte', async () => {
+    const target = path.join(root, 'jdk.zip');
+    const primary = 'https://github.com/adoptium/temurin8-binaries/releases/download/jdk8u482-b08/fixture.zip';
+    const fallback = 'https://api.github.com/repos/adoptium/temurin8-binaries/releases/assets/350779158';
+    const fetcher = vi.fn(async (url: string, options: RequestInit) => {
+      if (url === primary) return new Response('upstream outage', { status: 504 });
+      expect(url).toBe(fallback);
+      expect((options.headers as Record<string, string>).Accept).toBe('application/octet-stream');
+      return new Response('verified-bytes');
+    });
+    vi.stubGlobal('fetch', fetcher);
+    await download({ url: primary, fallbackUrls: [fallback], digest: digest('verified-bytes'), size: 14 }, target, new AbortController().signal);
+    expect(await fs.readFile(target, 'utf8')).toBe('verified-bytes');
+    expect(fetcher).toHaveBeenCalledTimes(2);
+    await fs.writeFile(target, 'previous-verified');
+    fetcher.mockImplementation(async (url: string) => url === primary
+      ? new Response('', { status: 504 }) : new Response('different'));
+    await expect(download({ url: primary, fallbackUrls: [fallback], digest: digest('verified-bytes') }, target, new AbortController().signal)).rejects.toThrow('checksum');
+    expect(await fs.readFile(target, 'utf8')).toBe('previous-verified');
+  });
+  test('HTTP 404 and unrelated failures never activate the release asset fallback', async () => {
+    const fetcher = vi.fn(async () => new Response('not found', { status: 404 }));
+    vi.stubGlobal('fetch', fetcher);
+    await expect(download({ url: 'https://github.com/owner/repo/releases/download/v1/fixture.zip',
+      fallbackUrls: ['https://api.github.com/repos/owner/repo/releases/assets/123'],
+      digest: digest('fixture') }, path.join(root, 'archive'), new AbortController().signal)).rejects.toThrow('Download HTTP 404');
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
   test('redirect targets are checked before following them', async () => {
     const fetcher = vi.fn(async () => new Response(null, { status: 302, headers: { location: 'http://127.0.0.1/private' } })); vi.stubGlobal('fetch', fetcher);
     await expect(response('https://api.github.com/repos/a/b', new AbortController().signal)).rejects.toThrow('host'); expect(fetcher).toHaveBeenCalledTimes(1);
