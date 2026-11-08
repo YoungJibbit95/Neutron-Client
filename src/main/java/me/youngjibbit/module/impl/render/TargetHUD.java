@@ -216,9 +216,28 @@ public class TargetHUD extends Module {
         }
     }
     static final class Frame {
-        final float x,y,width,height,radius,textX,health,absorption;
-        final String name,healthText,kind,design;final ResourceLocation skin;
-        final TTFFontRenderer nameFont,infoFont;final Theme theme;
-        Frame(float x,float y,float width,float height,float radius,float textX,String name,String healthText,String kind,ResourceLocation skin,float health,float absorption,String design,TTFFontRenderer nameFont,TTFFontRenderer infoFont,Theme theme){this.x=x;this.y=y;this.width=width;this.height=height;this.radius=radius;this.textX=textX;this.name=name;this.healthText=healthText;this.kind=kind;this.skin=skin;this.health=health;this.absorption=absorption;this.design=design;this.nameFont=nameFont;this.infoFont=infoFont;this.theme=theme;}
+        final float x,y,width,height,radius,textX,health,absorption,headPulse;
+        final String name,healthText,kind,design;
+        final ResourceLocation skin;
+        final TTFFontRenderer nameFont,infoFont;
+        final Theme theme;
+        Frame(float x,float y,float width,float height,float radius,float textX,String name,
+              String healthText,String kind,ResourceLocation skin,float health,float absorption,
+              String design,TTFFontRenderer nameFont,TTFFontRenderer infoFont,Theme theme){
+            this(x,y,width,height,radius,textX,name,healthText,kind,skin,health,absorption,
+                    design,nameFont,infoFont,theme,0);
+        }
+        Frame(float x,float y,float width,float height,float radius,float textX,String name,
+              String healthText,String kind,ResourceLocation skin,float health,float absorption,
+              String design,TTFFontRenderer nameFont,TTFFontRenderer infoFont,Theme theme,float headPulse){
+            this.x=x;this.y=y;this.width=width;this.height=height;this.radius=radius;
+            this.textX=textX;this.name=name;this.healthText=healthText;this.kind=kind;this.skin=skin;
+            this.health=health;this.absorption=absorption;this.design=design;
+            this.nameFont=nameFont;this.infoFont=infoFont;this.theme=theme;this.headPulse=headPulse;
+        }
+        Frame positioned(float x,float y){
+            return new Frame(x,y,width,height,radius,textX,name,healthText,kind,skin,
+                    health,absorption,design,nameFont,infoFont,theme,headPulse);
+        }
     }
 }
