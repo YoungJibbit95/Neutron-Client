@@ -11,6 +11,9 @@ import me.youngjibbit.event.motion.EventRotation;
 import me.youngjibbit.event.player.MovementReadyEvent;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.bootstrap.RuntimeServices;
+import me.youngjibbit.core.combat.ai.NeutronAiCore;
+import me.youngjibbit.core.combat.ai.NeutronAiCheckpoint;
+import me.youngjibbit.core.combat.ai.NeutronAiFeatures;
 import me.youngjibbit.core.contract.SceneContext;
 import me.youngjibbit.core.observation.RuntimeObservation;
 import me.youngjibbit.core.network.PacketPipeline;
@@ -40,6 +43,22 @@ public final class RotationManager {
     private final long seed;
     public RotationManager() { this(System::nanoTime,ThreadLocalRandom.current().nextLong()); }
     public RotationManager(LongSupplier clock,long seed) { this.clock=clock;this.seed=seed; }
+    /** Synthetic JUnit injection only. There is no production file/model loader. */
+    boolean installAiTestCheckpoint(NeutronAiCheckpoint checkpoint) {
+        if(collecting)return false;
+        RotationState s=state("aura");s.invalidateAi();
+        if(s.ai==null)s.ai=new NeutronAiCore();
+        return s.ai.install(checkpoint);
+    }
+    /** Same-motion offered candidate PLUS locally accepted Aura C03. */
+    public boolean isAiAuraMotionAccepted() {
+        RotationState s=states.get("aura");
+        return s!=null && s.aiOfferedSequence==sequence && accepted && "aura".equals(owner);
+    }
+    long aiInferenceCountForTests() {
+        RotationState s=states.get("aura");
+        return s==null||s.ai==null?0:s.ai.inferenceCount();
+    }
     public static final int AIM_ASSIST_PRIORITY = 10;
     public static final int AURA_PRIORITY = 20;
     public static final int SCAFFOLD_PRIORITY = 30;
@@ -715,6 +734,8 @@ public final class RotationManager {
             if(!entry.getKey().equals(acceptedSource)) {
                 entry.getValue().arsenic.reset();
                 entry.getValue().invalidateAdaptive();
+                // A first-frame neural HOLD is not an offer; it remains warm.
+                if(entry.getValue().aiOfferedSequence==sequence)entry.getValue().invalidateAi();
             }
         }
     }
@@ -894,14 +915,15 @@ public final class RotationManager {
     public float[] calculateRotations(String source,float cameraYaw,float cameraPitch,EntityLivingBase target,
                                       boolean bestHitVec,RotationProfile profile,boolean visible) {
         if(target==null || mc==null || mc.thePlayer==null) {
-            if(profile!=null && profile.adaptive) {
+            if(profile!=null && (profile.adaptive||profile.aiLearned)) {
                 RotationState old=states.get(source);
-                if(old!=null) old.invalidateAdaptive();
+                if(old!=null) {old.invalidateAdaptive();old.invalidateAi();}
             }
             return null;
         }
         RotationState state=state(source);
         if(!profile.adaptive) state.invalidateAdaptive();
+        if(!profile.aiLearned) state.invalidateAi();
         state.softVisible = visible && profile.arsenic != RotationProfile.ArsenicMode.OFF && profile.softArsenicMotion;
         AxisAlignedBB box=target.getEntityBoundingBox();
         Vec3 feet=new Vec3(mc.thePlayer.posX,mc.thePlayer.posY,mc.thePlayer.posZ);
@@ -909,6 +931,10 @@ public final class RotationManager {
         Vec3 eyes=feet.addVector(0,mc.thePlayer.getEyeHeight(),0);
         float fromYaw=visible?cameraYaw:collecting?baseYaw:state.active?state.yaw:cameraYaw;
         float fromPitch=visible?cameraPitch:collecting?basePitch:state.active?state.pitch:cameraPitch;
+        if(profile.aiLearned) {
+            if(!"aura".equals(source) || visible) {state.invalidateAi();return null;}
+            return aiRotations(state,target,box,eyes,profile,fromYaw,fromPitch);
+        }
         if(profile.stopOnTarget && rays.canHitFrom(feet,target,fromYaw,fromPitch,profile.reach,profile.throughWalls)) {
             state.invalidateAdaptive();
             state.arsenic.reset();
@@ -940,6 +966,94 @@ public final class RotationManager {
         if((profile.smartAim || profile.heuristics) && !hitsPoint(rays,feet,target,aim,profile))aim=base;
         float[] desired=angles(eyes,aim);
         return profileStep(source,cameraYaw,cameraPitch,target,desired[0],desired[1],eyes.distanceTo(aim),profile,visible);
+    }
+
+    /** AI Learned is an opt-in mathematical candidate, never rotation/attack authority. */
+    private float[] aiRotations(RotationState s,EntityLivingBase target,AxisAlignedBB box,
+                                Vec3 eyes,RotationProfile profile,float fromYaw,float fromPitch) {
+        // Render/POST callbacks cannot spend a second neural sample.
+        if(!collecting && mc!=null && mc.currentScreen==null && mc.inGameHasFocus)return null;
+        if(!collecting || mc==null || mc.thePlayer==null || mc.theWorld==null
+                || mc.gameSettings==null || mc.currentScreen!=null || !mc.inGameHasFocus
+                || mc.isGamePaused() || mc.getRenderViewEntity()!=mc.thePlayer
+                || motionPlayer.get()!=mc.thePlayer || motionWorld.get()!=mc.theWorld
+                || mc.getSession()==null || target.isDead || !target.isEntityAlive()
+                || !mc.thePlayer.canEntityBeSeen(target) || mc.thePlayer.sendQueue==null
+                || mc.thePlayer.sendQueue.getNetworkManager()==null) {
+            s.invalidateAi();return null;
+        }
+        PacketPipeline pipeline=mc.thePlayer.sendQueue.getNetworkManager().getClientPackets();
+        RuntimeObservation obs=RuntimeServices.observation();
+        SceneContext scene=obs==null?null:obs.captureScene();
+        if(pipeline==null || !pipeline.isActive() || !isConnection(pipeline)
+                || scene==null || !scene.isValid() || scene.isSuspended()
+                || obs.getActiveOuterTickId()<0 || !obs.isCurrent(scene)) {
+            s.invalidateAi();return null;
+        }
+        if(s.aiBlockedSequence==sequence)return null;
+        if(s.ai==null || !s.ai.hasModel()) {s.invalidateAi();return null;}
+        Object account=mc.getSession();
+        if(s.aiScene!=null && (!s.aiScene.sameSceneAs(scene)
+                || s.aiPlayer.get()!=mc.thePlayer || s.aiWorld.get()!=mc.theWorld
+                || s.aiConnection.get()!=pipeline || s.aiAccount.get()!=account)) {
+            // Never move a personal model across world, player, connection or account.
+            s.ai.dispose();s.invalidateAi();return null;
+        }
+        if(owner!=null && previousAccepted && !"aura".equals(owner)) {
+            s.invalidateAi();return null;
+        }
+        if(s.aiToken==null || s.aiTarget.get()!=target
+                || s.aiSuspension!=obs.getObservedSuspensionRevision()) {
+            if(s.aiLastSequence==sequence) {
+                s.invalidateAi();s.aiBlockedSequence=sequence;return null;
+            }
+            s.invalidateAi();
+            s.aiToken=new NeutronAiCore.Acquisition(s,mc.theWorld,pipeline,target,account,
+                    scene.getConnectionGeneration(),++s.aiOrdinal);
+            s.aiScene=scene;
+            s.aiTarget=new WeakReference<>(target);s.aiWorld=new WeakReference<>(mc.theWorld);
+            s.aiPlayer=new WeakReference<>(mc.thePlayer);s.aiConnection=new WeakReference<>(pipeline);
+            s.aiAccount=new WeakReference<>(account);
+            s.aiSuspension=obs.getObservedSuspensionRevision();
+        }
+
+        NeutronAiFeatures.Observation o=new NeutronAiFeatures.Observation();
+        o.eyeX=eyes.xCoord;o.eyeY=eyes.yCoord;o.eyeZ=eyes.zCoord;
+        o.targetX=(box.minX+box.maxX)*.5;
+        o.targetY=(box.minY+box.maxY)*.5;
+        o.targetZ=(box.minZ+box.maxZ)*.5;
+        o.yaw=fromYaw;o.pitch=fromPitch;
+        o.playerVx=sampleDelta(mc.thePlayer.posX-mc.thePlayer.lastTickPosX);
+        o.playerVy=sampleDelta(mc.thePlayer.posY-mc.thePlayer.lastTickPosY);
+        o.playerVz=sampleDelta(mc.thePlayer.posZ-mc.thePlayer.lastTickPosZ);
+        o.targetVx=sampleDelta(target.posX-target.lastTickPosX);
+        o.targetVy=sampleDelta(target.posY-target.lastTickPosY);
+        o.targetVz=sampleDelta(target.posZ-target.lastTickPosZ);
+        o.targetWidth=box.maxX-box.minX;o.targetHeight=box.maxY-box.minY;
+        o.targetDepth=box.maxZ-box.minZ;o.reach=profile.reach;
+        o.visible=mc.thePlayer.canEntityBeSeen(target);
+        o.targetAlive=target.isEntityAlive();
+        o.playerGrounded=mc.thePlayer.onGround;o.targetGrounded=target.onGround;
+        if(!NeutronAiFeatures.valid(o)){s.invalidateAi();return null;}
+        long suspension=obs.getObservedSuspensionRevision();
+        NeutronAiCore.Candidate candidate=s.ai.advance(s.aiToken,o,sequence,curveMotionTime(),true);
+        s.aiLastSequence=sequence;
+        if(!candidate.hasRotation)return null; // no model, warm-up or settled goal: HOLD
+        if(!collecting || !obs.isCurrent(scene)
+                || obs.getObservedSuspensionRevision()!=suspension
+                || mc.currentScreen!=null || !mc.inGameHasFocus) {
+            s.invalidateAi();return null;
+        }
+        float wanted=fromYaw+MathHelper.wrapAngleTo180_float((float)candidate.yaw-fromYaw);
+        float[] snapped=quantize(wanted,(float)candidate.pitch,fromYaw,fromPitch,
+                mc.gameSettings.mouseSensitivity);
+        if(!Float.isFinite(snapped[0]) || !Float.isFinite(snapped[1])) {
+            s.invalidateAi();return null;
+        }
+        if(Math.abs(MathHelper.wrapAngleTo180_float(snapped[0]-fromYaw))<.0001f
+                && Math.abs(snapped[1]-fromPitch)<.0001f)return null;
+        s.aiOfferedSequence=sequence;
+        return snapped;
     }
 
     /**
@@ -1193,6 +1307,15 @@ public final class RotationManager {
         final ArsenicAimTrajectory arsenic;
         final long adaptiveSeed;
         AdaptiveMotionController adaptive;
+        NeutronAiCore ai;
+        NeutronAiCore.Acquisition aiToken;
+        SceneContext aiScene;
+        WeakReference<Object> aiTarget=new WeakReference<>(null),aiPlayer=new WeakReference<>(null),
+                aiWorld=new WeakReference<>(null),aiAccount=new WeakReference<>(null),
+                aiConnection=new WeakReference<>(null);
+        long aiOrdinal,aiSuspension;
+        long aiLastSequence=Long.MIN_VALUE,aiBlockedSequence=Long.MIN_VALUE,
+                aiOfferedSequence=Long.MIN_VALUE;
         AdaptivePresetMotion.Configuration adaptivePreset;
         AdaptivePresetMotion.HitpointTrajectory adaptiveHitpoint;
         AdaptiveMotionController.Acquisition adaptiveToken;
@@ -1209,6 +1332,12 @@ public final class RotationManager {
             adaptiveHitpoint=null;
             adaptiveScene=null;
             adaptiveTarget.clear();
+        }
+        void invalidateAi() {
+            if(ai!=null && aiToken!=null)ai.invalidateIfCurrent(aiToken);
+            aiToken=null;aiScene=null;aiOfferedSequence=Long.MIN_VALUE;
+            aiTarget.clear();aiPlayer.clear();aiWorld.clear();
+            aiAccount.clear();aiConnection.clear();
         }
         private float yaw;
         private float pitch;

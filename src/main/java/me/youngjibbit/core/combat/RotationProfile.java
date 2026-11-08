@@ -9,6 +9,8 @@ public final class RotationProfile {
     public ArsenicMode arsenic=ArsenicMode.OFF;
     /** Aura-only optional approach; false keeps every historical profile and default unchanged. */
     public boolean adaptive;
+    /** Optional Aura-only neural candidate; no implicit model or old-mode fallback. */
+    public boolean aiLearned;
     /** Used only when adaptive=true; all old modes ignore these three values. */
     public AdaptivePresetMotion.Speed adaptiveSpeed = AdaptivePresetMotion.Speed.BALANCED;
     public AdaptivePresetMotion.Hitpoint adaptiveHitpoint = AdaptivePresetMotion.Hitpoint.STABLE;

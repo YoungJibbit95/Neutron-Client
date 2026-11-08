@@ -19,7 +19,8 @@ public class AdaptivePresetConfigTest {
     @Test public void newModesAreAuraOnlyAndLegacyIndicesStayUnchanged() {
         Aura a = new Aura();
         assertArrayEquals(new String[]{"Basic","Smooth","Advanced","Arsenic Lazy","Arsenic Heuristics","Adaptive"},
-                a.getModeSetting("Rot Mode").getOptions());
+                java.util.Arrays.copyOf(a.getModeSetting("Rot Mode").getOptions(),6));
+        assertEquals("AI Learned",a.getModeSetting("Rot Mode").getOptions()[6]);
         assertEquals("Basic", a.getModeSetting("Rot Mode").getValue());
         assertEquals("Balanced", a.getModeSetting("Adaptive Speed").getValue());
         assertEquals("Stable", a.getModeSetting("Adaptive Hitpoint").getValue());

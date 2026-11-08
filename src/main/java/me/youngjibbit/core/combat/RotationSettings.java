@@ -43,7 +43,7 @@ public final class RotationSettings {
         interpolateRotation=placement?null:new CheckBoxValue("Interpolate Rotation",parent,false);
         advancedPitch=placement?null:new CheckBoxValue("Advanced Pitch",parent,false);
         randomMode=placement?null:new ComboValue("Random Mode",parent,new String[]{"Noise","Basic","OnlyRotation","Doubled"},0);
-        mode=new ComboValue(modeName,parent,placement?new String[]{"Basic","Smooth","Advanced"}:assist?new String[]{"Legit","Test","Normal","Arsenic Lazy","Arsenic Heuristics"}:new String[]{"Basic","Smooth","Advanced","Arsenic Lazy","Arsenic Heuristics","Adaptive"},assist?2:0);
+        mode=new ComboValue(modeName,parent,placement?new String[]{"Basic","Smooth","Advanced"}:assist?new String[]{"Legit","Test","Normal","Arsenic Lazy","Arsenic Heuristics"}:new String[]{"Basic","Smooth","Advanced","Arsenic Lazy","Arsenic Heuristics","Adaptive","AI Learned"},assist?2:0);
         softArsenicMotion = placement ? null : new CheckBoxValue("Arsenic Soft Motion", parent, false);
         hitpointVariation = placement || assist ? null : new CheckBoxValue("Hitpoint Variation", parent, false);
         hitpointProfile = hitpointVariation == null ? null : new ComboValue("Hitpoint Profile", parent,
@@ -111,7 +111,7 @@ public final class RotationSettings {
                     strength,noise,frequency,yawOffset,pitchOffset,radius,cellularDistance,cellularReturn,cellularJitter,
                     fractal,gain,lacunarity,octaves,pingPong,weighted,warp,warpAmplitude,jitter,randomHitVec}) {
                 java.util.function.Predicate<Module> visible=v.getVisibility();
-                v.setVisibility(m->!arsenic() && !adaptive() && (visible==null || visible.test(m)));
+                v.setVisibility(m->!arsenic() && !adaptive() && !aiLearned() && (visible==null || visible.test(m)));
             }
         }
         // Append new values after the legacy registration sequence. Only Aura owns them.
@@ -131,6 +131,7 @@ public final class RotationSettings {
     public boolean arsenic() { return !placement && mode.getValue().startsWith("Arsenic "); }
     /** Only Aura offers this appended option; legacy mode indices and defaults stay identical. */
     public boolean adaptive() { return !placement && "Adaptive".equals(mode.getValue()); }
+    public boolean aiLearned() { return !placement && "AI Learned".equals(mode.getValue()); }
     private boolean custom() { return "Benutzerdefiniert".equals(preset.getValue()); }
     private boolean timingEditable() { return placement?custom():custom() || "Aus".equals(preset.getValue()) || !presetTiming.getValue(); }
     private boolean noiseOn() { return randomization.getValue() && strength.getValue()>0 && !"Aus".equals(noise.getValue()); }
@@ -143,6 +144,7 @@ public final class RotationSettings {
     public RotationProfile snapshot() {
         RotationProfile p=new RotationProfile();
         p.adaptive=adaptive();
+        p.aiLearned=aiLearned();
         if(p.adaptive) {
             p.adaptiveSpeed=AdaptivePresetMotion.Speed.values()[adaptiveSpeedPreset.getSelectedIndex()];
             p.adaptiveHitpoint=AdaptivePresetMotion.Hitpoint.values()[adaptiveHitpointPreset.getSelectedIndex()];
