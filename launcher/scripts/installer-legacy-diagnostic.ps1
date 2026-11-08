@@ -77,12 +77,31 @@ function Invoke-ObservedInstaller([string]$File,[string]$Arguments,[string]$Labe
     $process.Refresh()
     if($process.ExitCode -ne 0){throw ($Label+': installer exit '+$process.ExitCode)}
 }
+# Historical release binaries are immutable. Retry only transport errors,
+# never a digest mismatch; partially downloaded files cannot enter the fixture.
+function Get-PinnedInstaller([hashtable]$Artifact) {
+    $uri='https://github.com/YoungJibbit95/Neutron-Client/releases/download/launcher-v'+$Artifact.version+'/Neutron-Launcher-'+$Artifact.version+'-Windows-x64.exe'
+    for($attempt=1; $attempt -le 4; $attempt++) {
+        try {
+            if(Test-Path -LiteralPath $Artifact.path){Remove-Item -LiteralPath $Artifact.path -Force}
+            Invoke-WebRequest -Uri $uri -OutFile $Artifact.path -TimeoutSec 180 -MaximumRetryCount 0
+            break
+        } catch {
+            $status=$null
+            try { $status=[int]$_.Exception.Response.StatusCode } catch { }
+            if($attempt -eq 4 -or ($null -ne $status -and $status -ne 429 -and $status -lt 500)){throw}
+            Write-Host ('Public release download failed on attempt '+$attempt+' (HTTP '+$status+'); retrying transport.')
+            Start-Sleep -Seconds (5*$attempt)
+        }
+    }
+    if((Get-FileHash -LiteralPath $Artifact.path).Hash.ToLowerInvariant() -cne $Artifact.hash){throw 'Public installer bytes differ from the pinned release.'}
+}
+
 try {
     $old=Join-Path $downloads 'Neutron-Launcher-0.2.0-Windows-x64.exe'
     $new=Join-Path $downloads 'Neutron-Launcher-0.2.2-Windows-x64.exe'
     foreach($artifact in @(@{path=$old;version='0.2.0';hash='20e8c8a8b0a71a8e3540d87eeae7bce7c4fa2c6323777b0cbce136e12f9091d3'},@{path=$new;version='0.2.2';hash='acfc43e605fc0af9d591068bd12b08d1e05a1a6b5936cdc3af312aaddd6a27bc'})) {
-        Invoke-WebRequest ('https://github.com/YoungJibbit95/Neutron-Client/releases/download/launcher-v'+$artifact.version+'/Neutron-Launcher-'+$artifact.version+'-Windows-x64.exe') -OutFile $artifact.path
-        if((Get-FileHash -LiteralPath $artifact.path).Hash.ToLowerInvariant() -ne $artifact.hash){throw 'Public installer bytes differ from the pinned release.'}
+        Get-PinnedInstaller $artifact
     }
     $reference=Join-Path $root 'reference'; [IO.Directory]::CreateDirectory($reference) | Out-Null
     $seven=Join-Path $env:ProgramFiles '7-Zip/7z.exe'
