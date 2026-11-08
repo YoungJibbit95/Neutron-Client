@@ -206,9 +206,16 @@ public class ClickGui extends GuiScreen {
                         "o",x+width-21,y+13,theme.getSecondaryGradientRGB());
             }
             ClipRect searchBox=searchBounds();
-            GuiStyle.panel(searchBox.x,searchBox.y,searchBox.width,searchBox.height,
-                    modern?10:3,searchFocus&&showsKeyboardFocus()?1:0,
-                    modern?new Color(53,24,54,214):new Color(22,22,24));
+            if(modern){
+                UIUtils.drawRound(searchBox.x,searchBox.y,searchBox.width,searchBox.height,
+                        NeutronVisualTokens.RADIUS_CONTROL,NeutronVisualTokens.CONTROL);
+                UIUtils.drawRoundOutline(searchBox.x+.5f,searchBox.y+.5f,
+                        Math.max(1,searchBox.width-1),Math.max(1,searchBox.height-1),
+                        NeutronVisualTokens.RADIUS_CONTROL,.5f,new Color(0,0,0,1),
+                        searchFocus?NeutronVisualTokens.accent(theme,115):
+                                NeutronVisualTokens.HAIRLINE);
+            }else GuiStyle.panel(searchBox.x,searchBox.y,searchBox.width,searchBox.height,
+                    3,searchFocus&&showsKeyboardFocus()?1:0,new Color(22,22,24));
             GuiStyle.feedback(searchBox,chromeMotion[0]);
             try(GuiClip ignored=GuiClip.push(new ClipRect(searchBox.x+8,searchBox.y,searchBox.width-28,searchBox.height))){
                 String shown=search.isEmpty()&&!searchFocus?width<380?"Search...":"Search modules...":search+(searchFocus?"_":"");
@@ -217,16 +224,19 @@ public class ClickGui extends GuiScreen {
             }
             if(!search.isEmpty()||searchFocus)font().drawString("x",searchBox.x+searchBox.width-14,textY(font(),"x",searchBox),0xffb8bec8);
             ClipRect themes = GuiStyle.buttonBounds(themeBounds(), chromeMotion[1]);
-            UIUtils.drawRound(themes.x,themes.y,themes.width,themes.height,modern?8:3,
-                    modern?new Color(62,30,59,215):new Color(22,22,24));
+            UIUtils.drawRound(themes.x,themes.y,themes.width,themes.height,
+                    modern?NeutronVisualTokens.RADIUS_CONTROL:3,
+                    modern?NeutronVisualTokens.CONTROL:new Color(22,22,24));
             GuiStyle.feedback(themes,chromeMotion[1]);
             font().drawString("Library",themes.x+(themes.width-font().getWidth("Library"))/2,textY(font(),"Library",themes),GuiStyle.ink(theme.isCustom()?theme.getTextColor().getRGB():0xffd4d9e3,chromeMotion[1]));
             float selectedY = y + headerHeight() + 4 + selectionOffset;
-            if(modern)
-                UIUtils.drawGradientHorizontal(x+5,selectedY,sidebarWidth()-10,step-4,8,
-                        new Color(204,39,151,230),new Color(241,63,163,230));
-            else UIUtils.drawDecorationRound(x + 5, selectedY, sidebarWidth() - 10, step - 4, 6,
-                    me.youngjibbit.utils.render.UiEffects.accent(theme.getPrimaryGradientRGB(), .18f));
+            if(modern){
+                UIUtils.drawRound(x+9,selectedY+2,sidebarWidth()-18,step-6,
+                        NeutronVisualTokens.RADIUS_CONTROL,NeutronVisualTokens.CARD_HOVER);
+                UIUtils.drawDecorationRound(x+10,selectedY+7,2,Math.max(1,step-16),1,
+                        NeutronVisualTokens.accent(theme,236));
+            }else UIUtils.drawDecorationRound(x+5,selectedY,sidebarWidth()-10,step-4,6,
+                    me.youngjibbit.utils.render.UiEffects.accent(theme.getPrimaryGradientRGB(),.18f));
             String[] icons = {"c", "f", "d", "d", "e", "t", "f", "a"};
             for (int i = 0; i < CATEGORIES.length; i++) {
                 float rowY = y + headerHeight() + 4 + i * step;
@@ -234,9 +244,16 @@ public class ClickGui extends GuiScreen {
                 rowY += category.y - chromeBounds(i+2).y;
                 GuiStyle.feedback(category,chromeMotion[i+2]);
                 String font = i == 2 || i == 4 || i == 6 ? "icon1 21" : "icon 21";
-                Pulsar.INSTANCE.getFontManager().getFont(font).drawString(icons[i], x + 10, rowY + (step-4-10)/2, i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffc4cad5);
+                Pulsar.INSTANCE.getFontManager().getFont(font).drawString(
+                        icons[i],x+(modern?20:10),rowY+(step-14)/2,
+                        modern?i==selectedCategory.ordinal()?NeutronVisualTokens.INK:
+                                NeutronVisualTokens.MUTED:
+                                i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffc4cad5);
                 Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString(
-                        CATEGORIES[i].name(), x + 26, rowY + (step-4-10)/2, i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffc4cad5);
+                        CATEGORIES[i].name(),x+(modern?43:26),rowY+(step-14)/2,
+                        modern?i==selectedCategory.ordinal()?NeutronVisualTokens.INK:
+                                NeutronVisualTokens.MUTED:
+                                i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffc4cad5);
             }
             String title=search.trim().isEmpty()?selectedCategory.name():"Search results";
             String count=modules.size()+(!search.trim().isEmpty()?(modules.size()==1?" result":" results"):(modules.size()==1?" module":" modules"));
