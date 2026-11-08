@@ -12,7 +12,7 @@ export async function response(url: string, signal: AbortSignal, redirects = 0):
   if (redirects > 5) throw new Error('Too many download redirects.');
   signal.throwIfAborted();
   const binaryAsset = /^https:\/\/api\.github\.com\/repos\/[^/]+\/[^/]+\/releases\/assets\/[0-9]+$/.test(url);
-  const result = await fetch(checkUrl(url), { redirect: 'manual', signal: AbortSignal.any([signal, AbortSignal.timeout(90000)]), headers: { 'User-Agent': 'Neutron-Launcher/0.2.2', Accept: binaryAsset ? 'application/octet-stream' : 'application/vnd.github+json' } });
+  const result = await fetch(checkUrl(url), { redirect: 'manual', signal: AbortSignal.any([signal, AbortSignal.timeout(90000)]), headers: { 'User-Agent': 'Neutron-Launcher/0.2.3', Accept: binaryAsset ? 'application/octet-stream' : 'application/vnd.github+json' } });
   if ([301, 302, 303, 307, 308].includes(result.status)) {
     const location = result.headers.get('location'); await result.body?.cancel();
     if (!location) throw new Error('Missing redirect destination.');
