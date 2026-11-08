@@ -29,7 +29,7 @@ function Invoke-ObservedInstaller([string]$File,[string]$Arguments,[string]$Labe
     # Assisted means the actual visible dialogs: no /S or equivalent is passed.
     $process=Start-Process -FilePath $File -ArgumentList $Arguments -WindowStyle Normal -PassThru
     $owned=@{}; $owned[$process.Id]=@{process=$process;path=$File;exitRecorded=$false}
-    $seenUi=$false; $failure=$null; $lastUi=''; $lastClick=[datetime]::MinValue
+    $seenUi=$false; $failure=$null; $lastUi=''; $lastClick=[datetime]::MinValue; $failedButtonHandle=0L; $buttonFailures=0
     $deadline=[datetime]::UtcNow.AddMinutes(15)
     while($true) {
         foreach($item in @(Get-CimInstance Win32_Process)) {
@@ -64,7 +64,22 @@ function Invoke-ObservedInstaller([string]$File,[string]$Arguments,[string]$Labe
             }
             if($Assisted -and $window.Visible -and [datetime]::UtcNow -gt $lastClick.AddSeconds(1)) {
                 $next=@($window.Controls | Where-Object {$_.ClassName -eq 'Button' -and $_.Enabled -and $_.Visible -and $_.Id -eq 1 -and $_.Text -match '(Next|Install|Finish|Uninstall|Weiter|Fertig|Deinstallieren)'})
-                if($next.Count){[NeutronInstallerUi]::Click($next[0].Handle,$window.Pid);$lastClick=[datetime]::UtcNow}
+                if($next.Count){
+                    $handle=[long]$next[0].Handle
+                    try {
+                        [NeutronInstallerUi]::Click($handle,$window.Pid)
+                        $failedButtonHandle=0L; $buttonFailures=0
+                    } catch {
+                        if($failedButtonHandle -ne $handle){$failedButtonHandle=$handle; $buttonFailures=0}
+                        $buttonFailures++
+                        if($buttonFailures -eq 1 -or $buttonFailures -ge 12){
+                            $events.Add(@{label=$Label;date=[datetime]::UtcNow.ToString('o');action='owned-control-not-ready';pid=$window.Pid;button=$next[0].Text;attempt=$buttonFailures;error=$_.Exception.Message})
+                            Save-Evidence
+                        }
+                        if($buttonFailures -ge 12){throw ($Label+': owned installer button remained unresponsive after 12 bounded attempts; inspect UI/process evidence.')}
+                    }
+                    $lastClick=[datetime]::UtcNow
+                }
             }
         }
         if($active -eq 0 -and $windows.Count -eq 0){break}
