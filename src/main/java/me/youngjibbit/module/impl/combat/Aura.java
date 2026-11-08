@@ -51,7 +51,7 @@ public class Aura extends Module {
     private long lifecycleGeneration;
     private EntityLivingBase target;
     private PendingBlock blockAfterHit;
-    private boolean previousAdaptiveApproach;
+    private boolean previousAdaptiveApproach,previousAiApproach;
 
     /** An accepted hit may request one later use action, never new movement authority. */
     private final class PendingBlock {
@@ -128,6 +128,7 @@ public class Aura extends Module {
     @Override
     public void onEnable() {
         previousAdaptiveApproach=rotationSettings.adaptive();
+        previousAiApproach=rotationSettings.aiLearned();
         clearCombat(true);
         super.onEnable();
     }
@@ -146,7 +147,8 @@ public class Aura extends Module {
         rotationSettings.adaptiveSpeedPreset.reset();
         rotationSettings.adaptiveHitpointPreset.reset();
         rotationSettings.adaptiveVariationStrength.reset();
-        if(rotationSettings.arsenic() || rotationSettings.adaptive())rotationSettings.mode.reset();
+        if(rotationSettings.arsenic() || rotationSettings.adaptive() || rotationSettings.aiLearned())
+            rotationSettings.mode.reset();
     }
 
     @Override public void onValueChange() {
@@ -154,10 +156,11 @@ public class Aura extends Module {
         if (rotationReturn == null) return;
         final long generation = ++lifecycleGeneration;
         final RotationManager manager = RuntimeServices.rotation();
-        boolean adaptive=rotationSettings.adaptive();
-        // A changed Adaptive parameter/approach invalidates the old acquisition, never a live C03.
-        if (adaptive || previousAdaptiveApproach) manager.reset(ROTATION_SOURCE);
+        boolean adaptive=rotationSettings.adaptive(),ai=rotationSettings.aiLearned();
+        if(adaptive || previousAdaptiveApproach || ai || previousAiApproach)
+            manager.reset(ROTATION_SOURCE);
         previousAdaptiveApproach=adaptive;
+        previousAiApproach=ai;
         if (!rotationReturn.enabled.getValue() && !softArsenic()) manager.cancelRotationRelease(ROTATION_SOURCE);
         if (isToggled() && !rotations.getValue()) {
             rotationReturn.begin(manager, ROTATION_SOURCE, moveFixMode(), bodyRotationMode(), softArsenic(),
@@ -279,15 +282,25 @@ public class Aura extends Module {
     @Subscribe private final Listener<EventRotation> prepareRotation = new Listener<>(preparation -> handleMotion(preparation.motion()));
 
     private void handleMotion(EventMotion event) {
+        // Retain the historical POST eligibility and scheduler invocation order.
+        // Only the initial PRE scene comparison requires a stable local client.
         if (!usable()) {
             clearCombat(mc == null || mc.thePlayer == null || mc.theWorld == null);
             return;
         }
+        if(rotationSettings.aiLearned() && !rotations.getValue())return;
 
         if (event.isPre()) {
-            if (worldContext != mc.theWorld || playerContext != mc.thePlayer) clearCombat(true);
-            worldContext = mc.theWorld;
-            playerContext = mc.thePlayer;
+            final net.minecraft.client.Minecraft entryClient=mc;
+            if(entryClient==null)return; // stale synthetic/reentrant client; no new authority
+            if (worldContext != entryClient.theWorld || playerContext != entryClient.thePlayer) {
+                clearCombat(true);
+                // Only AI's new candidate path needs the stronger post-reset
+                // scene gate. All older PRE/POST modes retain their original flow.
+                if(rotationSettings.aiLearned() && (mc!=entryClient || !usable()))return;
+            }
+            worldContext = entryClient.theWorld;
+            playerContext = entryClient.thePlayer;
             final long generation = lifecycleGeneration;
 
             List<EntityLivingBase> collected = RuntimeServices.targeting().collectTargets(acquisitionOptions(), mapSort(sortMode.getValue()));
@@ -318,7 +331,11 @@ public class Aura extends Module {
                 if (generation != lifecycleGeneration || !usable() || rotationManager != RuntimeServices.rotation()) return;
                 if (nextRotations != null) {
                     rotationManager.request(ROTATION_SOURCE, RotationManager.AURA_PRIORITY, nextRotations[0], nextRotations[1]);
-                } else { clearCombat(false);return; }
+                } else {
+                    // First warm-up/missing-model HOLD offers no C03; retain acquisition.
+                    if(rotationSettings.aiLearned())return;
+                    clearCombat(false);return;
+                }
             } else if (target != null) {
                 RotationManager manager = RuntimeServices.rotation();
                 rotationReturn.begin(manager, ROTATION_SOURCE, moveFixMode(), bodyRotationMode(), softArsenic(),
@@ -342,14 +359,16 @@ public class Aura extends Module {
                 EntityLivingBase selected = target;
                 boolean owns = rotations.getValue() ? rotationManager.isOwner(ROTATION_SOURCE)
                         : !rotationManager.isOwner("scaffold") && rotationManager.getRotationRelease() == null;
-                boolean hit = rotationManager.isMotionAccepted() && owns && validHit(selected, yaw, pitch) && !mc.thePlayer.isUsingItem();
+                boolean aiAccepted=!rotationSettings.aiLearned() || rotationManager.isAiAuraMotionAccepted();
+                boolean hit = rotationManager.isMotionAccepted() && owns && aiAccepted
+                        && validHit(selected,yaw,pitch) && !mc.thePlayer.isUsingItem();
                 CombatDiagnostics.opportunityResult(opportunity,Stage.HIT_CHECK,hit);
                 // Capture before callbacks: an accepted send can reconfigure or replace this lifecycle.
                 PendingBlock pending = hit && autoblock.getValue() && "Intave".equals(autoblockMode.getValue())
                         ? capturePendingBlock(selected) : null;
                 // Clicks are continuous while Aura owns an accepted C03 motion, but
                 // only the original controller/raycast path may emit an actual C02.
-                boolean clickEligible=rotationManager.isMotionAccepted() && owns
+                boolean clickEligible=rotationManager.isMotionAccepted() && owns && aiAccepted
                         && !mc.thePlayer.isUsingItem() && getActiveTarget()==selected
                         // Camera-only Aura may click only a genuinely validated ray:
                         // old off-camera and rotation-return paths must never swing.
