@@ -41,6 +41,7 @@ public class AiLearnedAuraIntegrationTest {
     }
     private final String caseName;
     public AiLearnedAuraIntegrationTest(String caseName) { this.caseName=caseName; }
+    /** Isolate ONLY JUnit's disposable static Minecraft fixture, never the runtime authority path. */
     @Test public void realAuraPathInIsolatedJava8Jvm() throws Exception {
         Wave2IsolatedCase.run(Checks.class,caseName);
     }
