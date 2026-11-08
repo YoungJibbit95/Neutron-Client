@@ -1,6 +1,11 @@
 package me.youngjibbit.core.combat;
 
+import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.observation.RuntimeObservation;
+import me.youngjibbit.event.packet.EventPacket;
+import me.zero.alpine.listener.Listener;
+import me.zero.alpine.listener.Subscribe;
+import me.zero.alpine.listener.Subscriber;
 import me.youngjibbit.core.world.ScaffoldClientFlowTest;
 import me.youngjibbit.module.Module;
 import net.minecraft.client.gui.GuiScreen;
@@ -124,6 +129,36 @@ public class AdaptiveAuraIntegrationTest {
             h.walk(56);
             assertNull(h.f.aura.getActiveTarget());
             assertNull(h.rotation.getConfirmedOwner());
+        }
+    }
+
+    private static final class CancelC03 implements Subscriber {
+        @Subscribe final Listener<EventPacket> packets = new Listener<>(event -> {
+            if(event.isOutbound() && event.isPre() && event.getPacket() instanceof C03PacketPlayer)
+                event.cancel();
+        });
+    }
+
+    @Test public void cancelledRealC03RevokesOwnershipAndRestartsWithoutCatchup() throws Exception {
+        try(Harness h = new Harness()) {
+            for(int i = 0; i < 8; i++) h.walk(i);
+            assertEquals("aura", h.rotation.getConfirmedOwner());
+            float acceptedYaw = h.rotation.getEffectiveYaw();
+            CancelC03 cancel = new CancelC03();
+            Pulsar.BUS.subscribe(cancel);
+            try {
+                h.walk(8);
+            } finally {
+                Pulsar.BUS.unsubscribe(cancel);
+            }
+            assertFalse("cancelled PRE transport must not be reported accepted", h.rotation.isMotionAccepted());
+            assertNull("cancelled movement cannot own an attack", h.rotation.getConfirmedOwner());
+            assertEquals("last accepted yaw remains the only rotation basis", acceptedYaw,
+                    h.rotation.getEffectiveYaw(), 0);
+            h.walk(9);
+            assertTrue(h.rotation.isMotionAccepted());
+            assertEquals("fresh acquisition's first step holds its accepted basis",
+                    acceptedYaw, h.rotation.getEffectiveYaw(), .12f);
         }
     }
 
