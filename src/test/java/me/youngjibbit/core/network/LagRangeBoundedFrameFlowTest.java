@@ -7,6 +7,11 @@ import net.minecraft.network.play.client.C03PacketPlayer;
 import net.minecraft.network.play.client.C0FPacketConfirmTransaction;
 import net.minecraft.network.play.server.S12PacketEntityVelocity;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
+import java.util.Arrays;
+import java.util.Collection;
+import me.youngjibbit.core.world.Wave2IsolatedCase;
 import java.lang.reflect.Field;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -16,7 +21,21 @@ import static org.junit.Assert.*;
  * Actual PacketPipeline + player-step consumer for the opt-in packet-only
  * LagRange variant, preserving original combat owner and safety barriers.
  */
+@RunWith(Parameterized.class)
 public class LagRangeBoundedFrameFlowTest {
+    @Parameterized.Parameters(name="{0}")
+    public static Collection<Object[]> cases() { return Arrays.asList(new Object[][]{
+        {"boundedWindowRequiresFreshFrameAndNeverExpandsC03Past100ms"},
+        {"unhealthyPausedOrLongFrameFlushesAndNeverWithholdsPlayerBody"},
+        {"transactionAcknowledgementRemainsImmediateAndLocalImpulseDrains"},
+        {"originalLagRangeModesAndDefaultConfigIdsAreStable"}
+    }); }
+    private final String caseName;
+    public LagRangeBoundedFrameFlowTest(String caseName) { this.caseName=caseName; }
+    @Test public void exerciseRealPipelineInFreshJvm() throws Exception {
+        Wave2IsolatedCase.run(Checks.class,caseName);
+    }
+
     private static LagRange enable(ExploitHookFixture f,AtomicLong time) throws Exception {
         BacktrackLagRangeControlTest.clock(f,time);
         LagRange lag=new LagRange(time::get,(min,max)->max);
@@ -34,7 +53,7 @@ public class LagRangeBoundedFrameFlowTest {
         return field.getInt(lag);
     }
 
-    @Test public void boundedWindowRequiresFreshFrameAndNeverExpandsC03Past100ms() throws Exception {
+    private static void boundedWindowRequiresFreshFrameAndNeverExpandsC03Past100ms() throws Exception {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
             AtomicLong time=new AtomicLong();
             LagRange lag=enable(f,time);
@@ -58,7 +77,7 @@ public class LagRangeBoundedFrameFlowTest {
         }
     }
 
-    @Test public void unhealthyPausedOrLongFrameFlushesAndNeverWithholdsPlayerBody() throws Exception {
+    private static void unhealthyPausedOrLongFrameFlushesAndNeverWithholdsPlayerBody() throws Exception {
         for(int condition=0;condition<2;condition++) {
             try(ExploitHookFixture f=new ExploitHookFixture()) {
                 AtomicLong time=new AtomicLong();
@@ -83,7 +102,7 @@ public class LagRangeBoundedFrameFlowTest {
         }
     }
 
-    @Test public void transactionAcknowledgementRemainsImmediateAndLocalImpulseDrains() throws Exception {
+    private static void transactionAcknowledgementRemainsImmediateAndLocalImpulseDrains() throws Exception {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
             AtomicLong time=new AtomicLong();
             LagRange lag=enable(f,time);
@@ -105,7 +124,7 @@ public class LagRangeBoundedFrameFlowTest {
         }
     }
 
-    @Test public void originalLagRangeModesAndDefaultConfigIdsAreStable() {
+    private static void originalLagRangeModesAndDefaultConfigIdsAreStable() {
         LagRange lag=new LagRange();
         assertEquals("MS",lag.getModeSetting("Delay Mode").getValue());
         for(String old:new String[]{"MS","Ticks","Intave Approach"}) {
@@ -116,4 +135,19 @@ public class LagRangeBoundedFrameFlowTest {
         assertEquals("Bounded Frame",lag.getModeSetting("Delay Mode").getValue());
         assertEquals(500D,lag.getNumberSetting("Release Cooldown MS").getValue(),0);
     }
+    public static final class Checks {
+        @Test public void boundedWindowRequiresFreshFrameAndNeverExpandsC03Past100ms() throws Exception {
+            LagRangeBoundedFrameFlowTest.boundedWindowRequiresFreshFrameAndNeverExpandsC03Past100ms();
+        }
+        @Test public void unhealthyPausedOrLongFrameFlushesAndNeverWithholdsPlayerBody() throws Exception {
+            LagRangeBoundedFrameFlowTest.unhealthyPausedOrLongFrameFlushesAndNeverWithholdsPlayerBody();
+        }
+        @Test public void transactionAcknowledgementRemainsImmediateAndLocalImpulseDrains() throws Exception {
+            LagRangeBoundedFrameFlowTest.transactionAcknowledgementRemainsImmediateAndLocalImpulseDrains();
+        }
+        @Test public void originalLagRangeModesAndDefaultConfigIdsAreStable() throws Exception {
+            LagRangeBoundedFrameFlowTest.originalLagRangeModesAndDefaultConfigIdsAreStable();
+        }
+    }
+
 }
