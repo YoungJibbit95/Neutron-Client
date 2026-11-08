@@ -2,6 +2,11 @@ package me.youngjibbit.module.impl.render;
 
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.combat.CombatTargetTracker;
+import me.youngjibbit.gui.HudPlacement;
+import me.youngjibbit.gui.HudReveal;
+import me.youngjibbit.gui.HudSpring;
+import me.youngjibbit.module.impl.client.ClientSettings;
+import me.youngjibbit.module.impl.client.HUD;
 import me.youngjibbit.event.render.Event2D;
 import me.youngjibbit.module.*;
 import me.youngjibbit.module.Module;
@@ -18,6 +23,7 @@ import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.passive.EntityAnimal;
 import net.minecraft.util.ResourceLocation;
 import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
 import java.awt.Color;
 import java.util.Locale;
 import static org.lwjgl.opengl.GL11.*;
@@ -28,16 +34,36 @@ public class TargetHUD extends Module {
     private final ComboValue mode=new ComboValue("Mode",this,new String[]{"Neutron Default","Neutron White","Neutron Outline","Rise","Tenacity","Basic","Test"},1);
     public final SliderValue gradientSpeed=new SliderValue("Gradient Speed",this,5000.0,1000,10000,true);
     private final ArrayListSurface surface=new ArrayListSurface(this);
+    // Append after the existing values and material controls to preserve saved settings.
+    private final SliderValue positionX=new SliderValue("Position X",this,0.0,-16384,16384);
+    private final SliderValue positionY=new SliderValue("Position Y",this,0.0,-16384,16384);
+    private final HudSpring healthSpring=new HudSpring(),absorptionSpring=new HudSpring(),
+            portraitSpring=new HudSpring();
+    private final HudReveal reveal=new HudReveal();
     private EntityLivingBase animatedTarget;
-    private float animatedHealth;
-    private long lastFrame;
+    private float animatedHealth,animatedAbsorption,portraitPulse;
+    private long lastFrame,lastVisualFrame,sceneEpoch;
+    private Object worldContext;
+    private Frame lastDisplayed;
+    private boolean dragging,previousButton;
+    private float grabX,grabY;
 
     public TargetHUD(){setKey(Keyboard.KEY_0);}
     @Override public void onDisable(){resetTarget();surface.close();super.onDisable();}
-    @Override public void onEnable(){resetTarget();super.onEnable();}
-    private void resetTarget(){animatedTarget=null;animatedHealth=0;lastFrame=0;}
+    @Override public void onEnable(){
+        resetTarget();previousButton=Mouse.isCreated()&&Mouse.isButtonDown(0);super.onEnable();
+    }
+    public void resetPosition(){
+        positionX.reset();positionY.reset();dragging=false;HudDrag.cancel(this);
+    }
+    private void resetTarget(){
+        animatedTarget=null;animatedHealth=animatedAbsorption=portraitPulse=0;
+        lastFrame=lastVisualFrame=0;sceneEpoch++;lastDisplayed=null;
+        healthSpring.reset();absorptionSpring.reset();portraitSpring.reset();reveal.reset();
+        dragging=false;HudDrag.cancel(this);
+    }
     @Subscribe private final Listener<Event2D> render=new Listener<>(e->{if(isToggled())renderTarget(resolveTarget());});
-    protected EntityLivingBase resolveTarget(){return CombatTargetTracker.getPrimaryTarget();}
+    protected EntityLivingBase resolveTarget(){return CombatTargetTracker.getPrimaryTarget(300L);}
 
     void renderTarget(EntityLivingBase target){
         if(!me.youngjibbit.module.impl.client.HUD.visible()){resetTarget();surface.close();return;}
