@@ -48,7 +48,7 @@ public class Scaffold extends Module {
     private final TowerController towerController = new TowerController();
     private final me.youngjibbit.core.world.ArsenicScaffoldController arsenicController=new me.youngjibbit.core.world.ArsenicScaffoldController();
     private final AdaptiveBridgeScaffoldAdapter bridgeAdapter=new AdaptiveBridgeScaffoldAdapter();
-    private long bridgeGeneration,bridgeLastPreSequence=Long.MIN_VALUE;
+    private long bridgeGeneration,bridgeLastPreSequence=Long.MIN_VALUE,bridgeLastPostSequence=Long.MIN_VALUE;
     private final ComboValue approach=new ComboValue("Scaffold Approach",this,new String[]{"Neutron","Arsenic","Adaptive Bridge"},0);
     private final CheckBoxValue softArsenicMotion = new CheckBoxValue("Arsenic Soft Motion", this, false);
     private final me.youngjibbit.core.world.ScaffoldSneakInterval sneakInterval = new me.youngjibbit.core.world.ScaffoldSneakInterval();
@@ -150,6 +150,7 @@ public class Scaffold extends Module {
         bridgeAdapter.reset();
         bridgeGeneration++;
         bridgeLastPreSequence=Long.MIN_VALUE;
+        bridgeLastPostSequence=Long.MIN_VALUE;
         // Module's callback has no changed-value argument; revalidate the actual owner conditions.
         boolean end = !isToggled() || !usesRotations() || !sameScene();
         if (generation != lifecycleGeneration) return;
@@ -312,6 +313,7 @@ public class Scaffold extends Module {
         bridgeAdapter.reset();
         bridgeGeneration++;
         bridgeLastPreSequence=Long.MIN_VALUE;
+        bridgeLastPostSequence=Long.MIN_VALUE;
         long generation = lifecycleGeneration;
         try { endRotation(); }
         finally {
@@ -476,6 +478,11 @@ public class Scaffold extends Module {
             if(!continueMotion(sequence,generation) || !service.isValid(frameTarget))return;
             contextRotation.request("scaffold",RotationManager.SCAFFOLD_PRIORITY,pose[0],pose[1]);
         } else if(event.isPost() && frameSequence==sequence) {
+            // Exactly one POST placement attempt per accepted physical C03 frame,
+            // even when the C08 transport rejects the first action. A duplicate
+            // motion callback must not turn the same C03 into multiple C08s.
+            if(bridgeLastPostSequence==sequence)return;
+            bridgeLastPostSequence=sequence;
             PlacementTarget original=frameTarget;
             if(original==null)return;
             me.youngjibbit.core.world.ScaffoldPlacementService service=RuntimeServices.scaffoldPlacement();
