@@ -54,7 +54,20 @@ public class SettingsMenu extends GuiScreen {
         closingPopupValue=null;closingPopupBounds=null;
         lastFrame=System.nanoTime();
     }
-    @Override public void initGui(){resetMotion();if(Keyboard.isCreated()){previousRepeat=Keyboard.areRepeatEventsEnabled();Keyboard.enableRepeatEvents(true);}layout();}
+    @Override public void initGui(){
+        resetMotion();
+        if(Keyboard.isCreated()){
+            previousRepeat=Keyboard.areRepeatEventsEnabled();
+            Keyboard.enableRepeatEvents(true);
+        }
+        layout();
+        // Resize/reinit preserves the logical popup, but starts with an immediately
+        // readable disclosure instead of reviving stale progress from an old viewport.
+        if(popupValue!=null){
+            presentation.popup(true);
+            presentation.resetCursor(popupBounds().y+4+(popupChoice-popupOffset)*22+5);
+        }
+    }
     private Map<String,List<Value<?>>> groups(){
         ClientSettings c=ClientSettings.current();HUD hud=HUD.current();
         if(groupCache==null||groupOwner!=c||hudOwner!=hud){
@@ -316,15 +329,16 @@ public class SettingsMenu extends GuiScreen {
     }
     private void selectGroup(int next){
         if(!commitInput())return;
+        dismissPopup(false);
         group=Math.floorMod(next,Math.max(1,names().size()));scroll=targetScroll=0;focus=0;
-        popupValue=null;drag=editing=-1;editValue=dragValue=null;status="";layout();
+        drag=editing=-1;editValue=dragValue=null;status="";layout();
     }
     private void updateSlider(int row,int mx){Value<?> value=rows().get(row);if(!(value instanceof SliderValue))return;SliderValue v=(SliderValue)value;ClipRect c=controlBounds(row);double f=Math.max(0,Math.min(1,(mx-c.x)/c.width));v.setValue(v.getMin()+f*(v.getMax()-v.getMin()));}
     private void activateValue(int index,int step){Value<?> value=rows().get(index);if(value instanceof CheckBoxValue){CheckBoxValue v=(CheckBoxValue)value;v.setValue(!v.getValue());}else if(value instanceof ComboValue){ComboValue v=(ComboValue)value;v.setSelectedIndex((v.getSelectedIndex()+step+v.getOptions().length)%v.getOptions().length);}else beginInput(index);}
-    private void beginInput(int index){if(!(rows().get(index) instanceof SliderValue))return;editing=index;editValue=rows().get(index);drag=-1;dragValue=null;popupValue=null;input=String.valueOf(rows().get(index).getValue());replace=true;status="";}
+    private void beginInput(int index){if(!(rows().get(index) instanceof SliderValue))return;editing=index;editValue=rows().get(index);drag=-1;dragValue=null;dismissPopup(false);input=String.valueOf(rows().get(index).getValue());replace=true;status="";}
     private boolean commitInput(){if(editing<0)return true;if(editing>=rows().size()){editing=-1;return true;}if(!(rows().get(editing) instanceof SliderValue)){editing=-1;status="Setting changed; edit cancelled";return true;}SliderValue v=(SliderValue)rows().get(editing);try{double number=Double.parseDouble(input);if(!Double.isFinite(number)||number<v.getMin()||number>v.getMax())throw new IllegalArgumentException();v.setValue(number);editing=-1;editValue=null;status="";return true;}catch(IllegalArgumentException e){status="Enter a finite value between "+v.getMin()+" and "+v.getMax();return false;}}
     protected void activate(int id){
-        if(!commitInput())return;drag=-1;dragValue=null;popupValue=null;
+        if(!commitInput())return;drag=-1;dragValue=null;dismissPopup(false);
         if(id==0||id==1){selectGroup(group+(id==0?-1:1));}
         else if(id==2){List<String> names=names();if(!names.isEmpty())for(Value<?> value:groups().get(names.get(group)))value.reset();status="Group defaults restored";}
         else if(id==3){if(!names().isEmpty()&&names().get(group).equals("HUD behavior")){HUD.resetPositions();status="HUD positions restored";}else{NotificationManager.show(new Notification(NotificationType.INFO,"Preview notification","Synthetic preview of the selected notification design.",0));status="Preview queued";}}
@@ -340,7 +354,7 @@ public class SettingsMenu extends GuiScreen {
                 int option=(int)((my-p.y-4)/22)+popupOffset;
                 if(my>=p.y+4&&option>=popupOffset&&option<Math.min(popupOffset+popupRows(),popupValue.getOptions().length))popupValue.setSelectedIndex(option);
             }
-            popupValue=null;return;
+            dismissPopup(true);return;
         }
         if(rail()&&button==0)for(int i=0;i<names().size();i++)if(categoryBounds(i).contains(mx,my)){selectGroup(i);return;}
         for(int id=0;id<6;id++)if(actionBounds(id).contains(mx,my)){if(button==0){pressed=id;activate(id);}return;}
@@ -357,7 +371,18 @@ public class SettingsMenu extends GuiScreen {
             return;
         }
     }
-    @Override protected void mouseReleased(int mx,int my,int button){if(button==0){drag=-1;dragValue=null;pressed=-1;}}
+    @Override protected void mouseClickMove(int mx,int my,int button,long elapsed){
+        if(button!=0||drag<0||dragValue==null)return;
+        List<Value<?>> values=rows();
+        if(drag>=values.size()||values.get(drag)!=dragValue){
+            drag=-1;dragValue=null;return;
+        }
+        // Pointer capture owns writes. Drawing and spring updates never persist a Value.
+        updateSlider(drag,mx);
+    }
+    @Override protected void mouseReleased(int mx,int my,int button){
+        if(button==0){drag=-1;dragValue=null;pressed=-1;}
+    }
     @Override public void handleMouseInput()throws IOException{
         super.handleMouseInput();int wheel=Mouse.getDWheel();if(wheel==0)return;
         if(popupValue!=null){
@@ -369,7 +394,7 @@ public class SettingsMenu extends GuiScreen {
     @Override protected void keyTyped(char c,int key)throws IOException{
         pressed=-1; // presentation only; the existing keyboard and mouse-down actions retain ownership
         if(popupValue!=null){
-            if(key==Keyboard.KEY_ESCAPE||key==Keyboard.KEY_TAB){popupValue=null;return;}
+            if(key==Keyboard.KEY_ESCAPE||key==Keyboard.KEY_TAB){dismissPopup(true);return;}
             if(key==Keyboard.KEY_UP||key==Keyboard.KEY_DOWN){
                 popupChoice=Math.floorMod(popupChoice+(key==Keyboard.KEY_UP?-1:1),popupValue.getOptions().length);
                 popupOffset=Math.max(0,Math.min(popupChoice,Math.max(popupOffset,popupChoice-popupRows()+1)));
@@ -377,7 +402,7 @@ public class SettingsMenu extends GuiScreen {
                 popupChoice=key==Keyboard.KEY_HOME?0:popupValue.getOptions().length-1;
                 popupOffset=Math.max(0,popupChoice-popupRows()+1);
             }else if(key==Keyboard.KEY_RETURN||key==Keyboard.KEY_NUMPADENTER||key==Keyboard.KEY_SPACE){
-                popupValue.setSelectedIndex(popupChoice);popupValue=null;
+                popupValue.setSelectedIndex(popupChoice);dismissPopup(true);
             }
             return;
         }
