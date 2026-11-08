@@ -221,7 +221,7 @@ public class TargetHUD extends Module {
     void paint(Frame f){paint(f,1,1,0);}
     void paint(Frame f,float opacity,float scale,float slideY){
         boolean basic="Basic".equals(f.design),outlined="Neutron Outline".equals(f.design),
-                tenacity="Tenacity".equals(f.design);
+                tenacity="Tenacity".equals(f.design),modern="Neutron 2.0".equals(f.design);
         final float x=f.x+(f.width-f.width*scale)/2;
         final float y=f.y+slideY+(f.height-f.height*scale)/2;
         final float w=f.width*scale,h=f.height*scale;
@@ -230,7 +230,8 @@ public class TargetHUD extends Module {
             // The compositor can run after a target/world/HUD disable event.
             if(!isToggled()||!HUD.visible()||epoch!=sceneEpoch||mc.gameSettings.showDebugInfo)return;
             surface.designedPanel(x,y,w,h,Math.min(f.radius*scale,h/2),f.theme,true,
-                    !basic,!basic,5,.62f*opacity,outlined?.9f*opacity:0,tenacity,()->{
+                    !basic,!basic,5,(modern?.74f:.62f)*opacity,
+                    (modern?.68f:outlined?.9f:0)*opacity,tenacity||modern,()->{
                 try(RenderState state=new RenderState()){
                     state.screenSpace();
                     try(GuiClip clip=GuiClip.push(new ClipRect(x+1,y+1,Math.max(1,w-2),Math.max(1,h-2)))){
@@ -251,36 +252,52 @@ public class TargetHUD extends Module {
                 Math.round(c.getAlpha()*Math.max(0,Math.min(1,alpha))));
     }
     private void content(Frame f,float alpha){
+        boolean modern="Neutron 2.0".equals(f.design);
         boolean white="Neutron White".equals(f.design)&&(UiEffects.scene()==null||UiEffects.scene().policy.style<0);
+        if(modern){
+            // One stroke atop the established compositor, no extra framebuffer or shader.
+            UIUtils.drawRoundOutline(f.x+2,f.y+2,f.width-4,f.height-4,
+                    Math.max(1,f.radius-2),.65f,new Color(0,0,0,1),
+                    tint(new Color(255,74,194),alpha));
+            UIUtils.drawRound(f.x+3,f.y+3,Math.min(48,f.width-6),1.5f,.7f,
+                    tint(new Color(255,154,76,230),alpha));
+        }
         if(white)UIUtils.drawRound(f.x+1,f.y+1,f.width-2,f.height-2,
                 Math.max(.5f,f.radius-1),new Color(244,245,248,Math.round(235*alpha)));
         int text=opacity(white?0xff20232c:f.theme.isCustom()?f.theme.getTextColor().getRGB():0xfff2f3f7,alpha);
         if(!"Test".equals(f.design))portrait(f,alpha);
-        if(white||alpha<.999f)f.nameFont.drawString(f.name,f.x+f.textX,f.y+6,text);
-        else TextEffects.direct(f.theme,()->f.nameFont.drawString(f.name,f.x+f.textX,f.y+6,-1));
-        f.infoFont.drawString(f.healthText,f.x+f.textX,f.y+19,opacity(white?0xff484d58:0xffcdd3df,alpha));
-        float bx=f.x+f.textX,by=f.y+f.height-8,bw=Math.max(0,f.width-f.textX-8);
-        UIUtils.drawRound(bx,by,bw,3,1,
+        float titleY=f.y+(modern?10:6);
+        if(white||alpha<.999f)f.nameFont.drawString(f.name,f.x+f.textX,titleY,text);
+        else TextEffects.direct(f.theme,()->f.nameFont.drawString(f.name,f.x+f.textX,titleY,-1));
+        f.infoFont.drawString(f.healthText,f.x+f.textX,f.y+(modern?31:19),
+                opacity(white?0xff484d58:modern?0xfffbd8e7:0xffcdd3df,alpha));
+        float bx=f.x+f.textX,by=f.y+f.height-(modern?12:8),bw=Math.max(0,f.width-f.textX-8);
+        float barHeight=modern?5:3;
+        UIUtils.drawRound(bx,by,bw,barHeight,barHeight/2,
                 tint(new Color(white?0x30323c44:0x66363b49,true),alpha));
         float filled=bw*f.health;
-        if(filled>.01f)UIUtils.drawGradientHorizontal(bx,by,filled,3,Math.min(1,filled/2),
+        if(filled>.01f)UIUtils.drawGradientHorizontal(bx,by,filled,barHeight,Math.min(barHeight/2,filled/2),
                 tint(f.theme.getPrimaryGradientColor(),alpha),tint(f.theme.getSecondaryGradientColor(),alpha));
         float absorbed=bw*f.absorption;
-        if(absorbed>.01f)UIUtils.drawRound(bx+bw-absorbed,by,absorbed,3,Math.min(1,absorbed/2),
+        if(absorbed>.01f)UIUtils.drawRound(bx+bw-absorbed,by,absorbed,barHeight,
+                Math.min(barHeight/2,absorbed/2),
                 new Color(255,211,80,Math.round(220*alpha)));
     }
     /** Players use their skin; animals/mobs get an explicit species badge, never a fabricated skin. */
     private void portrait(Frame f,float alpha){
-        float px=f.x+7,py=f.y+(f.height-30)/2;
+        boolean modern="Neutron 2.0".equals(f.design);
+        float size=modern?Math.min(40,Math.max(12,f.height-10)):30;
+        float px=f.x+(modern?10:7),py=f.y+(f.height-size)/2;
         try(RenderState state=new RenderState()){
             float pulse=1+.09f*Math.max(0,Math.min(1,f.headPulse));
-            glTranslatef(px+15,py+15,0);glScalef(pulse,pulse,1);
-            glTranslatef(-px-15,-py-15,0);
-            UIUtils.drawRound(px,py,30,30,4,
+            glTranslatef(px+size/2,py+size/2,0);glScalef(pulse,pulse,1);
+            glTranslatef(-px-size/2,-py-size/2,0);
+            UIUtils.drawRound(px,py,size,size,modern?9:4,
                     new Color((f.theme.getPrimaryGradientRGB()&0xffffff)
                             |(Math.round(85*alpha)<<24),true));
             if(f.skin!=null){
-                try(GuiClip clip=GuiClip.push(new ClipRect(px+1,py+1,28,28))){
+                float insetSize=size-2;
+                try(GuiClip clip=GuiClip.push(new ClipRect(px+1,py+1,insetSize,insetSize))){
                     GlStateManager.setActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0);
                     org.lwjgl.opengl.GL13.glActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0);
                     GlStateManager.enableTexture2D();glEnable(GL_TEXTURE_2D);
@@ -289,15 +306,17 @@ public class TargetHUD extends Module {
                     glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
                     GlStateManager.color(1,1,1,alpha);glColor4f(1,1,1,alpha);
                     mc.getTextureManager().bindTexture(f.skin);
-                    Gui.drawScaledCustomSizeModalRect((int)px+1,(int)py+1,8,8,8,8,28,28,64,64);
-                    Gui.drawScaledCustomSizeModalRect((int)px+1,(int)py+1,40,8,8,8,28,28,64,64);
+                    Gui.drawScaledCustomSizeModalRect((int)px+1,(int)py+1,8,8,8,8,
+                            (int)insetSize,(int)insetSize,64,64);
+                    Gui.drawScaledCustomSizeModalRect((int)px+1,(int)py+1,40,8,8,8,
+                            (int)insetSize,(int)insetSize,64,64);
                 }
             }else{
                 String badge="Preview".equals(f.kind)?"N":"Animal".equals(f.kind)?"A":"Mob".equals(f.kind)?"M":"P";
-                f.nameFont.drawString(badge,px+15-f.nameFont.getWidth(badge)/2,py+4,
+                f.nameFont.drawString(badge,px+size/2-f.nameFont.getWidth(badge)/2,py+(modern?8:4),
                         opacity(Color.WHITE.getRGB(),alpha));
                 TTFFontRenderer tiny=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 10");
-                tiny.drawString(f.kind,px+15-tiny.getWidth(f.kind)/2,py+20,
+                tiny.drawString(f.kind,px+size/2-tiny.getWidth(f.kind)/2,py+size-(modern?12:10),
                         opacity(Color.WHITE.getRGB(),alpha));
             }
         }
