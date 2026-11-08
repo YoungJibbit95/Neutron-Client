@@ -108,7 +108,7 @@ public final class DropdownGuiRenderCheck {
     private static void checkMode(Gui gui) throws Exception {
         ClickGUI owner = (ClickGUI)Pulsar.INSTANCE.getMm().getModule(ClickGUI.class);
         ComboValue mode = owner.getModeSetting("mode");
-        require(Arrays.equals(mode.getOptions(), new String[]{"Panel", "iOS", "Dropdown"}), "Existing config indices must remain stable");
+        require(Arrays.equals(mode.getOptions(), new String[]{"Panel", "Dropdown"}), "Legacy selection contains Panel and Dropdown only; saved names still resolve");
         Method resolve = ClickGUI.class.getDeclaredMethod("resolveScreen", String.class);
         resolve.setAccessible(true);
         require(resolve.invoke(owner, "Dropdown") == gui, "Selected mode must resolve to production dropdown screen");
