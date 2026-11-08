@@ -950,6 +950,9 @@ public final class RotationManager {
     private float[] adaptiveRotations(RotationState state, EntityLivingBase target, AxisAlignedBB box,
                                       Vec3 feet, Vec3 eyes, boolean bestHitVec,
                                       RotationProfile profile, float fromYaw, float fromPitch) {
+        // An unrelated POST/render observer cannot spend a second budget or reset a live profile.
+        if(!collecting && mc!=null && mc.currentScreen==null && mc.inGameHasFocus)
+            return new float[]{fromYaw,fromPitch};
         if(!collecting || mc==null || mc.thePlayer==null || mc.theWorld==null
                 || mc.gameSettings==null || mc.currentScreen!=null || !mc.inGameHasFocus
                 || mc.isGamePaused() || mc.getRenderViewEntity()!=mc.thePlayer
@@ -968,6 +971,8 @@ public final class RotationManager {
             state.invalidateAdaptive();
             return null;
         }
+        // No second acquisition is permitted within a consumed physical motion sequence.
+        if(state.adaptiveBlockedSequence==sequence) return new float[]{fromYaw,fromPitch};
         // A previously accepted different owner cannot carry an Adaptive trajectory.
         if(owner!=null && previousAccepted && !"aura".equals(owner)) {
             state.invalidateAdaptive();
@@ -986,6 +991,11 @@ public final class RotationManager {
         if(state.adaptiveToken==null || state.adaptiveTarget.get()!=target
                 || state.adaptiveScene==null || !state.adaptiveScene.sameSceneAs(scene)
                 || state.adaptiveSuspension!=suspension) {
+            if(state.adaptiveLastSequence==sequence) {
+                state.invalidateAdaptive();
+                state.adaptiveBlockedSequence=sequence;
+                return new float[]{fromYaw,fromPitch};
+            }
             state.invalidateAdaptive();
             if(state.adaptive==null) {
                 // The old Aura yaw/pitch sliders remain operative; new presets follow in Phase 3.
@@ -1008,7 +1018,9 @@ public final class RotationManager {
         if(elapsed<0) { state.invalidateAdaptive(); return null; }
         AdaptiveMotionController.Result result=state.adaptive.advance(state.adaptiveToken,sequence,
                 elapsed,fromYaw,fromPitch,desired[0],desired[1],true);
+        state.adaptiveLastSequence=sequence;
         if(state.adaptive.profile()==null) {
+            state.adaptiveBlockedSequence=sequence;
             state.invalidateAdaptive(); // Deadline/long-pause tombstone; next motion re-acquires.
             return new float[]{fromYaw,fromPitch};
         }
@@ -1161,6 +1173,7 @@ public final class RotationManager {
         SceneContext adaptiveScene;
         WeakReference<Object> adaptiveTarget=new WeakReference<>(null);
         long adaptiveOrdinal,adaptiveStartNanos,adaptiveSuspension;
+        long adaptiveLastSequence=Long.MIN_VALUE,adaptiveBlockedSequence=Long.MIN_VALUE;
         RotationState(RotationTrajectory trajectory,ArsenicAimTrajectory arsenic,long adaptiveSeed) {
             this.trajectory=trajectory;this.arsenic=arsenic;this.adaptiveSeed=adaptiveSeed;
         }
