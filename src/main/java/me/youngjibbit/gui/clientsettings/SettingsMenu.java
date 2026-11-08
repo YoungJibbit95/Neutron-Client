@@ -174,19 +174,32 @@ public class SettingsMenu extends GuiScreen {
                 List<String> sections=names();
                 if(rail()){
                     float markerY=presentation.category(categoryBounds(group).y+4,dt,motionSettings);
-                    UIUtils.drawDecorationRound(x+12,markerY,2,categoryBounds(group).height-8,1,
-                            theme.getPrimaryGradientColor());
+                    UIUtils.drawDecorationRound(x+(modern?16:12),markerY,2,
+                            categoryBounds(group).height-8,1,
+                            modern?NeutronVisualTokens.accent(theme,220):
+                                    theme.getPrimaryGradientColor());
                     for(int i=0;i<sections.size();i++){
                         ClipRect r=categoryBounds(i);boolean selected=i==group;
                         me.youngjibbit.gui.UiSpring motion=categoryMotion.computeIfAbsent(sections.get(i),k->new me.youngjibbit.gui.UiSpring());
                         motion.stepForInput(dt,popupValue==null&&r.contains(mx,my),false,false,true,motionSettings);
-                        r = GuiStyle.buttonBounds(r, motion);
-                        text(fit(sections.get(i),r.width-14),r.x+10,r.y+8,GuiStyle.ink(selected?0xfff1f4fa:0xffa4b0c3,motion));
+                        r=GuiStyle.buttonBounds(r,motion);
+                        if(modern&&selected)
+                            UIUtils.drawRound(r.x+3,r.y+2,r.width-6,r.height-4,
+                                    NeutronVisualTokens.RADIUS_CONTROL,
+                                    NeutronVisualTokens.CARD_HOVER);
+                        text(fit(sections.get(i),r.width-14),
+                                r.x+(modern?14:10),r.y+(modern?10:8),
+                                GuiStyle.ink(modern?selected?NeutronVisualTokens.INK:
+                                                NeutronVisualTokens.MUTED:
+                                                selected?0xfff1f4fa:0xffa4b0c3,motion));
                     }
                 }
                 button(0,"<",mx,my);button(1,">",mx,my);
-                text(fit(sections.isEmpty()?"Settings unavailable":sections.get(group),w-inset()-78),x+inset()+33,y+59,0xfff1f4fa);
-                text(fit(description(),view().width),view().x,y+80,0xffa7b4c7);
+                text(fit(sections.isEmpty()?"Settings unavailable":sections.get(group),
+                        w-inset()-78),x+inset()+33,y+59,
+                        modern?NeutronVisualTokens.INK:0xfff1f4fa);
+                text(fit(description(),view().width),view().x,y+80,
+                        modern?NeutronVisualTokens.MUTED:0xffa7b4c7);
                 try(GuiClip clip=GuiClip.push(view())){
                     List<Value<?>> values=rows();
                     for(int i=0;i<values.size();i++)if(!view().intersect(rowBounds(i)).isEmpty())drawValue(i,values.get(i),theme,dt,mx,my);
@@ -206,26 +219,54 @@ public class SettingsMenu extends GuiScreen {
         ClipRect row=rowBounds(index),control=controlBounds(index);
         me.youngjibbit.gui.UiSpring motion=valueMotion.computeIfAbsent(value,k->new me.youngjibbit.gui.UiSpring());
         motion.stepForInput(dt,popupValue==null&&row.contains(mx,my),index==focus,drag==index,true,ClientSettings.current());
-        // Only ink, the switch/thumb and the focus marks react; no hover rectangle.
-        text(fit(UiEffects.settingLabel(value),control.x-row.x-12),row.x+5,row.y+13,GuiStyle.ink(0xffe1e7f1,motion));
+        boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
+        if(modern){
+            UIUtils.drawRound(row.x,row.y,row.width,row.height,
+                    NeutronVisualTokens.RADIUS_CARD,
+                    row.contains(mx,my)&&popupValue==null?
+                            NeutronVisualTokens.CARD_HOVER:NeutronVisualTokens.CARD);
+            if(index==focus&&showsKeyboardFocus())
+                UIUtils.drawDecorationRound(row.x+3,row.y+7,2,row.height-14,1,
+                        NeutronVisualTokens.accent(theme,210));
+        }
+        text(fit(UiEffects.settingLabel(value),control.x-row.x-12),
+                row.x+(modern?12:5),row.y+13,
+                GuiStyle.ink(modern?NeutronVisualTokens.INK:0xffe1e7f1,motion));
         GuiStyle.feedback(row,motion);
         if(value instanceof CheckBoxValue){
             boolean on=((CheckBoxValue)value).getValue();
             float amount=follow(value,on?1:0,dt),sx=control.x+control.width-36,sy=row.y+11;
             text(on?"On":"Off",sx-25,row.y+13,on?0xffe5ecf7:0xff9da9bb);
-            UIUtils.drawDecorationRound(sx,sy,34,16,8,new Color(Theme.interpolateRGB(0xff394251,theme.getPrimaryGradientRGB(),amount),true));
-            UIUtils.drawDecorationRound(sx+3+18*amount,sy+3,10,10,5,new Color(GuiStyle.ink(0xfff3f6fc,motion),true));
+            if(modern){
+                UIUtils.drawRound(sx,sy,34,16,8,NeutronVisualTokens.CONTROL);
+                if(amount>.006f)UIUtils.drawRound(sx+1,sy+1,
+                        Math.max(1,32*Math.min(1,amount)),14,7,
+                        NeutronVisualTokens.accent(theme,185));
+                UIUtils.drawRound(sx+3+18*Math.max(0,Math.min(1,amount)),sy+3,
+                        10,10,5,new Color(251,247,252));
+            }else{
+                UIUtils.drawDecorationRound(sx,sy,34,16,8,
+                        new Color(Theme.interpolateRGB(0xff394251,theme.getPrimaryGradientRGB(),amount),true));
+                UIUtils.drawDecorationRound(sx+3+18*amount,sy+3,10,10,5,
+                        new Color(GuiStyle.ink(0xfff3f6fc,motion),true));
+            }
         }else if(value instanceof SliderValue){
             SliderValue slider=(SliderValue)value;
             String shown=editing==index?input+"_":number(slider);
             text(fit(shown,control.width-8),control.x+3,row.y+6,GuiStyle.ink(0xffe5edf9,motion));
             float fraction=(float)((slider.getValue()-slider.getMin())/Math.max(.0001,slider.getMax()-slider.getMin()));
             float amount=follow(value,fraction,dt),track=control.width-8,cy=row.y+29;
-            UIUtils.drawDecorationRound(control.x+4,cy,track,2,1,new Color(68,78,95));
-            UIUtils.drawDecorationRound(control.x+4,cy,Math.max(.01f,track*amount),2,1,theme.getPrimaryGradientColor());
-            UIUtils.drawDecorationRound(control.x+1+track*amount,cy-2,6,6,3,new Color(0xffedf3ff,true));
+            UIUtils.drawDecorationRound(control.x+4,cy,track,2,1,
+                    modern?NeutronVisualTokens.TRACK:new Color(68,78,95));
+            UIUtils.drawDecorationRound(control.x+4,cy,Math.max(.01f,track*amount),
+                    modern?3:2,1,modern?NeutronVisualTokens.accent(theme,215):
+                            theme.getPrimaryGradientColor());
+            UIUtils.drawDecorationRound(control.x+1+track*amount,cy-2,
+                    6,6,3,new Color(0xffedf3ff,true));
         }else{
-            UIUtils.drawDecorationRound(control.x,control.y+3,control.width,24,4,new Color(28,35,47));
+            UIUtils.drawRound(control.x,control.y+3,control.width,24,
+                    modern?NeutronVisualTokens.RADIUS_CONTROL:4,
+                    modern?NeutronVisualTokens.CONTROL:new Color(28,35,47));
             text(fit(UiEffects.settingOption(value,String.valueOf(value.getValue())),control.width-28),control.x+7,control.y+10,GuiStyle.ink(0xffe5edf9,motion));
             text(popupValue==value?"^":"v",control.x+control.width-16,control.y+9,0xffaebbd0);
         }
@@ -251,12 +292,19 @@ public class SettingsMenu extends GuiScreen {
         float content=rows().size()*42,visible=view().height;
         if(content<=visible)return;
         float thumb=Math.max(12,visible*visible/content);
-        UIUtils.drawDecorationRound(view().x+view().width-2,view().y+(visible-thumb)*scroll/(content-visible),2,thumb,1,new Color(153,168,192,160));
+        UIUtils.drawDecorationRound(view().x+view().width-2,
+                view().y+(visible-thumb)*scroll/(content-visible),
+                2,thumb,1,ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())?
+                        NeutronVisualTokens.accent(Theme.getDefaultTheme(),154):
+                        new Color(153,168,192,160));
     }
     private void drawPreview(Theme theme){
         float px=view().x,py=y+h-86,pw=view().width;
-        preview.panel(px,py,pw,34,5,theme,true,true,false,5,.45f,.35f,()->{
-            UIUtils.drawDecorationRound(px+1,py+1,pw-2,32,4,new Color(11,15,22,145));
+        boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
+        preview.panel(px,py,pw,34,modern?8:5,theme,true,true,false,5,
+                modern?.92f:.45f,modern?.18f:.35f,()->{
+            UIUtils.drawRound(px+1,py+1,pw-2,32,modern?7:4,
+                    modern?NeutronVisualTokens.CARD:new Color(11,15,22,145));
             me.youngjibbit.utils.render.TextEffects.direct(theme,()->text(fit("Neutron  /  HitDelayFix  /  FastPlace",pw-20),px+10,py+5,-1));
             text(fit("Aa Bb  0123456789  Â·  Session Info  Â·  "+selectedFamily(),pw-20),px+10,py+19,0xffc5cfdf);
         });
@@ -295,10 +343,15 @@ public class SettingsMenu extends GuiScreen {
         float visibleHeight=p.height*(open?1:progress);
         // The full logical popup is ready immediately; only its ink, accent and
         // outgoing visual are animated. Its fixed hit rectangles never move.
-        UIUtils.drawDecorationRound(p.x-1,p.y-1,p.width+2,Math.max(1,visibleHeight+2),5,
-                new Color(69,83,103,Math.round(220*opacity)));
-        UIUtils.drawDecorationRound(p.x,p.y,p.width,Math.max(1,visibleHeight),4,
-                new Color(24,31,43,Math.round(246*opacity)));
+        boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
+        UIUtils.drawRound(p.x-1,p.y-1,p.width+2,Math.max(1,visibleHeight+2),
+                modern?9:5,modern?NeutronVisualTokens.alpha(
+                        0xffa4a0b3,Math.round(47*opacity)):
+                        new Color(69,83,103,Math.round(220*opacity)));
+        UIUtils.drawRound(p.x,p.y,p.width,Math.max(1,visibleHeight),
+                modern?8:4,modern?NeutronVisualTokens.alpha(
+                        NeutronVisualTokens.CARD.getRGB(),Math.round(245*opacity)):
+                        new Color(24,31,43,Math.round(246*opacity)));
         int count=popupRows(shown),offset=open?popupOffset:closingPopupOffset;
         int choice=open?popupChoice:closingPopupChoice;
         float marker=presentation.cursor(p.y+4+(choice-offset)*22+5,dt,settings);
