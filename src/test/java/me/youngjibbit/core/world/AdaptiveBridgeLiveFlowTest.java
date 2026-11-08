@@ -75,10 +75,11 @@ public class AdaptiveBridgeLiveFlowTest {
     }
 
     private static final class PriorityHook implements Subscriber {
-        private final RotationManager rotation;
-        PriorityHook(RotationManager rotation) { this.rotation = rotation; }
-        @Subscribe final Listener<EventRotation> listener = new Listener<>(event ->
-                rotation.request("aura", RotationManager.SCAFFOLD_PRIORITY + 10, 90, 0));
+        @Subscribe final Listener<EventRotation> listener;
+        PriorityHook(RotationManager rotation) {
+            listener = new Listener<>(event ->
+                    rotation.request("aura", RotationManager.SCAFFOLD_PRIORITY + 10, 90, 0));
+        }
     }
 
     private static boolean movementPre(EventPacket event) {
