@@ -3,6 +3,7 @@ import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.combat.CombatTargetTracker;
 import me.youngjibbit.gui.IslandMorphMotion;
 import me.youngjibbit.module.impl.client.island.IslandLayout;
+import me.youngjibbit.module.impl.client.island.IslandPresentation;
 import me.youngjibbit.module.impl.client.island.IslandStateMachine;
 import me.youngjibbit.clickgui.utils.ClipRect;
 import me.youngjibbit.clickgui.utils.GuiClip;
@@ -131,22 +132,30 @@ public class WatermarkHUDModule extends Module {
         final IslandStateMachine.Selection previous=islandPrevious;
         final Theme theme=Theme.resolve(Theme.getDefaultTheme());
         final TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont("DmSansMedium 18");
-        final String time=islandTime();
+        // Freeze settings and text before scheduling a deferred surface pass.
+        final String clock=islandClock.getValue()?islandTime():"";
+        final String clientName=Pulsar.INSTANCE.getName(), clientVersion=Pulsar.INSTANCE.getVersion();
+        final boolean showName=name.getValue(), showVersion=version.getValue(), showClock=islandClock.getValue();
+        final boolean panel=background.getValue(), useBlur=blur.getValue(), useGlow=glow.getValue();
+        final IslandPresentation present=IslandPresentation.from(selected,clientName,clientVersion,clock,
+                showName,showVersion,showClock);
+        final IslandPresentation fading=previous==null?null:IslandPresentation.from(previous,
+                clientName,clientVersion,clock,showName,showVersion,showClock);
         // Reuse the single existing surface and shared halo/blur/RenderState pools.
         GuiShaderBloom.afterBatch(()->surface.designedPanel(frame.x,frame.y,frame.width,frame.height,
-                frame.radius,theme,background.getValue(),blur.getValue(),glow.getValue(),5,
+                frame.radius,theme,panel,useBlur,useGlow,5,
                 .65f*frame.opacity,.48f*frame.opacity,false,
                 ()->{
                     try(GuiClip clip=GuiClip.push(new ClipRect(frame.x+2,frame.y+2,
                             Math.max(1,frame.width-4),Math.max(1,frame.height-4)))){
-                        if(previous!=null&&mix<1)paintIsland(previous,frame,font,theme,time,(1-mix)*frame.opacity);
-                        paintIsland(selected,frame,font,theme,time,mix*frame.opacity);
+                        if(fading!=null&&mix<1)paintIsland(fading,frame,font,theme,(1-mix)*frame.opacity);
+                        paintIsland(present,frame,font,theme,mix*frame.opacity);
                     }
                 }));
     }
 
-    private void paintIsland(IslandStateMachine.Selection view,IslandLayout.Frame frame,
-                             TTFFontRenderer font,Theme theme,String time,float alpha){
+    private void paintIsland(IslandPresentation view,IslandLayout.Frame frame,
+                             TTFFontRenderer font,Theme theme,float alpha){
         if(alpha<=0)return;
         float x=frame.x,y=frame.y,w=frame.width,h=frame.height;
         int primary=ink(0xfff4f6fc,alpha);
@@ -157,33 +166,27 @@ public class WatermarkHUDModule extends Module {
                 new Color(26,47,60,Math.round(alpha*230)));
         font.drawString("N",x+16,y+(h-11)/2,accent);
         if(view.state==IslandStateMachine.State.IDLE){
-            String brand=(name.getValue()?Pulsar.INSTANCE.getName():"Neutron")
-                    +(version.getValue()?" "+Pulsar.INSTANCE.getVersion():"");
-            float clockWidth=islandClock.getValue()?font.getWidth(time)+11:0;
-            font.drawString(fitIsland(brand,font,w-47-clockWidth),
+            float clockWidth=view.trailing.isEmpty()?0:font.getWidth(view.trailing)+11;
+            font.drawString(fitIsland(view.title,font,w-47-clockWidth),
                     x+39,y+(h-11)/2,primary);
-            if(islandClock.getValue())font.drawString(time,x+w-clockWidth,y+(h-11)/2,secondary);
-        }else if(view.state==IslandStateMachine.State.TARGET&&view.target!=null){
-            String hp=String.format(Locale.ROOT,"%.1f / %.1f HP",view.target.health,view.target.maxHealth)
-                    +(view.target.absorption>0?String.format(Locale.ROOT," +%.1f",view.target.absorption):"");
-            font.drawString(fitIsland(view.target.name,font,w-52),
-                    x+39,y+7,primary);
-            font.drawString(fitIsland(hp,font,w-52),x+39,y+20,secondary);
+            if(!view.trailing.isEmpty())
+                font.drawString(view.trailing,x+w-clockWidth,y+(h-11)/2,secondary);
+        }else if(view.state==IslandStateMachine.State.TARGET&&view.hasHealthBar){
+            font.drawString(fitIsland(view.title,font,w-52),x+39,y+7,primary);
+            font.drawString(fitIsland(view.detail,font,w-52),x+39,y+20,secondary);
             float barX=x+39,barY=y+h-11,barW=Math.max(0,w-52);
             UIUtils.drawRound(barX,barY,barW,4,2,new Color(55,67,80,Math.round(alpha*215)));
-            float fill=barW*view.target.fraction();
+            float fill=barW*view.healthFraction;
             if(fill>.01f)UIUtils.drawGradientHorizontal(barX,barY,fill,4,Math.min(2,fill/2),
                     tint(theme.getPrimaryGradientColor(),alpha),tint(theme.getSecondaryGradientColor(),alpha));
-            float absorbed=barW*Math.min(1,view.target.absorption/view.target.maxHealth);
+            float absorbed=barW*view.absorptionFraction;
             if(absorbed>.01f)UIUtils.drawRound(barX+barW-absorbed,barY,absorbed,4,
                     Math.min(2,absorbed/2),new Color(255,205,105,Math.round(alpha*230)));
-        }else if(view.state==IslandStateMachine.State.SCAFFOLD&&view.scaffold!=null){
-            font.drawString(fitIsland("Scaffold  "+view.scaffold.blockCount+" blocks",font,w-53),x+39,y+7,primary);
-            font.drawString(fitIsland(view.scaffold.approach,font,w-53),x+39,y+20,secondary);
+        }else if(view.state==IslandStateMachine.State.SCAFFOLD){
+            font.drawString(fitIsland(view.title,font,w-53),x+39,y+7,primary);
+            font.drawString(fitIsland(view.detail,font,w-53),x+39,y+20,secondary);
         }else{
-            String text=view.state==IslandStateMachine.State.POSSIBLE_SETBACK
-                    ?"Possible setback (local)" : view.label;
-            font.drawString(fitIsland(text,font,w-53),x+39,y+(h-11)/2,
+            font.drawString(fitIsland(view.title,font,w-53),x+39,y+(h-11)/2,
                     view.state==IslandStateMachine.State.POSSIBLE_SETBACK
                             ?ink(UiEffects.semanticColor(UiEffects.SemanticRole.WARNING,accent,true),alpha):primary);
         }
