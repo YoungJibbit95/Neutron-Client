@@ -17,7 +17,12 @@ if([IO.Path]::GetPathRoot($install) -eq [IO.Path]::GetPathRoot($temp)){throw 'Th
 $events=[Collections.Generic.List[object]]::new()
 $processes=[Collections.Generic.List[object]]::new()
 function Save-Evidence {
-    @{install=$install;temp=$temp;ordinaryAccount=$true;uiEvents=$events.ToArray();processes=$processes.ToArray()} | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $root 'legacy-diagnostic.json') -Encoding utf8
+    $logs=@{}
+    foreach($name in @('installer-error.json','installer-result.json','headless-startup.jsonl','build.log')) {
+        $file=Join-Path $control ('logs/'+$name)
+        if(Test-Path -LiteralPath $file){$logs[$name]=@(Get-Content -LiteralPath $file -Tail 80)}
+    }
+    @{install=$install;temp=$temp;ordinaryAccount=$true;uiEvents=$events.ToArray();processes=$processes.ToArray();logs=$logs} | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $root 'legacy-diagnostic.json') -Encoding utf8
 }
 function Invoke-ObservedInstaller([string]$File,[string]$Arguments,[string]$Label,[bool]$Assisted) {
     $started=[datetime]::UtcNow
@@ -47,18 +52,18 @@ function Invoke-ObservedInstaller([string]$File,[string]$Arguments,[string]$Labe
         }
         $windows=@([NeutronInstallerUi]::Read([int[]]@($owned.Keys)))
         foreach($window in $windows) {
-            $texts=($window.Controls | ForEach-Object Text) -join "`n"
+            $texts=($window.Controls | Where-Object Visible | ForEach-Object Text) -join "`n"
             $signature=$window.Title+"`n"+$texts
             if($signature -ne $lastUi){$events.Add(@{label=$Label;date=[datetime]::UtcNow.ToString('o');visible=$window.Visible;pid=$window.Pid;title=$window.Title;controls=$window.Controls});$lastUi=$signature;Save-Evidence}
-            if($window.Visible -and $window.Controls.Count -gt 0){$seenUi=$true}
-            if($texts -match '(cannot be closed|konnte nicht geschlossen|Can.t rename|Error opening file|Fehler beim|Failed to uninstall)') {
+            if($window.Visible -and @($window.Controls | Where-Object Visible).Count -gt 0){$seenUi=$true}
+            if($texts -match '(cannot be closed|konnte nicht geschlossen|kann nicht geschlossen|Can.t rename|Error opening file|Fehler beim|Failed to uninstall)') {
                 $failure=$texts
-                $cancel=@($window.Controls | Where-Object {$_.ClassName -eq 'Button' -and $_.Enabled -and $_.Id -eq 2})
+                $cancel=@($window.Controls | Where-Object {$_.ClassName -eq 'Button' -and $_.Enabled -and $_.Visible -and $_.Id -eq 2})
                 if($cancel.Count){[NeutronInstallerUi]::Click($cancel[0].Handle,$window.Pid)}
                 continue
             }
-            if($Assisted -and [datetime]::UtcNow -gt $lastClick.AddSeconds(1)) {
-                $next=@($window.Controls | Where-Object {$_.ClassName -eq 'Button' -and $_.Enabled -and $_.Id -eq 1 -and $_.Text -match '(Next|Install|Finish|Uninstall|Weiter|Fertig|Deinstallieren)'})
+            if($Assisted -and $window.Visible -and [datetime]::UtcNow -gt $lastClick.AddSeconds(1)) {
+                $next=@($window.Controls | Where-Object {$_.ClassName -eq 'Button' -and $_.Enabled -and $_.Visible -and $_.Id -eq 1 -and $_.Text -match '(Next|Install|Finish|Uninstall|Weiter|Fertig|Deinstallieren)'})
                 if($next.Count){[NeutronInstallerUi]::Click($next[0].Handle,$window.Pid);$lastClick=[datetime]::UtcNow}
             }
         }
@@ -79,17 +84,38 @@ try {
         Invoke-WebRequest ('https://github.com/YoungJibbit95/Neutron-Client/releases/download/launcher-v'+$artifact.version+'/Neutron-Launcher-'+$artifact.version+'-Windows-x64.exe') -OutFile $artifact.path
         if((Get-FileHash -LiteralPath $artifact.path).Hash.ToLowerInvariant() -ne $artifact.hash){throw 'Public installer bytes differ from the pinned release.'}
     }
-    Invoke-ObservedInstaller $old ("/S /currentuser /D="+$install) 'old-0.2.0-install' $false
-    $marker=Join-Path $control 'personal-diagnostic-marker.txt'; [IO.File]::WriteAllText($marker,'synthetic profile; retain')
+    $reference=Join-Path $root 'reference'; [IO.Directory]::CreateDirectory($reference) | Out-Null
+    $seven=Join-Path $env:ProgramFiles '7-Zip/7z.exe'
+    & $seven x $new ('-o'+$reference) '-y' '$PLUGINSDIR\app-64.7z' | Out-Null
+    if($LASTEXITCODE){throw 'Could not read the immutable installer payload.'}
+    & $seven x (Join-Path $reference '$PLUGINSDIR/app-64.7z') ('-o'+$reference) '-y' 'resources/app.asar' | Out-Null
+    if($LASTEXITCODE){throw 'Could not read the expected application ASAR.'}
+    $expectedAsar=(Get-FileHash -LiteralPath (Join-Path $reference 'resources/app.asar')).Hash
+    try { Invoke-ObservedInstaller $old ("/S /currentuser /D="+$install) 'old-0.2.0-install' $false }
+    catch {
+        # Diagnostics can still observe repair of a registered but incomplete
+        # old install. This is explicitly NOT evidence of a complete old setup.
+        $oldExe=Join-Path $install 'Neutron Launcher.exe'
+        $registration=Get-ItemProperty -LiteralPath 'HKCU:\Software\17d12e18-c0d2-5a05-b898-3c34ccfad7ff' -ErrorAction SilentlyContinue
+        if(-not (Test-Path -LiteralPath $oldExe) -or (Get-Item -LiteralPath $oldExe).VersionInfo.ProductVersion -ne '0.2.0' -or $null -eq $registration -or $registration.InstallLocation -ne $install){throw}
+        $events.Add(@{label='old-fixture-incomplete';error=$_.Exception.Message;fullOldInstallationAccepted=$false})
+        Save-Evidence
+    }
+    $marker=Join-Path $control 'personal-diagnostic-marker.txt'; [IO.File]::WriteAllText($marker,'synthetic profile; retain'); $markerHash=(Get-FileHash -LiteralPath $marker).Hash
     Invoke-ObservedInstaller $new ("/currentuser /D="+$install) 'assisted-0.2.0-to-0.2.2' $true
     $registeredInstall=(Get-ItemProperty -LiteralPath 'HKCU:\Software\17d12e18-c0d2-5a05-b898-3c34ccfad7ff').InstallLocation
     $events.Add(@{label='assisted-install-location';requested=$install;registered=$registeredInstall})
     if(-not $registeredInstall.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Registered install escaped the owned fixture.'}
+    $installedExe=Join-Path $registeredInstall 'Neutron Launcher.exe'
+    if((Get-Item -LiteralPath $installedExe).VersionInfo.ProductVersion -ne '0.2.2'){throw 'Assisted upgrade did not install version 0.2.2.'}
+    $metadata=Get-Content -LiteralPath (Join-Path $registeredInstall 'resources/release.json') -Raw | ConvertFrom-Json
+    if($metadata.launcherVersion -ne '0.2.2'){throw 'Installed release metadata differs from the candidate.'}
+    if((Get-FileHash -LiteralPath (Join-Path $registeredInstall 'resources/app.asar')).Hash -ne $expectedAsar){throw 'Assisted upgrade application bytes differ from the immutable public candidate.'}
     Invoke-ObservedInstaller $new ("/S /currentuser /D="+$registeredInstall) 'silent-0.2.2-reinstall' $false
     $uninstaller=Join-Path $registeredInstall 'Uninstall Neutron Launcher.exe'
     Invoke-ObservedInstaller $uninstaller '/currentuser /KEEP_APP_DATA' 'assisted-uninstall-0.2.2' $true
     if((Test-Path -LiteralPath (Join-Path $registeredInstall 'Neutron Launcher.exe')) -or (Test-Path -LiteralPath 'HKCU:\Software\17d12e18-c0d2-5a05-b898-3c34ccfad7ff')){throw 'Assisted uninstaller did not remove application files and registration.'}
-    if(-not (Test-Path -LiteralPath $marker)){throw 'Uninstall changed synthetic personal data.'}
+    if((Get-FileHash -LiteralPath $marker).Hash -ne $markerHash){throw 'Uninstall changed synthetic personal data.'}
     $events.Add(@{label='completed';result='all observed operations succeeded; user failure not reproduced'})
 } finally {
     foreach($entry in $processes){$entry | ConvertTo-Json -Compress | Write-Host}
