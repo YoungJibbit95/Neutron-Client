@@ -81,7 +81,9 @@ public class Wave07ModernScreensTest {
         ThemeMode.select(ThemeMode.APPROACH_TWO);
         Library library=new Library(manager);library.setup(1024,768);
         ClipRect modern=library.visible();
-        assertEquals(780f,Float.valueOf(library.width==0?0:780f),0);
+        Field outer=ClickLibraryScreen.class.getDeclaredField("w");
+        outer.setAccessible(true);
+        assertEquals(780f,outer.getFloat(library),0);
         assertTrue(modern.width>100 && modern.height>100);
         assertTrue(library.search().y<modern.y);
         assertEquals(0,fixture.changes);
