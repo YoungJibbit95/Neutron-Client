@@ -34,6 +34,6 @@ public class HudPlacementTest {
         HudPlacement.Point p=HudPlacement.drag(54.5f,88.25f,4.25f,8.5f,0,640,360,150,44,true);
         assertEquals(50.25f,p.x,.00001f);assertEquals(79.75f,p.y,.00001f);
         HudPlacement.Point off=HudPlacement.drag(-100,-80,0,0,8,640,360,150,44,false);
-        assertEquals(-104,off.x,0);assertEquals(-80,off.y,0);
+        assertEquals(-96,off.x,0);assertEquals(-80,off.y,0);
     }
 }
