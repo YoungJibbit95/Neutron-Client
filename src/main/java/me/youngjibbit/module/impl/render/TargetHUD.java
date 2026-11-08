@@ -170,14 +170,22 @@ public class TargetHUD extends Module {
         boolean enabled=settings==null||settings.animations.getValue();
         boolean reduced=settings!=null&&settings.reducedMotion.getValue();
         String intensity=settings==null?"Balanced":settings.motionIntensity.getValue();
+        float observedDistance=Float.NaN;
+        if(mc.thePlayer!=null){
+            float d=mc.thePlayer.getDistanceToEntity(target);
+            if(Float.isFinite(d)&&d>=0)observedDistance=Math.min(999,d);
+        }
         if(animatedTarget!=target){
             animatedTarget=target;animatedHealth=healthSpring.snap(health);
             animatedAbsorption=absorptionSpring.snap(absorption);
+            distanceSpring.snap(Float.isFinite(observedDistance)?observedDistance:0);
             portraitSpring.snap(1);
         }else{
             animatedHealth=Math.max(0,Math.min(max,healthSpring.step(health,dt,enabled,reduced,intensity)));
             animatedAbsorption=Math.max(0,Math.min(2048,
                     absorptionSpring.step(absorption,dt,enabled,reduced,intensity)));
+            if(Float.isFinite(observedDistance))distanceSpring.step(
+                    observedDistance,dt,enabled,reduced,intensity);
         }
         portraitPulse=Math.max(0,Math.min(1,portraitSpring.step(0,dt,enabled,reduced,intensity)));
         lastFrame=now;
@@ -188,18 +196,25 @@ public class TargetHUD extends Module {
         TTFFontRenderer nameFont=Pulsar.INSTANCE.fontManager.getFont((basic?"Product-Sans-Bold":"Poppins-Medium")+" 18");
         TTFFontRenderer infoFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 16");
         String name=net.minecraft.util.StringUtils.stripControlCodes(target.getCommandSenderName());if(name==null||name.trim().isEmpty())name="Living entity";
-        String hp=number(animatedHealth)+" / "+number(max)+(animatedAbsorption>0?"  +"+number(animatedAbsorption):"");
-        float textX=test?8:44;
-        float width=Math.min(Math.max(1,sw-8),Math.max(152,Math.min(240,Math.max(nameFont.getWidth(name),infoFont.getWidth(hp))+textX+9)));
-        float height=Math.min(Math.max(1,sh-8),rise||basic?50:44);
+        String hp=modern?"Health: "+number(animatedHealth)+" \u2665"+
+                (Float.isFinite(observedDistance)?"  |  Dist: "+number(
+                        Math.max(0,distanceSpring.value()))+" m":""):
+                number(animatedHealth)+" / "+number(max)+(animatedAbsorption>0?"  +"+number(animatedAbsorption):"");
+        float textX=test?8:modern?58:44;
+        float width=modern?modernWidth(sw,Math.max(nameFont.getWidth(name),
+                infoFont.getWidth(hp))+textX+16):
+                Math.min(Math.max(1,sw-8),Math.max(152,Math.min(240,
+                        Math.max(nameFont.getWidth(name),infoFont.getWidth(hp))+textX+9)));
+        float height=modern?modernHeight(sh):
+                Math.min(Math.max(1,sh-8),rise||basic?50:44);
         HudPlacement.Point point=position(sw,sh,width,height);float x=point.x,y=point.y;
-        float radius=basic?.5f:rise?14:"Neutron White".equals(design)?10:UiEffects.radius(5,width,height);
+        float radius=modern?16:basic?.5f:rise?14:"Neutron White".equals(design)?10:UiEffects.radius(5,width,height);
         ResourceLocation skin=null;
         if(!test&&target instanceof AbstractClientPlayer)skin=((AbstractClientPlayer)target).getLocationSkin();
         String kind=target instanceof AbstractClientPlayer?"Player":target instanceof EntityAnimal?"Animal":"Mob";
         return new Frame(x,y,width,height,Math.min(radius,height/2),textX,fit(name,nameFont,width-textX-8),fit(hp,infoFont,width-textX-8),kind,skin,
                 Math.max(0,Math.min(1,animatedHealth/max)),Math.max(0,Math.min(1,animatedAbsorption/max)),
-                design,nameFont,infoFont,Theme.resolve(Theme.getDefaultTheme()),portraitPulse);
+                design,nameFont,infoFont,targetTheme(design),portraitPulse);
     }
     private static String number(float value){return String.format(Locale.ROOT,value>=10000?"%.1fk":value==Math.rint(value)?"%.0f":"%.1f",value>=10000?value/1000:value);}
     private static String fit(String text,TTFFontRenderer font,float available){if(font.getWidth(text)<=available)return text;int end=text.length();while(end>0&&font.getWidth(text.substring(0,end)+"...")>available)end=text.offsetByCodePoints(end,-1);return end==0?"":text.substring(0,end)+"...";}
