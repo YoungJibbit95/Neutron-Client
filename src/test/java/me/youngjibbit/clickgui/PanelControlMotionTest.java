@@ -48,10 +48,25 @@ public class PanelControlMotionTest {
         UiEffects.invalidate();
     }
     private static Object field(Object owner,String name) throws Exception {
-        Field f=owner.getClass().getDeclaredField(name);f.setAccessible(true);return f.get(owner);
+        for(Class<?> type=owner.getClass();type!=null;type=type.getSuperclass()){
+            try {
+                Field f=type.getDeclaredField(name);
+                f.setAccessible(true);
+                return f.get(owner);
+            }catch(NoSuchFieldException ignored){ /* subclass harness fields live on ClickGui */ }
+        }
+        throw new NoSuchFieldException(name);
     }
     private static void field(Object owner,String name,Object value) throws Exception {
-        Field f=owner.getClass().getDeclaredField(name);f.setAccessible(true);f.set(owner,value);
+        for(Class<?> type=owner.getClass();type!=null;type=type.getSuperclass()){
+            try {
+                Field f=type.getDeclaredField(name);
+                f.setAccessible(true);
+                f.set(owner,value);
+                return;
+            }catch(NoSuchFieldException ignored){ /* same helper for inherited test fixtures */ }
+        }
+        throw new NoSuchFieldException(name);
     }
     private static <T> T child(ClickModule module,Class<T> type) {
         for(Component.Sub<?> sub:module.presentationValues())if(type.isInstance(sub))return type.cast(sub);
