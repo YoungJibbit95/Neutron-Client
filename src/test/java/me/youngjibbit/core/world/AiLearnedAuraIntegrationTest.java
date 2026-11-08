@@ -112,18 +112,36 @@ public class AiLearnedAuraIntegrationTest {
         java.util.Map<?,?> states=(java.util.Map<?,?>)statesField.get(r);
         Object auraState=states.get("aura");
         String model="missing-state";
+        String tokenStatus="missing-state";
         if(auraState!=null) {
             java.lang.reflect.Field aiField=auraState.getClass().getDeclaredField("ai");
             aiField.setAccessible(true);
             Object ai=aiField.get(auraState);
             model=ai==null?"missing-core":
                     ((me.youngjibbit.core.combat.ai.NeutronAiCore)ai).hasModel()?"present":"disposed";
+            java.lang.reflect.Field tokenField=auraState.getClass().getDeclaredField("aiToken");
+            java.lang.reflect.Field lastField=auraState.getClass().getDeclaredField("aiLastSequence");
+            java.lang.reflect.Field ordinalField=auraState.getClass().getDeclaredField("aiOrdinal");
+            java.lang.reflect.Field blockedField=auraState.getClass().getDeclaredField("aiBlockedSequence");
+            tokenField.setAccessible(true);lastField.setAccessible(true);
+            ordinalField.setAccessible(true);blockedField.setAccessible(true);
+            Object token=tokenField.get(auraState);
+            boolean current=token!=null && ai!=null
+                    && ((me.youngjibbit.core.combat.ai.NeutronAiCore)ai).hasCurrentAcquisition(
+                        (me.youngjibbit.core.combat.ai.NeutronAiCore.Acquisition)token);
+            tokenStatus=(token==null?"null":"live="+current)
+                    +" last="+lastField.getLong(auraState)
+                    +" ord="+ordinalField.getLong(auraState)
+                    +" block="+blockedField.getLong(auraState);
         }
         return tick+":t="+f.run.scene.motionTime.get()
                 +" owner="+r.getConfirmedOwner()
                 +" accepted="+r.isAiAuraMotionAccepted()
                 +" yaw="+r.getEffectiveYaw()+" pitch="+r.getEffectivePitch()
                 +" infer="+inferences(r)+" model="+model
+                +" token="+tokenStatus
+                +" rotations="+f.run.fixture.aura.getBooleanSetting("Rotations").getValue()
+                +" auraEnabled="+f.run.fixture.aura.isToggled()
                 +" seq="+r.getMotionSequence()
                 +" mode="+f.run.fixture.aura.getModeSetting("Rot Mode").getValue()
                 +" focused="+f.run.fixture.mc.inGameHasFocus
