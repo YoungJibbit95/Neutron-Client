@@ -12,7 +12,7 @@ import java.awt.Color;
 /** Compact presentation; values, visibility, animation and editing belong to ClickModule. */
 public final class DropdownModule extends ClickModule {
     public static final float ROW_HEIGHT = 14;
-    public DropdownModule(Module module) { super(module, 0, 0, 104, ROW_HEIGHT); setWidth(104); }
+    public DropdownModule(Module module) { super(module, 0, 0, 104, ROW_HEIGHT); setWidth(104); resetCompactMotion(); }
     @Override protected boolean compactSettings() { return true; }
 
     @Override public void drawScreen(int mouseX, int mouseY) {
