@@ -146,8 +146,8 @@ public class ArrayListHUDModule extends Module {
         float dx=anchorX-oldX,dy=anchorY-oldY;moveRows(rows,dx,dy);
         for(ArrayRow row:rows)row.clip=new ClipRect(row.clip.x+dx,row.clip.y+dy,row.clip.width,row.clip.height);
         final ArrayListSurface.Shape shape=initial.translated(dx,dy);frameShape=shape;
-        Runnable labels=() -> textEffects.themed(theme,() -> {
-            for(ArrayRow row:rows){
+        Runnable labels=() -> {
+            Runnable glyphs=()->{for(ArrayRow row:rows){
                 if(modern&&filled){
                     // Per-row ink plate and 2 px accent, not a full-screen color veil.
                     UIUtils.drawRound(row.rectX+1,row.rectY+1,
@@ -161,8 +161,12 @@ public class ArrayListHUDModule extends Module {
                                     Math.round(205*row.progress)));
                 }
                 drawLabel(row,theme,phase);
-            }
-        });
+            }};
+            // In 2.0 the ink is neutral/high-contrast; only the slim stripe
+            // inherits the selected palette. Legacy retains its glyph shader.
+            if(modern)glyphs.run();
+            else textEffects.themed(theme,glyphs);
+        };
         GuiShaderBloom.afterBatch(() -> {
             if (!surface.inheritsEffects() && !filled && !glowing) surface.text(labels);
             else surface.render(shape,theme,filled,blurred,glowing,glowStrength,labels);
