@@ -217,6 +217,11 @@ public class ClickModule extends Component {
     }
 
     private void drawPanelHeader(Theme theme, boolean hover) {
+        if(me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(
+                me.youngjibbit.theme.ThemeMode.selected())){
+            drawNeutronTwoHeader(theme,hover);
+            return;
+        }
         // Module hover stays anchored, even while the settings below grow or scroll.
         int text = theme.getTextColor().getRGB();
         float over = Math.max(0, Math.min(1, getPresentation().amount()));
@@ -249,6 +254,48 @@ public class ClickModule extends Component {
         title.drawString(ClickControlStyle.fit(title, module.getName(), right - x - 24), x + 19, y + 6, titleInk);
         Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString(openProgress > .5f ? "h" : "i",
                 x + width - 17, y + 7, me.youngjibbit.utils.render.UiEffects.alpha(text, hover || open ? .95f : .62f));
+    }
+
+    /** Approach-2 card and switch share the established Panel hitbox and springs. */
+    private void drawNeutronTwoHeader(Theme theme,boolean hover){
+        float response=Math.max(0,Math.min(1,toggleProgress));
+        float over=Math.max(0,Math.min(1,getPresentation().amount()));
+        int base=Theme.interpolateRGB(0xff29172e,0xff513050,Math.max(over*.18f,response*.35f));
+        GuiStyle.panel(x,y,width,getHeight(),10,.12f+.3f*response,new Color(base,true));
+        if(module.isToggled()||response>.005f){
+            float bar=width*Math.max(0,Math.min(1,response));
+            if(bar>1)
+                me.youngjibbit.utils.render.UIUtils.drawGradientHorizontal(
+                        x+4,y+height-2,Math.min(width-8,bar),1,0,
+                        theme.getPrimaryGradientColor(),theme.getSecondaryGradientColor());
+        }
+        // A decorative switch: events still go through the unchanged module handler.
+        float switchX=x+width-54,switchY=y+4;
+        me.youngjibbit.utils.render.UIUtils.drawRound(
+                switchX,switchY,32,16,8,new Color(22,16,30,225));
+        if(response>.01f)
+            me.youngjibbit.utils.render.UIUtils.drawGradientHorizontal(
+                    switchX,switchY,32*response,16,7,
+                    theme.getPrimaryGradientColor(),theme.getSecondaryGradientColor());
+        float bounce=Math.min(1,Math.abs(toggleBounce)*8);
+        me.youngjibbit.utils.render.UIUtils.drawRound(
+                switchX+2+14*response-bounce/2,switchY+2-bounce/2,
+                12+bounce,12+bounce,6+bounce/2,new Color(246,229,246));
+        TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18");
+        float nameWidth=width-97;
+        if(module.getKey()!=0)nameWidth-=20;
+        font.drawString(ClickControlStyle.fit(font,module.getName(),Math.max(14,nameWidth)),
+                x+12,y+6,hoverInk(0xfff8eefa));
+        if(module.getKey()!=0){
+            String key=org.lwjgl.input.Keyboard.getKeyName(module.getKey());
+            if(key!=null)font.drawString(ClickControlStyle.fit(font,key,18),
+                    x+width-83,y+7,0xffb69bb8);
+        }
+        Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString(
+                openProgress>.5f?"h":"i",x+width-18,y+6,0xffecb5da);
+        if(getPresentation().keyboardFocused())
+            me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x+4,y+5,2,height-10,1,
+                    new Color(255,122,207));
     }
 
     /** Shared settings renderer for the panel and compact dropdown presentations. */
