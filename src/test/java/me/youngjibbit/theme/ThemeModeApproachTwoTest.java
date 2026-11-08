@@ -26,10 +26,12 @@ public class ThemeModeApproachTwoTest {
         String prior=catalog.selectedReference();
         ThemeMode.select(ThemeMode.APPROACH_TWO);
         Theme styled=ThemeMode.global(Theme.Purple);
-        assertSame(Theme.approachTwo(),styled);
-        assertEquals(0xfff71ec0,styled.getPrimaryGradientRGB());
-        assertEquals(0xffff922f,styled.getSecondaryGradientRGB());
-        assertTrue(styled.isAnimated());
+        assertSame(Theme.Purple,styled);
+        assertEquals(Theme.Purple.getPrimaryGradientRGB(),styled.getPrimaryGradientRGB());
+        assertEquals(Theme.Purple.getSecondaryGradientRGB(),styled.getSecondaryGradientRGB());
+        for(Theme palette:Theme.values())
+            assertSame("Neutron 2.0 must preserve every selected palette",palette,
+                    ThemeMode.global(palette));
         assertEquals(prior,catalog.selectedReference());
         ThemeMode.select("unknown-mode");
         assertSame(Theme.Purple,ThemeMode.global(Theme.Purple));
