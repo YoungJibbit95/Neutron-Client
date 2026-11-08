@@ -26,7 +26,15 @@ public class ClickCheckBox extends Component.Sub<CheckBoxValue> {
     @Override public void advanceMotion(float dt,int mx,int my,
                                         boolean focused,boolean pressed,boolean visible){
         super.advanceMotion(dt,mx,my,focused,pressed,visible);
-        if(!panelStyle)return;
+        boolean compactModern=compact() &&
+                me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(
+                        me.youngjibbit.theme.ThemeMode.selected());
+        if(!panelStyle&&!compactModern){
+            // Legacy compact graphics keep the existing wall-clock animation.
+            panelSwitch.snap(value.getValue()?1:0);
+            panelProgress=Float.NaN;panelBounce=0;
+            return;
+        }
         ClientSettings settings=ClientSettings.current();
         float response=panelSwitch.step(value.getValue()?1:0,dt,
                 settings==null||settings.animations.getValue(),
@@ -42,7 +50,10 @@ public class ClickCheckBox extends Component.Sub<CheckBoxValue> {
     @Override public ClipRect presentationBounds(){return new ClipRect(toggleX(),y+5,toggleWidth(),panelStyle?13:compact()?11:14);}
     @Override public void drawScreen(int mouseX,int mouseY){
         animation.setDirection(value.getValue()?Direction.FORWARDS:Direction.BACKWARDS);
-        float progress=panelStyle&&Float.isFinite(panelProgress)?panelProgress:
+        boolean compactModern=compact()&&
+                me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(
+                        me.youngjibbit.theme.ThemeMode.selected());
+        float progress=(panelStyle||compactModern)&&Float.isFinite(panelProgress)?panelProgress:
                 Math.max(0,Math.min(1,UiEffects.motion()?animation.getOutput().floatValue():value.getValue()?1:0));
         Theme theme=Theme.resolve(Theme.getDefaultTheme());int ink=hoverInk(theme.isCustom()?theme.getTextColor().getRGB():0xffe4e4e8);
         if (panelStyle) {
