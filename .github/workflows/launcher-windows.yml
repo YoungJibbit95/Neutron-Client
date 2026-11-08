@@ -45,6 +45,7 @@ jobs:
         run: node scripts/package-windows.mjs
         env:
           DEBUG: electron-builder*
+          NODE_OPTIONS: --require=./scripts/trace-download-failures.cjs
       - name: Install, start, reinstall and uninstall the actual candidate
         run: ./scripts/windows-installer-smoke.ps1
       - name: Installer checksum
