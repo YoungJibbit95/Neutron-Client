@@ -109,6 +109,14 @@ public final class NeutronAiCore {
     }
 
     public synchronized boolean hasModel() { return model != null; }
+    /**
+     * Liveness only, NOT a C03/attack admission. Distinguishes a settled
+     * zero-motion candidate from an invalidated/paused acquisition.
+     */
+    public synchronized boolean hasCurrentAcquisition(Acquisition acquisition) {
+        return onOwningThread() && model != null && acquisition != null
+                && current != null && current.acquisition.same(acquisition);
+    }
     public synchronized long inferenceCount() { return inferences; }
 
     /**

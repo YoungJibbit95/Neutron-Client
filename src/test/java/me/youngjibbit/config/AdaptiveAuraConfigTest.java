@@ -26,7 +26,8 @@ public class AdaptiveAuraConfigTest {
         AimAssist assist = new AimAssist();
         Scaffold scaffold = new Scaffold();
         assertArrayEquals(new String[]{"Basic", "Smooth", "Advanced", "Arsenic Lazy", "Arsenic Heuristics", "Adaptive"},
-                aura.getModeSetting("Rot Mode").getOptions());
+                Arrays.copyOf(aura.getModeSetting("Rot Mode").getOptions(),6));
+        assertEquals("AI Learned",aura.getModeSetting("Rot Mode").getOptions()[6]);
         assertEquals("Basic", aura.getModeSetting("Rot Mode").getValue());
         assertEquals(0, aura.getModeSetting("Rot Mode").getSelectedIndex());
         assertArrayEquals(new String[]{"Legit", "Test", "Normal", "Arsenic Lazy", "Arsenic Heuristics"},
