@@ -1,6 +1,6 @@
 {
   "name": "neutron-launcher",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Neutron Windows x64 launcher",
   "author": "Neutron Client",
   "license": "UNLICENSED",

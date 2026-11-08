@@ -135,6 +135,25 @@ function Assert-NeutronProfileCopy([string]$Original, [string]$Copy) {
     }
 }
 
+# Treat a running copy at the installation path as a blocker, not any unrelated
+# executable sharing the product's process name. An unreadable path fails closed.
+function Test-NeutronInstalledLauncherRunning([string]$Install, [object[]]$Candidates=$null, [int]$CurrentSession=[Diagnostics.Process]::GetCurrentProcess().SessionId) {
+    $expected=[IO.Path]::GetFullPath((Join-Path $Install 'Neutron Launcher.exe'))
+    if ($null -eq $Candidates) { $Candidates=@(Get-Process -Name 'Neutron Launcher' -ErrorAction SilentlyContinue) }
+    foreach ($candidate in @($Candidates)) {
+        if ($candidate.SessionId -ne $CurrentSession) { continue }
+        $executable=$null
+        try { $executable=[string]$candidate.Path } catch { }
+        if ([string]::IsNullOrWhiteSpace($executable)) {
+            throw 'Cannot verify the executable path of a running Neutron Launcher. Close it before changing the data folder.'
+        }
+        try { $actual=[IO.Path]::GetFullPath($executable) }
+        catch { throw 'Cannot verify a running Neutron Launcher executable path. Close it before changing the data folder.' }
+        if ($actual.Equals($expected,[StringComparison]::OrdinalIgnoreCase)) { return $true }
+    }
+    return $false
+}
+
 function Test-NeutronStorage([string]$Root, [string]$Install, [string]$Control, $Release, [bool]$Override, [bool]$VerifyCopy=$true) {
     $Root=Get-NeutronStoragePath $Root $Install
     $free=Get-NeutronFreeBytes $Root
@@ -163,7 +182,7 @@ function Test-NeutronStorage([string]$Root, [string]$Install, [string]$Control, 
     }
     if (-not $cached -and $free -lt 3GB) { throw ('At least 3 GiB free space is required for the new Neutron client. Data folder: '+$Root+'. Available: '+[math]::Round($free/1GB,2)+' GiB. Select a data folder on a drive with enough space; the launcher installation folder is separate. The existing EXE and data have not been replaced.') }
     if ($VerifyCopy -and -not $Override -and $hasOldProfile -and $oldRoot -and -not $Root.Equals($oldRoot,[StringComparison]::OrdinalIgnoreCase)) {
-        if (Get-Process -Name 'Neutron Launcher' -ErrorAction SilentlyContinue | Where-Object {$_.SessionId -eq [Diagnostics.Process]::GetCurrentProcess().SessionId}) { throw 'Close Neutron Launcher before verifying a data-folder copy.' }
+        if (Test-NeutronInstalledLauncherRunning $Install) { throw 'Close the installed Neutron Launcher before verifying a data-folder copy.' }
         if ([IO.File]::Exists((Join-Path $oldRoot 'client-process.json'))) { throw 'The original data folder has a protected client process record. Stop the game through the previous launcher before switching folders; no process was stopped.' }
         Assert-NeutronProfileCopy $oldRoot $Root
     }

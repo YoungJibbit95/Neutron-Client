@@ -11,7 +11,8 @@ export async function response(url: string, signal: AbortSignal, redirects = 0):
   if (process.env.NEUTRON_OFFLINE === '1') throw new Error('Networking is disabled for offline operation.');
   if (redirects > 5) throw new Error('Too many download redirects.');
   signal.throwIfAborted();
-  const result = await fetch(checkUrl(url), { redirect: 'manual', signal: AbortSignal.any([signal, AbortSignal.timeout(90000)]), headers: { 'User-Agent': 'Neutron-Launcher/0.2.1', Accept: 'application/vnd.github+json' } });
+  const binaryAsset = /^https:\/\/api\.github\.com\/repos\/[^/]+\/[^/]+\/releases\/assets\/[0-9]+$/.test(url);
+  const result = await fetch(checkUrl(url), { redirect: 'manual', signal: AbortSignal.any([signal, AbortSignal.timeout(90000)]), headers: { 'User-Agent': 'Neutron-Launcher/0.2.3', Accept: binaryAsset ? 'application/octet-stream' : 'application/vnd.github+json' } });
   if ([301, 302, 303, 307, 308].includes(result.status)) {
     const location = result.headers.get('location'); await result.body?.cancel();
     if (!location) throw new Error('Missing redirect destination.');
@@ -27,7 +28,7 @@ export async function json<T>(url: string, signal: AbortSignal): Promise<T> {
   finally { reader.releaseLock(); }
   return JSON.parse(Buffer.concat(chunks).toString('utf8')) as T;
 }
-export interface Download { url: string; digest: string; algorithm?: 'sha256' | 'sha512' | 'sha1'; size?: number; maxBytes?: number }
+export interface Download { url: string; digest: string; algorithm?: 'sha256' | 'sha512' | 'sha1'; size?: number; maxBytes?: number; fallbackUrls?: string[] }
 export async function download(item: Download, target: string, signal: AbortSignal, progress: (received: number, total: number | null) => void = () => {}) {
   const algorithm = item.algorithm ?? 'sha256';
   if (!new RegExp('^[a-f0-9]{' + (algorithm === 'sha512' ? 128 : algorithm === 'sha1' ? 40 : 64) + '}$').test(item.digest)) throw new Error('Invalid expected download digest.');
@@ -35,7 +36,22 @@ export async function download(item: Download, target: string, signal: AbortSign
   await fs.mkdir(path.dirname(target), { recursive: true });
   const partial = target + '.partial';
   // Interrupted objects restart; only complete, hashed cache objects are reused.
-  const result = await response(item.url, signal);
+  let result: Response | undefined;
+  try { result = await response(item.url, signal); }
+  catch (error) {
+    // This is a transport fallback only. Never retry a bad checksum, bad
+    // URL, 4xx, interrupted operation or a different error as if it were valid.
+    if (!/^Download HTTP (?:502|503|504) \(github\.com\)$/.test(String((error as Error).message))
+        || !item.fallbackUrls?.length) throw error;
+    signal.throwIfAborted();
+    let lastError: unknown = error;
+    for (const alternate of item.fallbackUrls) {
+      try { result = await response(alternate, signal); lastError = null; break; }
+      catch (failure) { lastError = failure; }
+    }
+    if (lastError) throw lastError;
+  }
+  if (!result) throw new Error('Download did not provide a response.');
   const total = item.size ?? (Number(result.headers.get('content-length')) || null);
   const max = item.maxBytes ?? item.size ?? 512 * 1024 * 1024;
   const handle = await fs.open(partial, 'w'); let received = 0;
