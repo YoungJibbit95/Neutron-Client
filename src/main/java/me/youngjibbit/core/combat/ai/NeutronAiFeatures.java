@@ -47,8 +47,8 @@ public final class NeutronAiFeatures {
 
     static double wrap(double a) {
         a %= 360;
-        if (a <= -180) a += 360;
-        if (a > 180) a -= 360;
+        if (a < -180) a += 360;
+        if (a >= 180) a -= 360;
         return a;
     }
 
