@@ -9,6 +9,7 @@ import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.ModuleInfo;
 import me.youngjibbit.utils.Theme;
+import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.utils.render.UiEffects;
 import me.youngjibbit.utils.font.TTFFontRenderer;
 import me.youngjibbit.utils.render.ArrayListSurface;
@@ -86,15 +87,23 @@ public class SessionInfo extends Module {
         paint(frame);
     }
 
+    /** Only the historic default is overlaid by 2.0; explicit saved variants remain. */
+    static String modernFor(String saved,boolean globalModern){
+        return globalModern&&"Outline".equals(saved)?"Neutron 2.0":saved;
+    }
     Frame layout(SessionStatistics.Snapshot snapshot,String username,int screenWidth,int screenHeight) {
-        String design=mode.getValue();
+        String design=modernFor(mode.getValue(),ThemeMode.APPROACH_TWO.equals(ThemeMode.selected()));
+        boolean modern="Neutron 2.0".equals(design);
         TTFFontRenderer body=font("Product-Sans-Bold 20");
         TTFFontRenderer title=font("Poppins-Bold 23");
         String time="Time: "+snapshot.time(), counts="Kills: "+snapshot.kills+"   Deaths: "+snapshot.deaths;
         boolean tenacity="Tenacity".equals(design), outline="Outline".equals(design), rue="Rue (Rise)".equals(design);
-        float desired=Math.max(150,Math.max(body.getWidth(time),Math.max(body.getWidth(username),body.getWidth(counts)))+36);
-        float radius=rue?14:UiEffects.radius(5,width,height);
-        height=rue?80:tenacity?82:outline?70:76;
+        float desired=Math.max(150,Math.max(body.getWidth(time),
+                Math.max(body.getWidth(username),body.getWidth(counts)))+36);
+        float radius=modern?13:rue?14:UiEffects.radius(5,width,height);
+        height=modern?100:rue?80:tenacity?82:outline?70:76;
+        if(modern)desired=Math.max(250,Math.min(330,
+                Math.max(body.getWidth(username),body.getWidth(time))+116));
         if (tenacity) desired=Math.max(desired,Math.max(body.getWidth(username),Math.max(body.getWidth(counts),body.getWidth(snapshot.time())))+112);
         width=Math.min(Math.max(1,screenWidth-8),desired);
         height=Math.min(Math.max(1,screenHeight-8),height);
@@ -103,7 +112,18 @@ public class SessionInfo extends Module {
                 bg.getValue(),blurbg.getValue(),bloom.getValue(),blurStrength.getValue().floatValue(),
                 (float)((System.nanoTime()-ANIMATION_EPOCH)/(gradientSpeed.getValue()*1_000_000.0)%1));
         float contentWidth=width-32;
-        if (tenacity) {
+        if(modern){
+            // A calm two-column Stats card. Right slot is the existing
+            // source-backed circular session timer, not a generated statistic.
+            float leftWidth=Math.max(0,width-98);
+            frame.add("Statistics",title,12,4,false);
+            frame.add(fit(username,body,leftWidth),body,14,28,false);
+            frame.add(fit("Kills: "+snapshot.kills+"   D: "+snapshot.deaths,body,leftWidth),
+                    body,14,49,false);
+            frame.add(fit((snapshot.active?"Time: ":"Ended: ")+snapshot.time(),body,leftWidth),
+                    body,14,70,false);
+            frame.ring=true;
+        }else if (tenacity) {
             frame.add("Statistics",title,width/2-title.getWidth("Statistics")/2,4,true);
             float leftWidth=Math.max(0,width-108);
             frame.add(fit(username,body,leftWidth),body,22,26,false);
@@ -131,19 +151,31 @@ public class SessionInfo extends Module {
     }
 
     void paint(Frame frame) {
+        final boolean modern="Neutron 2.0".equals(frame.design);
         GuiShaderBloom.afterBatch(() -> surface.designedPanel(frame.x,frame.y,frame.width,frame.height,frame.radius,frame.theme,
-                frame.background,frame.blur,frame.glow,frame.blurRadius,"Outline".equals(frame.design)?0.78f:0.48f,
-                "Outline".equals(frame.design)||"Rue (Rise)".equals(frame.design)?0.9f:0,"Tenacity".equals(frame.design),
-                () -> content(frame)));
+                frame.background,frame.blur,modern?false:frame.glow,frame.blurRadius,
+                modern?.82f:"Outline".equals(frame.design)?0.78f:0.48f,
+                modern?.16f:"Outline".equals(frame.design)||"Rue (Rise)".equals(frame.design)?0.9f:0,
+                "Tenacity".equals(frame.design),()->content(frame)));
     }
 
     private void content(Frame frame) {
         try (GuiClip ignored=GuiClip.push(new ClipRect(frame.x+2,frame.y+2,frame.width-4,frame.height-4))) {
-            UIUtils.drawGradientHorizontal(frame.x+1,frame.y+18,frame.width-2,1,0,
+            boolean modern="Neutron 2.0".equals(frame.design);
+            if(modern&&frame.background){
+                UIUtils.drawRound(frame.x+2,frame.y+2,Math.max(1,frame.width-4),
+                        Math.max(1,frame.height-4),Math.max(0,frame.radius-2),
+                        new Color(20,22,32,182));
+            }
+            float ruleY=frame.y+(modern?23:18);
+            UIUtils.drawGradientHorizontal(frame.x+(modern?11:1),ruleY,
+                    Math.max(0,frame.width-(modern?22:2)),modern?1.2f:1,0,
                     frame.theme.getPrimaryGradientColor(),frame.theme.getSecondaryGradientColor());
-            if (frame.ring) ring(frame);
+            if(frame.ring)ring(frame);
             for(TextRun run:frame.text)if(!run.gradient)run.draw(frame);
-            me.youngjibbit.utils.render.TextEffects.direct(frame.theme,()->{for(TextRun run:frame.text)if(run.gradient)run.glyphs(frame);});
+            me.youngjibbit.utils.render.TextEffects.direct(frame.theme,()->{
+                for(TextRun run:frame.text)if(run.gradient)run.glyphs(frame);
+            });
         }
     }
 
@@ -254,7 +286,13 @@ public class SessionInfo extends Module {
             width=font.getWidth(text);
         }
         void draw(Frame frame) {
-            if (!gradient) { font.drawString(text,frame.x+x,frame.y+y,frame.theme.isCustom()?frame.theme.getTextColor().getRGB():Color.WHITE.getRGB()); return; }
+            if (!gradient) {
+                boolean modern="Neutron 2.0".equals(frame.design);
+                int ink=modern?(y<13?0xfff7f2fa:0xffd7cbdc):
+                        frame.theme.isCustom()?frame.theme.getTextColor().getRGB():Color.WHITE.getRGB();
+                font.drawString(text,frame.x+x,frame.y+y,ink);
+                return;
+            }
             me.youngjibbit.utils.render.TextEffects.direct(frame.theme,()->glyphs(frame));
         }
         void glyphs(Frame frame){
