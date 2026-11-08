@@ -31,6 +31,12 @@ public final class Theme {
     public static final Theme Rainbow=preset("Rainbow",18,new Color(255, 255, 255), new Color(255, 255, 255));
     /** Reference ClickGUI palette; appended so all existing preset positions remain stable. */
     public static final Theme Neutron=new Theme("Neutron","Neutron",19,false,Arrays.asList(new Color(226,149,211),new Color(65,184,212)),true,false,.18f,new Color(35,36,42,225),new Color(246,245,250),new Color(226,149,211),.6f,7,.8f,.7f);
+    // Runtime-only Approach-2 appearance: NOT a new preset/catalog selection or migration.
+    private static final Theme APPROACH_TWO=new Theme("Neutron-2.0","Neutron 2.0",-2,
+            false,Arrays.asList(new Color(247,30,192),new Color(255,146,47)),false,true,.18f,
+            new Color(23,16,35,228),new Color(248,240,250),new Color(248,38,187),
+            .82f,8,.86f,.8f);
+    public static Theme approachTwo(){return APPROACH_TWO;}
     private static final Theme[] PRESETS={BlackLight,Cotton_candy,SynthWave,Retro,Cherry,BlackWhite,PinkLemonade,Purple,Void,Lavender,Berry,PurpleHaze,Vine,Neon,Descriptor,Grayscale,Flare,Bonfire,Rainbow,Neutron};
     public static final String[] themes=Arrays.stream(PRESETS).map(Theme::name).toArray(String[]::new);
     private final String id,displayName;
@@ -81,7 +87,7 @@ public final class Theme {
     public static Theme[] values(){return PRESETS.clone();}
     public static Theme valueOf(String name){for(Theme preset:PRESETS)if(preset.name().equals(name))return preset;throw new IllegalArgumentException("Unknown preset: "+name);}
     public static Theme resolve(Theme theme){return theme==null?getDefaultTheme():theme;}
-    public static Theme getDefaultTheme(){return ThemeCatalog.global().current();}
+    public static Theme getDefaultTheme(){return me.youngjibbit.theme.ThemeMode.global(ThemeCatalog.global().current());}
     public static void setDefaultTheme(Theme theme){if(theme!=null)ThemeCatalog.global().select(theme.name());}
     public static int interpolateRGB(int a,int b,float t){t=Math.max(0,Math.min(1,t));int c=0;for(int shift:new int[]{24,16,8,0})c|=(int)(((a>>>shift)&255)*(1-t)+((b>>>shift)&255)*t)<<shift;return c;}
     public static int pulseRGB(int a,int b,long time,float duration){long period=Math.max(1,(long)duration);return interpolateRGB(a,b,(float)(Math.sin(time%period/(double)period*Math.PI*2)*.5+.5));}
