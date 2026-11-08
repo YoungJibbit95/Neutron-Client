@@ -158,7 +158,7 @@ public class WatermarkHUDModule extends Module {
                 ()->{
                     try(GuiClip clip=GuiClip.push(new ClipRect(frame.x+2,frame.y+2,
                             Math.max(1,frame.width-4),Math.max(1,frame.height-4)))){
-                        if(modern){
+                        if(modern&&panel){
                             // A quiet graphite ink plate: blur/world color remains perceptible,
                             // but high-contrast glyphs no longer blend with bright terrain.
                             UIUtils.drawRound(frame.x+2,frame.y+2,Math.max(1,frame.width-4),
@@ -188,7 +188,7 @@ public class WatermarkHUDModule extends Module {
         UIUtils.drawRound(badgeX,badgeY,badge,badge,modern?7:11,
                 modern?new Color(42,32,53,Math.round(alpha*234)):
                         new Color(26,47,60,Math.round(alpha*230)));
-        font.drawString("N",badgeX+(badge-12)/2,badgeY+(badge-11)/2,accent);
+        font.drawString("N",badgeX+(modern?(badge-12)/2:7),badgeY+(badge-11)/2,accent);
         if(view.state==IslandStateMachine.State.IDLE){
             float clockWidth=view.trailing.isEmpty()?0:font.getWidth(view.trailing)+11;
             float start=modern?39:39;
