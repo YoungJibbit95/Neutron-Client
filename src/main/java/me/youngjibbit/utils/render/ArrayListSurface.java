@@ -116,6 +116,12 @@ public final class ArrayListSurface implements AutoCloseable {
             corners=source.corners.clone();for(int i=0;i<corners.length;i+=4){corners[i]+=dx;corners[i+1]+=dy;}
         }
         public Shape translated(float dx,float dy){return new Shape(this,dx,dy);}
+        /** Rounded panels use their rendered radius; stepped lists use a conservative bounding contour. */
+        UiEffects.GradientSpace gradientSpace() {
+            float radius=Float.POSITIVE_INFINITY;
+            for(int i=2;i<corners.length;i+=4)radius=Math.min(radius,Math.abs(corners[i]));
+            return UiEffects.perimeterSpace(left,top,right-left,bottom-top,radius);
+        }
         /** Same signed nearest-edge/arc distance as arraylistSurface.frag, without the outer halo. */
         public boolean contains(float x,float y) {
             if(x<left||x>right||y<top||y>bottom)return false;
@@ -178,7 +184,7 @@ public final class ArrayListSurface implements AutoCloseable {
     private void render(Shape shape,Theme theme,boolean background,boolean blur,boolean glow,float glowAlpha,
                         float blurRadius,float fillAlpha,float outlineAlpha,boolean gradientFill,int surfaceStyle,float opacity,Runnable text){
         long timing=me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.surfaceStart();
-        try {
+        try (UiEffects.GradientSpace contour=shape.gradientSpace()) {
             renderMeasured(shape,theme,background,blur,glow,glowAlpha,blurRadius,fillAlpha,outlineAlpha,gradientFill,surfaceStyle,opacity,text);
         } finally { me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.surfaceEnd(diagnosticName,timing); }
     }
