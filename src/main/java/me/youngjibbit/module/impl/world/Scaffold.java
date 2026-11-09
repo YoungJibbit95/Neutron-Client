@@ -230,7 +230,9 @@ public class Scaffold extends Module {
         bridgeKeepingYawSpeed.reset();bridgeKeepingPitchSpeed.reset();bridgeRotationVariation.reset();
         bridgePlaceMinCps.reset();bridgePlaceMaxCps.reset();bridgeClickProfile.reset();
         bridgeClickInterpolation.reset();bridgeClickVariation.reset();bridgePlaceDebug.reset();
-        bridgeAutoJump.reset();bridgeJumpAfter.reset();bridgeMovementCorrection.reset();
+        bridgeAutoJump.reset();bridgeJumpAfter.reset();
+        // Missing friendly keys must not overwrite an existing legacy Movefix value.
+        // endConfigUpdate mirrors the effective legacy value after explicit settings load.
     }
     @Override public void endConfigUpdate() {
         super.endConfigUpdate();

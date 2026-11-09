@@ -149,4 +149,20 @@ public class MoveFixConfigTest {
         assertEquals(MoveFixController.Mode.PRECISE,scaffold.moveFixMode());
         assertEquals("Precise",scaffold.getModeSetting("movement_correction").getValue());
     }
+    /** Partial historical profiles must not turn an unrelated movement correction off. */
+    @Test public void partialLegacyConfigsPreserveEveryUnspecifiedMovefixValue() throws Exception {
+        for (String partial : Arrays.asList(
+                "{\"Scaffold\":{\"key\":42}}",
+                "{\"version\":2,\"modules\":{\"scaffold\":{\"settings\":{\"place_delay\":4}}}}")) {
+            for (MoveFixController.Mode movement : MoveFixController.Mode.values()) {
+                scaffold.getModeSetting("movefix").setValue(movement.label);
+                write(partial);
+                assertTrue(configs.getLastError(), configs.loadConfig("Synthetic"));
+                assertEquals("omitted movement keys must preserve " + movement.label,
+                        movement, scaffold.moveFixMode());
+                assertEquals(movement.label, scaffold.getModeSetting("movefix").getValue());
+            }
+        }
+    }
+
 }
