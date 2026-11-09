@@ -61,7 +61,7 @@ public class ClientSettingsVis02Test {
         "error_notifications|Error Notifications|true|"
     };
     static final String[] GRADIENT_METHODS={"Flow","Ping-Pong","Pulse","Perimeter Orbit","Flame","Neon","Lines"};
-    // Exact new tail, after all 55 pre-existing registrations. BEFORE remains the full historical capture.
+    // Exact appended effect and screen-style tail; all 55 historical registrations remain explicit.
     static final String[] VISUAL_ADDITIONS={
         "orbit_direction|Orbit Direction|Clockwise|Clockwise,Counterclockwise",
         "orbit_speed|Orbit Speed|0.18|",
@@ -72,7 +72,8 @@ public class ClientSettingsVis02Test {
         "neon_core|Neon Core|0.5|",
         "neon_glow|Neon Glow|1.0|",
         "line_segments|Line Segments|4.0|",
-        "line_trail|Line Trail|0.5|"
+        "line_trail|Line Trail|0.5|",
+        "neutron_2.0_style|Neutron 2.0 Style|Modern|Modern,Creative"
     };
     static boolean isVisualAddition(Value<?> value) {
         for(String signature:VISUAL_ADDITIONS)
@@ -87,7 +88,7 @@ public class ClientSettingsVis02Test {
         ClientSettings c=new ClientSettings();List<String> current=new ArrayList<>();
         for(Value<?> v:c.getValues())if(!isVisualAddition(v)&&!Arrays.asList("gradient_method","ambient_motion","semantic_color_priority","notification_theme","ui_font","text_glow","text_glow_strength","text_glow_radius","text_glow_color").contains(v.getId()))
             current.add(signature(v));
-        assertArrayEquals(BEFORE,current.toArray(new String[0]));assertEquals(BEFORE.length+3+1+5+10,c.getValues().size());
+        assertArrayEquals(BEFORE,current.toArray(new String[0]));assertEquals(BEFORE.length+3+1+5+11,c.getValues().size());
         List<String> appended=new ArrayList<>();
         for(Value<?> v:c.getValues().subList(55,c.getValues().size()))appended.add(signature(v));
         assertArrayEquals(VISUAL_ADDITIONS,appended.toArray(new String[0]));

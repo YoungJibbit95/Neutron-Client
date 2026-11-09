@@ -1,6 +1,9 @@
 package me.youngjibbit.module.impl.player;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.core.activity.ActivityInventoryContext;
+import me.youngjibbit.core.activity.InventoryActivitySnapshot;
+import me.youngjibbit.core.activity.InventoryActivitySnapshot.Action;
 import me.youngjibbit.event.Event;
 import me.youngjibbit.event.motion.EventMotion;
 import me.youngjibbit.event.update.EventUpdate;
@@ -42,6 +45,72 @@ public class InventoryManager extends Module
 
     private EntityPlayer player;
     private PlayerControllerMP playerController;
+
+    private InventoryActivitySnapshot activitySnapshot;
+    private ActivityInventoryContext activityContext;
+    private final java.util.function.LongSupplier activityClock = System::nanoTime;
+    private long activitySequence, activityRevision;
+    private int activityProcessed;
+
+    /** Cached display facts only; validates at most the two affected stacks, never reruns a scan. */
+    public InventoryActivitySnapshot getActivitySnapshot() {
+        InventoryActivitySnapshot cached = activitySnapshot;
+        ActivityInventoryContext context = activityContext;
+        long now = activityClock.getAsLong();
+        if (cached == null || cached != activitySnapshot || mc == null || !isToggled()
+                || !(mc.currentScreen instanceof GuiInventory) || !cached.isFresh(now)
+                || context == null || !context.isCurrent(mc)) {
+            if (cached != null && cached == activitySnapshot) clearActivity();
+            return null;
+        }
+        return cached == activitySnapshot ? cached : null;
+    }
+
+    private void clearActivity() {
+        activityRevision++;
+        activitySnapshot = null;
+        activityContext = null;
+        activityProcessed = 0;
+    }
+
+    private void publishActivity(Action action, boolean actualAction, int... affectedSlots) {
+        final long generation = inventoryGeneration, revision = activityRevision;
+        long now = activityClock.getAsLong();
+        if (mc == null || !isToggled() || !(mc.currentScreen instanceof GuiInventory)
+                || generation != inventoryGeneration || revision != activityRevision) return;
+        ActivityInventoryContext captured = ActivityInventoryContext.capture(mc, affectedSlots);
+        if (captured == null || generation != inventoryGeneration || revision != activityRevision || !isToggled()) return;
+        InventoryActivitySnapshot previous = activitySnapshot;
+        if (actualAction || previous == null || !previous.hasSameFacts(action, activityProcessed, -1))
+            activitySequence++;
+        activityContext = captured;
+        activitySnapshot = new InventoryActivitySnapshot(InventoryActivitySnapshot.Producer.INVENTORY_MANAGER,
+                action, activityProcessed, -1, activitySequence, now);
+    }
+
+    private void observeClick(BooleanSupplier sameScene, long generation, long revision, Action action,
+                              ItemStack expected, int sourceSlot, int... affectedSlots) {
+        if (generation != inventoryGeneration || revision != activityRevision || !isToggled() || !sameScene.getAsBoolean()) return;
+        if (mc.thePlayer.openContainer.inventorySlots == null || sourceSlot < 0
+                || sourceSlot >= mc.thePlayer.openContainer.inventorySlots.size()) { clearActivity(); return; }
+        ItemStack after = mc.thePlayer.openContainer.getSlot(sourceSlot).getStack();
+        if (generation != inventoryGeneration || revision != activityRevision || !sameScene.getAsBoolean()) return;
+        boolean changed = !ItemStack.areItemStacksEqual(expected, after);
+        if (changed && activityProcessed < Integer.MAX_VALUE) activityProcessed++;
+        publishActivity(changed ? action : Action.SCANNING, changed, affectedSlots);
+    }
+
+    @Subscribe private final Listener<me.youngjibbit.event.world.WorldEvent> activityWorld =
+            new Listener<>(event -> clearActivity());
+    @Subscribe private final Listener<me.youngjibbit.event.packet.EventPacket> activityPackets =
+            new Listener<>(event -> {
+                if (event.isPost() && event.isInbound()
+                        && (event.getPacket() instanceof net.minecraft.network.play.server.S2FPacketSetSlot
+                        || event.getPacket() instanceof net.minecraft.network.play.server.S30PacketWindowItems
+                        || event.getPacket() instanceof net.minecraft.network.play.server.S2DPacketOpenWindow
+                        || event.getPacket() instanceof net.minecraft.network.play.server.S2EPacketCloseWindow))
+                    clearActivity();
+            });
 
     private boolean changingSettings;
     private boolean invOpen;
@@ -122,6 +191,7 @@ public class InventoryManager extends Module
     }
 
     private void invalidateInventoryPlan() {
+        clearActivity();
         inventoryGeneration++;
         trashGeneration = -1;
         trash.clear();
@@ -141,6 +211,8 @@ public class InventoryManager extends Module
     private final Listener<EventUpdate> onUpdate = new Listener<>(e->
     {
         if (inventoryClickInProgress) return;
+        if (activityContext != null && !activityContext.isCurrent(mc)) clearActivity();
+        if (!isToggled() || !(mc.currentScreen instanceof GuiInventory)) clearActivity();
         if (mc.thePlayer == null || mc.theWorld == null || mc.playerController == null) {
             invalidateInventoryPlan();
             return;
@@ -164,11 +236,13 @@ public class InventoryManager extends Module
             }
 
             Module autoBridger = Pulsar.INSTANCE.getMm().getModule(AutoBridger.class);
-            if ((autoBridger != null && autoBridger.isToggled()) || mc.currentScreen instanceof GuiChest)
-                return;
+            if ((autoBridger != null && autoBridger.isToggled()) || mc.currentScreen instanceof GuiChest) {
+                clearActivity(); return;
+            }
 
-            if (onlyStill.getValue() && (mc.gameSettings.keyBindJump.isKeyDown() || mc.gameSettings.keyBindForward.isKeyDown() || mc.gameSettings.keyBindLeft.isKeyDown() || mc.gameSettings.keyBindBack.isKeyDown() || mc.gameSettings.keyBindRight.isKeyDown()))
-                return;
+            if (onlyStill.getValue() && (mc.gameSettings.keyBindJump.isKeyDown() || mc.gameSettings.keyBindForward.isKeyDown() || mc.gameSettings.keyBindLeft.isKeyDown() || mc.gameSettings.keyBindBack.isKeyDown() || mc.gameSettings.keyBindRight.isKeyDown())) {
+                clearActivity(); return;
+            }
 
             searchForItems();
             searchForBestArmor();
@@ -177,6 +251,7 @@ public class InventoryManager extends Module
             // One attempted action per update. Every later action gets a fresh scan next tick,
             // including after a rejected action or an inventory-open lifecycle callback.
             if (!keepArmor.getValue() && !trash.isEmpty()) {
+                publishActivity(Action.SCANNING, false, wireSlot(trash.get(0)));
                 if (hasNoDelay()) return;
                 try { dropTrashSlot(trash.get(0)); }
                 catch (IndexOutOfBoundsException ignored) { }
@@ -192,6 +267,7 @@ public class InventoryManager extends Module
                     final ItemStack oldArmor = mc.thePlayer.inventory.armorItemInSlot(i);
                     // Shift-click cannot replace occupied armor while keeping that armor.
                     if (oldArmor != null && keepArmor.getValue()) continue;
+                    publishActivity(Action.SCANNING, false, wireSlot(bestSlot), 8 - i);
                     if (hasNoDelay()) return;
                     final BooleanSupplier stillBestArmor = () -> {
                         searchForBestArmor();
@@ -209,6 +285,7 @@ public class InventoryManager extends Module
 
             if (sort.getValue()) {
                 if (bestSwordSlot >= 0 && bestSwordSlot != 0) {
+                    publishActivity(Action.SCANNING, false, wireSlot(bestSwordSlot), 36);
                     if (hasNoDelay()) return;
                     final int source = bestSwordSlot;
                     clickInventorySlot(wireSlot(source), 0, 2, 36, () -> {
@@ -218,6 +295,7 @@ public class InventoryManager extends Module
                     return;
                 }
                 if (bestBowSlot >= 0 && bestBowSlot != 1) {
+                    publishActivity(Action.SCANNING, false, wireSlot(bestBowSlot), 37);
                     if (hasNoDelay()) return;
                     final int source = bestBowSlot;
                     clickInventorySlot(wireSlot(source), 1, 2, 37, () -> {
@@ -227,6 +305,7 @@ public class InventoryManager extends Module
                     return;
                 }
                 if (bestPickaxeSlot >= 0 && bestPickaxeSlot != 2) {
+                    publishActivity(Action.SCANNING, false, wireSlot(bestPickaxeSlot), 38);
                     if (hasNoDelay()) return;
                     final int source = bestPickaxeSlot;
                     clickInventorySlot(wireSlot(source), 2, 2, 38, () -> {
@@ -236,12 +315,14 @@ public class InventoryManager extends Module
                     return;
                 }
                 if (bestBlockSlot >= 0 && bestBlockSlot != 8) {
+                    publishActivity(Action.SCANNING, false, wireSlot(bestBlockSlot), 44);
                     if (hasNoDelay()) return;
                     moveBestBlockStack(8);
                     delayTimer.reset();
                     return;
                 }
                 if (bestGapSlot >= 0 && bestGapSlot != 7) {
+                    publishActivity(Action.SCANNING, false, wireSlot(bestGapSlot), 43);
                     if (hasNoDelay()) return;
                     final int source = bestGapSlot;
                     clickInventorySlot(wireSlot(source), 7, 2, 43, () -> {
@@ -251,6 +332,7 @@ public class InventoryManager extends Module
                     return;
                 }
             }
+            publishActivity(Action.COMPLETE, false);
         }
     });
 
@@ -294,7 +376,13 @@ public class InventoryManager extends Module
                 invalidateInventoryPlan();
                 return false;
             }
+            final long activityBefore = activityRevision;
             controller.windowClick(windowId, slot, button, mode, owner);
+            observeClick(() -> mc.thePlayer == owner && mc.theWorld == world && mc.currentScreen == screen
+                            && mc.playerController == controller && owner.inventoryContainer == container
+                            && owner.openContainer == container && container.windowId == windowId,
+                    generation, activityBefore, mode == 4 ? Action.DROPPING : mode == 1 ? Action.EQUIPPING : Action.SORTING,
+                    sourceExpected, slot, slot, companionSlot);
             return true;
         } finally {
             inventoryClickInProgress = false;
@@ -414,7 +502,12 @@ public class InventoryManager extends Module
                     trashContainer != container || trashController != controller || trashWindowId != windowId ||
                     !trash.contains(slot) || owner.inventory.getStackInSlot(slot) != identity ||
                     !ItemStack.areItemStacksEqual(expected, identity)) return false;
+            final long activityBefore = activityRevision;
             controller.windowClick(windowId, slot < 9 ? slot + 36 : slot, 1, 4, owner);
+            observeClick(() -> mc.thePlayer == owner && mc.theWorld == world && mc.currentScreen == screen
+                            && mc.playerController == controller && owner.inventoryContainer == container
+                            && owner.openContainer == container && container.windowId == windowId,
+                    generation, activityBefore, Action.DROPPING, expected, wireSlot(slot), wireSlot(slot));
             return true;
         } finally {
             inventoryClickInProgress = false;
@@ -450,7 +543,13 @@ public class InventoryManager extends Module
                     !ItemStack.areItemStacksEqual(targetExpected, targetIdentity)) return false;
             searchForItems();
             if (generation != inventoryGeneration || bestBlockSlot != sourceSlot) return false;
+            final long activityBefore = activityRevision;
             controller.windowClick(windowId, sourceSlot < 9 ? sourceSlot + 36 : sourceSlot, targetSlot, 2, owner);
+            observeClick(() -> mc.thePlayer == owner && mc.theWorld == world && mc.currentScreen == screen
+                            && mc.playerController == controller && owner.inventoryContainer == container
+                            && owner.openContainer == container && container.windowId == windowId,
+                    generation, activityBefore, Action.SORTING, expected, wireSlot(sourceSlot),
+                    wireSlot(sourceSlot), wireSlot(targetSlot));
             return true;
         } finally {
             inventoryClickInProgress = false;
@@ -646,4 +745,3 @@ public class InventoryManager extends Module
     }
 
 }
-
