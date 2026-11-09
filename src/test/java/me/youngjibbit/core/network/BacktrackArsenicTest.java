@@ -48,17 +48,17 @@ public class BacktrackArsenicTest {
     }
 
     @Test public void targetFeedbackSharesTheHoldAndLethalHealthDiscardsIt() throws Exception {
-        PacketFlowTest.MainThread thread = new PacketFlowTest.MainThread();
+        NetworkTestSupport.MainThread thread = new NetworkTestSupport.MainThread();
         AtomicLong now = new AtomicLong(); java.util.List<Object> applied = new java.util.ArrayList<>();
         PacketPipeline pipe = new PacketPipeline(thread, () -> true, p -> { }, e -> { throw new AssertionError(e); }, new PacketDelays(now::get));
         try {
             pipe.delays().request(this, 100, (packet, flow) -> true);
-            pipe.inbound(new S14PacketEntity(7), PacketFlowTest.handler(a -> applied.add(a[0])), false);
-            pipe.inbound(new S19PacketEntityStatus(), PacketFlowTest.handler(a -> applied.add(a[0])), false);
-            pipe.inbound(new S06PacketUpdateHealth(10, 20, 0), PacketFlowTest.handler(a -> applied.add(a[0])), false);
-            pipe.inbound(new S29PacketSoundEffect("test", 0, 0, 0, 1, 1), PacketFlowTest.handler(a -> applied.add(a[0])), false);
+            pipe.inbound(new S14PacketEntity(7), NetworkTestSupport.handler(a -> applied.add(a[0])), false);
+            pipe.inbound(new S19PacketEntityStatus(), NetworkTestSupport.handler(a -> applied.add(a[0])), false);
+            pipe.inbound(new S06PacketUpdateHealth(10, 20, 0), NetworkTestSupport.handler(a -> applied.add(a[0])), false);
+            pipe.inbound(new S29PacketSoundEffect("test", 0, 0, 0, 1, 1), NetworkTestSupport.handler(a -> applied.add(a[0])), false);
             assertEquals(4, pipe.delays().size()); assertTrue(applied.isEmpty());
-            pipe.inbound(new S06PacketUpdateHealth(0, 20, 0), PacketFlowTest.handler(a -> applied.add(a[0])), false);
+            pipe.inbound(new S06PacketUpdateHealth(0, 20, 0), NetworkTestSupport.handler(a -> applied.add(a[0])), false);
             assertEquals(0, pipe.delays().size()); assertEquals(1, applied.size());
         } finally { pipe.close(); }
     }

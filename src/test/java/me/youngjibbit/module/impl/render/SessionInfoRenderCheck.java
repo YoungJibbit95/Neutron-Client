@@ -126,7 +126,7 @@ public final class SessionInfoRenderCheck {
     }
     static void checkEvents() throws Exception {
         SessionInfoLifecycle tracker=new SessionInfoLifecycle(()->NAME);tracker.install();
-        try(me.youngjibbit.core.network.SessionConsumerIntegrationTest.Fixture fixture=new me.youngjibbit.core.network.SessionConsumerIntegrationTest.Fixture()) {
+        try(me.youngjibbit.core.network.NetworkTestSupport.Fixture fixture=new me.youngjibbit.core.network.NetworkTestSupport.Fixture()) {
             fixture.join();
             S02PacketChat chat=new S02PacketChat(new ChatComponentText("Victim was slain by "+NAME));
             fixture.network.receivePacket(chat,false);require(tracker.statistics.snapshot().kills==1,"Applied chat not counted");

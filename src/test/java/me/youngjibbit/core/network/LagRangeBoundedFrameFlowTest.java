@@ -37,7 +37,7 @@ public class LagRangeBoundedFrameFlowTest {
     }
 
     private static LagRange enable(ExploitHookFixture f,AtomicLong time) throws Exception {
-        BacktrackLagRangeControlTest.clock(f,time);
+        NetworkTestSupport.clock(f,time);
         LagRange lag=new LagRange(time::get,(min,max)->max);
         lag.getBooleanSetting("Only Aura").setValue(false);
         lag.getModeSetting("Delay Mode").setValue("Bounded Frame");

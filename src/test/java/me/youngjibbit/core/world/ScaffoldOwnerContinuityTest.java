@@ -180,7 +180,7 @@ public class ScaffoldOwnerContinuityTest {
             if(mode==0) r.f.mc.thePlayer=null;
             if(mode==1) r.f.mc.theWorld=r.f.world;
             if(mode==2) field(net.minecraft.client.entity.EntityPlayerSP.class,"sendQueue").set(r.f.player,null);
-            if(mode==3) r.f.network.configureClientPackets(new me.youngjibbit.core.network.PacketFlowTest.MainThread());
+            if(mode==3) r.f.network.configureClientPackets(new me.youngjibbit.core.network.NetworkTestSupport.MainThread());
             if(mode==4) r.f.player.isDead=true;
             Pulsar.BUS.post(new TickEvent());
             assertNull("boundary "+mode,r.rotation.getConfirmedOwner());
