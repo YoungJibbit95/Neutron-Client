@@ -4,6 +4,9 @@ on:
     paths: ['launcher/scripts/*diagnostic.ps1', 'launcher/scripts/installer-ui.cs', '.github/workflows/launcher-installer-diagnostics.yml']
 permissions:
   contents: read
+concurrency:
+  group: launcher-legacy-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   legacy:
     runs-on: windows-latest

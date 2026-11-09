@@ -10,6 +10,7 @@ import type { BuildRecord } from '../electron/contracts.cts';
 import { atomicJson, owned } from '../electron/files.cts';
 import { childEnvironment, ProcessGroup } from '../electron/processes.cts';
 import * as processes from '../electron/processes.cts';
+import { githubRelease } from './release-fixtures';
 
 function gate<T = void>() {
   let resolve!: (value: T) => void;
@@ -55,6 +56,16 @@ async function fixture() {
 }
 
 describe.skipIf(process.platform !== 'win32')('client lifecycle regressions — only own Node helpers, no Electron/Minecraft', () => {
+  test('a delayed release refresh cannot overwrite an in-flight client launch status', async () => {
+    const { service, id } = await fixture(); service.holdPrepare = true;
+    const response = gate<Response>(); vi.stubGlobal('fetch', vi.fn(() => response.promise));
+    const refresh = service.refreshReleases(); const launching = service.execute({ type: 'launch' });
+    expect(service.snapshot()).toMatchObject({ runningBuild: id, clientStarting: true, status: 'prepare' });
+    response.resolve(new Response(JSON.stringify([githubRelease()]), { status: 200 })); await refresh;
+    expect(service.snapshot()).toMatchObject({ runningBuild: id, clientStarting: true, status: 'prepare' });
+    const stopped = service.execute({ type: 'stop' }); service.prepareGate.resolve(); await Promise.all([launching, stopped]);
+  }, 15000);
+
   test('reservation rejects a second launch and immediate stop cancels delayed preparation before spawn', async () => {
     const { service, id } = await fixture(); service.holdPrepare = true;
     const spawn = vi.spyOn(processes, 'startProcess');
@@ -105,9 +116,9 @@ describe.skipIf(process.platform !== 'win32')('client lifecycle regressions — 
     await service.execute({ type: 'check' }); await service.idle(); expect(service.snapshot().online).toBe(false); expect(service.snapshot().error).toBeTruthy();
     await service.execute({ type: 'launch' }); expect(service.snapshot().error).toBeNull(); await service.execute({ type: 'stop' });
     expect(service.snapshot()).toMatchObject({ online: false, status: 'offline', runningBuild: null, error: null });
-    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({ sha: commit }), { status: 200 })));
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify([{ id: 101, tag_name: 'v0.2.1', draft: false, prerelease: false, published_at: '2026-11-08T12:00:00Z', assets: ['jar', 'json'].map((ext, i) => ({ id: 201 + i, name: 'Neutron-0.2.1.' + ext, state: 'uploaded', size: 100, digest: 'sha256:' + 'a'.repeat(64), browser_download_url: 'https://github.com/YoungJibbit95/Neutron-Client/releases/download/v0.2.1/Neutron-0.2.1.' + ext })) }]), { status: 200 })));
     await service.execute({ type: 'check' }); const checked = await service.idle();
-    expect(checked).toMatchObject({ online: true, status: 'ready', selected: id, latestCommit: commit, error: null });
+    expect(checked).toMatchObject({ online: true, status: 'first-run', selected: id, latestRelease: 'v0.2.1', error: null });
   }, 15000);
   test('failed termination does not settle exited, and the same live handle can be stopped successfully on retry', async () => {
     let denied = true; const group = new ProcessGroup({ terminate: async child => { if (denied) throw new Error('termination denied fixture'); await processes.killTree(child); } });

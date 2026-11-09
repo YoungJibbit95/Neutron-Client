@@ -5,8 +5,8 @@ Set-StrictMode -Version Latest
 $fixture=Join-Path ([IO.Path]::GetTempPath()) ('neutron-preflight-'+[guid]::NewGuid().ToString('N'))
 $control=Join-Path $fixture 'Control'; $app=Join-Path $fixture 'App'; $copy=Join-Path $fixture 'Copied Data'
 $null=[IO.Directory]::CreateDirectory($control)
-$pin='a'*40; $id=$pin+'-'+[guid]::NewGuid().ToString(); $archive='b'*64
-$release=[pscustomobject]@{launcherVersion='0.2.2';clientCommit=$pin;sourceArchiveSha256=$archive}
+$pin='a'*40; $id=$pin+'-'+[guid]::NewGuid().ToString(); $jarHash='b'*64; $jsonHash='c'*64
+$release=[pscustomobject]@{schemaVersion=2;channel='stable';launcherVersion='0.3.0';repository='YoungJibbit95/Neutron-Client'}
 $script:testFreeBytes=122GB
 function Get-NeutronFreeBytes([string]$Root) { return $script:testFreeBytes }
 function Assert-True([bool]$Condition,[string]$Message) { if(-not $Condition){throw $Message} }
@@ -18,8 +18,8 @@ function Save-Json($File,$Value) { [IO.File]::WriteAllText((Get-NeutronFsPath $F
 function New-Profile([string]$Root) {
     $null=[IO.Directory]::CreateDirectory((Get-NeutronFsPath (Join-Path $Root ('versions/'+$id))))
     $manifest=Join-Path $Root ('versions/'+$id+'/launch-manifest.json')
-    Save-Json $manifest @{archiveSha256=$archive}
-    $state=@{schemaVersion=1;selected=$id;runtime=$null;builds=@(@{id=$id;commit=$pin;manifestSha256=(Get-NeutronFileHash $manifest);date=[datetime]::UtcNow.ToString('o');sizeMiB=1});options=@{ramMiB=2048;gameDir='F:\Separate Game';java='managed';javaPath='';width=1280;height=720;fullscreen=$false;jvmArgs=''};preferences=@{theme='ocean';locale='de';scale=100;effects=70;reducedMotion=$false}}
+    Save-Json $manifest @{schemaVersion=2;commit=$pin;release=@{id=123;tag='v0.2.1';jar=@{sha256=$jarHash};json=@{sha256=$jsonHash}};classpath=@(@{path='neutron-client.jar';sha256=$jarHash});versionJson=@{path='Neutron-0.2.1.json';sha256=$jsonHash}}
+    $state=@{schemaVersion=1;selected=$id;runtime=$null;builds=@(@{id=$id;commit=$pin;releaseId=123;releaseTag='v0.2.1';version='0.2.1';manifestSha256=(Get-NeutronFileHash $manifest);date=[datetime]::UtcNow.ToString('o');sizeMiB=1});options=@{ramMiB=2048;gameDir='F:\Separate Game';java='managed';javaPath='';width=1280;height=720;fullscreen=$false;jvmArgs=''};preferences=@{theme='ocean';locale='de';scale=100;effects=70;reducedMotion=$false}}
     Save-Json (Join-Path $Root 'state.json') $state
     [IO.File]::WriteAllText((Join-Path $Root 'personal.txt'),'keep my data')
 }
@@ -39,9 +39,17 @@ try {
     Assert-True (Test-NeutronInstalledLauncherRunning $app @($other,$mine) $session) 'Installed EXE did not block a profile copy'
     Assert-True (Test-NeutronInstalledLauncherRunning $app @([pscustomobject]@{SessionId=$session;Path=$mine.Path.ToUpperInvariant()}) $session) 'Installed EXE comparison is case-sensitive'
     Assert-Rejected { Test-NeutronInstalledLauncherRunning $app @([pscustomobject]@{SessionId=$session;Path=$null}) $session } 'Cannot verify'
-    $newRelease=[pscustomobject]@{launcherVersion='0.2.2';clientCommit=('c'*40);sourceArchiveSha256=$archive}
+    # Historical source-built versions are readable and retained, but cannot
+    # masquerade as a downloadable release cache during a low-space upgrade.
+    $legacy=Join-Path $fixture 'Legacy Profile'; New-Profile $legacy
+    $legacyState=Read-NeutronProfile $legacy
+    foreach($field in @('releaseId','releaseTag','version')){$legacyState.builds[0].PSObject.Properties.Remove($field)}
+    Save-Json (Join-Path $legacy ('versions/'+$id+'/launch-manifest.json')) @{schemaVersion=1;archiveSha256=('d'*64)}
+    $legacyState.builds[0].manifestSha256=Get-NeutronFileHash (Join-Path $legacy ('versions/'+$id+'/launch-manifest.json'))
+    Save-Json (Join-Path $legacy 'state.json') $legacyState
+    Assert-True ($null -ne (Read-NeutronProfile $legacy)) 'Legacy profile migration was rejected'
     $script:testFreeBytes=[long](2.77GB)
-    Assert-Rejected { Test-NeutronStorage $control $app $control $newRelease $false } 'At least 3 GiB'
+    Assert-Rejected { Test-NeutronStorage $legacy $app $control $release $true } 'At least 3 GiB'
     Assert-True ((Get-NeutronFileHash $exe) -eq $exeHash -and (Get-NeutronFileHash $stateFile) -eq $originalHash) 'Low-space refusal changed original files'
     Assert-True (-not (Test-Path (Join-Path $control 'data-directory.txt'))) 'Low-space refusal committed a selector'
     Assert-True ((Test-NeutronStorage $control $app $control $release $false).CachedPinHint) 'Matching cache hint rejected under low space'
@@ -83,12 +91,15 @@ try {
     $link=Join-Path $fixture 'Linked'; New-Item -ItemType Junction -Path $link -Target $copy | Out-Null
     Assert-Rejected { Test-NeutronStorage $link $app $control $release $true } 'Linked'
     $profile=Read-NeutronProfile $copy
-    $check=[pscustomobject]@{root=$copy;clientCommit=$pin;startedAt=[datetime]::UtcNow.AddMinutes(-1).ToString('o');options=$profile.options;preferences=$profile.preferences}
+    $check=[pscustomobject]@{root=$copy;launcherVersion=$release.launcherVersion;repository=$release.repository;startedAt=[datetime]::UtcNow.AddMinutes(-1).ToString('o');options=$profile.options;preferences=$profile.preferences}
     $logs=Join-Path $copy 'logs'; $null=[IO.Directory]::CreateDirectory($logs)
-    $receipt=[ordered]@{launcherVersion='0.2.2';clientCommit=$pin;sourceArchiveSha256=$archive;phase='verified-before-activation';selectedBuildId=$id;completedAt=[datetime]::UtcNow.AddHours(-1).ToString('o')}
+    $receipt=[ordered]@{schemaVersion=2;launcherVersion='0.3.0';clientCommit=$pin;releaseId=123;releaseTag='v0.2.1';clientVersion='0.2.1';clientJarSha256=$jarHash;versionJsonSha256=$jsonHash;clientManifestSha256=$profile.builds[0].manifestSha256;toolchainId='temurin8u482b08';phase='verified-before-activation';selectedBuildId=$id;completedAt=[datetime]::UtcNow.AddHours(-1).ToString('o')}
     Save-Json (Join-Path $logs 'installer-result.json') $receipt
     Assert-Rejected { Complete-NeutronStorage $copy $app $control $release $check $false } 'fresh committed receipt'
     $receipt.completedAt=[datetime]::UtcNow.ToString('o'); Save-Json (Join-Path $logs 'installer-result.json') $receipt
+    $receipt.clientJarSha256='e'*64; Save-Json (Join-Path $logs 'installer-result.json') $receipt
+    Assert-Rejected { Complete-NeutronStorage $copy $app $control $release $check $true } 'does not match'
+    $receipt.clientJarSha256=$jarHash; Save-Json (Join-Path $logs 'installer-result.json') $receipt
     $pointer=Join-Path $control 'data-directory.txt'; [IO.File]::WriteAllText($pointer,$control,[Text.Encoding]::Unicode); $pointerHash=(Get-NeutronFileHash $pointer)
     Complete-NeutronStorage $copy $app $control $release $check $true | Out-Null
     Assert-True ((Get-NeutronFileHash $pointer) -eq $pointerHash) 'Process override changed real selector'
