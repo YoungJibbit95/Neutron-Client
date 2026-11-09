@@ -31,8 +31,12 @@ import net.minecraft.util.BlockPos;
 import net.minecraft.util.MathHelper;
 import net.minecraft.util.MovementInput;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.Locale;
 import java.lang.reflect.Field;
@@ -44,7 +48,25 @@ import java.util.function.Supplier;
 import static org.junit.Assert.*;
 
 /** Native final movement and fresh-input regression coverage for opt-in V2. */
+@RunWith(Parameterized.class)
 public class IntaveMomentumV2FlowTest {
+    @Parameterized.Parameters(name = "{0}") public static Collection<Object[]> cases() {
+        return Arrays.asList(new Object[][]{
+                {"ordinarySprintAddsBoundedNativeAccelerationWithoutOwningJumpOrOverrides"},
+                {"acceptedMoveFixAndFinalListenersKeepOneTransformForBothOwnersAndEveryKeyDirection"},
+                {"duplicateExtraWithheldAndSameTickResetCannotCreateOrdinaryCredit"},
+                {"freshSprintSneakItemManualJumpAndRealScaffoldGuardReachTheFinalConsumer"},
+                {"airborneTailExpiresAndLandingWallAndDirectionChangesStartFromTheirOwnLimits"},
+                {"actualS12PreservesImpulseAndBlocksRecoveryWhileCancelledS12KeepsTheRamp"},
+                {"appliedS08PauseSurvivesInitialObservationSuspensionAndSettingsReset"},
+                {"lifecycleChangesStartColdPreserveForeignOverridesAndRejectReentrantObservationReplacement"}
+        });
+    }
+    private final String method;
+    public IntaveMomentumV2FlowTest(String method) { this.method = method; }
+    @Test public void checkInFreshJvm() throws Exception { Wave2IsolatedCase.run(Checks.class, method); }
+
+    public static class Checks {
     private static final String MODE = "Intave Momentum V2";
 
     public static class CallbackScene extends IntaveBoatSpeedTest.Scene {
@@ -630,4 +652,5 @@ public class IntaveMomentumV2FlowTest {
                 player.motionZ, 2e-7);
         assertEquals("the final friction consumer preserves vertical motion", beforeY, player.motionY, 0);
     }
+}
 }

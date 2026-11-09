@@ -78,7 +78,7 @@ profile distance 5.735861958. The 0.25 displacement threshold was reached on ste
 versus step 3. These are explicitly model values with prescribed ground/air state;
 they do not execute a native jump, wall collision, full old Momentum run or server.
 
-Final Temurin 8u482 / Maven 3.9.15 full-source local validation: **230 tests / 0
+Initial B code gate, Temurin 8u482 / Maven 3.9.15 full-source local validation: **230 tests / 0
 failures / 0 errors / 0 skips**, plus **15 unchanged legacy checks / 0 failures /
 0 errors / 0 skips** in their required fresh JVMs. Aggregate: **245 / 0 / 0 / 0**.
 The Maven selection is prior 199, Pure 20, Config 3 and productive Flow 8. Legacy
@@ -108,7 +108,25 @@ one remaining S08 fixture failure: its actual packet preprocessor required the
 existing scoped Config.minecraft/RenderGlobal setup before applying player position.
 The new fixture now supplies that existing headless setup and restores it afterward;
 all five S08 variants, positions, real C06 and pause deadlines remain asserted.
-The final run uses normal Java8 JIT, with no interpreter-only acceptance.
+That successful local run uses normal Java8 JIT, with no interpreter-only acceptance.
+
+The first full Windows Java CI on synthetic merge
+`99510931d16ae169c02a9f6dadb550e4042484ca` reported **1572 / 0 failures /
+1 error / 3 skips**. Its only error was the new lifecycle test switching back to
+the unchanged legacy Momentum listener: `Speed.momentumReady:175` through
+`wallAcceleration`, before the V2 hook. The Release job on the same exact merge
+passed **1572 / 0 / 0 / 3**, Golden 2 and the separate packaged-runtime check 6.
+The headless fixture rebinds inherited static-final client references, so those
+legacy paths require the existing fresh-JVM isolation contract. The new eight
+Flow methods now use `Wave2IsolatedCase`, matching IntaveBoatSpeedTest. Their
+method bodies and assertions are unchanged. Normal Java-8 JIT remains enabled;
+production code, old tests, the shared helper, POM and workflows are unchanged.
+Follow-up compilation passed and all eight original methods passed in eight fresh
+normal Java-8 JVMs: **8 / 0 failures / 0 errors / 0 skips**. The complete original
+fixture/test body is byte-identical inside Checks; Speed source and compiled class
+hashes are unchanged. The prior 245-case code gate is retained as base evidence,
+not reported as a repeated follow-up run. The initial failing CI remains recorded;
+fresh full CI on the follow-up is required.
 
 Exact-merge full Windows/Golden/Security/CodeQL/release/packaged-runtime results are
 recorded on the PR after execution. Native Minecraft gameplay, server acknowledgement,
