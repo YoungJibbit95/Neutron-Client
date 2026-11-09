@@ -3,7 +3,8 @@
     <option name="ALTERNATIVE_JRE_PATH_ENABLED" value="false" />
     <option name="MAIN_CLASS_NAME" value="Start" />
     <module name="Neutron" />
-    <option name="INCLUDE_TEST_CLASSPATH" value="true" />
+    <!-- Start is a production-source entrypoint. Native render-check helpers stay test-only. -->
+    <option name="INCLUDE_TEST_CLASSPATH" value="false" />
     <option name="PROGRAM_PARAMETERS" value="--username NeutronTest --width 1280 --height 720" />
     <option name="VM_PARAMETERS" value="-Xms512m -Xmx3G -Dfile.encoding=UTF-8 -Djava.library.path=&quot;$PROJECT_DIR$/test_natives/windows&quot; -Dnet.java.games.input.librarypath=&quot;$PROJECT_DIR$/test_natives/windows&quot;" />
     <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/test_run" />
