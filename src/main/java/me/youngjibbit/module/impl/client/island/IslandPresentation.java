@@ -9,12 +9,31 @@ import java.util.Locale;
 public final class IslandPresentation {
     public final IslandStateMachine.State state;
     public final String title, detail, trailing;
+    public final String brand,brandVersion;
+    public final IslandClockFace clockFace;
+    public final IslandStateMachine.Scaffold scaffold;
     public final float healthFraction, absorptionFraction;
     public final boolean hasHealthBar, fixtureOnly;
 
     private IslandPresentation(IslandStateMachine.State state, String title, String detail,
                                String trailing, float healthFraction, float absorptionFraction,
                                boolean hasHealthBar, boolean fixtureOnly) {
+        this(state,title,detail,trailing,healthFraction,absorptionFraction,hasHealthBar,fixtureOnly,"","",null);
+    }
+
+    private IslandPresentation(IslandStateMachine.State state,String title,String detail,String trailing,
+                               float healthFraction,float absorptionFraction,boolean hasHealthBar,
+                               boolean fixtureOnly,String brand,String brandVersion,IslandStateMachine.Scaffold scaffold) {
+        this(state,title,detail,trailing,healthFraction,absorptionFraction,hasHealthBar,fixtureOnly,
+                brand,brandVersion,scaffold,state==IslandStateMachine.State.CLOCK_REMINDER?IslandClockFace.from(title):null);
+    }
+
+    private IslandPresentation(IslandStateMachine.State state,String title,String detail,String trailing,
+                               float healthFraction,float absorptionFraction,boolean hasHealthBar,
+                               boolean fixtureOnly,String brand,String brandVersion,IslandStateMachine.Scaffold scaffold,
+                               IslandClockFace clockFace) {
+        this.brand=brand;this.brandVersion=brandVersion;this.scaffold=scaffold;
+        this.clockFace=clockFace;
         this.state = state;
         this.title = title;
         this.detail = detail;
@@ -23,6 +42,13 @@ public final class IslandPresentation {
         this.absorptionFraction = absorptionFraction;
         this.hasHealthBar = hasHealthBar;
         this.fixtureOnly = fixtureOnly;
+    }
+
+    /** Preserve event identity and duration while freezing the real current hands for this frame. */
+    public IslandPresentation withClockFace(IslandClockFace captured){
+        if(state!=IslandStateMachine.State.CLOCK_REMINDER||captured==null)return this;
+        return new IslandPresentation(state,title,detail,trailing,healthFraction,absorptionFraction,
+                hasHealthBar,fixtureOnly,brand,brandVersion,scaffold,captured);
     }
 
     public static IslandPresentation from(IslandStateMachine.Selection selection,
@@ -43,20 +69,27 @@ public final class IslandPresentation {
         }
         if (state == IslandStateMachine.State.SCAFFOLD) {
             IslandStateMachine.Scaffold scaffold = selection.scaffold;
-            if (scaffold != null && scaffold.valid())
-                return new IslandPresentation(state, "Scaffold  " + scaffold.blockCount + " blocks",
-                        clean(scaffold.approach), "", 0, 0, false, true);
+            if (scaffold != null && scaffold.valid()) {
+                String detail=clean(scaffold.approach);
+                if(!scaffold.profile.isEmpty())detail+=" / "+clean(scaffold.profile);
+                if(!scaffold.status.isEmpty())detail+="  "+clean(scaffold.status);
+                return new IslandPresentation(state,scaffold.blockCount>=0?"Scaffold  "+scaffold.blockCount+" blocks":"Scaffold",
+                        detail, "", 0, 0, false, !scaffold.observed,"","",scaffold);
+            }
             state = IslandStateMachine.State.IDLE;
         }
         if (state == IslandStateMachine.State.CLOCK_REMINDER) {
             IslandStateMachine.ClockReminder c = selection.clock;
             String t = c != null ? c.time : clean(selection.label);
-            return new IslandPresentation(state, t, "", "", 0, 0, false, true);
+            return new IslandPresentation(state, t, "", "", 0, 0, false, false);
         }
         if (state == IslandStateMachine.State.INVENTORY_ACTIVITY) {
             IslandStateMachine.InventoryActivity inv = selection.inventory;
             String act = inv != null ? inv.action : clean(selection.label);
-            return new IslandPresentation(state, "Inventory", act, "", 0, 0, false, true);
+            if(inv!=null&&inv.processedCount>=0)act+="  "+inv.processedCount
+                    +(inv.totalCount>=0?" / "+inv.totalCount:"");
+            return new IslandPresentation(state,inv==null?"Inventory":clean(inv.producer),act,"",0,0,
+                    false,inv==null||!inv.observed);
         }
         if (state == IslandStateMachine.State.MODULE_TOAST)
             return new IslandPresentation(state, clean(selection.label), "", "",
@@ -70,7 +103,7 @@ public final class IslandPresentation {
         String title = name.isEmpty() ? build : build.isEmpty() ? name : name + " " + build;
         return new IslandPresentation(IslandStateMachine.State.IDLE,
                 IslandLayout.limitText(title, 64), "", showClock ? clean(clock) : "",
-                0, 0, false, false);
+                0, 0, false, false, name, build, null);
     }
 
     private static String clean(String value) {

@@ -5,8 +5,8 @@ import java.util.Arrays;
 
 /**
  * Pure, bounded view state. Callers supply already validated, immutable observations.
- * Scaffold, module lifecycle and correction providers are DATA_PROVIDER_PENDING; tests
- * may inject fixtures, but rendering is never a source of gameplay/network events.
+ * Activity adapters consume copied producer observations; module lifecycle and correction
+ * providers remain pending. Rendering never becomes a source of gameplay/network events.
  */
 public final class IslandStateMachine {
     public enum State {
@@ -34,16 +34,26 @@ public final class IslandStateMachine {
         public float fraction() { return clamp(health / maxHealth, 0, 1); }
     }
 
-    /** Fixture-only until TECH approves a read-only block/slot source. */
+    /** Copied render data; the legacy constructor remains a headless fixture. */
     public static final class Scaffold {
-        public final boolean active;
-        public final int blockCount;
-        public final String approach;
-        public Scaffold(boolean active, int blockCount, String approach) {
-            this.active = active; this.blockCount = blockCount;
-            this.approach = approach == null ? "" : approach;
+        public final boolean active,observed;
+        public final int blockCount,metadata,itemId;
+        public final String approach,profile,status;
+        public final long sequence;
+        public Scaffold(boolean active,int blockCount,String approach) {
+            this(active,blockCount,approach,"","",-1,-1,false,0);
         }
-        public boolean valid() { return active && blockCount >= 0; }
+        private Scaffold(boolean active,int blockCount,String approach,String profile,String status,
+                         int itemId,int metadata,boolean observed,long sequence) {
+            this.active=active;this.blockCount=blockCount;this.approach=approach==null?"":approach;
+            this.profile=profile==null?"":profile;this.status=status==null?"":status;
+            this.itemId=itemId;this.metadata=metadata;this.observed=observed;this.sequence=sequence;
+        }
+        public static Scaffold observed(int blockCount,String approach,String profile,String status,
+                                        int itemId,int metadata,long sequence) {
+            return new Scaffold(true,blockCount,approach,profile,status,itemId,metadata,true,sequence);
+        }
+        public boolean valid(){return active&&blockCount>=(observed?-1:0);}
     }
 
     /** Uhr-Erinnerung an lokale 10-Minuten-Marken (:00, :10, ...). Discret, einmal pro Slot. */
@@ -57,19 +67,27 @@ public final class IslandStateMachine {
         public boolean valid() { return !acknowledged && time.matches("(?:[01][0-9]|2[0-3]):[0-5][0-9]"); }
     }
 
-    /** Inventory-Aktivität (opt-in, nur nach TECH-InventoryActivitySnapshot-Handoff). */
+    /** Immutable presentation data from a validated read-only producer or a legacy test fixture. */
     public static final class InventoryActivity {
-        public final String action;      // z.B. "Sorting", "Keeping", "Dropping duplicate", "Taking 48x blocks"
-        public final int processedCount; // optional
-        public final int totalCount;     // optional
-        public final boolean complete;
-        public InventoryActivity(String action, int processedCount, int totalCount, boolean complete) {
-            this.action = action == null ? "" : action.trim();
-            this.processedCount = processedCount;
-            this.totalCount = totalCount;
-            this.complete = complete;
+        public final String action,producer;
+        public final int processedCount,totalCount;
+        public final boolean complete,observed;
+        public final long sequence;
+        public InventoryActivity(String action,int processedCount,int totalCount,boolean complete) {
+            this("Inventory",action,processedCount,totalCount,complete,false,0);
         }
-        public boolean valid() { return !action.isEmpty() && processedCount >= 0 && totalCount >= processedCount; }
+        private InventoryActivity(String producer,String action,int processedCount,int totalCount,
+                                  boolean complete,boolean observed,long sequence) {
+            this.producer=producer==null?"Inventory":producer;
+            this.action=action==null?"":action.trim();this.processedCount=processedCount;
+            this.totalCount=totalCount;this.complete=complete;this.observed=observed;this.sequence=sequence;
+        }
+        public static InventoryActivity observed(String producer,String action,int processedCount,int totalCount,
+                                                 boolean complete,long sequence) {
+            return new InventoryActivity(producer,action,processedCount,totalCount,complete,true,sequence);
+        }
+        public boolean valid(){return !action.isEmpty()&&processedCount>=(observed?-1:0)&&totalCount>=(observed?-1:0)
+                &&(processedCount<0||totalCount<0||processedCount<=totalCount);}
     }
 
     public static final class Selection {

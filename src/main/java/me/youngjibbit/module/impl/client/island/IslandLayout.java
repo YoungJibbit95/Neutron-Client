@@ -13,8 +13,8 @@ public final class IslandLayout {
             viewportHeight = Math.max(1, screenH);
             float limit = Math.min(380, Math.min(viewportWidth * .85f, Math.max(1, viewportWidth - 16)));
             this.width = clamp(width, Math.min(1, limit), limit);
-            this.height = clamp(height, 1, Math.max(1, viewportHeight - 8));
-            this.radius = clamp(radius, 0, this.height / 2);
+            this.height = clamp(height, Math.min(1,limit), Math.max(1, viewportHeight - 8));
+            this.radius = clamp(radius, 0, Math.min(this.width,this.height) / 2);
             this.opacity = clamp(opacity, 0, 1);
             this.x = clamp((viewportWidth - this.width) / 2, 0, viewportWidth - this.width);
             this.y = clamp(8, 0, viewportHeight - this.height);
@@ -34,7 +34,7 @@ public final class IslandLayout {
             case SCAFFOLD: return new Frame(width, height, 260, 48, 20, .98f);
             case MODULE_TOAST: return new Frame(width, height, 240, 44, 20, 1);
             case POSSIBLE_SETBACK: return new Frame(width, height, 300, 55, 22, 1);
-            case CLOCK_REMINDER: return new Frame(width, height, 220, 40, 18, 1);
+            case CLOCK_REMINDER: return clockFrame(width,height);
             case INVENTORY_ACTIVITY: return new Frame(width, height, 250, 46, 19, 1);
             case IDLE:
             default: return new Frame(width, height, 245, 34, 17, .96f);
@@ -54,11 +54,18 @@ public final class IslandLayout {
             case SCAFFOLD:return new Frame(width,height,248,44,17,1);
             case MODULE_TOAST:return new Frame(width,height,240,38,17,1);
             case POSSIBLE_SETBACK:return new Frame(width,height,270,50,17,1);
-            case CLOCK_REMINDER:return new Frame(width,height,210,36,17,1);
+            case CLOCK_REMINDER:return clockFrame(width,height);
             case INVENTORY_ACTIVITY:return new Frame(width,height,236,42,17,1);
             case IDLE:
             default:return new Frame(width,height,234,34,17,1);
         }
+    }
+
+    /** The whole Island becomes a circular clock; shrink both axes together in tiny viewports. */
+    private static Frame clockFrame(int width,int height){
+        Frame bounded=new Frame(width,height,64,64,32,1);
+        float diameter=Math.min(bounded.width,bounded.height);
+        return bounded.withGeometry(diameter,diameter,diameter/2,1);
     }
 
     /** Trim by code points: never split a supplementary Unicode character. */

@@ -7,6 +7,8 @@ import me.youngjibbit.gui.HudSpring;
 import me.youngjibbit.gui.IslandMorphMotion;
 import me.youngjibbit.gui.NeutronVisualTokens;
 import me.youngjibbit.module.impl.client.island.IslandLayout;
+import me.youngjibbit.module.impl.client.island.IslandClockFace;
+import me.youngjibbit.module.impl.client.island.IslandObservations;
 import me.youngjibbit.module.impl.client.island.IslandPresentation;
 import me.youngjibbit.module.impl.client.island.IslandStateMachine;
 import me.youngjibbit.clickgui.utils.ClipRect;
@@ -46,6 +48,9 @@ public class WatermarkHUDModule extends Module {
     private final CheckBoxValue islandTarget=new CheckBoxValue("Island Target",this,true);
     private final CheckBoxValue islandClock=new CheckBoxValue("Island Clock",this,true);
     private final CheckBoxValue islandInventory=new CheckBoxValue("Island Inventory (Fixture)",this,false);
+    // Real activity choices append after all previously registered settings.
+    private final CheckBoxValue islandScaffold=new CheckBoxValue("Island Scaffold",this,true);
+    private final CheckBoxValue islandLiveInventory=new CheckBoxValue("Island Inventory",this,false);
     private final IslandStateMachine islandState=new IslandStateMachine();
     private final IslandMorphMotion islandMotion=new IslandMorphMotion();
     // Creative N-morph: pulsed by the existing HudSpring oscillator, no parallel motion engine.
@@ -67,7 +72,9 @@ public class WatermarkHUDModule extends Module {
     public WatermarkHUDModule(){radius.setVisibility(m->localRadius.getValue());animated.setVisibility(m->!textStyle.getValue().equals("Theme"));speed.setVisibility(m->!textStyle.getValue().equals("Theme")&&animated.getValue());
         islandTarget.setVisibility(m->islandSelected());
         islandClock.setVisibility(m->islandSelected());
-        islandInventory.setVisibility(m->false);}
+        islandInventory.setVisibility(m->false);
+        islandScaffold.setVisibility(m->islandSelected());
+        islandLiveInventory.setVisibility(m->islandSelected());}
     /** Global opt-in upgraded the historical Glass default without rewriting stored Mode. */
     boolean islandSelected(){
         String m=mode.getValue();
@@ -127,10 +134,21 @@ public class WatermarkHUDModule extends Module {
                 entity.getHealth(),entity.getMaxHealth(),entity.getAbsorptionAmount());
     }
 
-    /** Prüft lokale 10-Minuten-Marken (:00, :10, ...) als Clock-Reminder-Kandidat. */
-    private boolean isClockReminderTime(){
-        if(!islandClock.getValue())return false;
-        return clockSchedule.poll(System.currentTimeMillis(),java.time.ZoneId.systemDefault());
+    private IslandStateMachine.Scaffold islandScaffoldSnapshot(long now){
+        if(!islandScaffold.getValue()||mc.theWorld==null||mc.thePlayer==null||Pulsar.INSTANCE.getMm()==null)return null;
+        me.youngjibbit.module.impl.world.Scaffold scaffold=(me.youngjibbit.module.impl.world.Scaffold)
+                Pulsar.INSTANCE.getMm().getModule(me.youngjibbit.module.impl.world.Scaffold.class);
+        return scaffold==null||!scaffold.isToggled()?null:IslandObservations.scaffold(scaffold.getActivitySnapshot(),now);
+    }
+
+    private IslandStateMachine.InventoryActivity islandInventorySnapshot(long now){
+        if(!islandLiveInventory.getValue()||mc.theWorld==null||mc.thePlayer==null||Pulsar.INSTANCE.getMm()==null)return null;
+        me.youngjibbit.module.impl.player.InventoryManager manager=(me.youngjibbit.module.impl.player.InventoryManager)
+                Pulsar.INSTANCE.getMm().getModule(me.youngjibbit.module.impl.player.InventoryManager.class);
+        me.youngjibbit.module.impl.player.Stealer stealer=(me.youngjibbit.module.impl.player.Stealer)
+                Pulsar.INSTANCE.getMm().getModule(me.youngjibbit.module.impl.player.Stealer.class);
+        return IslandObservations.inventory(manager==null||!manager.isToggled()?null:manager.getActivitySnapshot(),
+                stealer==null||!stealer.isToggled()?null:stealer.getActivitySnapshot(),now);
     }
 
     /** Synthetische Inventory-Aktivitäts-Fixture (opt-in, nur für Entwicklung/Tests). */
@@ -163,22 +181,26 @@ public class WatermarkHUDModule extends Module {
 
         // Clock Reminder: diskrete 10-Minuten-Marke als Event anbieten.
         IslandStateMachine.ClockReminder clockRem=null;
-        if(islandClock.getValue()&&isClockReminderTime()){
-            long wall=System.currentTimeMillis();
-            String t=new SimpleDateFormat("HH:mm",Locale.ROOT).format(new Date(wall));
+        long wall=System.currentTimeMillis();
+        java.time.ZoneId zone=java.time.ZoneId.systemDefault();
+        if(islandClock.getValue()&&clockSchedule.poll(wall,zone)){
+            String t=java.time.Instant.ofEpochMilli(wall).atZone(zone)
+                    .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm",Locale.ROOT));
             islandState.offer(IslandStateMachine.State.CLOCK_REMINDER,"clock:"+(wall/60_000L),t,islandEpoch,now);
             clockRem=new IslandStateMachine.ClockReminder(t,false);
         }
 
         IslandStateMachine.Selection selected=islandState.resolve(islandEpoch,now,
-                islandTargetSnapshot(),null,clockRem,null,
-                islandTarget.getValue(),false,islandClock.getValue(),false);
+                islandTargetSnapshot(),islandScaffoldSnapshot(now),clockRem,islandInventorySnapshot(now),
+                islandTarget.getValue(),islandScaffold.getValue(),islandClock.getValue(),islandLiveInventory.getValue());
         String key=selected.state.name()+(selected.target==null?"":"#"+selected.target.entityId+":"+selected.target.name)
                 +(selected.clock==null?"":"@"+selected.clock.time)
-                +(selected.inventory==null?"":"#"+selected.inventory.action);
+                +(selected.scaffold==null?"":"#"+selected.scaffold.status+":"+selected.scaffold.approach)
+                +(selected.inventory==null?"":"#"+selected.inventory.producer+":"+selected.inventory.action);
         if(!key.equals(islandLastKey)){
-            // Only the neutral idle label may remain during a crossfade. Never retain lost targets.
-            islandPrevious=islandLastSelection!=null&&islandLastSelection.state==IslandStateMachine.State.IDLE
+            // Idle and a frozen local clock may crossfade; never retain a lost gameplay target.
+            islandPrevious=islandLastSelection!=null&&(islandLastSelection.state==IslandStateMachine.State.IDLE
+                    ||islandLastSelection.state==IslandStateMachine.State.CLOCK_REMINDER)
                     ?islandLastSelection:null;
             islandMotion.contentChanged();islandLastKey=key;
         }
@@ -204,8 +226,10 @@ public class WatermarkHUDModule extends Module {
         final Theme theme=Theme.resolve(Theme.getDefaultTheme());
         final TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont("DmSansMedium 18");
         // Freeze settings and text before scheduling a deferred surface pass.
-        final String clockText=islandClock.getValue()?islandTime():"";
+        final IslandClockFace liveClock=IslandClockFace.capture(wall,zone,animations&&!reduced);
+        final String clockText=islandClock.getValue()?liveClock.time:"";
         final String clientName=Pulsar.INSTANCE.getName(), clientVersion=Pulsar.INSTANCE.getVersion();
+        final TTFFontRenderer wordmark=Pulsar.INSTANCE.getFontManager().getWordmarkFont(clientName,"DmSansMedium 18");
         final boolean showName=name.getValue(), showVersion=version.getValue(), showClock=islandClock.getValue();
         final boolean panel=background.getValue(), useBlur=blur.getValue(),
                 useGlow=glow.getValue();
@@ -213,9 +237,10 @@ public class WatermarkHUDModule extends Module {
         float designFillAlpha=(designCreative?.92f:modern?.85f:.65f)*frame.opacity;
         float designOutlineAlpha=(designCreative?.22f:modern?.14f:.48f)*frame.opacity;
         final IslandPresentation present=IslandPresentation.from(selected,clientName,clientVersion,clockText,
-                showName,showVersion,showClock);
+                showName,showVersion,showClock).withClockFace(liveClock);
         final IslandPresentation fading=previous==null?null:IslandPresentation.from(previous,
-                clientName,clientVersion,clockText,showName,showVersion,showClock);
+                clientName,clientVersion,clockText,showName,showVersion,showClock).withClockFace(liveClock);
+        final float clipInset=Math.min(2,Math.min(frame.width,frame.height)*.08f);
         // A queued bloom pass may outlive a world/mode/visibility change: fence it.
         final long passEpoch=islandEpoch;
         // Reuse the single existing surface and shared halo/blur/RenderState pools.
@@ -223,9 +248,9 @@ public class WatermarkHUDModule extends Module {
                 frame.radius,theme,panel,useBlur,useGlow,designBlurRadius,
                 designFillAlpha,designOutlineAlpha,false,
                 ()->{
-                    try(GuiClip clip=GuiClip.push(new ClipRect(frame.x+2,frame.y+2,
-                            Math.max(1,frame.width-4),Math.max(1,frame.height-4)))){
-                        if(modern&&panel){
+                    try(GuiClip clip=GuiClip.push(new ClipRect(frame.x+clipInset,frame.y+clipInset,
+                            Math.max(.01f,frame.width-2*clipInset),Math.max(.01f,frame.height-2*clipInset)))){
+                        if(modern&&panel&&present.clockFace==null){
                             // A quiet graphite ink plate: blur/world color remains perceptible,
                             // but high-contrast glyphs no longer blend with bright terrain.
                             UIUtils.drawRound(frame.x+2,frame.y+2,Math.max(1,frame.width-4),
@@ -242,17 +267,23 @@ public class WatermarkHUDModule extends Module {
                                         tint(theme.getSecondaryGradientColor(),.62f*frame.opacity));
                             }
                         }
-                        if(fading!=null&&mix<1)paintIsland(fading,frame,font,theme,
+                        if(fading!=null&&mix<1)paintIsland(fading,frame,font,wordmark,theme,
                                 (1-mix)*frame.opacity,design);
-                        paintIsland(present,frame,font,theme,mix*frame.opacity,design);
+                        paintIsland(present,frame,font,wordmark,theme,mix*frame.opacity,design);
                     }
                 });
         GuiShaderBloom.afterBatch(()->{if(islandActive&&passEpoch==islandEpoch)drawIsland.run();});
     }
 
     private void paintIsland(IslandPresentation view,IslandLayout.Frame frame,
-                             TTFFontRenderer font,Theme theme,float alpha,String design){
+                             TTFFontRenderer font,TTFFontRenderer wordmark,Theme theme,float alpha,String design){
         if(alpha<=0)return;
+        if(view.clockFace!=null){
+            float diameter=Math.min(frame.width,frame.height)*.88f;
+            renderClockFace(frame.x+(frame.width-diameter)/2,frame.y+(frame.height-diameter)/2,
+                    diameter,view.clockFace,theme,alpha);
+            return;
+        }
         boolean modern="Modern".equals(design)||"Creative".equals(design);
         boolean creative="Creative".equals(design);
         float x=frame.x,y=frame.y,w=frame.width,h=frame.height;
@@ -265,15 +296,23 @@ public class WatermarkHUDModule extends Module {
         float morph=creative?islandNMorphAmount:0f;
         float nSize=badge*(1f+0.06f*morph);
 
-        // Logo1-N: echtes geschwungenes N als alpha-geclippte Form mit animiertem Theme-Gradient
-        // innerhalb der N sowie kontrolliertem Edge-Glow entlang der Kontur.
-        renderLogo1N(badgeX,badgeY,nSize,theme,alpha,modern,creative,morph);
+        if(view.scaffold==null||!view.scaffold.observed||!renderScaffoldItem(badgeX,badgeY,badge,view.scaffold,alpha))
+            renderLogo1N(badgeX,badgeY,nSize,theme,alpha,modern,creative,morph);
 
         float start=creative?badgeX+nSize+10:modern?(badgeX+badge+8):(x+39);
         if(view.state==IslandStateMachine.State.IDLE){
             float clockWidth=view.trailing.isEmpty()?0:font.getWidth(view.trailing)+11;
-            font.drawString(fitIsland(view.title,font,w-(start-x)-clockWidth),
-                    start,y+(h-11)/2,primary);
+            float available=Math.max(0,w-(start-x)-clockWidth);
+            float brandWidth=wordmark.getWidth(view.brand);
+            if("Neutron".equals(view.brand)&&brandWidth<=available){
+                final float brandY=y+(h-wordmark.getHeight(view.brand))/2;
+                try(UiEffects.GradientSpace domain=UiEffects.gradientSpace(start,brandY,brandWidth,wordmark.getHeight(view.brand))){
+                    TextEffects.direct(theme,()->wordmark.drawString(view.brand,start,brandY,ink(0xffffffff,alpha)));
+                }
+                float suffixX=start+brandWidth+6;
+                font.drawString(fitIsland(view.brandVersion,font,Math.max(0,available-brandWidth-6)),
+                        suffixX,y+(h-11)/2,secondary);
+            }else font.drawString(fitIsland(view.title,font,available),start,y+(h-11)/2,primary);
             if(!view.trailing.isEmpty())
                 font.drawString(view.trailing,x+w-clockWidth,y+(h-11)/2,secondary);
         }else if(view.state==IslandStateMachine.State.TARGET&&view.hasHealthBar){
@@ -306,6 +345,69 @@ public class WatermarkHUDModule extends Module {
     }
 
     private float clockWidthFor(String text,TTFFontRenderer font){return font==null?0:font.getWidth(text);}
+
+    /** Rebuild only a display copy from scalar registry metadata; no inventory object is retained. */
+    private boolean renderScaffoldItem(float x,float y,float size,IslandStateMachine.Scaffold snapshot,float alpha){
+        if(snapshot.itemId<0||snapshot.metadata<0||size<=0||alpha<=0)return false;
+        net.minecraft.item.Item item=net.minecraft.item.Item.getItemById(snapshot.itemId);
+        if(item==null)return false;
+        net.minecraft.item.ItemStack display=new net.minecraft.item.ItemStack(item,1,snapshot.metadata);
+        try(RenderState state=new RenderState()){
+            glTranslatef(x,y,0);glScalef(size/16,size/16,1);
+            GlStateManager.enableDepth();glEnable(GL_DEPTH_TEST);GlStateManager.depthFunc(GL_LEQUAL);
+            GlStateManager.depthMask(true);GlStateManager.enableAlpha();glEnable(GL_ALPHA_TEST);
+            GlStateManager.enableBlend();glEnable(GL_BLEND);
+            GlStateManager.tryBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ZERO);
+            GlStateManager.color(1,1,1,alpha);glColor4f(1,1,1,alpha);
+            float oldZ=mc.getRenderItem().zLevel;
+            try{
+                net.minecraft.client.renderer.RenderHelper.enableGUIStandardItemLighting();
+                mc.getRenderItem().zLevel=100;
+                mc.getRenderItem().renderItemAndEffectIntoGUI(display,0,0);
+            }finally{mc.getRenderItem().zLevel=oldZ;net.minecraft.client.renderer.RenderHelper.disableStandardItemLighting();}
+        }
+        return true;
+    }
+
+    /** Real hour/minute hands, drawn without a new framebuffer, shader or animation clock. */
+    private void renderClockFace(float x,float y,float size,IslandClockFace face,Theme theme,float alpha){
+        if(face==null||size<=0||alpha<=0)return;
+        float cx=x+size/2,cy=y+size/2,r=size*.43f;
+        UIUtils.drawDecorationRound(x,y,size,size,size/2,new Color(19,22,31,Math.round(220*alpha)));
+        try(RenderState state=new RenderState()){
+            org.lwjgl.opengl.GL20.glUseProgram(0);
+            GlStateManager.disableTexture2D();glDisable(GL_TEXTURE_2D);
+            GlStateManager.disableDepth();glDisable(GL_DEPTH_TEST);
+            GlStateManager.disableLighting();glDisable(GL_LIGHTING);
+            GlStateManager.disableAlpha();glDisable(GL_ALPHA_TEST);
+            GlStateManager.enableBlend();glEnable(GL_BLEND);
+            GlStateManager.tryBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ZERO);
+            glEnable(GL_LINE_SMOOTH);glLineWidth(1.1f);
+            Color rim=theme.getPrimaryGradientColor();
+            glColor4f(rim.getRed()/255f,rim.getGreen()/255f,rim.getBlue()/255f,alpha*.78f);
+            glBegin(GL_LINE_LOOP);
+            for(int i=0;i<48;i++){double a=i*Math.PI/24;glVertex2f(cx+(float)Math.cos(a)*r,cy+(float)Math.sin(a)*r);}
+            glEnd();
+            glColor4f(.91f,.94f,.98f,alpha);
+            glBegin(GL_LINES);
+            for(int i=0;i<12;i++){
+                double a=i*Math.PI/6;float dx=(float)Math.cos(a),dy=(float)Math.sin(a),inner=i%3==0?.72f:.83f;
+                glVertex2f(cx+dx*r*inner,cy+dy*r*inner);glVertex2f(cx+dx*r*.94f,cy+dy*r*.94f);
+            }
+            glEnd();
+            glLineWidth(1.6f);
+            glBegin(GL_LINES);
+            glVertex2f(cx,cy);glVertex2f(cx+face.hourX*r*.52f,cy+face.hourY*r*.52f);
+            glVertex2f(cx,cy);glVertex2f(cx+face.minuteX*r*.76f,cy+face.minuteY*r*.76f);
+            glEnd();
+            glLineWidth(1);
+            glColor4f(rim.getRed()/255f,rim.getGreen()/255f,rim.getBlue()/255f,alpha);
+            glBegin(GL_LINES);
+            glVertex2f(cx-face.secondX*r*.12f,cy-face.secondY*r*.12f);
+            glVertex2f(cx+face.secondX*r*.84f,cy+face.secondY*r*.84f);
+            glEnd();
+        }
+    }
 
     /** The original N texture supplies both its stroke alpha and its restrained existing halo. */
     private void renderLogo1N(float bx,float by,float size,Theme theme,float alpha,

@@ -26,6 +26,7 @@ public class FontManager implements AutoCloseable {
         faces.put("SFProText-Regular", "SFProRounded-Regular.ttf");
         faces.put("SFProText-Medium", "SFProRounded-Medium.ttf");
         faces.put("SFProText-Bold", "SFProRounded-Bold.ttf");
+        faces.put("Audiowide-Regular", "Audiowide-Regular.ttf");
         faces.put("DmSansRegular", "DmSansRegular.ttf");
         faces.put("DmSansMedium", "DmSansMedium.ttf");
         faces.put("DmSansBold", "DmSansBold.ttf");
@@ -66,6 +67,13 @@ public class FontManager implements AutoCloseable {
     public synchronized TTFFontRenderer getFont(String key) {
         me.youngjibbit.module.impl.client.ClientSettings settings=me.youngjibbit.module.impl.client.ClientSettings.current();
         return getLocalFont(resolveKey(key,settings==null?"Original":settings.fontFamily.getValue()));
+    }
+
+    /** Branding is scoped to the Neutron wordmark; body text and missing assets retain the existing face. */
+    public synchronized TTFFontRenderer getWordmarkFont(String text,String fallbackKey) {
+        if(!"Neutron".equals(text))return getFont(fallbackKey);
+        TTFFontRenderer wordmark=getLocalFont("Audiowide-Regular 18");
+        return baseFonts.containsKey("Audiowide-Regular.ttf")?wordmark:getFont(fallbackKey);
     }
 
     /** Explicit module font choices bypass the global UI family; icons always retain their face. */
