@@ -1,5 +1,7 @@
 package me.youngjibbit.core.network;
 
+import static me.youngjibbit.core.network.NetworkTestSupport.*;
+
 import com.google.common.util.concurrent.*;
 import io.netty.channel.embedded.EmbeddedChannel;
 import me.youngjibbit.Pulsar;
@@ -19,27 +21,6 @@ import java.util.concurrent.atomic.*;
 import static org.junit.Assert.*;
 
 public class PacketFlowTest {
-    public static final class MainThread implements IThreadListener {
-        final Thread owner = Thread.currentThread();
-        final Queue<Runnable> tasks = new java.util.concurrent.ConcurrentLinkedQueue<>();
-        public ListenableFuture<Object> addScheduledTask(Runnable task) {
-            tasks.add(task); return Futures.immediateFuture(null);
-        }
-        public boolean isCallingFromMinecraftThread() { return Thread.currentThread() == owner; }
-        public void drain() { Runnable task; while ((task = tasks.poll()) != null) task.run(); }
-    }
-    public static final class Observer implements Subscriber {
-        final List<String> calls = new ArrayList<>();
-        java.util.function.Consumer<EventPacket> action = e -> { };
-        @Subscribe public final Listener<EventPacket> listener = new Listener<>(e -> {
-            calls.add((e.isInbound()?"in":"out")+(e.isPre()?"Pre":"Post")); action.accept(e);
-        });
-    }
-    public static INetHandlerPlayClient handler(java.util.function.Consumer<Object[]> apply) {
-        return (INetHandlerPlayClient) Proxy.newProxyInstance(PacketFlowTest.class.getClassLoader(),
-                new Class<?>[]{INetHandlerPlayClient.class}, (p,m,a) -> { apply.accept(a); return null; });
-    }
-
     @Test public void actualNetworkManagerHandsOffBeforeEventsAndAppliesReplacementExactlyOnce() throws Exception {
         MainThread main = new MainThread(); Observer observer = new Observer();
         NetworkManager network = new NetworkManager(EnumPacketDirection.CLIENTBOUND);

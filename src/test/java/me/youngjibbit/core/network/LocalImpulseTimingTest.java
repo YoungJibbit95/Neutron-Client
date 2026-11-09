@@ -12,7 +12,7 @@ import static org.junit.Assert.*;
 
 public class LocalImpulseTimingTest {
     private Tickbase charged(ExploitHookFixture f, AtomicLong now) throws Exception {
-        BacktrackLagRangeControlTest.clock(f, now);
+        NetworkTestSupport.clock(f, now);
         f.world.entities.put(1, f.player);
         f.cursor(f.enemy(7, 3));
         Tickbase tick = new Tickbase(now::get, f.client);
@@ -78,7 +78,7 @@ public class LocalImpulseTimingTest {
 
     @Test public void preImpulseMovementIsPublishedBeforeVelocityAndStaleOwnersCannotHoldRecovery() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
-            AtomicLong now = new AtomicLong(); BacktrackLagRangeControlTest.clock(f, now);
+            AtomicLong now = new AtomicLong(); NetworkTestSupport.clock(f, now);
             f.world.entities.put(1, f.player);
             ExploitHookFixture.Enemy enemy = f.enemy(7, 3);
             Object owner = new Object();
@@ -87,7 +87,7 @@ public class LocalImpulseTimingTest {
             f.connection.network.sendPacket(before);
             assertNull(f.connection.channel.readOutbound());
             AtomicInteger observed = new AtomicInteger();
-            PacketFlowTest.Observer packets = new PacketFlowTest.Observer();
+            NetworkTestSupport.Observer packets = new NetworkTestSupport.Observer();
             packets.action = event -> {
                 if (event.isOutbound() && event.isPost() && event.getPacket() == before) {
                     assertEquals("old movement precedes applying the impulse", 0, f.player.motionX, 0);
