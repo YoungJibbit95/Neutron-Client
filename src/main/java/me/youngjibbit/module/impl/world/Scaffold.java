@@ -11,6 +11,7 @@ import me.youngjibbit.core.world.PlacementTarget;
 import me.youngjibbit.core.world.ScaffoldRotationPlan;
 import me.youngjibbit.core.world.AdaptiveBridgeScaffoldAdapter;
 import me.youngjibbit.core.world.AdaptiveBridgePlanner;
+import me.youngjibbit.core.world.AdaptiveBridgeMotion;
 import me.youngjibbit.core.world.AdaptiveBridgeSafetyController;
 import me.youngjibbit.core.world.TowerController;
 import me.youngjibbit.event.motion.EventMotion;
@@ -57,6 +58,7 @@ public class Scaffold extends Module {
     private long bridgeGeneration,bridgeLastPreSequence=Long.MIN_VALUE,bridgeLastPostSequence=Long.MIN_VALUE;
     private long bridgeLastInputSequence=Long.MIN_VALUE,bridgeFreshInputSequence;
     private PlacementTarget bridgePreview;
+    private PlacementTarget bridgeProfileAnchor;
     private AdaptiveBridgePlanner.Scope bridgeScope;
     private boolean bridgeHasDirection;
     private float bridgeForward,bridgeStrafe,bridgeYaw;
@@ -64,6 +66,11 @@ public class Scaffold extends Module {
     private final ComboValue bridgeEdgeSafety=new ComboValue("Bridge Edge Safety",this,
             new String[]{"Off","Sneak","Stop","Smart"},3);
     private final SliderValue bridgePrediction=new SliderValue("Bridge Prediction",this,1D,0,3,false);
+    private final ComboValue bridgeRotationProfile=new ComboValue("Bridge Rotation Profile",this,
+            new String[]{"Adaptive","Godbridge"},0);
+    private final ComboValue bridgeRotationSpeed=new ComboValue("Bridge Rotation Speed",this,
+            new String[]{"Calm","Balanced","Fast"},1);
+    private final SliderValue bridgeRotationVariation=new SliderValue("Bridge Rotation Variation",this,.25D,0,1,false);
     private final CheckBoxValue softArsenicMotion = new CheckBoxValue("Arsenic Soft Motion", this, false);
     private final me.youngjibbit.core.world.ScaffoldSneakInterval sneakInterval = new me.youngjibbit.core.world.ScaffoldSneakInterval();
     private long freshInputSequence;
@@ -142,8 +149,14 @@ public class Scaffold extends Module {
         this.setKey(Keyboard.KEY_G);
         roundRots.setVisibility(module->rotations.getValue());
         for(me.youngjibbit.value.Value<?> value:getValues()) {
-            if(value==bridgeEdgeSafety || value==bridgePrediction) {
+            if(value==bridgeEdgeSafety || value==bridgePrediction || value==bridgeRotationProfile
+                    || value==bridgeRotationSpeed || value==bridgeRotationVariation) {
                 value.setVisibility(m->adaptiveBridge());continue;
+            }
+            if(value==yawSpeed || value==pitchSpeed) {
+                java.util.function.Predicate<Module> previous=value.getVisibility();
+                value.setVisibility(m->adaptiveBridge() || !arsenic() && (previous==null || previous.test(m)));
+                continue;
             }
             if(value==sneakAfterBlocks || value==approach || value==bodyRotation || value==itemSpoof || value==swing || value==swingMode
                     || value==placeDelay || value==placementDiagnostics || value==rotationReturn.enabled || value==rotationReturn.ticks)continue;
@@ -157,7 +170,11 @@ public class Scaffold extends Module {
     private boolean arsenic() { return "Arsenic".equals(approach.getValue()); }
     private boolean adaptiveBridge() { return "Adaptive Bridge".equals(approach.getValue()); }
     private boolean usesRotations() { return arsenic() || adaptiveBridge() || rotations.getValue(); }
-    @Override public void beginConfigUpdate() { super.beginConfigUpdate();approach.reset();softArsenicMotion.reset();sneakAfterBlocks.reset();bridgeEdgeSafety.reset();bridgePrediction.reset(); }
+    @Override public void beginConfigUpdate() {
+        super.beginConfigUpdate();approach.reset();softArsenicMotion.reset();sneakAfterBlocks.reset();
+        bridgeEdgeSafety.reset();bridgePrediction.reset();bridgeRotationProfile.reset();
+        bridgeRotationSpeed.reset();bridgeRotationVariation.reset();
+    }
     @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String name) { return super.getValueByName(name!=null && name.replace("_","").replace(" ","").equalsIgnoreCase("SameY")?"keep_y":name); }
     @Override public void onValueChange() {
         long generation = ++lifecycleGeneration;
@@ -436,8 +453,10 @@ public class Scaffold extends Module {
 
     /** Release only this approach's short-lived acquisition; never a physical key. */
     private void resetBridgeAcquisition(boolean sequences) {
+        if(contextRotation!=null && bridgeScope!=null)contextRotation.resetBridgeMotion(bridgeScope);
         bridgeGeneration++;
         bridgePreview=null;
+        bridgeProfileAnchor=null;
         bridgeScope=null;
         bridgeHasDirection=false;
         bridgeAdapter.reset();
@@ -561,6 +580,24 @@ public class Scaffold extends Module {
 
     public AdaptiveBridgeSafetyController.State bridgeSafetyState() { return bridgeSafety.getState(); }
 
+    /** Pure identity check for the manager's reentrant PRE queries. */
+    public boolean isCurrentBridgeScope(AdaptiveBridgePlanner.Scope scope) {
+        return scope!=null && active==this && isToggled() && adaptiveBridge() && scope.owner==this
+                && scope.acquisitionGeneration==bridgeGeneration && scope.world==contextWorld
+                && scope.player==contextPlayer && scope.connection==contextPackets
+                && scope.connectionEpoch==contextEpoch;
+    }
+
+    private AdaptiveBridgeMotion.Settings bridgeRotationSettings() {
+        AdaptiveBridgeMotion.Mode mode="Godbridge".equals(bridgeRotationProfile.getValue())
+                ?AdaptiveBridgeMotion.Mode.GODBRIDGE:AdaptiveBridgeMotion.Mode.ADAPTIVE;
+        AdaptiveBridgeMotion.Speed speed="Calm".equals(bridgeRotationSpeed.getValue())
+                ?AdaptiveBridgeMotion.Speed.CALM:"Fast".equals(bridgeRotationSpeed.getValue())
+                ?AdaptiveBridgeMotion.Speed.FAST:AdaptiveBridgeMotion.Speed.BALANCED;
+        return new AdaptiveBridgeMotion.Settings(mode,speed,bridgeRotationVariation.getValue(),
+                yawSpeed.getValue(),pitchSpeed.getValue());
+    }
+
     /** Third opt-in approach: bounded PRE proposals, original C03 and POST-only placement. */
     private void bridgeMotion(EventMotion event,long sequence,long generation) {
         Minecraft client=Minecraft.getMinecraft();
@@ -598,7 +635,10 @@ public class Scaffold extends Module {
                 bridgeSafety.observePlan(bridgeScope,sequence,false);
                 requestAcceptedHold();return;
             }
-            AdaptiveBridgeScaffoldAdapter.Prepared prepared=bridgeAdapter.prepare(service,host,frame);
+            boolean keepFace=bridgeProfileAnchor!=null
+                    && service.rotationIdentity(bridgeProfileAnchor)==service.rotationIdentity(host);
+            AdaptiveBridgeScaffoldAdapter.Prepared prepared=keepFace
+                    ?bridgeAdapter.prepareKeeping(service,host,frame):bridgeAdapter.prepare(service,host,frame);
             if(!bridgeCurrent(sequence,generation,acquisition))return;
             if(prepared==null || !service.isValid(prepared.target)) {
                 if(!bridgeCurrent(sequence,generation,acquisition))return;
@@ -606,20 +646,42 @@ public class Scaffold extends Module {
                 requestAcceptedHold();return;
             }
             if(!bridgeCurrent(sequence,generation,acquisition))return;
-            frameTarget=currentTarget=prepared.target;
-            bridgePreview=prepared.target;
+            AdaptiveBridgeMotion.Settings settings=bridgeRotationSettings();
+            Vec3 eyes=client.thePlayer.getPositionEyes(1);
+            PlacementTarget anchor=bridgeProfileAnchor;
+            boolean kept=anchor!=null && service.rotationIdentity(anchor)==service.rotationIdentity(prepared.target)
+                    && service.isValid(anchor);
+            if(!bridgeCurrent(sequence,generation,acquisition))return;
+            if(!kept) {
+                anchor=prepared.target;
+                if("Godbridge".equals(bridgeRotationProfile.getValue())) {
+                    // Classic 45-degree yaw / 83.52-degree pitch are checked geometric preferences.
+                    // Acquire it once; later frames keep this exact face anchor.
+                    PlacementTarget preferred=service.preferBridgeGodbridge(anchor,eyes);
+                    if(!bridgeCurrent(sequence,generation,acquisition))return;
+                    if(preferred!=null)anchor=preferred;
+                }
+                bridgeProfileAnchor=anchor;
+            }
+            PlacementTarget aimed=service.refineBridgeHit(anchor,contextRotation,bridgeScope,settings);
+            if(!bridgeCurrent(sequence,generation,acquisition))return;
+            if(aimed==null) {
+                bridgeSafety.observePlan(bridgeScope,sequence,false);
+                requestAcceptedHold();return;
+            }
+            frameTarget=currentTarget=aimed;
+            bridgePreview=aimed;
             bridgeSafety.observePlan(bridgeScope,sequence,true);
             if(!sprint.getValue()) {
                 noSprintSequence=sequence;noSprintGeneration=generation;
                 client.thePlayer.setSprinting(false);
                 if(!bridgeCurrent(sequence,generation,acquisition))return;
             }
-            // Same source priority, old rotation trajectory and mouse-GCD snap.
-            RotationProfile settings=rotationSettings.snapshot();
-            Vec3 eyes=client.thePlayer.getPositionEyes(1);
-            float[] pose=contextRotation.calculatePlanRotations("scaffold",
-                    event.getYaw(),event.getPitch(),service.rotationIdentity(prepared.target),
-                    prepared.yaw,prepared.pitch,eyes.distanceTo(prepared.target.getHitVec()),settings);
+            ScaffoldRotationPlan desired=ScaffoldRotationPlan.build("Back",eyes,aimed.getHitVec());
+            if(desired==null)return;
+            float[] pose=contextRotation.calculateBridgePlanRotations(bridgeScope,
+                    service.rotationIdentity(aimed),desired.getYaw(),desired.getPitch(),settings);
+            if(pose==null)return;
             if(!bridgeCurrent(sequence,generation,acquisition) || !service.isValid(frameTarget))return;
             if(!bridgeCurrent(sequence,generation,acquisition))return;
             contextRotation.request("scaffold",RotationManager.SCAFFOLD_PRIORITY,pose[0],pose[1]);
@@ -650,7 +712,7 @@ public class Scaffold extends Module {
             boolean placed=tryPlace(false);
             if(!bridgeCurrent(sequence,generation,acquisition))return;
             bridgeSafety.placementResult(scope,sequence,placed);
-            if(placed)bridgePreview=null;
+            if(placed) {bridgePreview=null;bridgeProfileAnchor=null;}
             boolean valid=placed || service.isValid(frameTarget);
             if(!bridgeCurrent(sequence,generation,acquisition))return;
             if(placed || !valid)releasePlacement();

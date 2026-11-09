@@ -190,6 +190,36 @@ public final class ScaffoldPlacementService {
         return isValid(candidate)?candidate:target;
     }
 
+    /**
+     * Sample a small, time-correlated correction around one held Bridge anchor.
+     * The original face, destination, inventory snapshot and trajectory identity
+     * remain immutable. A point proposal never replaces the normal visibility,
+     * reach or stack validation, and cannot acquire another placement intent.
+     */
+    public PlacementTarget refineBridgeHit(PlacementTarget anchor,RotationManager rotations,
+            AdaptiveBridgePlanner.Scope scope,AdaptiveBridgeMotion.Settings settings) {
+        if(rotations==null || settings==null || !isValid(anchor))return null;
+        AxisAlignedBB bounds=access.supportBounds(anchor.getBlockPos());
+        if(bounds==null)return null;
+        Vec3 point=rotations.bridgeFacePoint(scope,anchor.trajectoryKey,bounds,
+                anchor.getFacing(),anchor.getHitVec(),settings);
+        if(point==null)return null;
+        PlacementTarget candidate=anchor.withHit(point);
+        if(isValid(candidate))return candidate;
+        return isValid(anchor)?anchor:null;
+    }
+
+    /** Acquire classic Godbridge geometry once, retaining the original intent identities. */
+    public PlacementTarget preferBridgeGodbridge(PlacementTarget target,Vec3 eyes) {
+        if(eyes==null || !isValid(target))return null;
+        AxisAlignedBB bounds=access.supportBounds(target.getBlockPos());
+        if(bounds==null)return null;
+        Vec3 point=ScaffoldRotationPlan.hitPoint("Godbridge",bounds,target.getFacing(),eyes);
+        if(point==null)return null;
+        PlacementTarget preferred=target.withHit(point);
+        return isValid(preferred)?preferred:null;
+    }
+
     public Object rotationIdentity(PlacementTarget target) { return target.trajectoryKey; }
     public PlacementTarget align(PlacementTarget target,String mode,boolean round,Vec3 eyes) {
         if(target==null || (!round && !"Godbridge".equalsIgnoreCase(mode)))return target;

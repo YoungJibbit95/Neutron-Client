@@ -1,0 +1,249 @@
+package me.youngjibbit.core.world;
+
+import me.youngjibbit.core.combat.AdaptiveMotionController;
+import me.youngjibbit.utils.math.FastNoiseLite;
+import java.lang.ref.WeakReference;
+
+/** Scaffold-only mathematics. The host keeps every rotation, input and placement permission. */
+public final class AdaptiveBridgeMotion {
+    public enum Mode { ADAPTIVE, GODBRIDGE }
+    public enum Speed {
+        CALM(.38, .75), BALANCED(.55, 1), FAST(.8, 1.15);
+        final double speed, acceleration;
+        Speed(double speed, double acceleration) { this.speed = speed; this.acceleration = acceleration; }
+    }
+
+    /** Original yaw/pitch sliders remain degrees per 50 ms. */
+    public static final class Settings {
+        public final Mode mode;
+        public final Speed speed;
+        public final double variation, yawTicks, pitchTicks;
+        public final double maxYawSpeed, maxPitchSpeed, maxAcceleration, maxJerk;
+        public Settings(Mode mode, Speed speed, double variation, double yawTicks, double pitchTicks) {
+            if (mode == null || speed == null || !finite(variation) || variation < 0 || variation > 1
+                    || !positive(yawTicks) || !positive(pitchTicks) || yawTicks > 90 || pitchTicks > 90)
+                throw new IllegalArgumentException("invalid bridge rotation settings");
+            this.mode = mode; this.speed = speed; this.variation = variation;
+            this.yawTicks = yawTicks; this.pitchTicks = pitchTicks;
+            double profileScale = mode == Mode.GODBRIDGE ? .8 : 1;
+            maxYawSpeed = clamp(yawTicks * 20 * speed.speed * profileScale, 20, 720);
+            maxPitchSpeed = clamp(pitchTicks * 20 * speed.speed * profileScale, 20, 720);
+            maxAcceleration = clamp(Math.max(maxYawSpeed, maxPitchSpeed) * 6 * speed.acceleration, 300, 4200);
+            maxJerk = clamp(maxAcceleration * 20, 9000, 84000);
+        }
+        private AdaptiveMotionController.Limits limits() {
+            // Reserve the reused engine's immutable acceleration-scale maximum.
+            // It adds no second angular random walk or lateral curvature here.
+            return new AdaptiveMotionController.Limits(maxYawSpeed, maxPitchSpeed,
+                    maxAcceleration / 1.18, maxJerk, 0, 0);
+        }
+        public boolean same(Settings other) {
+            return other != null && mode == other.mode && speed == other.speed
+                    && Double.compare(variation, other.variation) == 0
+                    && Double.compare(yawTicks, other.yawTicks) == 0
+                    && Double.compare(pitchTicks, other.pitchTicks) == 0;
+        }
+    }
+
+    public static final class Point {
+        public final double x, y, z;
+        private Point(double x, double y, double z) { this.x = x; this.y = y; this.z = z; }
+    }
+    /** Weak tombstone: reset releases the active scene without reopening old generations. */
+    private static final class Lifetime {
+        final WeakReference<Object> owner, world, player, connection;
+        final long epoch, generation;
+        Lifetime(AdaptiveBridgePlanner.Scope scope) {
+            owner = new WeakReference<>(scope.owner); world = new WeakReference<>(scope.world);
+            player = new WeakReference<>(scope.player); connection = new WeakReference<>(scope.connection);
+            epoch = scope.connectionEpoch; generation = scope.acquisitionGeneration;
+        }
+        boolean same(AdaptiveBridgePlanner.Scope scope) {
+            return scope != null && owner.get() == scope.owner && world.get() == scope.world
+                    && player.get() == scope.player && connection.get() == scope.connection
+                    && epoch == scope.connectionEpoch && generation == scope.acquisitionGeneration;
+        }
+    }
+    private static final class Acquisition {
+        final AdaptiveBridgePlanner.Scope scope;
+        final Object identity;
+        final Settings settings;
+        final AdaptiveMotionController dynamics;
+        final AdaptiveMotionController.Acquisition token;
+        final FastNoiseLite noise;
+        final long startNanos;
+        long lastSequence, lastNanos, pointSequence = Long.MIN_VALUE, rotationSequence = Long.MIN_VALUE;
+        double[] geometry;
+        AdaptiveBridgePlanner.Face face;
+        Point cachedPoint;
+        AdaptiveMotionController.Result cachedRotation;
+        Acquisition(AdaptiveBridgePlanner.Scope scope, Object identity, Settings settings,
+                    long seed, long ordinal, long sequence, long nanos) {
+            this.scope = scope; this.identity = identity; this.settings = settings;
+            startNanos = lastNanos = nanos; lastSequence = sequence;
+            dynamics = new AdaptiveMotionController(seed, settings.limits());
+            // Pipeline epochs restart. Only this wrapper's own ordinal is globally ordered here.
+            token = new AdaptiveMotionController.Acquisition(this, scope.world, identity, 0, ordinal);
+            noise = new FastNoiseLite((int)(seed ^ ordinal * 0x9e3779b97f4a7c15L));
+            noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2S);
+            noise.SetFractalType(FastNoiseLite.FractalType.None); noise.SetFrequency(1);
+        }
+    }
+
+    private final Thread owningThread = Thread.currentThread();
+    private final long seed;
+    private Lifetime highest;
+    private Acquisition current;
+    private long ordinal, lastSequence = Long.MIN_VALUE, blockedThrough = Long.MIN_VALUE;
+    private boolean retired;
+    public AdaptiveBridgeMotion(long seed) { this.seed = seed; }
+
+    /**
+     * The original anchor is held for the full face identity. Its normal coordinate never changes.
+     * Tangential displacement is at most .08 blocks (Adaptive) or .035 blocks (Godbridge).
+     * A duplicate motion returns its first point, independently of render time or call count.
+     */
+    public synchronized Point point(AdaptiveBridgePlanner.Scope scope, Object identity,
+            Settings settings, long sequence, long nanos, AdaptiveBridgePlanner.Face face,
+            double minX, double minY, double minZ, double maxX, double maxY, double maxZ,
+            double anchorX, double anchorY, double anchorZ, boolean authorized) {
+        Acquisition a = acquire(scope, identity, settings, sequence, nanos, authorized);
+        if (a == null) return null;
+        double[] geometry = { minX, minY, minZ, maxX, maxY, maxZ, anchorX, anchorY, anchorZ };
+        if (!validGeometry(face, geometry)) { reset(scope); return null; }
+        if (a.geometry == null) { a.geometry = geometry; a.face = face; }
+        else if (a.face != face || !sameGeometry(a.geometry, geometry)) {
+            reset(scope); return null;
+        }
+        if (a.pointSequence == sequence) return a.cachedPoint;
+        double seconds = (a.lastNanos - a.startNanos) * 1e-9;
+        double fade = 1 - Math.exp(-seconds / .2);
+        double rate = settings.mode == Mode.GODBRIDGE ? .35 : .65;
+        double radius = (settings.mode == Mode.GODBRIDGE ? .035 : .08) * settings.variation * fade;
+        double[] point = { anchorX, anchorY, anchorZ };
+        int normal = face.x != 0 ? 0 : face.y != 0 ? 1 : 2;
+        double[] noise = new double[3];
+        double norm = 0;
+        for (int axis = 0; axis < 3; axis++) {
+            if (axis == normal) continue;
+            noise[axis] = clamp(a.noise.GetNoise((float)(seconds * rate), 17.371f + axis * 31.719f), -1, 1);
+            norm += noise[axis] * noise[axis];
+        }
+        norm = Math.max(1, Math.sqrt(norm));
+        for (int axis = 0; axis < 3; axis++) {
+            if (axis == normal) continue;
+            double inset = Math.min(.02, (geometry[axis + 3] - geometry[axis]) / 4);
+            double low = geometry[axis] + inset, high = geometry[axis + 3] - inset;
+            // An already validated edge anchor stays exact; do not jump it inward on acquisition.
+            if (point[axis] < low || point[axis] > high) continue;
+            double radiusOnAxis = Math.min(radius, (geometry[axis + 3] - geometry[axis]) * .15);
+            point[axis] = clamp(point[axis] + noise[axis] / norm * radiusOnAxis, low, high);
+        }
+        a.pointSequence = sequence;
+        return a.cachedPoint = new Point(point[0], point[1], point[2]);
+    }
+
+    /** One dynamics step per motion. A genuine acquisition's first step is an inert HOLD. */
+    public synchronized AdaptiveMotionController.Result advance(AdaptiveBridgePlanner.Scope scope,
+            Object identity, Settings settings, long sequence, long nanos,
+            double fromYaw, double fromPitch, double targetYaw, double targetPitch, boolean authorized) {
+        Acquisition a = acquire(scope, identity, settings, sequence, nanos, authorized);
+        if (a == null) return null;
+        if (!finite(fromYaw) || !finite(fromPitch) || !finite(targetYaw) || !finite(targetPitch)
+                || fromPitch < -90 || fromPitch > 90) {
+            rejectIfCurrent(scope, identity, sequence); return null;
+        }
+        if (a.rotationSequence == sequence) return a.cachedRotation;
+        AdaptiveMotionController.Result result = a.dynamics.advance(a.token, sequence,
+                a.lastNanos - a.startNanos, fromYaw, fromPitch, targetYaw, targetPitch, true);
+        a.rotationSequence = sequence; a.cachedRotation = result;
+        if (a.dynamics.profile() == null) { rejectIfCurrent(scope, identity, sequence); return null; }
+        return result;
+    }
+
+    /** A rejected movement can restart only on a later physical motion. */
+    public synchronized void rejectMotion(long sequence) {
+        if (Thread.currentThread() != owningThread || current == null || current.lastSequence != sequence) return;
+        blockedThrough = Math.max(blockedThrough, sequence); current = null;
+    }
+    /** Context-query rejection may return after a newer acquisition replaced this one. */
+    public synchronized void rejectMotion(AdaptiveBridgePlanner.Scope scope, Object identity, long sequence) {
+        if (Thread.currentThread() != owningThread || current == null || !current.scope.same(scope)
+                || current.identity != identity) return;
+        rejectMotion(sequence);
+    }
+    /** Explicit lifecycle invalidation requires a newer host generation to resume. */
+    public synchronized boolean reset(AdaptiveBridgePlanner.Scope expected) {
+        if (Thread.currentThread() != owningThread || highest == null || !highest.same(expected)) return false;
+        current = null; retired = true; return true;
+    }
+    public synchronized void reset() {
+        if (Thread.currentThread() != owningThread) return;
+        current = null; retired = true;
+    }
+
+    private Acquisition acquire(AdaptiveBridgePlanner.Scope scope, Object identity, Settings settings,
+                                long sequence, long nanos, boolean authorized) {
+        if (Thread.currentThread() != owningThread) return null;
+        if (scope == null || !scope.usable() || identity == null || settings == null || sequence < 0) return null;
+        int order = order(scope);
+        if (order < 0 || order == 0 && sequence < lastSequence) return null;
+        if (!authorized) { if (order == 0) rejectIfCurrent(scope, identity, sequence); return null; }
+        if (order > 0) {
+            highest = new Lifetime(scope); current = null; retired = false;
+            lastSequence = blockedThrough = Long.MIN_VALUE;
+        }
+        if (retired || sequence <= blockedThrough) return null;
+        if (current != null && (current.identity != identity || !current.settings.same(settings))) {
+            if (sequence == current.lastSequence) { rejectMotion(sequence); return null; }
+            current = null;
+        }
+        if (current == null) {
+            if (ordinal == Long.MAX_VALUE) return null;
+            current = new Acquisition(scope, identity, settings, seed, ++ordinal, sequence, nanos);
+        } else if (sequence == current.lastSequence) {
+            return current; // The first call owns this motion's timestamp, including a point-only preview.
+        } else if (nanos - current.lastNanos < 0 || nanos - current.startNanos < 0) {
+            rejectIfCurrent(scope, identity, sequence); return null;
+        }
+        current.lastSequence = lastSequence = sequence; current.lastNanos = nanos;
+        return current;
+    }
+    private void rejectIfCurrent(AdaptiveBridgePlanner.Scope scope, Object identity, long sequence) {
+        if (current != null && current.scope.same(scope) && current.identity == identity
+                && sequence >= current.lastSequence) {
+            blockedThrough = Math.max(blockedThrough, sequence); lastSequence = Math.max(lastSequence, sequence);
+            current = null;
+        }
+    }
+    private int order(AdaptiveBridgePlanner.Scope scope) {
+        if (highest == null) return 1;
+        if (highest.owner.get() != scope.owner) return -1;
+        int generation = Long.compare(scope.acquisitionGeneration, highest.generation);
+        if (generation < 0) return -1;
+        if (highest.connection.get() != scope.connection) return generation > 0 ? 1 : -1;
+        if (scope.connectionEpoch < highest.epoch) return -1;
+        if (generation > 0) return 1;
+        if (highest.world.get() != scope.world || highest.player.get() != scope.player) return -1;
+        return Long.compare(scope.connectionEpoch, highest.epoch);
+    }
+    private static boolean validGeometry(AdaptiveBridgePlanner.Face face, double[] g) {
+        if (face == null) return false;
+        for (double value : g) if (!finite(value) || Math.abs(value) > 30_000_001) return false;
+        for (int axis = 0; axis < 3; axis++)
+            if (g[axis + 3] <= g[axis] || g[axis + 3] - g[axis] > 4
+                    || g[axis + 6] < g[axis] || g[axis + 6] > g[axis + 3]) return false;
+        int normal = face.x != 0 ? 0 : face.y != 0 ? 1 : 2;
+        int direction = face.x != 0 ? face.x : face.y != 0 ? face.y : face.z;
+        return Math.abs(g[normal + 6] - g[normal + (direction > 0 ? 3 : 0)]) <= 1e-7;
+    }
+    private static boolean sameGeometry(double[] first, double[] next) {
+        for (int i = 0; i < first.length; i++) if (Double.compare(first[i], next[i]) != 0) return false;
+        return true;
+    }
+    private static boolean finite(double value) { return Double.isFinite(value); }
+    private static boolean positive(double value) { return finite(value) && value > 0; }
+    private static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
+    }
+}
