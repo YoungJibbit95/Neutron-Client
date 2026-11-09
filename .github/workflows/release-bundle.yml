@@ -18,6 +18,10 @@ on:
         default: 'v0.0.0-preview'
         required: true
         type: string
+      prepare_release:
+        description: 'Prepare a draft with verified assets on main; never publish'
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -42,7 +46,13 @@ jobs:
           persist-credentials: false
 
       - name: Validate version and release source
+        env:
+          PREPARE_RELEASE: ${{ inputs.prepare_release || false }}
         run: |
+          if ($env:PREPARE_RELEASE -eq 'true' -and $env:GITHUB_REF -ne 'refs/heads/main') {
+            throw 'Draft preparation is only allowed from main'
+          }
+          if ((git rev-parse HEAD) -ne $env:GITHUB_SHA) { throw 'Checkout must match the workflow source commit' }
           python -c "import sys; sys.path.insert(0, '.github/scripts'); from create_release_bundle import version_id; import os; print(version_id(os.environ['RELEASE_VERSION']))"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if ($env:GITHUB_REF_TYPE -eq 'tag') {
@@ -101,7 +111,7 @@ jobs:
           retention-days: 14
 
   draft-release:
-    if: github.event_name == 'push' && github.ref_type == 'tag'
+    if: (github.event_name == 'push' && github.ref_type == 'tag') || (github.event_name == 'workflow_dispatch' && inputs.prepare_release && github.ref == 'refs/heads/main')
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -112,25 +122,113 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
-      RELEASE_TAG: ${{ github.ref_name }}
+      RELEASE_TAG: ${{ github.event_name == 'push' && github.ref_name || inputs.version }}
+      PREPARE_RELEASE: ${{ inputs.prepare_release || false }}
     steps:
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           name: neutron-release-bundle
           path: release
 
-      - name: Attest tagged bundle provenance
+      - name: Validate bundle and draft source
+        id: release_state
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "$GITHUB_EVENT_NAME" == workflow_dispatch ]]; then
+            [[ "$PREPARE_RELEASE" == true && "$GITHUB_REF" == refs/heads/main ]] || { echo 'Draft preparation requires an explicit main dispatch' >&2; exit 1; }
+          else
+            [[ "$GITHUB_EVENT_NAME" == push && "$GITHUB_REF_TYPE" == tag ]] || { echo 'Unexpected release event' >&2; exit 1; }
+          fi
+          python3 - <<'PY'
+          import json, os, re
+          from pathlib import Path
+          tag = os.environ['RELEASE_TAG']
+          if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?', tag):
+              raise SystemExit('Invalid release tag')
+          version = 'Neutron-' + tag[1:]
+          info = json.loads(Path('release/build-info.json').read_text())
+          if info.get('version') != version or info.get('commit') != os.environ['GITHUB_SHA']:
+              raise SystemExit('Bundle version/source does not match this workflow')
+          for suffix in ('.jar', '.json'):
+              if not Path('release', version, version + suffix).is_file():
+                  raise SystemExit('Matching release JAR/JSON is missing')
+          manifest = json.loads(Path('release', version, version + '.json').read_text())
+          if manifest.get('id') != version or not Path('release', version + '-bundle.zip').is_file():
+              raise SystemExit('Bundle identity/archive mismatch')
+          PY
+          (cd release && sha256sum --strict --check SHA256SUMS.txt)
+          validate_release_state() {
+            local tag_ref tag_commit
+            tag_ref=$(gh api "repos/$GH_REPO/git/matching-refs/tags/$RELEASE_TAG" --jq ".[] | select(.ref == \"refs/tags/$RELEASE_TAG\") | .ref")
+            if [[ -n "$tag_ref" ]]; then
+              tag_commit=$(gh api "repos/$GH_REPO/commits/tags/$RELEASE_TAG" --jq .sha)
+              [[ "$tag_commit" == "$GITHUB_SHA" ]] || { echo 'Existing tag points to a different source commit' >&2; exit 1; }
+            elif [[ "$GITHUB_REF_TYPE" == tag ]]; then
+              echo 'The triggering release tag is missing' >&2; exit 1
+            fi
+            export RELEASE_TAG_EXISTS="$tag_ref"
+            if gh release view "$RELEASE_TAG" --json isDraft,tagName,targetCommitish > release-state.json 2> release-error.txt; then
+              RELEASE_STATE=$(python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          state = json.loads(Path('release-state.json').read_text())
+          if state.get('tagName') != os.environ['RELEASE_TAG']:
+              raise SystemExit('Release tag mismatch')
+          if state.get('isDraft') is False:
+              if os.environ['GITHUB_EVENT_NAME'] != 'push':
+                  raise SystemExit('Manual preparation cannot overwrite a published release')
+              print('published')
+          elif state.get('isDraft') is not True:
+              raise SystemExit('Invalid draft state')
+          elif not os.environ['RELEASE_TAG_EXISTS'] and state.get('targetCommitish') != os.environ['GITHUB_SHA']:
+              raise SystemExit('Existing draft targets a different source commit; use a new version')
+          else:
+              print('draft')
+          PY
+              )
+            else
+              [[ "$(cat release-error.txt)" == 'release not found' ]] || { cat release-error.txt >&2; exit 1; }
+              RELEASE_STATE=missing
+            fi
+          }
+          validate_release_state
+          # Reuse this exact guard immediately before mutation and upload.
+          declare -f validate_release_state > release-guard.sh
+          if [[ "$RELEASE_STATE" == published ]]; then
+            echo 'Published release already exists; keeping its assets and metadata unchanged.'
+            echo 'skip=true' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Attest exact release bundle provenance
+        if: steps.release_state.outputs.skip != 'true'
         uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4
         with:
           subject-path: release/*-bundle.zip
 
       - name: Create or refresh draft (never overwrite a published release)
+        if: steps.release_state.outputs.skip != 'true'
         shell: bash
         run: |
-          if gh release view "$RELEASE_TAG" --json isDraft > release-state.json; then
-            python3 -c "import json; assert json.load(open('release-state.json'))['isDraft'], 'Published releases cannot be overwritten'"
-            gh release edit "$RELEASE_TAG" --notes-file release/CHANGELOG.md
-          else
-            gh release create "$RELEASE_TAG" --verify-tag --draft --title "Neutron ${RELEASE_TAG#v}" --notes-file release/CHANGELOG.md
+          set -euo pipefail
+          # shellcheck source=/dev/null
+          source ./release-guard.sh
+          validate_release_state
+          if [[ "$RELEASE_STATE" == published ]]; then
+            echo 'Release was published during this run; keeping it unchanged.'; exit 0
           fi
+          prerelease=()
+          if [[ "$RELEASE_TAG" == *-* ]]; then prerelease=(--prerelease); fi
+          if [[ "$RELEASE_STATE" == draft ]]; then
+            gh release edit "$RELEASE_TAG" --target "$GITHUB_SHA" --notes-file release/CHANGELOG.md "${prerelease[@]}"
+          else
+            verify_tag=()
+            if [[ "$GITHUB_REF_TYPE" == tag ]]; then verify_tag=(--verify-tag); fi
+            gh release create "$RELEASE_TAG" --draft --target "$GITHUB_SHA" "${verify_tag[@]}" "${prerelease[@]}" --title "Neutron ${RELEASE_TAG#v}" --notes-file release/CHANGELOG.md
+          fi
+          validate_release_state
+          if [[ "$RELEASE_STATE" == published ]]; then
+            echo 'Release was published during this run; keeping its assets unchanged.'; exit 0
+          fi
+          [[ "$RELEASE_STATE" == draft ]] || { echo 'Prepared draft disappeared before upload' >&2; exit 1; }
           gh release upload "$RELEASE_TAG" release/*-bundle.zip release/Neutron-*/*.jar release/Neutron-*/*.json release/CHANGELOG.md release/SHA256SUMS.txt release/build-info.json --clobber
