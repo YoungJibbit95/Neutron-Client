@@ -41,7 +41,7 @@ import java.util.Set;
 )
 public class ArrayListHUDModule extends Module {
 
-    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Glass", "Compact", "BasicV2", "Basic", "Rounded", "None"}, 0);
+    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Glass", "Compact", "BasicV2", "Basic", "Rounded", "None", "Modern", "Creative"}, 0);
     private final ComboValue font = new ComboValue("Font", this, new String[]{"DmSans", "Product-Sans", "Poppins", "Minecraft", "Inter", "SFPro", "KhmerOureang", "Follow global"}, 7);
     private final ComboValue fontMode = new ComboValue("Font Strength", this, new String[]{"Regular", "Medium", "Bold"}, 1);
     private final CheckBoxValue background = new CheckBoxValue("Background", this, true);
@@ -66,10 +66,16 @@ public class ArrayListHUDModule extends Module {
     private final SliderValue rowSpacing=new SliderValue("Row Spacing",this,8.0,0,20);
     private final CheckBoxValue rightAnchored=new CheckBoxValue("Right Anchored",this,false);
     public ArrayListHUDModule(){mode.setVisibility(m->getModeSetting("Effects Source").getValue().equals("Local")||mode.getValue().equals("None"));for(SliderValue v:new SliderValue[]{paddingTop,paddingBottom,paddingLeft,paddingRight,rowSpacing})v.setVisibility(m->customPadding.getValue());}
-    private boolean modern(){return ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());}
+    private boolean modern(){return ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())||"Modern".equals(mode.getValue())||"Creative".equals(mode.getValue());}
     private float pad(SliderValue value){
         if(customPadding.getValue())return value.getValue().floatValue();
         if(modern()){
+            if("Creative".equalsIgnoreCase(mode.getValue())){
+                if(value==paddingTop||value==paddingBottom)return 6;
+                if(value==paddingLeft)return 14;
+                if(value==paddingRight)return 10;
+                return 6;
+            }
             if(value==paddingTop||value==paddingBottom)return 4;
             if(value==paddingLeft)return 10;
             if(value==paddingRight)return 8;
@@ -122,6 +128,7 @@ public class ArrayListHUDModule extends Module {
         final Theme theme = currentTheme;
         final float phase = gradientOffset;
         final boolean modern=modern();
+        final boolean creative="Creative".equalsIgnoreCase(mode.getValue());
         final boolean filled=background.getValue(), blurred=filled&&blur.getValue(),
                 glowing=!modern&&glow.getValue();
         float[] tops = new float[rows.size()], bottoms = new float[rows.size()], rights = new float[rows.size()],lefts=new float[rows.size()];
@@ -148,7 +155,9 @@ public class ArrayListHUDModule extends Module {
         for(ArrayRow row:rows)row.clip=new ClipRect(row.clip.x+dx,row.clip.y+dy,row.clip.width,row.clip.height);
         final ArrayListSurface.Shape shape=initial.translated(dx,dy);frameShape=shape;
         Runnable labels=() -> {
-            Runnable glyphs=()->{for(ArrayRow row:rows){
+            Runnable glyphs=()->{
+            int idx=0;
+            for(ArrayRow row:rows){
                 if(modern&&filled){
                     // Per-row ink plate and 2 px accent, not a full-screen color veil.
                     UIUtils.drawRound(row.rectX+1,row.rectY+1,
@@ -161,7 +170,21 @@ public class ArrayListHUDModule extends Module {
                                     theme.getPrimaryGradientColor().getBlue(),
                                     Math.round(205*row.progress)));
                 }
+                if(creative&&filled){
+                    // Creative: alternating tinted plates with subtle pulse
+                    float pulse=1f+.06f*(float)Math.sin((idx*0.37f+phase)*Math.PI*2);
+                    UIUtils.drawRound(row.rectX+1,row.rectY+1,
+                            Math.max(1,row.rectW-2),Math.max(1,row.rectH-2),4,
+                            new java.awt.Color(30,32,46,Math.round(150*pulse*row.progress)));
+                    UIUtils.drawRound(row.rectX+1,row.rectY+2,2,
+                            Math.max(0,row.rectH-4),1,
+                            new java.awt.Color(theme.getPrimaryGradientColor().getRed(),
+                                    theme.getPrimaryGradientColor().getGreen(),
+                                    theme.getPrimaryGradientColor().getBlue(),
+                                    Math.round(180*pulse*row.progress)));
+                }
                 drawLabel(row,theme,phase);
+                idx++;
             }};
             // In 2.0 the ink is neutral/high-contrast; only the slim stripe
             // inherits the selected palette. Legacy retains its glyph shader.
