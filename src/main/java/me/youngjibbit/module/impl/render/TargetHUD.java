@@ -145,14 +145,14 @@ public class TargetHUD extends Module {
     }
     private static Theme targetTheme(String design){
         // Palette belongs to the selected ThemeCatalog, not to the layout.
-        return "Neutron 2.0".equals(design)?Theme.resolve(ThemeCatalog.global().current()):
+        return ("Neutron 2.0".equals(design)||"Modern".equals(design)||"Creative".equals(design))?Theme.resolve(ThemeCatalog.global().current()):
                 Theme.resolve(Theme.getDefaultTheme());
     }
 
     private Frame editorPreview(int sw,int sh){
         String design=effectiveDesign(mode.getValue(),
                 ThemeMode.APPROACH_TWO.equals(ThemeMode.selected()));
-        boolean modern="Neutron 2.0".equals(design);
+        boolean modern="Neutron 2.0".equals(design)||"Modern".equals(design)||"Creative".equals(design);
         boolean test="Test".equals(design),basic="Basic".equals(design),rise="Rise".equals(design);
         TTFFontRenderer nameFont=Pulsar.INSTANCE.fontManager.getFont((basic?"Product-Sans-Bold":"Poppins-Medium")+" 18");
         TTFFontRenderer infoFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 16");
@@ -214,7 +214,6 @@ public class TargetHUD extends Module {
                 infoFont.getWidth(hp))+textX+16):
                 Math.min(Math.max(1,sw-8),Math.max(152,Math.min(240,
                         Math.max(nameFont.getWidth(name),infoFont.getWidth(hp))+textX+9)));
-        if(creative)width=Math.min(width+40,Math.max(1,sw-8));
         float height=modern?modernHeight(sh):
                 Math.min(Math.max(1,sh-8),rise||basic?50:44);
         HudPlacement.Point point=position(sw,sh,width,height);float x=point.x,y=point.y;
@@ -268,11 +267,11 @@ public class TargetHUD extends Module {
         boolean modern="Neutron 2.0".equals(f.design)||"Modern".equals(f.design)||"Creative".equals(f.design);
         final boolean creative="Creative".equals(f.design);
         boolean white="Neutron White".equals(f.design)&&(UiEffects.scene()==null||UiEffects.scene().policy.style<0);
-        if(modern&&true){
+        if(modern){
             // Neutral dark ink plate and a quiet selected-palette hairline.
             UIUtils.drawRound(f.x+2,f.y+2,Math.max(1,f.width-4),
                     Math.max(1,f.height-4),Math.max(1,f.radius-2),
-                    creative?new Color(24,26,38,170):new Color(18,20,30,Math.round(205*alpha)));
+                    creative?new Color(24,26,38,Math.round(170*alpha)):new Color(18,20,30,Math.round(205*alpha)));
             UIUtils.drawRoundOutline(f.x+2,f.y+2,f.width-4,f.height-4,
                     Math.max(1,f.radius-2),.55f,new Color(0,0,0,1),
                     tint(f.theme.getPrimaryGradientColor(),.34f*alpha));
@@ -280,14 +279,14 @@ public class TargetHUD extends Module {
                     1.2f,.6f,tint(f.theme.getPrimaryGradientColor(),.62f*alpha),
                     tint(f.theme.getSecondaryGradientColor(),.48f*alpha));
         }
-        if(creative&&true){
+        if(creative){
             // Creative: layered accent plates behind content
             UIUtils.drawRound(f.x+2,f.y+2,Math.max(1,f.width-4),
                     Math.max(1,f.height-4),Math.max(0,f.radius-2),
-                    new Color(24,26,38,160));
+                    new Color(24,26,38,Math.round(160*alpha)));
             UIUtils.drawRound(f.x+4,f.y+4,Math.max(1,f.width-8),
                     Math.max(1,f.height-8),Math.max(0,f.radius-4),
-                    new Color(28,30,44,120));
+                    new Color(28,30,44,Math.round(120*alpha)));
         }
         if(white)UIUtils.drawRound(f.x+1,f.y+1,f.width-2,f.height-2,
                 Math.max(.5f,f.radius-1),new Color(244,245,248,Math.round(235*alpha)));

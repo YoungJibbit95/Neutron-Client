@@ -146,6 +146,17 @@ public class ConfigManager {
         }
     }
 
+    /** Rename the stored file itself; never serialize the currently running client. */
+    public boolean renameConfig(String sourceName, String targetName) {
+        if (applying) return fail("Cannot rename during config application", new IllegalStateException("Load is in progress."));
+        try {
+            ConfigRename.rename(namedPath(sourceName), namedPath(targetName));
+            collectConfigs();
+            lastError = "";
+            return true;
+        } catch (IOException | RuntimeException e) { return fail("Cannot rename config", e); }
+    }
+
     public boolean delete(String name) {
         try {
             boolean removed = Files.deleteIfExists(namedPath(name));

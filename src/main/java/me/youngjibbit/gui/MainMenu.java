@@ -86,7 +86,7 @@ public class MainMenu extends GuiScreen {
             // Dynamic expressive accent above the action cards.
             float pulse=UiEffects.time()*1.2f;
             UIUtils.drawDecorationRound(panelX+14,panelY+header+6,Math.max(1,panelWidth-28),1,.5f,
-                    NeutronVisualTokens.accent(theme,(int)(120+80*Math.abs((float)Math.sin(pulse*.5f))));
+                    NeutronVisualTokens.accent(theme,(int)(120+80*Math.abs((float)Math.sin(pulse*.5f)))));
         }
         // The base contour never moves. Only its inset and label lift/scale inside it.
         for(int i=0;i<9;i++){
@@ -97,10 +97,10 @@ public class MainMenu extends GuiScreen {
             boolean rowHover=r.contains(paintMouseX,paintMouseY);
             if(two()){
                 UIUtils.drawRound(r.x,r.y,r.width,r.height,two()?NeutronVisualTokens.RADIUS_CONTROL:4,
-                        two()?(creative()?NeutronVisualTokens.alpha(NeutronVisualTokens.CARD.getRGB(),245):NeutronVisualTokens.CARD));
+                        creative()?NeutronVisualTokens.alpha(NeutronVisualTokens.CARD.getRGB(),245):NeutronVisualTokens.CARD);
                 if(rowHover){
                     UIUtils.drawRound(r.x,r.y,r.width,r.height,two()?NeutronVisualTokens.RADIUS_CONTROL:4,
-                            two()?(creative()?NeutronVisualTokens.alpha(NeutronVisualTokens.CARD_HOVER.getRGB(),240):NeutronVisualTokens.CARD_HOVER));
+                            creative()?NeutronVisualTokens.alpha(NeutronVisualTokens.CARD_HOVER.getRGB(),240):NeutronVisualTokens.CARD_HOVER);
                 }
                 if(active){
                     UIUtils.drawRound(r.x+4,r.y+4,r.width-8,r.height-8,two()?NeutronVisualTokens.RADIUS_CONTROL:2,
@@ -126,7 +126,7 @@ public class MainMenu extends GuiScreen {
             }
             drawLabel(i<5||i==8?button:small,text,r,lift,scale,Theme.interpolateRGB(ink,theme.getPrimaryGradientRGB(),amount*.32f));
         }
-        if(width>480){String hint="Tab to navigate Â· Enter to select";small.drawString(hint,12,height-18,two()?NeutronVisualTokens.FAINT:new Color(180,185,199).getRGB());}
+        if(width>480){String hint="Tab to navigate \u00b7 Enter to select";small.drawString(hint,12,height-18,two()?NeutronVisualTokens.FAINT:new Color(180,185,199).getRGB());}
     }
     private static void drawLabel(TTFFontRenderer font,String text,ClipRect r,float lift,float scale,int ink){
         float w=font.getWidth(text),h=font.getHeight(text);

@@ -106,8 +106,8 @@ public class ClientSettings extends Module {
         // Flame / Neon / Lines options only visible when Gradient Method matches
         for(Value<?> v:Arrays.asList(flameSpeed,flameHeight,neonCore,neonGlow,lineSegments,lineTrail))
             v.setVisibility(m->{
-                String m=gradientMethod.getValue();
-                return m.equals("Flame")||m.equals("Neon")||m.equals("Lines");
+                String method=gradientMethod.getValue();
+                return method.equals("Flame")||method.equals("Neon")||method.equals("Lines");
             });
     }
     @Override public void beginConfigUpdate(){

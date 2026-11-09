@@ -30,8 +30,6 @@ public final class Keystrokes extends Module {
     private final HudSpring[] creativePresses=new HudSpring[7];
     private final HudSpring[] hoverSprings=new HudSpring[7];
     private Object lastWorld;
-    private static final Color MODERN_PLATE=new Color(20,22,32,205);
-    private static final Color MODERN_CELL=new Color(34,36,49,230);
     {for(int i=0;i<modernPresses.length;i++)modernPresses[i]=new HudSpring();}
     {for(int i=0;i<creativePresses.length;i++)creativePresses[i]=new HudSpring();}
     {for(int i=0;i<hoverSprings.length;i++)hoverSprings[i]=new HudSpring();}
@@ -63,13 +61,13 @@ public final class Keystrokes extends Module {
         final boolean themeModern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
         final boolean modern=modernDesign||(themeModern&&!creativeDesign);
         final boolean creative=creativeDesign;
-        Theme theme=modern?Theme.resolve(ThemeCatalog.global().current()):Theme.getDefaultTheme();
+        Theme theme=(modern||creative)?Theme.resolve(ThemeCatalog.global().current()):Theme.getDefaultTheme();
         TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Medium 18");
         ClientSettings motion=ClientSettings.current();
         final boolean animated=motion==null||motion.animations.getValue();
         final boolean reduced=motion!=null&&motion.reducedMotion.getValue();
         final String intensity=motion==null?"Balanced":motion.motionIntensity.getValue();
-        // One existing surface for the whole modern group; no individual FBO per key.
+        // One shared scene, individual keys, and transparent space between them.
         Runnable controls=()->{
             for(int i=0;i<(mouse.getValue()?7:5);i++){
                 boolean isDown=keys[i].isKeyDown();
@@ -86,11 +84,8 @@ public final class Keystrokes extends Module {
                     presses[i]=Math.max(0,Math.min(1,modernPresses[i].step(
                             target,dt,animated,reduced,intensity)));
                 }else if(creative){
-                    // Elastic press with overshoot: target exceeds 1 when pressed,
-                    // spring settles back to resting scale on release.
-                    float pressTarget=isDown?1.25f:1.0f;
-                    presses[i]=Math.max(0,Math.min(1.5f,creativePresses[i].step(
-                            pressTarget,dt,animated,reduced,intensity)));
+                    presses[i]=Math.max(0,Math.min(1,creativePresses[i].step(
+                            target,dt,animated,reduced,intensity)));
                 }else{
                     presses[i]+=(target-presses[i])*UiEffects.response(dt,24);
                 }
@@ -114,8 +109,7 @@ public final class Keystrokes extends Module {
                             0xfff3edf6);
                 }else if(creative){
                     // Creative: dynamische Taste mit elastischem Press-Effekt (Overshoot).
-                    float scale=presses[index];
-                    float cs=Math.max(.55f,Math.min(1.45f,scale));
+                    float cs=creativeScale(presses[index]);
                     float cx=px+(cw-cw*cs)/2,cy=py+(ch-ch*cs)/2;
                     float cw2=cw*cs,ch2=ch*cs;
                     UIUtils.drawRound(cx+1,cy+1,Math.max(0,cw2-2),Math.max(0,ch2-2),
@@ -145,26 +139,10 @@ public final class Keystrokes extends Module {
                 }
             }
         };
-        if(modern){
-            surface.panel(left,top,w,h,9,theme,true,
-                    false,false,3,.83f,.12f,()->{
-                        UIUtils.drawRound(left+1,top+1,w-2,h-2,8,MODERN_PLATE);
-                        controls.run();
-                    });
-        }else if(creative){
-            surface.panel(left,top,w,h,10,theme,true,
-                    true,false,4,.78f,.16f,()->{
-                        UIUtils.drawRound(left+1,top+1,w-2,h-2,8,new Color(24,26,38,168));
-                        UIUtils.drawRoundOutline(left+1,top+1,w-2,h-2,8,.6f,new Color(0,0,0,0),
-                                new Color(theme.getPrimaryGradientColor().getRed(),
-                                        theme.getPrimaryGradientColor().getGreen(),
-                                        theme.getPrimaryGradientColor().getBlue(),40));
-                        controls.run();
-                    });
-        }else{
-            surface.withScene(theme,controls);
-        }
+        surface.withScene(theme,controls);
     });
+    /** Press motion stays inside each original key cell, including spring overshoot. */
+    static float creativeScale(float press){return 1f-.08f*Math.max(0f,Math.min(1f,press));}
     static String keyLabel(int key){if(key==-100)return "LMB";if(key==-99)return "RMB";String label=net.minecraft.client.settings.GameSettings.getKeyDisplayString(key);return label==null?"?":label;}
     @Override public void onDisable(){
         surface.close();HudDrag.cancel(this);previous=0;lastWorld=null;

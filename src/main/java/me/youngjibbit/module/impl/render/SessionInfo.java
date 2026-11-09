@@ -97,7 +97,7 @@ public class SessionInfo extends Module {
     }
     Frame layout(SessionStatistics.Snapshot snapshot,String username,int screenWidth,int screenHeight) {
         String design=modernFor(mode.getValue(),ThemeMode.APPROACH_TWO.equals(ThemeMode.selected()));
-        boolean modern="Neutron 2.0".equals(design);
+        boolean modern="Neutron 2.0".equals(design)||"Modern".equals(design)||"Creative".equals(design);
         TTFFontRenderer body=font("Product-Sans-Bold 20");
         TTFFontRenderer title=font("Poppins-Bold 23");
         String time="Time: "+snapshot.time(), counts="Kills: "+snapshot.kills+"   Deaths: "+snapshot.deaths;
@@ -129,7 +129,7 @@ public class SessionInfo extends Module {
                         body,16,52,false);
                 frame.add(fit((snapshot.active?"Time: ":"Ended: ")+snapshot.time(),body,leftWidth),
                         body,16,74,false);
-                frame.add("Live",font("Product-Sans-Bold 14"),width-44,6,false);
+                frame.add(snapshot.active?"Live":"Ended",font("Product-Sans-Bold 14"),width-44,6,false);
                 frame.ring=true;
             } else {
                 // Modern: calm two-column Stats card

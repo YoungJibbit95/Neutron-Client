@@ -66,7 +66,7 @@ public class ArrayListHUDModule extends Module {
     private final SliderValue rowSpacing=new SliderValue("Row Spacing",this,8.0,0,20);
     private final CheckBoxValue rightAnchored=new CheckBoxValue("Right Anchored",this,false);
     public ArrayListHUDModule(){mode.setVisibility(m->getModeSetting("Effects Source").getValue().equals("Local")||mode.getValue().equals("None"));for(SliderValue v:new SliderValue[]{paddingTop,paddingBottom,paddingLeft,paddingRight,rowSpacing})v.setVisibility(m->customPadding.getValue());}
-    private boolean modern(){return ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())||"Modern".equals(mode.getValue())||"Creative".equals(mode.getValue());}
+    private boolean modern(){return "Modern".equals(mode.getValue())||"Creative".equals(mode.getValue());}
     private float pad(SliderValue value){
         if(customPadding.getValue())return value.getValue().floatValue();
         if(modern()){

@@ -123,10 +123,10 @@ public class ClickLibraryScreen extends GuiScreen {
         return selected.toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)) ? selected : "";
     }
     private boolean enabled(int id) {
-        if (id == 6 || id == 7 || id == 8 || id == 3 || id == 4) return true;
+        if (id == 6 || id == 7 || id == 8 || id == 3) return true;
         if (themes) {
             Theme theme = catalog.find(selectedTheme);
-            return theme != null && (id == 0 || !catalog.isReadOnly());
+            return theme != null && (id == 0 || (!catalog.isReadOnly() && (id != 4 || theme.isCustom())));
         }
         return configs.available() && (id == 0 || !visibleConfigSelection().isEmpty());
     }
@@ -337,7 +337,11 @@ public class ClickLibraryScreen extends GuiScreen {
         if(id==8){open(parent);return;}
         if(id==6||id==7){themes=id==7;query="";scroll=targetScroll=0;configs.cancel();focus=-1;return;}
         if(themes) {
-            if(id==4){renaming=true;renameBuffer=selectedTheme;focus=-4;message="";layout();return;}
+            if(id==4){
+                // The editor changes the display name and preserves the stable custom ID.
+                open(new ThemeEditorScreen(this,catalog,ThemeRuntime::select).editTheme(catalog.find(selectedTheme),false));
+                return;
+            }
             Theme theme=catalog.find(selectedTheme);
             if(id==0){ThemeRuntime.select(selectedTheme);message="Using "+theme.getDisplayName();}
             else if(id==1||id==2)open(new ThemeEditorScreen(this,catalog,ThemeRuntime::select).editTheme(theme,id==2||!theme.isCustom()));
@@ -399,7 +403,7 @@ public class ClickLibraryScreen extends GuiScreen {
         }
         if(key==Keyboard.KEY_ESCAPE){if(renaming){renaming=false;renameBuffer="";focus=-1;return;}open(parent);return;}
         if(key==Keyboard.KEY_TAB) {
-            int[] order=themes?new int[]{6,7,-1,-2,0,1,2,3,-4,8}:new int[]{6,7,-1,3,-2,1,2,-3,-4,0,8};
+            int[] order=themes?new int[]{6,7,-1,-2,0,1,2,3,4,8}:new int[]{6,7,-1,3,-2,1,2,-3,4,0,8};
             int current=0;for(int i=0;i<order.length;i++)if(order[i]==focus)current=i;
             focus=order[(current+(shiftDown()?order.length-1:1))%order.length];replace=false;
             if(focus==-2)revealItem(items().indexOf(selected()));
@@ -423,7 +427,7 @@ public class ClickLibraryScreen extends GuiScreen {
             if(focus==-1){query=value;scroll=targetScroll=0;}else name=value;
             return;
         }
-        if(focus==-4) {
+        if(focus==-4 && renaming && !themes) {
             if(key==Keyboard.KEY_ESCAPE){renaming=false;renameBuffer="";focus=-1;return;}
             if(enter){renaming=false;if(configs.rename(renameBuffer)){message="Renamed "+renameBuffer;}renameBuffer="";focus=-1;layout();return;}
             if(key==Keyboard.KEY_BACK){renameBuffer=renameBuffer.substring(0,Math.max(0,renameBuffer.length()-1));return;}
