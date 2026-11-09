@@ -177,7 +177,7 @@ public class SettingsMenu extends GuiScreen {
                 heading.drawString("Client settings",x+16,y+11,
                         two()?NeutronVisualTokens.INK:0xfff1f4fa);
                 text(fit("Appearance, motion and type — changes apply live",w-32),
-                        x+16,y+33,two()?(creative?NeutronVisualTokens.accent(theme,160):NeutronVisualTokens.MUTED):0xffa6b2c5);
+                        x+16,y+33,two()?(creative?NeutronVisualTokens.accent(theme,160).getRGB():NeutronVisualTokens.MUTED):0xffa6b2c5);
                 // The global screen exit animation stays owned by GuiTransitions.
                 // The entry accent uses the same spring policy; text/input remain ready.
                 if(me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(me.youngjibbit.theme.ThemeMode.selected())
@@ -218,7 +218,7 @@ public class SettingsMenu extends GuiScreen {
                         w-inset()-78),x+inset()+33,y+59,
                         two()?NeutronVisualTokens.INK:0xfff1f4fa);
                 text(fit(description(),view().width),view().x,y+80,
-                        two()?(creative?NeutronVisualTokens.accent(theme,150):NeutronVisualTokens.MUTED):0xffa7b4c7);
+                        two()?(creative?NeutronVisualTokens.accent(theme,150).getRGB():NeutronVisualTokens.MUTED):0xffa7b4c7);
                 try(GuiClip clip=GuiClip.push(view())){
                     List<Value<?>> values=rows();
                     for(int i=0;i<values.size();i++)if(!view().intersect(rowBounds(i)).isEmpty())drawValue(i,values.get(i),theme,dt,mx,my);
@@ -538,3 +538,4 @@ public class SettingsMenu extends GuiScreen {
     @Override public void onGuiClosed(){resetMotion();editing=drag=-1;editValue=dragValue=null;popupValue=null;valueMotion.clear();categoryMotion.clear();surface.close();preview.close();if(Keyboard.isCreated())Keyboard.enableRepeatEvents(previousRepeat);}
     @Override public boolean doesGuiPauseGame(){return false;}
 }
+

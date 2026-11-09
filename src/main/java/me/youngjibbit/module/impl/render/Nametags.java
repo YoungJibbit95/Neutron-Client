@@ -78,6 +78,7 @@ public class Nametags extends Module {
         try(me.youngjibbit.utils.render.RenderState ignored = new me.youngjibbit.utils.render.RenderState()){
             for(ShaderUtil s:new ShaderUtil[]{nametagFlameShader,nametagNeonShader,nametagLinesShader})if(s!=null)s.close();
         }
+        nametagFlameShader=nametagNeonShader=nametagLinesShader=null;
         surfaces.close();super.onDisable();
     }
 
@@ -136,7 +137,7 @@ public class Nametags extends Module {
                 UiEffects.drawGlow(x - 8, y - 17, length + 2, 11, 3, tagColor, 0.65f, 2, 1);
                 String nm = mode.getValue();
                 if (nm.equals("Flame") || nm.equals("Neon") || nm.equals("Lines")) {
-                    renderShaderNametag(x - 7, y - 16, length + 2, 11, currentTheme);
+                    renderShaderNametag(x - 7, y - 16, length + 2, 11, currentTheme, tagColor);
                 } else {
                     UiEffects.drawPanelFill(x-7,y-16,length+2,11,3,new Color(0,0,0,92),5);
                     UIUtils.drawRoundOutline(x - 7, y - 16, length + 2, 11, 3, 0.45f, new Color(0, 0, 0, 1), UiEffects.color(tagColor, 0.62f));
@@ -286,86 +287,23 @@ public class Nametags extends Module {
 
     private ShaderUtil getNametagShader(String mode) {
         if (mode.equals("Flame")) {
-            if (nametagFlameShader == null) nametagFlameShader = new ShaderUtil("pulsar/esp/flame.frag");
+            if (nametagFlameShader == null) nametagFlameShader = new ShaderUtil("pulsar/shader/esp/flame.frag");
             return nametagFlameShader;
         } else if (mode.equals("Neon")) {
-            if (nametagNeonShader == null) nametagNeonShader = new ShaderUtil("pulsar/esp/neon.frag");
+            if (nametagNeonShader == null) nametagNeonShader = new ShaderUtil("pulsar/shader/esp/neon.frag");
             return nametagNeonShader;
         } else if (mode.equals("Lines")) {
-            if (nametagLinesShader == null) nametagLinesShader = new ShaderUtil("pulsar/esp/lines.frag");
+            if (nametagLinesShader == null) nametagLinesShader = new ShaderUtil("pulsar/shader/esp/lines.frag");
             return nametagLinesShader;
         }
         return null;
     }
 
-    private void renderShaderNametag(float x, float y, float w, float h, Theme theme) {
-        String mode = this.mode.getValue();
-        ShaderUtil shader = getNametagShader(mode);
-        if (shader == null) return;
-
-        int fw = Math.max(1, (int) Math.ceil(w));
-        int fh = Math.max(1, (int) Math.ceil(h));
-        Framebuffer fb = new Framebuffer(fw, fh, true);
-
-        GL11.glMatrixMode(GL11.GL_PROJECTION);
-        GL11.glPushMatrix();
-        GL11.glMatrixMode(GL11.GL_MODELVIEW);
-        GL11.glPushMatrix();
-
-        fb.bindFramebuffer(false);
-        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
-        GL11.glMatrixMode(GL11.GL_PROJECTION);
-        GL11.glLoadIdentity();
-        GL11.glOrtho(0, fw, fh, 0, -1, 1);
-        GL11.glMatrixMode(GL11.GL_MODELVIEW);
-        GL11.glLoadIdentity();
-
-        GlStateManager.disableTexture2D();
-        GlStateManager.enableBlend();
-        GlStateManager.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        GlStateManager.color(1, 1, 1, 1);
-        float lw = 1.5f;
-        GL11.glBegin(GL11.GL_QUADS);
-        GL11.glVertex2f(0, 0);
-        GL11.glVertex2f(fw, 0);
-        GL11.glVertex2f(fw, lw);
-        GL11.glVertex2f(0, lw);
-        GL11.glVertex2f(0, fh - lw);
-        GL11.glVertex2f(fw, fh - lw);
-        GL11.glVertex2f(fw, fh);
-        GL11.glVertex2f(0, fh);
-        GL11.glVertex2f(0, 0);
-        GL11.glVertex2f(lw, 0);
-        GL11.glVertex2f(lw, fh);
-        GL11.glVertex2f(0, fh);
-        GL11.glVertex2f(fw - lw, 0);
-        GL11.glVertex2f(fw, 0);
-        GL11.glVertex2f(fw, fh);
-        GL11.glVertex2f(fw - lw, fh);
-        GL11.glEnd();
-        GlStateManager.enableTexture2D();
-
-        GL11.glMatrixMode(GL11.GL_PROJECTION);
-        GL11.glPopMatrix();
-        GL11.glMatrixMode(GL11.GL_MODELVIEW);
-        GL11.glPopMatrix();
-
-        mc.getFramebuffer().bindFramebuffer(false);
-
-        shader.init();
-        UiEffects.Gradient g = UiEffects.gradient(theme, UiEffects.Channel.BORDER);
-        UiEffects.upload(shader, theme, g);
-        shader.setUniformf("phase", g.phase);
-        shader.setUniformf("speed", g.speed);
-        shader.setUniformf("param2", g.param2);
-        shader.setUniformf("radius", 2.0f);
-        shader.setUniformf("texelSize", 1.0f / fw, 1.0f / fh);
-        shader.setUniformi("textureIn", 0);
-        RenderUtil.bindTexture(fb.framebufferTexture);
-        ShaderUtil.drawQuads(x, y, w, h);
-        shader.unload();
-
-        fb.deleteFramebuffer();
+    private void renderShaderNametag(float x, float y, float w, float h, Theme theme, int tagColor) {
+        ShaderUtil shader=getNametagShader(mode.getValue());
+        if(shader==null)return;
+        UiEffects.drawPanelFill(x,y,w,h,3,new Color(0,0,0,92),5);
+        me.youngjibbit.utils.render.EspEffectStyle.drawRectangle(shader,theme,mode.getValue(),x,y,w,h,tagColor,tagColor);
     }
 
     public boolean isInViewFrustrum(Entity entity) {
@@ -379,3 +317,4 @@ public class Nametags extends Module {
         return frustrum.isBoundingBoxInFrustum(bb);
     }
 }
+

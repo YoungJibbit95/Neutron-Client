@@ -108,9 +108,9 @@ public class GlowESP extends Module
             if(kawaseGlowShader2==null)kawaseGlowShader2=new ShaderUtil("kawaseUpGlow");
         }else if(glowShader==null)glowShader=new ShaderUtil("glow");
         String gm=glowMode.getValue();
-        if(gm.equals("Flame")&&glowFlameShader==null)glowFlameShader=new ShaderUtil("pulsar/esp/flame.frag");
-        else if(gm.equals("Neon")&&glowNeonShader==null)glowNeonShader=new ShaderUtil("pulsar/esp/neon.frag");
-        else if(gm.equals("Lines")&&glowLinesShader==null)glowLinesShader=new ShaderUtil("pulsar/esp/lines.frag");
+        if(gm.equals("Flame")&&glowFlameShader==null)glowFlameShader=new ShaderUtil("pulsar/shader/esp/flame.frag");
+        else if(gm.equals("Neon")&&glowNeonShader==null)glowNeonShader=new ShaderUtil("pulsar/shader/esp/neon.frag");
+        else if(gm.equals("Lines")&&glowLinesShader==null)glowLinesShader=new ShaderUtil("pulsar/shader/esp/lines.frag");
     }
     private float fade(){return me.youngjibbit.utils.render.UiEffects.motion()&&fadeIn!=null?fadeIn.getOutput().floatValue():1;}
 
@@ -245,28 +245,19 @@ public class GlowESP extends Module
                 ShaderUtil shader = getGlowShader(gm);
                 if (shader != null) {
                     mc.getFramebuffer().bindFramebuffer(false);
-                    GL11.glClearColor(0, 0, 0, 0);
-                    framebuffer.framebufferClear();
-                    framebuffer.bindFramebuffer(false);
                     shader.init();
-                    UiEffects.upload(shader, currentTheme);
-                    UiEffects.Gradient g = UiEffects.gradient(currentTheme, UiEffects.Channel.GLOW);
-                    shader.setUniformf("phase", g.phase);
-                    shader.setUniformf("speed", g.speed);
-                    shader.setUniformf("param2", g.param2);
-                    shader.setUniformf("radius", radius.getValue().floatValue());
-                    shader.setUniformf("texelSize", 1.0f / mc.displayWidth, 1.0f / mc.displayHeight);
-                    shader.setUniformi("textureIn", 0);
-                    RenderUtil.bindTexture(outlineFrameBuffer.framebufferTexture);
-                    GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-                    ShaderUtil.drawQuads();
-                    shader.unload();
-
+                    try {
+                        me.youngjibbit.utils.render.EspEffectStyle.upload(shader,currentTheme,gm,
+                                "Sync".equals(colorMode.getValue()),exposure.getValue().floatValue()*fade());
+                        shader.setUniformi("rectangleMask",0);
+                        shader.setUniformi("textureIn",0);
+                        GL13.glActiveTexture(GL13.GL_TEXTURE0);
+                        RenderUtil.bindTexture(outlineFrameBuffer.framebufferTexture);
+                        GL11.glBlendFunc(GL11.GL_SRC_ALPHA,GL11.GL_ONE_MINUS_SRC_ALPHA);
+                        ShaderUtil.drawQuads();
+                    } finally { shader.unload(); }
+                    framebuffer.framebufferClear();
                     mc.getFramebuffer().bindFramebuffer(false);
-                    GL11.glClearColor(0, 0, 0, 0);
-                    RenderUtil.bindTexture(framebuffer.framebufferTexture);
-                    ShaderUtil.drawQuads();
-                    RenderUtil.setAlphaLimit(0);
                     GlStateManager.bindTexture(0);
                 }
             } else if (kawaseGlow.getValue()) {
@@ -433,13 +424,13 @@ public class GlowESP extends Module
 
     private ShaderUtil getGlowShader(String mode) {
         if (mode.equals("Flame")) {
-            if (glowFlameShader == null) glowFlameShader = new ShaderUtil("pulsar/esp/flame.frag");
+            if (glowFlameShader == null) glowFlameShader = new ShaderUtil("pulsar/shader/esp/flame.frag");
             return glowFlameShader;
         } else if (mode.equals("Neon")) {
-            if (glowNeonShader == null) glowNeonShader = new ShaderUtil("pulsar/esp/neon.frag");
+            if (glowNeonShader == null) glowNeonShader = new ShaderUtil("pulsar/shader/esp/neon.frag");
             return glowNeonShader;
         } else if (mode.equals("Lines")) {
-            if (glowLinesShader == null) glowLinesShader = new ShaderUtil("pulsar/esp/lines.frag");
+            if (glowLinesShader == null) glowLinesShader = new ShaderUtil("pulsar/shader/esp/lines.frag");
             return glowLinesShader;
         }
         return null;
@@ -530,3 +521,4 @@ public class GlowESP extends Module
     }
 
 }
+

@@ -92,12 +92,12 @@ public class ClickLibraryScreen extends GuiScreen {
                 return new ClipRect(detailsX(), y + (id == 0 ? 236 : id == 1 ? 112 : 144), detailsWidth(), 26);
             }
             if (id == 0) return new ClipRect(x + w - 84, y + h - 44, 72, 22);
-            if (id == 4) return new ClipRect(x + 12, y + h - 44, 72, 22);
-            float half = (w - 30) / 2;
-            return new ClipRect(x + 12 + (id - 1) * (half + 6), y + h - 86, half, 22);
+            float third = Math.max(1,(w - 36) / 3);
+            int column = id == 4 ? 2 : id - 1;
+            return new ClipRect(x + 12 + column * (third + 6), y + h - 86, third, 22);
         }
         int tb = themes ? 5 : 4;
-        float bw = (w - 42) / tb;
+        float bw = Math.max(1,(w - 24 - 6 * (tb - 1)) / tb);
         return new ClipRect(x + 12 + id * (bw + 6), y + h - 50, bw, 24);
     }
     private int columns() { return themes ? Math.max(1, Math.min(3, (int)((w - 18) / 150))) : 1; }
@@ -179,10 +179,10 @@ public class ClickLibraryScreen extends GuiScreen {
                     brand.drawString(two()?"Library":"Neutron",x+(two()?21:12),y+12,
                             two()?NeutronVisualTokens.INK:ink);
                     TTFFontRenderer sub=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 16");
-                    sub.drawString(two()?(themes?"Theme palettes":"Saved configurations"):
-                            themes?"Configs & themes":"Local configs",
-                            x+(two()?115:107),y+17,w-170,
-                            two()?(creative?NeutronVisualTokens.accent(theme,180):NeutronVisualTokens.MUTED):ink);
+                    sub.drawString(ClickControlStyle.fit(sub,two()?(themes?"Theme palettes":"Saved configurations"):
+                            themes?"Configs & themes":"Local configs",w-170),
+                            x+(two()?115:107),y+17,
+                            two()?(creative?NeutronVisualTokens.accent(theme,180).getRGB():NeutronVisualTokens.MUTED):ink);
                     if (!themes) configSections(ink);
                     for (int id : new int[]{0,1,2,3,4,6,7,8}) {
                         ClipRect r = actionBounds(id); boolean active = enabled(id);

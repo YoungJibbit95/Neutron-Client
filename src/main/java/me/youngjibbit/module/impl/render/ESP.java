@@ -97,6 +97,7 @@ public class ESP extends Module
         try(me.youngjibbit.utils.render.RenderState ignored = new me.youngjibbit.utils.render.RenderState()){
             for(ShaderUtil s:new ShaderUtil[]{flameShader,neonShader,linesShader})if(s!=null)s.close();
         }
+        flameShader=neonShader=linesShader=null;
         surfaces.close();super.onDisable();
     }
 
@@ -301,94 +302,25 @@ public class ESP extends Module
 
     private ShaderUtil getEspShader(String mode) {
         if (mode.equals("Flame")) {
-            if (flameShader == null) flameShader = new ShaderUtil("pulsar/esp/flame.frag");
+            if (flameShader == null) flameShader = new ShaderUtil("pulsar/shader/esp/flame.frag");
             return flameShader;
         } else if (mode.equals("Neon")) {
-            if (neonShader == null) neonShader = new ShaderUtil("pulsar/esp/neon.frag");
+            if (neonShader == null) neonShader = new ShaderUtil("pulsar/shader/esp/neon.frag");
             return neonShader;
         } else if (mode.equals("Lines")) {
-            if (linesShader == null) linesShader = new ShaderUtil("pulsar/esp/lines.frag");
+            if (linesShader == null) linesShader = new ShaderUtil("pulsar/shader/esp/lines.frag");
             return linesShader;
         }
         return null;
     }
 
     private void renderShaderBox(EntityLivingBase ent, float x, float y, float w, float h, Theme theme) {
-        String mode = this.mode.getValue();
-        ShaderUtil shader = getEspShader(mode);
-        if (shader == null) return;
-
-        int fw = Math.max(1, (int) Math.ceil(w));
-        int fh = Math.max(1, (int) Math.ceil(h));
-        Framebuffer fb = new Framebuffer(fw, fh, true);
-
-        // Save current matrices
-        GL11.glMatrixMode(GL11.GL_PROJECTION);
-        GL11.glPushMatrix();
-        GL11.glMatrixMode(GL11.GL_MODELVIEW);
-        GL11.glPushMatrix();
-
-        // Draw box outline into the temporary framebuffer (pixel space, Y-down)
-        fb.bindFramebuffer(false);
-        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
-        GL11.glMatrixMode(GL11.GL_PROJECTION);
-        GL11.glLoadIdentity();
-        GL11.glOrtho(0, fw, fh, 0, -1, 1);
-        GL11.glMatrixMode(GL11.GL_MODELVIEW);
-        GL11.glLoadIdentity();
-
-        GlStateManager.disableTexture2D();
-        GlStateManager.enableBlend();
-        GlStateManager.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
-        GlStateManager.color(1, 1, 1, 1);
-        float lw = 1.5f;
-        GL11.glBegin(GL11.GL_QUADS);
-        // Top edge
-        GL11.glVertex2f(0, 0);
-        GL11.glVertex2f(fw, 0);
-        GL11.glVertex2f(fw, lw);
-        GL11.glVertex2f(0, lw);
-        // Bottom edge
-        GL11.glVertex2f(0, fh - lw);
-        GL11.glVertex2f(fw, fh - lw);
-        GL11.glVertex2f(fw, fh);
-        GL11.glVertex2f(0, fh);
-        // Left edge
-        GL11.glVertex2f(0, 0);
-        GL11.glVertex2f(lw, 0);
-        GL11.glVertex2f(lw, fh);
-        GL11.glVertex2f(0, fh);
-        // Right edge
-        GL11.glVertex2f(fw - lw, 0);
-        GL11.glVertex2f(fw, 0);
-        GL11.glVertex2f(fw, fh);
-        GL11.glVertex2f(fw - lw, fh);
-        GL11.glEnd();
-        GlStateManager.enableTexture2D();
-
-        // Restore matrices for main framebuffer
-        GL11.glMatrixMode(GL11.GL_PROJECTION);
-        GL11.glPopMatrix();
-        GL11.glMatrixMode(GL11.GL_MODELVIEW);
-        GL11.glPopMatrix();
-
-        mc.getFramebuffer().bindFramebuffer(false);
-
-        // Apply the shader effect
-        shader.init();
-        UiEffects.Gradient g = UiEffects.gradient(theme, UiEffects.Channel.BORDER);
-        UiEffects.upload(shader, theme, g);
-        shader.setUniformf("phase", g.phase);
-        shader.setUniformf("speed", g.speed);
-        shader.setUniformf("param2", g.param2);
-        shader.setUniformf("radius", 2.0f);
-        shader.setUniformf("texelSize", 1.0f / fw, 1.0f / fh);
-        shader.setUniformi("textureIn", 0);
-        RenderUtil.bindTexture(fb.framebufferTexture);
-        ShaderUtil.drawQuads(x, y, w, h);
-        shader.unload();
-
-        fb.deleteFramebuffer();
+        ShaderUtil shader=getEspShader(mode.getValue());
+        if(shader==null)return;
+        boolean teammate=ent instanceof EntityPlayer && mc.thePlayer.isOnSameTeam((EntityPlayer)ent);
+        int primary=teammate?Color.green.getRGB():theme.getPrimaryGradientRGB();
+        int secondary=teammate?primary:theme.getSecondaryGradientRGB();
+        me.youngjibbit.utils.render.EspEffectStyle.drawRectangle(shader,theme,mode.getValue(),x,y,w,h,primary,secondary);
     }
 
     private static int interpolateTwoColorsSmoothly(int color1, int color2, long currentTime, float cycleDuration) {
@@ -475,3 +407,4 @@ public class ESP extends Module
         return this.healthBar;
     }
 }
+

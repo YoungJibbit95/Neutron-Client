@@ -108,4 +108,23 @@ public class ConfigLibraryTest {
         assertFalse(Files.exists(folder.resolve("New.json")));
     }
 
+    @Test public void newlyDiscoveredSavedFileNeedsExplicitOverwriteConfirmation() throws Exception {
+        byte[] other="independent saved bytes".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        Files.write(folder.resolve("External.json"),other);
+        assertFalse(library.save("external"));assertEquals(ConfigLibrary.Pending.OVERWRITE,library.pending());
+        assertArrayEquals(other,Files.readAllBytes(folder.resolve("External.json")));
+        library.cancel();assertArrayEquals(other,Files.readAllBytes(folder.resolve("External.json")));
+    }
+    @Test public void concurrentNewFileAtFinalInstallIsNeverReplaced() throws Exception {
+        ConfigManager manager=new ConfigManager(folder,Collections.singletonList(sample),()->false,message->{}) {
+            @Override protected void installNewFile(Path temporary,Path target) throws java.io.IOException {
+                Files.write(target,new byte[]{11,22});super.installNewFile(temporary,target);
+            }
+        };
+        ConfigLibrary racing=new ConfigLibrary(manager);
+        assertFalse(racing.save("Concurrent"));assertFalse(racing.status().isEmpty());
+        assertArrayEquals(new byte[]{11,22},Files.readAllBytes(folder.resolve("Concurrent.json")));
+        try(java.util.stream.Stream<Path> files=Files.list(folder)) { assertEquals(1L,files.count()); }
+    }
+
 }

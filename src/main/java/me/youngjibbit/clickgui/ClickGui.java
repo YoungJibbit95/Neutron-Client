@@ -211,7 +211,7 @@ public class ClickGui extends GuiScreen {
                 brand.drawString("Neutron",x+56,y+17,NeutronVisualTokens.INK);
                 TTFFontRenderer variant=Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Regular 16");
                 variant.drawString(creative?"CREATIVE":"2.0",x+56,y+36,
-                        creative?NeutronVisualTokens.accent(theme,200):NeutronVisualTokens.MUTED);
+                        creative?NeutronVisualTokens.accent(theme,200).getRGB():NeutronVisualTokens.MUTED);
                 if(sidebarWidth()>=175){
                     float pillX=x+sidebarWidth()-40;
                     UIUtils.drawRound(pillX,y+18,30,16,7,NeutronVisualTokens.CONTROL);
@@ -652,3 +652,4 @@ public class ClickGui extends GuiScreen {
 
     public float getScrollOffset() { return scrollOffset; }
 }
+

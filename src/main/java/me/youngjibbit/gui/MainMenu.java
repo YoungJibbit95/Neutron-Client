@@ -1,5 +1,7 @@
 package me.youngjibbit.gui;
 
+import me.youngjibbit.theme.ThemeMode;
+
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.gui.clientsettings.SettingsMenu;

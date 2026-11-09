@@ -39,16 +39,19 @@ public final class ConfigLibrary {
         if (manager == null) return false;
         try { new LocalConfig(new File("."), name); }
         catch (IllegalArgumentException ex) { status = ex.getMessage(); return false; }
+        if (!manager.collectConfigs()) { status=manager.getLastError(); return false; }
+        entries.clear(); entries.addAll(ConfigManager.localConfigs);
+        selected=existing(selected);
         String existing = existing(name);
         if (!existing.isEmpty()) {
             target = existing; pending = Pending.OVERWRITE;
             status = "Replace \"" + target + "\" with the current client settings?";
             return false;
         }
-        return write(name);
+        return write(name,false);
     }
-    private boolean write(String name) {
-        if (!manager.saveConfig(name)) { status = manager.getLastError(); return false; }
+    private boolean write(String name, boolean replace) {
+        if (!(replace?manager.saveConfig(name):manager.createConfig(name))) { status = manager.getLastError(); return false; }
         refresh(); selected = existing(name); status = "Saved " + selected; return true;
     }
     public boolean load() {
@@ -85,7 +88,7 @@ public final class ConfigLibrary {
         String name = target, source = renameSource;
         cancel();
         if (manager == null || action == Pending.NONE) return false;
-        if (action == Pending.OVERWRITE) return write(name);
+        if (action == Pending.OVERWRITE) return write(name,true);
         if (action == Pending.RENAME) {
             if (!manager.renameConfig(source, name)) { status = manager.getLastError(); return false; }
             refresh(); selected = existing(name); status = "Renamed to \"" + selected + "\".";
