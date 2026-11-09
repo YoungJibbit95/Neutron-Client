@@ -2,10 +2,22 @@ package me.youngjibbit.module.impl.client.island;
 
 import me.youngjibbit.core.activity.ScaffoldActivitySnapshot;
 import me.youngjibbit.core.activity.InventoryActivitySnapshot;
+import me.youngjibbit.core.activity.ModuleToggleSnapshot;
+import me.youngjibbit.core.activity.LocalCorrectionSnapshot;
 
 /** Read-only adapter: never selects a slot, advances a planner, clicks, places or sends a packet. */
 public final class IslandObservations {
     private IslandObservations(){}
+    public static IslandNotice module(ModuleToggleSnapshot snapshot,long now){
+        if(snapshot==null||!snapshot.isFresh(now))return null;
+        return IslandNotice.module(snapshot.getModuleId(),snapshot.getModuleName(),snapshot.isEnabled(),
+                snapshot.getSequence(),snapshot.getObservedAtNanos());
+    }
+    public static IslandNotice correction(LocalCorrectionSnapshot snapshot,long now){
+        if(snapshot==null||!snapshot.isFresh(now))return null;
+        return IslandNotice.correction(snapshot.getRunId(),snapshot.getSequence(),snapshot.getObservedAtNanos(),
+                snapshot.getDistance(),snapshot.getAngle());
+    }
     public static IslandStateMachine.Scaffold scaffold(ScaffoldActivitySnapshot snapshot,long now){
         if(snapshot==null||!snapshot.isFresh(now)||snapshot.getStatus()==null)return null;
         String status;

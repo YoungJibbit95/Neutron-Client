@@ -5,8 +5,8 @@ import java.util.Arrays;
 
 /**
  * Pure, bounded view state. Callers supply already validated, immutable observations.
- * Activity adapters consume copied producer observations; module lifecycle and correction
- * providers remain pending. Rendering never becomes a source of gameplay/network events.
+ * Activity and notice adapters consume copied producer observations.
+ * Rendering never becomes a source of gameplay/network events.
  */
 public final class IslandStateMachine {
     public enum State {
@@ -97,9 +97,14 @@ public final class IslandStateMachine {
         public final ClockReminder clock;
         public final InventoryActivity inventory;
         public final String label;
+        public final IslandNotice notice;
         private Selection(State state, Target target, Scaffold scaffold, ClockReminder clock, InventoryActivity inventory, String label) {
+            this(state,target,scaffold,clock,inventory,label,null);
+        }
+        private Selection(State state,Target target,Scaffold scaffold,ClockReminder clock,
+                          InventoryActivity inventory,String label,IslandNotice notice){
             this.state = state; this.target = target; this.scaffold = scaffold;
-            this.clock = clock; this.inventory = inventory; this.label = label;
+            this.clock = clock; this.inventory = inventory; this.label = label;this.notice=notice;
         }
     }
 
@@ -133,8 +138,12 @@ public final class IslandStateMachine {
         final State state;
         final String label;
         final long expires;
+        final IslandNotice notice;
         Event(State state, String label, long expires) {
-            this.state = state; this.label = label; this.expires = expires;
+            this(state,label,expires,null);
+        }
+        Event(State state,String label,long expires,IslandNotice notice){
+            this.state = state; this.label = label; this.expires = expires;this.notice=notice;
         }
     }
 
@@ -207,6 +216,24 @@ public final class IslandStateMachine {
         return true;
     }
 
+    /** Real notices reuse the existing priority/deduplication, but never extend their producer lifetime. */
+    public boolean offerNotice(IslandNotice notice,long sourceEpoch,long nowNanos){
+        if(notice==null||!notice.isFresh(nowNanos))return false;
+        if(!offer(notice.state,notice.eventId,notice.title,sourceEpoch,nowNanos))return false;
+        long now=time(nowNanos),remaining=notice.lifetimeNanos()-(now-notice.observedAtNanos);
+        if(remaining<=0){active=null;return false;}
+        active=new Event(notice.state,IslandLayout.limitText(notice.title,42),now+remaining,notice);
+        return true;
+    }
+
+    /** A disabled/reset/expired producer immediately withdraws its live notice; fixtures remain fixtures. */
+    public void retainNotices(IslandNotice module,IslandNotice warning,boolean showModule,boolean showWarning,long now){
+        if(active==null||active.notice==null)return;
+        if(active.state==State.MODULE_TOAST&&(!showModule||module==null||!module.isFresh(now)))active=null;
+        else if(active.state==State.POSSIBLE_SETBACK&&(!showWarning||warning==null||!warning.isFresh(now)
+                ||warning.sourceRun!=active.notice.sourceRun))active=null;
+    }
+
     /** Priority: safety correction > active event > fresh target > scaffold > clock > inventory > idle. */
     public Selection resolve(long sourceEpoch, long nowNanos, Target target, Scaffold scaffold,
                              ClockReminder clock, InventoryActivity inventory,
@@ -218,7 +245,7 @@ public final class IslandStateMachine {
                 && (active.state != State.INVENTORY_ACTIVITY || showInventory)) {
             ClockReminder activeClock=active.state==State.CLOCK_REMINDER?new ClockReminder(active.label,false):null;
             InventoryActivity activeInventory=active.state==State.INVENTORY_ACTIVITY&&inventory!=null&&inventory.valid()?inventory:null;
-            return new Selection(active.state,null,null,activeClock,activeInventory,active.label);
+            return new Selection(active.state,null,null,activeClock,activeInventory,active.label,active.notice);
         }
         if (showTarget && target != null && target.valid())
             return new Selection(State.TARGET, target, null, null, null, target.name);

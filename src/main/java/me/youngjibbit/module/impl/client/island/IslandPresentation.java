@@ -12,6 +12,8 @@ public final class IslandPresentation {
     public final String brand,brandVersion;
     public final IslandClockFace clockFace;
     public final IslandStateMachine.Scaffold scaffold;
+    public final IslandNotice notice;
+    public final IslandStateMachine.InventoryActivity inventory;
     public final float healthFraction, absorptionFraction;
     public final boolean hasHealthBar, fixtureOnly;
 
@@ -32,8 +34,22 @@ public final class IslandPresentation {
                                float healthFraction,float absorptionFraction,boolean hasHealthBar,
                                boolean fixtureOnly,String brand,String brandVersion,IslandStateMachine.Scaffold scaffold,
                                IslandClockFace clockFace) {
+        this(state,title,detail,trailing,healthFraction,absorptionFraction,hasHealthBar,fixtureOnly,
+                brand,brandVersion,scaffold,clockFace,null);
+    }
+    private IslandPresentation(IslandStateMachine.State state,String title,String detail,String trailing,
+                               float healthFraction,float absorptionFraction,boolean hasHealthBar,
+                               boolean fixtureOnly,String brand,String brandVersion,IslandStateMachine.Scaffold scaffold,
+                               IslandClockFace clockFace,IslandNotice notice){
+        this(state,title,detail,trailing,healthFraction,absorptionFraction,hasHealthBar,fixtureOnly,brand,brandVersion,
+                scaffold,clockFace,notice,null);
+    }
+    private IslandPresentation(IslandStateMachine.State state,String title,String detail,String trailing,
+                               float healthFraction,float absorptionFraction,boolean hasHealthBar,
+                               boolean fixtureOnly,String brand,String brandVersion,IslandStateMachine.Scaffold scaffold,
+                               IslandClockFace clockFace,IslandNotice notice,IslandStateMachine.InventoryActivity inventory){
         this.brand=brand;this.brandVersion=brandVersion;this.scaffold=scaffold;
-        this.clockFace=clockFace;
+        this.clockFace=clockFace;this.notice=notice;this.inventory=inventory;
         this.state = state;
         this.title = title;
         this.detail = detail;
@@ -48,13 +64,17 @@ public final class IslandPresentation {
     public IslandPresentation withClockFace(IslandClockFace captured){
         if(state!=IslandStateMachine.State.CLOCK_REMINDER||captured==null)return this;
         return new IslandPresentation(state,title,detail,trailing,healthFraction,absorptionFraction,
-                hasHealthBar,fixtureOnly,brand,brandVersion,scaffold,captured);
+                hasHealthBar,fixtureOnly,brand,brandVersion,scaffold,captured,notice,inventory);
     }
 
     public static IslandPresentation from(IslandStateMachine.Selection selection,
                                           String clientName, String version, String clock,
                                           boolean showName, boolean showVersion, boolean showClock) {
         IslandStateMachine.State state = selection == null ? IslandStateMachine.State.IDLE : selection.state;
+        if(selection!=null&&selection.notice!=null&&selection.notice.state==state){
+            IslandNotice n=selection.notice;
+            return new IslandPresentation(state,clean(n.title),clean(n.detail),"",0,0,false,false,"","",null,null,n);
+        }
         if (state == IslandStateMachine.State.TARGET) {
             IslandStateMachine.Target target = selection.target;
             if (target != null && target.valid()) {
@@ -89,7 +109,7 @@ public final class IslandPresentation {
             if(inv!=null&&inv.processedCount>=0)act+="  "+inv.processedCount
                     +(inv.totalCount>=0?" / "+inv.totalCount:"");
             return new IslandPresentation(state,inv==null?"Inventory":clean(inv.producer),act,"",0,0,
-                    false,inv==null||!inv.observed);
+                    false,inv==null||!inv.observed,"","",null,null,null,inv);
         }
         if (state == IslandStateMachine.State.MODULE_TOAST)
             return new IslandPresentation(state, clean(selection.label), "", "",

@@ -1,2 +1,5 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Preserve the upstream license bytes in Windows checkouts and packaged resources.
+/src/main/resources/META-INF/licenses/Audiowide-OFL.txt text eol=lf

@@ -131,6 +131,19 @@ public class NeutronAiTrainerTest {
         }
     }
 
+    @Test public void mandatorySampleCopiesMustFitTheirPrimitivePayloadBudget() throws Exception {
+        NeutronAiManualDataset data=synthetic(1000,true,true,true);
+        long samplePayloadBytes=(long)data.size()*
+                (NeutronAiCheckpoint.INPUTS+NeutronAiCheckpoint.OUTPUTS)*Float.BYTES;
+        try(NeutronAiTrainer trainer=new NeutronAiTrainer()) {
+            NeutronAiTrainer.Limits heap=new NeutronAiTrainer.Limits(1,24,30_000,
+                    samplePayloadBytes-1,10_000_000);
+            NeutronAiTrainer.Result exhausted=trainer.trainAsync(data,heap).get(15,TimeUnit.SECONDS);
+            assertEquals(NeutronAiTrainer.Status.HEAP_LIMIT,exhausted.status);
+            assertNull(exhausted.candidateBytes());
+        }
+    }
+
     @Test public void schemaBoundsAndClosedExecutorCannotEnqueueTraining() {
         for(int scenario=0;scenario<4;scenario++) {
             try {

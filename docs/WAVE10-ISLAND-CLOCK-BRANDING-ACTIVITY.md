@@ -1,6 +1,6 @@
 # Island: analog reminder, scoped branding and read-only activity
 
-This follow-up builds on the PR #143 recovery, inspected at `5b1862f3aa50979d5af00a6830859b5dc5dc4e1e`. It requires the companion activity-producer patch before compiling: `core.activity.ScaffoldActivitySnapshot`, `InventoryActivitySnapshot`, and cached getters on the existing Scaffold, InventoryManager and Stealer instances. The rendering patch does not own or change their planners, slot policies, placement admission, clicks, transactions or packets.
+This follow-up builds on merged PR #143 (`3e115c0b998885a3c8bd3612172007688c52b11b`). It requires the companion activity producer in PR #154: `core.activity.ScaffoldActivitySnapshot`, `InventoryActivitySnapshot`, and cached getters on the existing Scaffold, InventoryManager and Stealer instances. Module notices additionally require the passive transition producer in PR #156. The rendering patch does not own or change their planners, slot policies, placement admission, clicks, transactions or packets.
 
 ## Actual product behavior
 
@@ -10,7 +10,7 @@ This follow-up builds on the PR #143 recovery, inspected at `5b1862f3aa50979d5af
 - `IslandObservations` copies scalar facts from fresh immutable activity snapshots. It maps producer enums to presentation text and reuses each snapshot's freshness contract. It never rescans an inventory, reruns geometry/planning or triggers an action. The newest fresh inventory producer owns the displayed state; repeated render frames enqueue no events.
 - `Island Scaffold` defaults on; it reads the already-enabled Scaffold instance. Its badge is a display-only ItemStack reconstructed from the captured registry ID and metadata, with the captured usable block count, approach/profile and actual safety status. Unknown count/item stays unknown; the existing original N is a safe fallback if no item can be displayed.
 - `Island Inventory` is a separate opt-in setting, default off. Its display distinguishes Inventory Manager and Stealer, shows actual action and known counters, and never invents a denominator or percentage. The old hidden fixture key stays inert for saved-config compatibility. The renderer does not call the fixture hook.
-- New settings append after existing registrations. Existing legacy constructors remain valid test fixtures and retain their `fixtureOnly` presentation marker. Observed Scaffold/inventory and the real local clock carry observed provenance. Module-toast and local-warning producers remain pending; no anticheat confirmation is fabricated.
+- New settings append after existing registrations. Existing legacy constructors remain valid test fixtures and retain their `fixtureOnly` presentation marker. Observed Scaffold/inventory and the real local clock carry observed provenance. Module toasts and measured local-correction warnings use the observed notice adapters described in `WAVE10-ISLAND-OBSERVED-NOTICES.md`; no anticheat confirmation is fabricated.
 
 ## Font origin and license
 

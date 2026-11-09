@@ -32,8 +32,7 @@ public final class IslandLayout {
         switch (state) {
             case TARGET: return new Frame(width, height, 280, 56, 20, 1);
             case SCAFFOLD: return new Frame(width, height, 260, 48, 20, .98f);
-            case MODULE_TOAST: return new Frame(width, height, 240, 44, 20, 1);
-            case POSSIBLE_SETBACK: return new Frame(width, height, 300, 55, 22, 1);
+            case MODULE_TOAST: case POSSIBLE_SETBACK: return noticeFrame(state,width,height);
             case CLOCK_REMINDER: return clockFrame(width,height);
             case INVENTORY_ACTIVITY: return new Frame(width, height, 250, 46, 19, 1);
             case IDLE:
@@ -52,8 +51,7 @@ public final class IslandLayout {
         switch(state){
             case TARGET:return new Frame(width,height,266,52,17,1);
             case SCAFFOLD:return new Frame(width,height,248,44,17,1);
-            case MODULE_TOAST:return new Frame(width,height,240,38,17,1);
-            case POSSIBLE_SETBACK:return new Frame(width,height,270,50,17,1);
+            case MODULE_TOAST:case POSSIBLE_SETBACK:return noticeFrame(state,width,height);
             case CLOCK_REMINDER:return clockFrame(width,height);
             case INVENTORY_ACTIVITY:return new Frame(width,height,236,42,17,1);
             case IDLE:
@@ -66,6 +64,11 @@ public final class IslandLayout {
         Frame bounded=new Frame(width,height,64,64,32,1);
         float diameter=Math.min(bounded.width,bounded.height);
         return bounded.withGeometry(diameter,diameter,diameter/2,1);
+    }
+
+    private static Frame noticeFrame(IslandStateMachine.State state,int width,int height){
+        return new Frame(width,height,IslandContentLayout.width(state),IslandContentLayout.height(state),
+                state==IslandStateMachine.State.POSSIBLE_SETBACK?14:19,1);
     }
 
     /** Trim by code points: never split a supplementary Unicode character. */
