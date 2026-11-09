@@ -21,7 +21,7 @@ public class NetworkShutdownTest {
     @Test public void integratedServerLogoutDoesNotQueueThousandsOfLateChunkUnloads() throws Exception {
         NetworkManager network = new NetworkManager(EnumPacketDirection.SERVERBOUND);
         EmbeddedChannel channel = new EmbeddedChannel(network);
-        NetHandlerPlayServer handler = AttackHookTest.bare(NetHandlerPlayServer.class);
+        NetHandlerPlayServer handler = NetworkTestSupport.bare(NetHandlerPlayServer.class);
         Field transport = NetHandlerPlayServer.class.getDeclaredField("netManager");
         transport.setAccessible(true);
         transport.set(handler, network);
@@ -102,7 +102,7 @@ public class NetworkShutdownTest {
         NetworkManager network = new NetworkManager(EnumPacketDirection.CLIENTBOUND);
         EmbeddedChannel channel = new EmbeddedChannel(network);
         AtomicInteger accepted = new AtomicInteger();
-        network.configureClientPackets(new PacketFlowTest.MainThread(), ignored -> accepted.incrementAndGet());
+        network.configureClientPackets(new NetworkTestSupport.MainThread(), ignored -> accepted.incrementAndGet());
         try {
             network.closeChannel(new ChatComponentText("Leaving world"));
             assertNull(network.sendPacketTracked(new C00PacketKeepAlive(1), false));

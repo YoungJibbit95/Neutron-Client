@@ -9,8 +9,8 @@ import static org.junit.Assert.*;
 
 /** Real NetHandlerPlayClient movement handlers, also before any Backtrack target has been selected. */
 public class ReceivedPositionHookTest {
-    static EntityOtherPlayerMP target(AttackHookTest.WorldStub world, int x) throws Exception {
-        EntityOtherPlayerMP entity = AttackHookTest.bare(EntityOtherPlayerMP.class);
+    static EntityOtherPlayerMP target(NetworkTestSupport.WorldStub world, int x) throws Exception {
+        EntityOtherPlayerMP entity = NetworkTestSupport.bare(EntityOtherPlayerMP.class);
         entity.worldObj = world; entity.setEntityId(7); entity.serverPosX = x;
         world.target = entity;
         return entity;
@@ -19,8 +19,8 @@ public class ReceivedPositionHookTest {
         return new S14PacketEntity.S15PacketEntityRelMove(7, (byte) x, (byte) 0, (byte) 0, true);
     }
     @Test public void delayedDeltasBeforeTargetSelectionAccumulateAndSurvivePartialRelease() throws Exception {
-        try (SessionConsumerIntegrationTest.Fixture f = new SessionConsumerIntegrationTest.Fixture()) {
-            AttackHookTest.WorldStub world = AttackHookTest.bare(AttackHookTest.WorldStub.class);
+        try (NetworkTestSupport.Fixture f = new NetworkTestSupport.Fixture()) {
+            NetworkTestSupport.WorldStub world = NetworkTestSupport.bare(NetworkTestSupport.WorldStub.class);
             EntityOtherPlayerMP entity = target(world, 96); f.play.clientWorldController = world;
             PacketPipeline pipe = f.network.getClientPackets(); Object owner = new Object();
             pipe.delays().request(owner, 500, (p, flow) -> true);
@@ -35,11 +35,11 @@ public class ReceivedPositionHookTest {
         }
     }
     @Test public void finalReplacementCancellationSilentTeleportAndIdReuseCannotCorruptReceiptCoordinates() throws Exception {
-        try (SessionConsumerIntegrationTest.Fixture f = new SessionConsumerIntegrationTest.Fixture()) {
-            AttackHookTest.WorldStub world = AttackHookTest.bare(AttackHookTest.WorldStub.class);
+        try (NetworkTestSupport.Fixture f = new NetworkTestSupport.Fixture()) {
+            NetworkTestSupport.WorldStub world = NetworkTestSupport.bare(NetworkTestSupport.WorldStub.class);
             EntityOtherPlayerMP entity = target(world, 96); f.play.clientWorldController = world;
             PacketPipeline pipe = f.network.getClientPackets(); Object owner = new Object();
-            PacketFlowTest.Observer events = new PacketFlowTest.Observer(); Pulsar.BUS.subscribe(events);
+            NetworkTestSupport.Observer events = new NetworkTestSupport.Observer(); Pulsar.BUS.subscribe(events);
             try {
                 pipe.delays().request(owner, 500, (p, flow) -> true);
                 events.action = e -> { if (e.isInbound() && e.isPre()) e.setPacket(move(16)); };
@@ -60,8 +60,8 @@ public class ReceivedPositionHookTest {
         }
     }
     @Test public void sceneAndConnectionLossDiscardPendingCoordinateHistory() throws Exception {
-        try (SessionConsumerIntegrationTest.Fixture f = new SessionConsumerIntegrationTest.Fixture()) {
-            AttackHookTest.WorldStub world = AttackHookTest.bare(AttackHookTest.WorldStub.class);
+        try (NetworkTestSupport.Fixture f = new NetworkTestSupport.Fixture()) {
+            NetworkTestSupport.WorldStub world = NetworkTestSupport.bare(NetworkTestSupport.WorldStub.class);
             EntityOtherPlayerMP entity = target(world, 96); f.play.clientWorldController = world;
             PacketPipeline pipe = f.network.getClientPackets();
             pipe.delays().request(this, 500, (p, flow) -> true); f.channel.writeInbound(move(16));

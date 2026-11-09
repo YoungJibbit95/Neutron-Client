@@ -13,7 +13,7 @@ import static org.junit.Assert.*;
 public class BacktrackFocusLifecycleTest {
     private static final String[] MODES={"Distance","Timed","Pulse","Intave","Receipt Safe"};
     private static Backtrack enable(ExploitHookFixture f,String mode)throws Exception{
-        AtomicLong clock=new AtomicLong();BacktrackLagRangeControlTest.clock(f,clock);
+        AtomicLong clock=new AtomicLong();NetworkTestSupport.clock(f,clock);
         Backtrack module=new Backtrack(clock::get,f.client,(min,max)->max);
         module.getBooleanSetting("Only Aura").setValue(false);
         module.getModeSetting("Backtrack Mode").setValue(mode);

@@ -43,7 +43,7 @@ public class BacktrackBehaviorHookTest {
     @Test public void onlyAcceptedAttacksTakePriorityOverCursorAndNewAttacksSwitchTheLock() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             AtomicLong now = new AtomicLong(); Backtrack back = enable(now, f);
-            PacketFlowTest.Observer packets = new PacketFlowTest.Observer(); Pulsar.BUS.subscribe(packets);
+            NetworkTestSupport.Observer packets = new NetworkTestSupport.Observer(); Pulsar.BUS.subscribe(packets);
             try {
                 ExploitHookFixture.Enemy a = f.enemy(7, 3), b = f.enemy(8, 3); f.cursor(b); tick();
                 AttackEvent cancelled = new AttackEvent(a); cancelled.cancel(); Pulsar.BUS.post(cancelled);
