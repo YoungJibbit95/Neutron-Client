@@ -1,7 +1,14 @@
 package me.youngjibbit.module.impl.movement;
 
 import me.youngjibbit.core.movement.IntaveBoatSpeed;
+import me.youngjibbit.core.movement.IntaveMomentumProfile;
+import me.youngjibbit.core.bootstrap.RuntimeServices;
+import me.youngjibbit.core.contract.ExecutedStep;
+import me.youngjibbit.core.contract.SceneContext;
+import me.youngjibbit.core.observation.RuntimeObservation;
+import me.youngjibbit.core.network.PacketPipeline;
 import me.youngjibbit.event.motion.KnockbackEvent;
+import me.youngjibbit.event.motion.LocalImpulseEvent;
 import me.youngjibbit.event.motion.EventMotion;
 import me.youngjibbit.event.packet.EventPacket;
 import me.youngjibbit.event.world.WorldEvent;
@@ -18,6 +25,7 @@ import me.zero.alpine.listener.Listener;
 import me.zero.alpine.listener.Subscribe;
 import org.lwjgl.input.Keyboard;
 import net.minecraft.potion.Potion;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.network.play.server.S08PacketPlayerPosLook;
 import net.minecraft.network.play.server.S27PacketExplosion;
@@ -25,9 +33,18 @@ import net.minecraft.network.play.server.S27PacketExplosion;
 @ModuleInfo(name = "Speed", category = Category.Movement)
 public class Speed extends Module {
 
-    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"BMC", "Intave", "Polar", "Vulcan", "Vulcan2", "Intave Momentum", "Intave Boat"}, 1);
+    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"BMC", "Intave", "Polar", "Vulcan", "Vulcan2", "Intave Momentum", "Intave Boat", "Intave Momentum V2"}, 1);
     private final CheckBoxValue airSpeed = new CheckBoxValue("Air Speed", this, false);
     private final IntaveBoatSpeed intaveBoat = new IntaveBoatSpeed();
+    private IntaveMomentumProfile momentumProfile = new IntaveMomentumProfile();
+    private final Thread momentumThread = Thread.currentThread();
+    private java.lang.ref.WeakReference<RuntimeObservation> momentumObservation = new java.lang.ref.WeakReference<>(null);
+    private SceneContext momentumScene;
+    private long momentumGeneration, momentumLastOuter = -1, momentumLastTime, momentumCorrectionAt;
+    private boolean momentumHasTime, momentumCorrectionPending;
+    private final java.util.function.LongSupplier momentumClock = () -> RuntimeServices.rotation().readMonotonicNanos();
+    private String previousMode = "Intave";
+    private String modeBeforeChange = "Intave";
     private static Speed active;
 
     private int offGroundTicks;
@@ -37,10 +54,10 @@ public class Speed extends Module {
 
     public Speed() {
         setKey(Keyboard.KEY_C);
-        airSpeed.setVisibility(m -> !inputSpeedMode());
+        airSpeed.setVisibility(m -> !inputSpeedMode() && !momentumV2());
         mode.setOnChange(selected -> {
             if (isToggled() && inputSpeedMode()) {
-                resetMovementOverrides();
+                if (!"Intave Momentum V2".equals(modeBeforeChange)) resetMovementOverrides();
                 resetState();
             }
         });
@@ -50,6 +67,8 @@ public class Speed extends Module {
     public void onEnable() {
         resetState();
         intaveBoat.reset();
+        resetMomentumV2();
+        previousMode = mode.getValue();
         active = this;
         super.onEnable();
     }
@@ -57,8 +76,9 @@ public class Speed extends Module {
     @Override
     public void onDisable() {
         if (active == this) active = null;
-        if (!inputSpeedMode()) resetMovementOverrides();
+        if (!inputSpeedMode() && !momentumV2()) resetMovementOverrides();
         intaveBoat.reset();
+        resetMomentumV2();
         info = "";
         resetState();
         super.onDisable();
@@ -68,21 +88,60 @@ public class Speed extends Module {
         return "Intave Momentum".equals(mode.getValue()) || "Intave Boat".equals(mode.getValue());
     }
 
+    private boolean momentumV2() { return "Intave Momentum V2".equals(mode.getValue()); }
+
     @Override public void onValueChange() {
         if (intaveBoat != null) intaveBoat.reset();
+        if (momentumProfile != null) {
+            if (mode != null && momentumV2() && "Intave Momentum V2".equals(previousMode)) resetMomentumRamp();
+            else resetMomentumV2();
+        }
+        // Only an outgoing legacy motion mode owns these overrides. V2 itself owns none.
+        if (mode != null) {
+            if (!mode.getValue().equals(previousMode)) modeBeforeChange = previousMode;
+            if (isToggled() && momentumV2() && !"Intave Momentum V2".equals(previousMode)
+                    && !"Intave Momentum".equals(previousMode) && !"Intave Boat".equals(previousMode))
+                resetMovementOverrides();
+            previousMode = mode.getValue();
+        }
         info = "";
     }
 
     /** Final moveFlying consumer, after all listeners and the accepted rotation correction. */
     public static void applyBoatAcceleration(EntityPlayerSP player, PlayerMoveUpdateEvent event) {
         Speed speed = active;
+        if (speed != null && speed.momentumV2()) {
+            speed.applyMomentumV2(player, event);
+            return;
+        }
         if (speed == null || !"Intave Boat".equals(speed.mode.getValue()) || mc == null || player != mc.thePlayer) return;
         speed.intaveBoat.apply(mc, event);
         if (active == speed && "Intave Boat".equals(speed.mode.getValue()))
             speed.info = "Boat: " + speed.intaveBoat.getReason();
     }
 
-    @Subscribe private final Listener<WorldEvent> boatWorld = new Listener<>(event -> { intaveBoat.reset(); info = ""; });
+    @Subscribe private final Listener<WorldEvent> boatWorld = new Listener<>(event -> {
+        intaveBoat.reset(); resetMomentumV2(); info = "";
+    });
+    @Subscribe private final Listener<LocalImpulseEvent> momentumImpulse = new Listener<>(event -> {
+        Minecraft client = Minecraft.getMinecraft();
+        if (active == this && momentumV2() && client != null && event.getPlayer() == client.thePlayer
+                && event.getPipeline() == momentumPackets(client.thePlayer)) resetMomentumV2();
+    });
+    @Subscribe private final Listener<EventPacket> momentumCorrection = new Listener<>((EventPacket event) -> {
+        Minecraft client = Minecraft.getMinecraft();
+        if (active != this || !momentumV2() || !event.isPost() || !event.isInbound()
+                || !(event.getPacket() instanceof S08PacketPlayerPosLook) || client == null
+                || event.getPipeline() != momentumPackets(client.thePlayer)) return;
+        resetMomentumV2();
+        long generation = momentumGeneration;
+        RuntimeObservation observation = RuntimeServices.observation();
+        long now = momentumClock.getAsLong();
+        if (Minecraft.getMinecraft() != client || !momentumCurrent(generation, client.thePlayer)
+                || RuntimeServices.observation() != observation) return;
+        momentumCorrectionAt = now;
+        momentumCorrectionPending = true;
+    });
     @Subscribe private final Listener<KnockbackEvent> boatImpulse = new Listener<>(event -> {
         if (event.isPost() && "Intave Boat".equals(mode.getValue())) intaveBoat.pauseForImpulse();
     });
@@ -121,6 +180,7 @@ public class Speed extends Module {
 
     @Subscribe
     private final Listener<EventMotion> onMotion = new Listener<>(event -> {
+        if (momentumV2()) return;
         if (mc.thePlayer == null || mc.theWorld == null || !event.isPre() || inputSpeedMode()) {
             return;
         }
@@ -151,6 +211,126 @@ public class Speed extends Module {
                 break;
         }
     });
+
+    /** V2 owns only numeric ramp state; resets preserve the observer's consumed outer-tick tombstone. */
+    private void resetMomentumV2() {
+        momentumGeneration++;
+        momentumScene = null;
+        momentumHasTime = momentumCorrectionPending = false;
+        if (momentumProfile != null) momentumProfile.reset(momentumGeneration);
+    }
+
+    private void resetMomentumRamp() {
+        boolean pending = momentumCorrectionPending;
+        long at = momentumCorrectionAt;
+        resetMomentumV2();
+        momentumCorrectionPending = pending;
+        momentumCorrectionAt = at;
+    }
+
+    private boolean momentumCurrent(long generation, EntityPlayerSP player) {
+        Minecraft client = Minecraft.getMinecraft();
+        return Thread.currentThread() == momentumThread && active == this && isToggled() && momentumV2()
+                && momentumGeneration == generation && client != null && player != null && player == client.thePlayer
+                && client.theWorld != null && player.worldObj == client.theWorld;
+    }
+
+    private boolean momentumCurrent(long generation, EntityPlayerSP player, RuntimeObservation observation, Minecraft client) {
+        return Minecraft.getMinecraft() == client && momentumCurrent(generation, player)
+                && RuntimeServices.observation() == observation
+                && momentumObservation.get() == observation;
+    }
+
+    private static PacketPipeline momentumPackets(EntityPlayerSP player) {
+        return player == null || player.sendQueue == null || player.sendQueue.getNetworkManager() == null
+                ? null : player.sendQueue.getNetworkManager().getClientPackets();
+    }
+
+    /** Existing final moveFlying hook; no direct motion, jump, key, timer or packet writes. */
+    private void applyMomentumV2(EntityPlayerSP player, PlayerMoveUpdateEvent event) {
+        Minecraft client = Minecraft.getMinecraft();
+        long generation = momentumGeneration;
+        if (!momentumCurrent(generation, player) || event == null || event.isCancelled()) return;
+        RuntimeObservation observation = RuntimeServices.observation();
+        if (observation == null) return;
+        if (momentumObservation.get() != observation) {
+            momentumObservation = new java.lang.ref.WeakReference<>(observation);
+            momentumProfile = new IntaveMomentumProfile();
+            momentumLastOuter = -1;
+            resetMomentumRamp();
+            generation = momentumGeneration;
+        }
+        ExecutedStep step = observation.getCurrentStep();
+        if (step == null || step.isInterrupted() || step.getKind() != ExecutedStep.Kind.ORDINARY
+                || step.getOuterTickId() < 0 || observation.getActiveOuterTickId() != step.getOuterTickId()
+                || step.getOuterTickId() <= momentumLastOuter) return;
+        momentumLastOuter = step.getOuterTickId();
+        SceneContext fresh = observation.captureScene();
+        if (!momentumCurrent(generation, player, observation, client)) return;
+        if (!activeMomentumScene(fresh) || !activeMomentumScene(step.getScene())
+                || !fresh.sameSceneAs(step.getScene()) || observation.getCurrentStep() != step) {
+            resetMomentumRamp();return;
+        }
+        if (momentumScene == null || !momentumScene.sameSceneAs(fresh)) {
+            // A correction reset keeps its pause while acquiring the first scene again.
+            resetMomentumRamp();
+            generation = momentumGeneration;
+            momentumScene = fresh;
+        }
+        long now = momentumClock.getAsLong();
+        if (!momentumCurrent(generation, player, observation, client)) return;
+        if (momentumHasTime && now < momentumLastTime) {
+            boolean pending = momentumCorrectionPending;
+            resetMomentumV2();
+            momentumCorrectionPending = pending;
+            momentumCorrectionAt = now;
+            return;
+        }
+        momentumLastTime = now;momentumHasTime = true;
+        boolean correction = momentumCorrectionPending && now - momentumCorrectionAt < 500_000_000L;
+        if (!correction) momentumCorrectionPending = false;
+        PacketPipeline pipeline = momentumPackets(player);
+        boolean impulse = pipeline == null || !pipeline.isActive() || pipeline.isRecoveringLocalImpulse(player);
+        if (!momentumCurrent(generation, player, observation, client)) return;
+        // The ladder read can call into the world. Revalidate the scene after these queries.
+        boolean environment = !player.isOnLadder() && !player.isInWater() && !player.isInLava();
+        if (!momentumCurrent(generation, player, observation, client)) return;
+        SceneContext last = observation.captureScene();
+        if (!momentumCurrent(generation, player, observation, client) || observation.getCurrentStep() != step
+                || observation.getActiveOuterTickId() != step.getOuterTickId()
+                || !activeMomentumScene(last) || !fresh.sameSceneAs(last)) return;
+        boolean eligible = environment && !correction && !impulse && client.getRenderViewEntity() == player
+                && client.currentScreen == null && client.inGameHasFocus && !client.isGamePaused()
+                && player.isEntityAlive() && !player.isDead && !player.isSpectator()
+                && player.isSprinting() && !player.isSneaking() && !player.isUsingItem() && !player.isRiding()
+                && !player.capabilities.isFlying && !player.capabilities.allowFlying && !player.isInWeb
+                && player.hurtTime == 0 && player.movementInput != null && !player.movementInput.sneak
+                && Double.isFinite(player.posX) && Double.isFinite(player.posY) && Double.isFinite(player.posZ)
+                && Double.isFinite(player.motionY) && (!player.onGround || Math.abs(player.motionY) <= .1);
+        if (!momentumCurrent(generation, player, observation, client)) return;
+        IntaveMomentumProfile.Result result = momentumProfile.step(new IntaveMomentumProfile.Input(
+                generation, step.getOuterTickId(), true, eligible, player.onGround, player.isCollidedHorizontally,
+                event.getStrafe(), event.getForward(), event.getYaw(), event.getFriction(), player.motionX, player.motionZ));
+        if (!result.hasAdjustment() || !momentumCurrent(generation, player, observation, client)) return;
+        // Verify the model bound using Vanilla's actual float sine table and normalization.
+        float strafe = event.getStrafe(), forward = event.getForward();
+        float length = net.minecraft.util.MathHelper.sqrt_float(strafe * strafe + forward * forward);
+        float scale = result.friction / Math.max(1F, length);
+        strafe *= scale;forward *= scale;
+        float radians = event.getYaw() * (float)Math.PI / 180F;
+        float deltaX = strafe * net.minecraft.util.MathHelper.cos(radians)
+                - forward * net.minecraft.util.MathHelper.sin(radians);
+        float deltaZ = forward * net.minecraft.util.MathHelper.cos(radians)
+                + strafe * net.minecraft.util.MathHelper.sin(radians);
+        double dx = player.motionX + deltaX, dz = player.motionZ + deltaZ;
+        if (Double.isFinite(dx) && Double.isFinite(dz)
+                && Math.hypot(dx, dz) <= IntaveMomentumProfile.MAX_PREDICTED_HORIZONTAL)
+            event.setFriction(result.friction);
+    }
+
+    private static boolean activeMomentumScene(SceneContext scene) {
+        return scene != null && scene.isValid() && !scene.isSuspended();
+    }
 
     private void handleIntave() {
         if (!MoveUtil.hasMovementInput(mc.thePlayer) || PlayerUtil.jumpDown()) {
