@@ -25,7 +25,7 @@ import net.minecraft.network.play.server.S12PacketEntityVelocity;
 /** Arsenic-inspired legit reduction; see docs/third-party/ARSENIC.md. */
 @ModuleInfo(name = "Velocity", description = "Reduces knockback through normal jumps and validated sprint hits", category = Category.Combat)
 public class Velocity extends Module {
-    public final ComboValue mode = new ComboValue("Mode", this, new String[]{"Legit", "Legit Jumpreset", "Intave Reduce"}, 0);
+    public final ComboValue mode = new ComboValue("Mode", this, new String[]{"Legit", "Legit Jumpreset", "Intave Reduce", "Impulse Guard"}, 0);
     public final SliderValue reduceTicks = new SliderValue("Reduce Ticks", this, 2D, 1, 3, true);
     public final CheckBoxValue jumpReset = new CheckBoxValue("Jump Reset", this, true);
     private final CombatPacketState actions = new CombatPacketState();
@@ -37,7 +37,8 @@ public class Velocity extends Module {
     private EntityLivingBase target;
 
     public Velocity() {
-        reduceTicks.setVisibility(m -> !"Legit Jumpreset".equals(mode.getValue()));
+        reduceTicks.setVisibility(m -> !"Legit Jumpreset".equals(mode.getValue())
+                && !"Impulse Guard".equals(mode.getValue()));
         jumpReset.setVisibility(m -> "Legit".equals(mode.getValue()));
     }
 
@@ -67,7 +68,10 @@ public class Velocity extends Module {
     });
 
     private void arm(long now) {
-        boolean jumpOnly = "Legit Jumpreset".equals(mode.getValue());
+        // Opt-in Impulse Guard uses only confirmed, already-applied local
+        // S12 knockback and never enters rotation/auto-attack reduction.
+        boolean jumpOnly = "Legit Jumpreset".equals(mode.getValue())
+                || "Impulse Guard".equals(mode.getValue());
         remaining = jumpOnly ? 0 : reduceTicks.getValue().intValue();
         expires = now + 250_000_000L;
         pendingJump = (jumpOnly || "Legit".equals(mode.getValue()) && jumpReset.getValue()) && !JumpReset.isHandlingJumps()
@@ -80,7 +84,12 @@ public class Velocity extends Module {
         if (jump && context() && usable() && System.nanoTime() - expires < 0
                 && !e.isCancelled() && !e.isJump() && !JumpReset.isHandlingJumps()
                 && mc.thePlayer.onGround && mc.thePlayer.isSprinting()
-                && !mc.thePlayer.isInWater() && !mc.thePlayer.isInLava()) e.setJump(true);
+                && !mc.thePlayer.isInWater() && !mc.thePlayer.isInLava()
+                // Existing Jumpreset is unchanged. The added opt-in mode
+                // requires actual forward intent and no sneaking.
+                && (!"Impulse Guard".equals(mode.getValue())
+                        || e.getForward() > 0 && !e.isSneak()))
+            e.setJump(true);
     });
 
     @Subscribe private final Listener<EventMotion> onMotion = new Listener<>(e -> {
