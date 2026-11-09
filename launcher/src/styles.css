@@ -55,7 +55,7 @@ nav button span:not(.nav-indicator) { min-width: 0; }
 .status { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 7px 10px; border-radius: 8px; color: var(--positive); background: color-mix(in srgb, var(--positive) 9%, var(--panel)); font-size: .8em; white-space: nowrap; }
 .status-error, .status-crash { color: var(--danger); background: color-mix(in srgb, var(--danger) 9%, var(--panel)); }
 .status-cancelled { color: var(--warning); background: color-mix(in srgb, var(--warning) 8%, var(--panel)); }
-.status-running, .status-update, .status-prepare, .status-download, .status-build, .status-verify { color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--panel)); }
+.status-running, .status-update, .status-prepare, .status-download, .status-verify { color: var(--accent); background: color-mix(in srgb, var(--accent) 9%, var(--panel)); }
 .status-offline { color: var(--muted); background: var(--background); }
 .build-metadata { display: flex; gap: 26px; margin: 22px 0; font-size: .82em; }
 .build-metadata div { min-width: 0; }
@@ -161,8 +161,16 @@ input[type='checkbox'], input[type='radio'] { accent-color: var(--accent); flex-
 .repository-panel { padding: 23px; }
 .repo-name { margin: 19px 0 10px; color: var(--muted); font-size: 1.08em; overflow-wrap: anywhere; }
 .repo-name strong { color: var(--text); font-weight: 520; }
-.repo-summary { display: flex; gap: 18px; align-items: center; font-size: .82em; color: var(--muted); }
+.repo-summary { display: flex; flex-wrap: wrap; gap: 8px 18px; align-items: center; font-size: .82em; color: var(--muted); }
 .repo-summary code { display: flex; gap: 7px; align-items: center; color: var(--text); }
+.release-picker { margin-top: 21px; }
+.release-picker select { width: 100%; min-width: 0; text-overflow: ellipsis; }
+.release-detail { border-top: 1px solid var(--border); margin-top: 17px; padding-top: 17px; }
+.release-detail > div { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.release-detail strong { font-size: 1.1em; font-weight: 550; }
+.release-detail p { color: var(--muted); font-size: .83em; margin-top: 8px; }
+.empty-catalog { margin-top: 20px; font-size: .9em; color: var(--muted); }
+.setup-required { margin-top: 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
 .update-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
 .update-actions > .icon-button { margin-left: auto; }
 .update-stack > * + * { margin-top: 25px; }

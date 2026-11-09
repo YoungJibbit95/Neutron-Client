@@ -48,7 +48,7 @@ $probeStderr = Join-Path $fixture 'startup-probe.stderr.log'
 $env:NEUTRON_DATA_ROOT = $probeData
 try {
     $began = [datetime]::UtcNow
-    $probe = Start-Process -FilePath $probeExe -ArgumentList '--verify-alpha --enable-logging=stderr' -RedirectStandardOutput (Join-Path $fixture 'startup-probe.stdout.log') -RedirectStandardError $probeStderr -WindowStyle Hidden -PassThru
+    $probe = Start-Process -FilePath $probeExe -ArgumentList '--verify-release --enable-logging=stderr' -RedirectStandardOutput (Join-Path $fixture 'startup-probe.stdout.log') -RedirectStandardError $probeStderr -WindowStyle Hidden -PassThru
     try { Wait-OwnedExecutable $probe $probeExe 45 }
     finally {
         if (Test-Path -LiteralPath $probeStderr) { Get-Content -LiteralPath $probeStderr -Tail 60 }
@@ -57,12 +57,13 @@ try {
     }
     if ($probe.ExitCode -ne 1 -or -not (Test-Path -LiteralPath $probeError)) { throw "Packaged empty-root probe failed: exit=$($probe.ExitCode), missing structured verification failure." }
     $failure = Get-Content -LiteralPath $probeError -Raw | ConvertFrom-Json
-    if ($failure.error -notlike '*pinned Neutron client is not installed*' -or ([datetime]$failure.date).ToUniversalTime() -lt $began) { throw 'Packaged empty-root probe produced the wrong or stale failure.' }
+    if ([string]::IsNullOrWhiteSpace($failure.error) -or $failure.error -notmatch '(?i)(not installed|no .+ installed)' -or ([datetime]$failure.date).ToUniversalTime() -lt $began) { throw 'Packaged empty-root probe produced the wrong or stale failure.' }
     Write-Host 'Packaged startup probe passed: same standard account, fresh structured missing-client failure.'
 } finally { Remove-Item Env:NEUTRON_DATA_ROOT }
 $marker = Join-Path $data 'personal-data-fixture.txt'
 $markerHash = $null
-$receipt = [ordered]@{ installerSha256 = (Get-FileHash -LiteralPath $installer[0].FullName).Hash; revision = $env:GITHUB_SHA }
+$metadata = Get-Content -LiteralPath (Join-Path $PSScriptRoot '../resources/release.json') -Raw | ConvertFrom-Json
+$receipt = [ordered]@{ schemaVersion = 2; launcherVersion = $metadata.launcherVersion; installerSha256 = (Get-FileHash -LiteralPath $installer[0].FullName).Hash.ToLowerInvariant(); revision = $env:GITHUB_SHA }
 
 function Install-Candidate([switch]$First) {
     $began = [datetime]::UtcNow
@@ -84,15 +85,16 @@ function Install-Candidate([switch]$First) {
     }
     $expected = Join-Path $env:NEUTRON_PACKAGE_OUTPUT 'win-unpacked/resources/app.asar'
     if ((Get-FileHash -LiteralPath (Join-Path $installed 'resources/app.asar')).Hash -ne (Get-FileHash -LiteralPath $expected).Hash) { throw 'Installed application differs from the packaged candidate.' }
-    $contract = Join-Path $installed 'resources/source-adapter/contract.json'
-    if ((Get-FileHash -LiteralPath $contract).Hash -ne (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../resources/source-adapter/contract.json')).Hash) { throw 'Installed source contract differs from the reviewed candidate.' }
+    $catalog = Join-Path $installed 'resources/release.json'
+    if ((Get-FileHash -LiteralPath $catalog).Hash -ne (Get-FileHash -LiteralPath (Join-Path $PSScriptRoot '../resources/release.json')).Hash) { throw 'Installed release catalog metadata differs from the reviewed candidate.' }
+    if (Test-Path -LiteralPath (Join-Path $installed 'resources/source-adapter')) { throw 'Obsolete source-build adapter is still packaged.' }
     if ([IO.File]::ReadAllText($pointer,[Text.Encoding]::Unicode) -ne $data) { throw 'Installer did not persist the explicitly selected data folder.' }
     if ($markerHash -and (Get-FileHash -LiteralPath $marker).Hash -ne $markerHash) { throw 'Installation modified personal data.' }
 }
 
 $allUsers = Start-Process -FilePath $installer[0].FullName -ArgumentList "/S /allusers /D=$installed" -WindowStyle Hidden -PassThru
 Wait-OwnedExecutable $allUsers $installer[0].FullName 60
-if ($allUsers.ExitCode -eq 0 -or (Test-Path -LiteralPath $executable)) { throw 'All-users Alpha installation was not refused.' }
+if ($allUsers.ExitCode -eq 0 -or (Test-Path -LiteralPath $executable)) { throw 'All-users installation was not refused.' }
 $receipt.allUsersRefusal = 'passed'
 Install-Candidate -First
 [IO.File]::WriteAllText($marker, 'synthetic settings/world marker; preserve on update and uninstall')
@@ -100,13 +102,19 @@ $markerHash = (Get-FileHash -LiteralPath $marker).Hash
 $pointerHash = (Get-FileHash -LiteralPath $pointer).Hash
 $receipt.install = 'passed'
 $prepared = Join-Path $data 'logs/installer-result.json'
-$pin = Get-Content -LiteralPath (Join-Path $installed 'resources/release.json') -Raw | ConvertFrom-Json
 $preparedReceipt = Get-Content -LiteralPath $prepared -Raw | ConvertFrom-Json
-if ($preparedReceipt.clientCommit -ne $pin.clientCommit -or $preparedReceipt.sourceArchiveSha256 -ne $pin.sourceArchiveSha256) {
-    throw 'Installer did not finish preparing the exact pinned client.'
+if ($preparedReceipt.schemaVersion -ne 2 -or $preparedReceipt.launcherVersion -cne $metadata.launcherVersion -or
+    $preparedReceipt.releaseId -le 0 -or $preparedReceipt.releaseTag -notmatch '^v[0-9]+[.][0-9]+[.][0-9]+$' -or
+    $preparedReceipt.clientJarSha256 -notmatch '^[a-f0-9]{64}$' -or $preparedReceipt.versionJsonSha256 -notmatch '^[a-f0-9]{64}$') {
+    throw 'Installer did not finish preparing a verified published client release.'
 }
+foreach ($obsolete in @('maven-repository','maven-user')) {
+    if (Test-Path -LiteralPath (Join-Path $data $obsolete)) { throw 'Fresh release installation created obsolete Maven build data.' }
+}
+if (@(Get-ChildItem -LiteralPath (Join-Path $data 'cache') -Filter 'source-*' -ErrorAction SilentlyContinue).Count) { throw 'Fresh release installation downloaded client sources.' }
+$receipt.releaseInstallation = 'published JAR and JSON; no client source archive or Maven repository'
 $receipt.clientPreparation = $preparedReceipt
-$offline = Start-Process -FilePath $executable -ArgumentList '--verify-alpha' -WindowStyle Hidden -PassThru
+$offline = Start-Process -FilePath $executable -ArgumentList '--verify-release' -WindowStyle Hidden -PassThru
 Wait-OwnedExecutable $offline $executable 120
 if ($offline.ExitCode -ne 0) { throw 'Installed client/runtime verification failed.' }
 $receipt.localVerification = Get-Content -LiteralPath (Join-Path $data 'logs/offline-verification.json') -Raw | ConvertFrom-Json
@@ -159,7 +167,10 @@ try {
     } finally { [IO.File]::SetAttributes($prepared, $attributes) }
     $state = Get-Content -LiteralPath $stateFile -Raw | ConvertFrom-Json
     if ($state.selected -notmatch '^[a-f0-9]{40}-[a-f0-9-]{36}$') { throw 'Invalid synthetic client selection.' }
-    $jar = [IO.Path]::GetFullPath((Join-Path $data "versions/$($state.selected)/neutron-client.jar"))
+    $manifest = Get-Content -LiteralPath (Join-Path $data "versions/$($state.selected)/launch-manifest.json") -Raw | ConvertFrom-Json
+    if ($manifest.schemaVersion -ne 2 -or $manifest.classpath.Count -ne 1 -or $manifest.release.id -ne $preparedReceipt.releaseId -or
+        $manifest.classpath[0].sha256 -cne $preparedReceipt.clientJarSha256 -or $manifest.versionJson.sha256 -cne $preparedReceipt.versionJsonSha256) { throw 'Installed distribution differs from accepted release assets.' }
+    $jar = [IO.Path]::GetFullPath((Join-Path $data ("versions/$($state.selected)/"+$manifest.classpath[0].path)))
     if (-not $jar.StartsWith([IO.Path]::GetFullPath($data) + '\', [StringComparison]::OrdinalIgnoreCase)) { throw 'Client corruption fixture leaves owned data.' }
     $stream = [IO.File]::Open($jar, 'Open', 'ReadWrite', 'None')
     try { $stream.Position = 100; $original = $stream.ReadByte(); $stream.Position = 100; $stream.WriteByte($original -bxor 1) } finally { $stream.Dispose() }
@@ -191,4 +202,4 @@ $receipt.uninstall = 'passed; synthetic personal data retained'
 if ((Get-FileHash -LiteralPath $pointer).Hash -ne $pointerHash) { throw 'Reinstall/uninstall changed the saved data selection.' }
 $receipt.persistentStorage = 'explicit /DATA selection; normal startup and offline reinstall without overrides; selector and personal data retained after uninstall'
 $evidence = if ($env:NEUTRON_ACCEPTANCE_OUTPUT) { $env:NEUTRON_ACCEPTANCE_OUTPUT } else { $env:NEUTRON_PACKAGE_OUTPUT }
-$receipt | ConvertTo-Json -Depth 5 | Tee-Object -FilePath (Join-Path $evidence 'installer-acceptance.json')
+$receipt | ConvertTo-Json -Depth 8 | Tee-Object -FilePath (Join-Path $evidence 'installer-acceptance.json')

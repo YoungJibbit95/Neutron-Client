@@ -1,8 +1,6 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "channel": "stable",
-  "launcherVersion": "0.2.3",
-  "clientCommit": "1411f04c612c58190b5bc7ead0854c901e7945e3",
-  "sourceArchiveSha256": "317d6c2e5f0a5148123622b13849032de392901ac13ae9690a2e40df8df94e4b",
-  "testedClientCommit": "1411f04c612c58190b5bc7ead0854c901e7945e3"
+  "launcherVersion": "0.3.0",
+  "repository": "YoungJibbit95/Neutron-Client"
 }

@@ -7,10 +7,11 @@ import { atomicJson, owned, redact } from './files.cjs';
 import { Logs } from './logs.cjs';
 import { installTools, validateJava, verifyTools } from './toolchain.cjs';
 import { installRuntime, verifyRuntime, type Runtime } from './minecraft.cjs';
-import { buildDistribution, launchArguments, resolveMain, verifyDistribution, reusableDistribution } from './distribution.cjs';
+import { installReleaseDistribution, launchArguments, verifyDistribution, reusableReleaseDistribution, clientClasspath } from './distribution.cjs';
+import { listClientReleases } from './release-catalog.cjs';
 import { childEnvironment, killTree, startProcess, ProcessCancelledError, ProcessGroup, type ManagedProcess } from './processes.cjs';
-import { optionPatch, parseCommand, preferencePatch, type BuildRecord, type Command, type Snapshot } from './contracts.cjs';
-import type { AlphaRelease } from './alpha-release.cjs';
+import { parseCommand, type BuildRecord, type ClientRelease, type Snapshot } from './contracts.cjs';
+import type { LauncherRelease } from './alpha-release.cjs';
 import { assertUserInstallation } from './installation-context.cjs';
 import { validateClient } from './validate-client.cjs';
 import { requireStorageCapacity } from './storage-location.cjs';
@@ -19,10 +20,9 @@ import { commandHash, inspectProcess, processMatches, type ClientLease } from '.
 
 interface Stored { schemaVersion: 1; options: Snapshot['options']; preferences: Snapshot['preferences']; builds: BuildRecord[]; selected: string | null; runtime: Runtime | null }
 export interface PreparedClient { executable: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; temporary: string; windowsHide?: boolean }
-const busy = (status: Snapshot['status']) => ['prepare', 'download', 'build', 'verify'].includes(status);
 export class LauncherService extends EventEmitter {
-  private registryError: string | null = null; private alphaCommitted = false;
-  private alphaResult: Awaited<ReturnType<LauncherService['verifyAlphaRecord']>> | null = null;
+  private registryError: string | null = null; private installationCommitted = false;
+  private installationResult: Awaited<ReturnType<LauncherService['verifyReleaseRecord']>> | null = null;
   readonly logs: Logs; private state: Snapshot; private runtime: Runtime | null = null;
   private task: AbortController | null = null; private taskPromise: Promise<void> | null = null; private child: ChildProcess | null = null;
   private clientPromise: Promise<void> | null = null; private timer: NodeJS.Timeout | null = null; private writes = Promise.resolve(); private commands = Promise.resolve(); private committing = false; private stopping = false;
@@ -30,9 +30,10 @@ export class LauncherService extends EventEmitter {
   private unverifiedLease = false;
   private starting: Promise<void> | null = null; private startController: AbortController | null = null; private clientHandle: ManagedProcess | null = null; private closing = false;
   private taskProcesses: ProcessGroup | null = null; private clientProcesses: ProcessGroup | null = null;
-  constructor(readonly root: string, readonly adapter: string, readonly installDirectory?: string, private readonly alphaRelease?: AlphaRelease) {
+  private catalogController: AbortController | null = null; private catalogTimer: NodeJS.Timeout | null = null;
+  constructor(readonly root: string, readonly installDirectory?: string, private readonly launcherRelease?: LauncherRelease) {
     super(); const physicalMiB = Math.floor(os.totalmem() / 1024 ** 2); const maxRamMiB = Math.max(1024, Math.min(8192, Math.floor((physicalMiB - 2048) / 256) * 256));
-    this.state = { revision: 0, status: 'first-run', online: true, setupComplete: false, builds: [], selected: null, runningBuild: null, clientStarting: false, logs: [], latestCommit: null, lastChecked: null, error: null, exitCode: null, physicalMiB, maxRamMiB, download: null,
+    this.state = { revision: 0, status: 'first-run', online: true, setupComplete: false, builds: [], selected: null, runningBuild: null, clientStarting: false, logs: [], releases: [], latestRelease: null, launcherVersion: launcherRelease?.launcherVersion ?? 'development', lastChecked: null, error: null, exitCode: null, physicalMiB, maxRamMiB, download: null,
       options: { ramMiB: Math.max(1024, Math.min(4096, Math.floor(physicalMiB / 4 / 256) * 256)), gameDir: path.join(root, 'game'), java: 'managed', javaPath: '', width: 1280, height: 720, fullscreen: false, jvmArgs: '' }, preferences: { theme: 'sunset', locale: 'de', scale: 100, effects: 70, reducedMotion: false } };
     this.logs = new Logs(root, () => this.changed());
   }
@@ -79,18 +80,19 @@ export class LauncherService extends EventEmitter {
         this.recoveryTimer = setInterval(() => { void this.refreshRecovered(); }, 3000);
         this.logs.add('client', 'Recovered the previous client process. Existing file output is retained; new stdout cannot be reattached after a launcher crash.', 'warn');
       } else await fs.unlink(await owned(this.root, 'client-process.json'));
-    } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') { this.unverifiedLease = true; this.state.runningBuild = 'unverified-client'; this.state.status = 'error'; this.state.error = redact('Previous client process could not be verified. New launches/builds are blocked until the process record is checked: ' + String(error)); this.logs.add('build', this.state.error, 'error'); } }
+    } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') { this.unverifiedLease = true; this.state.runningBuild = 'unverified-client'; this.state.status = 'error'; this.state.error = redact('Previous client process could not be verified. New launches/installations are blocked until the process record is checked: ' + String(error)); this.logs.add('build', this.state.error, 'error'); } }
     this.logs.add('build', this.state.runningBuild ? 'Neutron Launcher ready. Previous client is protected.' : 'Neutron Launcher ready.'); this.changed(); return this.snapshot();
   }
   protected createProcessGroup() { return new ProcessGroup({ onStopError: error => this.setError('Failed to stop an owned process; it remains protected until it actually exits. Retry Stop/Cancel: ' + String(error)) }); }
   protected startTask(work: (signal: AbortSignal, group: ProcessGroup) => Promise<void>) {
     if (this.registryError) throw new Error(this.registryError);
     if (this.closing || this.task || this.state.runningBuild) throw new Error('Another task or client is running, or the launcher is closing.');
-    this.alphaCommitted = false; this.alphaResult = null;
+    this.catalogController?.abort();
+    this.installationCommitted = false; this.installationResult = null;
     const controller = new AbortController(); const group = this.createProcessGroup(); this.taskProcesses = group; this.task = controller; this.state.status = 'prepare'; this.state.error = null; this.changed();
     this.taskPromise = (async () => {
       let failure: unknown = null; let cancelled = false;
-      try { await work(controller.signal, group); try { await this.logs.flush(); } catch (error) { if (!this.alphaCommitted) throw error; console.error('Neutron is installed; diagnostic flush failed:', error); } }
+      try { await work(controller.signal, group); try { await this.logs.flush(); } catch (error) { if (!this.installationCommitted) throw error; console.error('Neutron is installed; diagnostic flush failed:', error); } }
       catch (error) { failure = error; cancelled = controller.signal.aborted; this.state.error = cancelled ? 'Operation cancelled. Installed versions are unchanged.' : redact(String(error)); this.logs.add('build', this.state.error, cancelled ? 'warn' : 'error'); controller.abort(error); }
       finally {
         // Failed termination must not release the task/versions while a child
@@ -102,8 +104,41 @@ export class LauncherService extends EventEmitter {
   }
   private progress = (received: number, total: number | null) => { this.state.download = { received, total }; this.changed(); };
   private async check(signal: AbortSignal) {
-    try { this.state.latestCommit = await resolveMain(signal); this.state.lastChecked = new Date().toISOString(); this.state.online = true; }
+    try {
+      const releases = await listClientReleases(signal); signal.throwIfAborted();
+      this.state.releases = releases;
+      this.state.latestRelease = (releases.find(release => !release.prerelease) ?? releases[0])?.tag ?? null;
+      this.state.lastChecked = new Date().toISOString(); this.state.online = true;
+    }
     catch (error) { if (signal.aborted) throw error; this.state.online = false; throw error; }
+  }
+  private availableStatus(): Snapshot['status'] {
+    if (!this.state.setupComplete) return 'first-run';
+    if (!this.state.selected) return 'empty';
+    if (!this.state.online) return 'offline';
+    const selected = this.state.builds.find(build => build.id === this.state.selected);
+    return this.state.latestRelease && selected?.releaseTag !== this.state.latestRelease ? 'update' : 'ready';
+  }
+  // Desktop-only metadata refresh. It never installs a client or interrupts play.
+  // A failed refresh keeps the last catalog and all installed versions available.
+  async refreshReleases() {
+    if (this.closing || this.task || this.state.runningBuild || this.catalogController) return;
+    const controller = new AbortController(); this.catalogController = controller;
+    try {
+      await this.check(controller.signal);
+      if (!controller.signal.aborted && !this.task && !this.state.runningBuild && !['error', 'cancelled', 'crash'].includes(this.state.status)) this.state.status = this.availableStatus();
+    } catch (error) {
+      if (!controller.signal.aborted) {
+        if (this.state.selected && !this.task && !this.state.runningBuild && !['error', 'cancelled', 'crash'].includes(this.state.status)) this.state.status = 'offline';
+        this.logs.add('build', 'Could not refresh GitHub releases. Installed versions remain available. ' + redact(String(error)), 'warn');
+      }
+    } finally { if (this.catalogController === controller) this.catalogController = null; this.changed(); }
+  }
+  startReleaseChecks() {
+    if (this.catalogTimer) return;
+    void this.refreshReleases();
+    this.catalogTimer = setInterval(() => { void this.refreshReleases(); }, 5 * 60 * 1000);
+    this.catalogTimer.unref();
   }
   async execute(input: unknown): Promise<Snapshot> {
     const command = parseCommand(input);
@@ -117,40 +152,21 @@ export class LauncherService extends EventEmitter {
     const command = parseCommand(input);
     switch (command.type) {
       case 'save-options':
+        if (this.committing) throw new Error('Wait for version activation to finish before saving settings.');
         if (this.state.runningBuild) throw new Error('Stop the client before editing launch options.');
         this.state.options = { ...this.state.options, ...command.patch }; await this.persist(); break;
-      case 'save-preferences': this.state.preferences = { ...this.state.preferences, ...command.patch }; await this.persist(); break;
-      case 'setup': if (this.alphaRelease) { this.startTask((signal, group) => this.provisionAlpha(signal, group)); break; } this.startTask(async (signal, group) => {
-        this.requireWindows(); const capacity = await fs.statfs(this.root); requireStorageCapacity(this.root, capacity.bavail * capacity.bsize);
-        this.state.status = 'download'; this.changed(); await installTools(this.root, signal, this.progress, group);
-        const runtime = await installRuntime(this.root, signal, this.progress); await verifyRuntime(this.root, runtime); signal.throwIfAborted();
-        const previous = this.runtime; this.runtime = runtime;
-        this.committing = true;
-        try { await this.persist(); } catch (error) { this.runtime = previous; throw error; } finally { this.committing = false; }
-        this.state.setupComplete = true; this.state.status = this.state.selected ? 'ready' : 'empty'; this.logs.add('build', 'Java 8, Maven, assets and Windows x64 natives verified.');
-      }); break;
-      case 'check': this.startTask(async signal => { await this.check(signal); this.state.status = this.state.selected && this.state.builds.find(build => build.id === this.state.selected)?.commit === this.state.latestCommit ? 'ready' : 'update'; }); break;
-      case 'build':
-        if (!this.state.setupComplete || !this.runtime) throw new Error('Complete setup before building.');
-        this.startTask(async (signal, group) => {
-          this.requireWindows(); const capacity = await fs.statfs(this.root); requireStorageCapacity(this.root, capacity.bavail * capacity.bsize);
-          const launchOptions = structuredClone(this.state.options); const tools = await verifyTools(this.root); await verifyRuntime(this.root, this.runtime!); await this.check(signal);
-          const cached = await reusableDistribution(this.root, this.state.builds, this.state.latestCommit!, this.adapter, this.runtime!, signal);
-          if (cached) this.logs.add('build', 'Verified cache hit: commit, adapter, runtime and all client files match.');
-          const record = cached ?? await buildDistribution(this.root, this.state.latestCommit!, this.adapter, tools, this.runtime!, signal, phase => { this.state.status = phase; this.changed(); }, (line, error) => this.logs.add('build', line, /\[ERROR\]/.test(line) ? 'error' : error || /\[WARNING\]/.test(line) ? 'warn' : 'info'), group);
-          signal.throwIfAborted(); const previous = { builds: this.state.builds, selected: this.state.selected };
-          this.state.builds = [record, ...this.state.builds.filter(build => build.id !== record.id)].slice(0, 100); this.state.selected = record.id;
-          this.committing = true;
-          try { await this.persist(); } catch (error) { Object.assign(this.state, previous); throw error; } finally { this.committing = false; }
-          this.state.status = 'ready'; this.logs.add('build', 'Verified build activated: ' + record.commit + '. Previous versions retained.');
-          if (command.play) { if (JSON.stringify(launchOptions) !== JSON.stringify(this.state.options)) throw new Error('Launch options changed during build. Start the verified build manually.'); await this.launch(); }
-        }); break;
+      case 'save-preferences':
+        if (this.committing) throw new Error('Wait for version activation to finish before saving settings.');
+        this.state.preferences = { ...this.state.preferences, ...command.patch }; await this.persist(); break;
+      case 'setup': this.startTask((signal, group) => this.provisionRelease(signal, group, undefined, false, true)); break;
+      case 'check': this.startTask(async signal => { await this.check(signal); this.state.status = this.availableStatus(); }); break;
+      case 'install': this.startTask((signal, group) => this.provisionRelease(signal, group, command.tag, command.play)); break;
       case 'launch': if (this.task) throw new Error('Wait for the active operation.'); await this.launch(); break;
       case 'stop': await this.stop(); break;
       case 'cancel': if (this.task) { if (!this.committing) { this.task.abort(new Error('Cancelled by user.')); await this.taskProcesses?.stop(); } await this.taskPromise; } break;
       case 'select': case 'remove': {
         if (this.task || this.state.runningBuild) throw new Error('A running build is protected.');
-        const record = this.state.builds.find(build => build.id === command.id); if (!record) throw new Error('Build not found.');
+        const record = this.state.builds.find(build => build.id === command.id); if (!record) throw new Error('Installed version not found.');
         if (command.type === 'select') { await verifyDistribution(this.root, record); const previous = this.state.selected; this.state.selected = record.id; try { await this.persist(); } catch (error) { this.state.selected = previous; throw error; } this.state.status = this.state.online ? 'ready' : 'offline'; }
         else {
           if (record.id === this.state.selected) throw new Error('The selected version is protected.');
@@ -163,80 +179,102 @@ export class LauncherService extends EventEmitter {
     }
     this.changed(); return this.snapshot();
   }
-  // Installer entry point: setup is complete only when this exact immutable
-  // client and its full local runtime can pass verification without networking.
-  async prepareAlpha() {
-    if (!this.alphaRelease) throw new Error('This package has no pinned Neutron release.');
+  // The installer succeeds only after the downloaded pair and full runtime
+  // pass local verification. Publishing a new GitHub release needs no new launcher.
+  async prepareRelease() {
+    if (!this.launcherRelease) throw new Error('This package has no Neutron launcher release metadata.');
     if (this.registryError) throw new Error(this.registryError);
     await this.execute({ type: 'setup' }); await this.taskPromise;
-    if (!this.alphaCommitted || !this.alphaResult) throw new Error(this.state.error ?? 'Neutron preparation did not finish.');
-    return this.alphaResult;
+    if (!this.installationCommitted || !this.installationResult) throw new Error(this.state.error ?? 'Neutron preparation did not finish.');
+    return this.installationResult;
   }
-  async verifyAlpha() {
-    if (!this.alphaRelease) throw new Error('This package has no pinned Neutron release.');
+  async verifyRelease() {
+    if (!this.launcherRelease) throw new Error('This package has no Neutron launcher release metadata.');
     if (this.registryError) throw new Error(this.registryError);
     const record = this.state.builds.find(build => build.id === this.state.selected);
-    if (!this.state.setupComplete || !record || record.commit !== this.alphaRelease.clientCommit) throw new Error('The pinned Neutron client is not installed. Run setup again.');
-    return this.verifyAlphaRecord(record);
+    if (!this.state.setupComplete || !record?.releaseTag) throw new Error('No downloaded Neutron release is installed. Run setup again.');
+    return this.verifyReleaseRecord(record);
   }
-  private async verifyAlphaRecord(record: BuildRecord) {
-    const began = performance.now(); const release = this.alphaRelease!;
-    if (record.commit !== release.clientCommit) throw new Error('Unexpected Neutron client commit.');
-    const checked = await verifyDistribution(this.root, record);
-    if (checked.manifest.archiveSha256 !== release.sourceArchiveSha256) throw new Error('Installed Neutron source pin differs from this installer.');
-    const clientJar = checked.manifest.classpath.find(item => item.path === 'neutron-client.jar');
-    if (!clientJar || !/^[a-f0-9]{64}$/.test(clientJar.sha256)) throw new Error('Installed Neutron client JAR is missing from its manifest.');
-    const [tools] = await Promise.all([verifyTools(this.root), verifyRuntime(this.root, checked.manifest.runtime)]);
-    return { schemaVersion: 1, launcherVersion: release.launcherVersion, clientCommit: record.commit, selectedBuildId: record.id,
-      sourceArchiveSha256: checked.manifest.archiveSha256, clientManifestSha256: record.manifestSha256,
-      clientJarSha256: clientJar.sha256, toolchainId: tools.toolchainId,
-      verificationMs: Math.round(performance.now() - began) };
-  }
-  private async provisionAlpha(signal: AbortSignal, group: ProcessGroup) {
-    this.requireWindows();
+  private async verifyReleaseRecord(record: BuildRecord) {
     const began = performance.now();
-    await assertUserInstallation(path.join(this.root, 'temp'), signal, group);
-    const release = this.alphaRelease!;
-    const requireCapacity = async () => {
-      const capacity = await fs.statfs(this.root);
-      requireStorageCapacity(this.root, capacity.bavail * capacity.bsize);
+    const checked = await verifyDistribution(this.root, record);
+    if (checked.manifest.schemaVersion !== 2) throw new Error('This client was built from source. Install a GitHub release first.');
+    const manifest = checked.manifest;
+    const clientJar = manifest.classpath.find(item => item.path === 'neutron-client.jar');
+    if (!clientJar || clientJar.sha256 !== manifest.release.jar.sha256 || manifest.versionJson.sha256 !== manifest.release.json.sha256) throw new Error('Installed Neutron release integrity failed.');
+    const [tools] = await Promise.all([verifyTools(this.root), verifyRuntime(this.root, manifest.runtime)]);
+    return { schemaVersion: 2, launcherVersion: this.launcherRelease?.launcherVersion ?? 'development', clientCommit: record.commit, selectedBuildId: record.id,
+      releaseId: manifest.release.id, releaseTag: manifest.release.tag, clientVersion: manifest.release.version,
+      clientManifestSha256: record.manifestSha256, clientJarSha256: clientJar.sha256, versionJsonSha256: manifest.versionJson.sha256,
+      toolchainId: tools.toolchainId, verificationMs: Math.round(performance.now() - began) };
+  }
+  private async provisionRelease(signal: AbortSignal, group: ProcessGroup, tag?: string, play = false, installer = false) {
+    this.requireWindows(); const began = performance.now(); const launchOptions = structuredClone(this.state.options);
+    if (installer) await assertUserInstallation(path.join(this.root, 'temp'), signal, group);
+    let release: ClientRelease | undefined; let installedRuntime: Runtime | null = null; let offlineInstall = process.env.NEUTRON_OFFLINE === '1';
+    const installedRelease = async () => {
+      const installed = this.state.builds.find(build => build.id === this.state.selected);
+      if (!installed || tag && installed.releaseTag !== tag) throw new Error('Offline setup needs an intact installed Neutron release. Connect to download or repair it.');
+      const checked = await verifyDistribution(this.root, installed);
+      if (checked.manifest.schemaVersion !== 2) throw new Error('Offline setup needs a previously downloaded Neutron release. Connect to install it.');
+      this.state.online = false; installedRuntime = checked.manifest.runtime; return checked.manifest.release;
     };
+    if (offlineInstall) {
+      release = await installedRelease();
+    } else {
+      // Refresh before installation so the renderer cannot inject an asset URL
+      // or silently install a withdrawn/replaced catalog entry.
+      try { await this.check(signal); }
+      catch (error) {
+        signal.throwIfAborted();
+        if (!installer || tag) throw error;
+        release = await installedRelease(); offlineInstall = true;
+        this.logs.add('build', 'GitHub is unavailable. Setup will verify the already installed release offline; the latest version could not be checked.', 'warn');
+      }
+      if (!offlineInstall) {
+        const chosen = tag ?? this.state.latestRelease;
+        const found = this.state.releases.find(item => item.tag === chosen);
+        if (!found) throw new Error(tag ? 'This Neutron release is no longer available. Refresh the version list.' : 'No compatible Neutron JAR and JSON release is published yet.');
+        release = found;
+      }
+    }
+    if (!release) throw new Error('No Neutron release was selected.');
+    const requireCapacity = async () => { const capacity = await fs.statfs(this.root); requireStorageCapacity(this.root, capacity.bavail * capacity.bsize); };
     this.state.status = 'download'; this.changed();
     let tools: Awaited<ReturnType<typeof verifyTools>>;
     try { tools = await verifyTools(this.root); }
-    catch { signal.throwIfAborted(); await requireCapacity(); tools = await installTools(this.root, signal, this.progress, group); }
-    let runtime = this.runtime;
+    catch { signal.throwIfAborted(); if (offlineInstall) throw new Error('Offline setup needs an intact managed Java runtime. Connect to repair it.'); await requireCapacity(); tools = await installTools(this.root, signal, this.progress, group); }
+    let runtime = offlineInstall ? installedRuntime : this.runtime;
     if (runtime) { try { await verifyRuntime(this.root, runtime); } catch { signal.throwIfAborted(); runtime = null; } }
-    if (!runtime) { await requireCapacity(); runtime = await installRuntime(this.root, signal, this.progress); }
+    if (!runtime) { if (offlineInstall) throw new Error('Offline setup needs an intact Minecraft runtime. Connect to repair it.'); await requireCapacity(); runtime = await installRuntime(this.root, signal, this.progress); }
     await verifyRuntime(this.root, runtime); signal.throwIfAborted();
-    const cached = await reusableDistribution(this.root, this.state.builds, release.clientCommit, this.adapter, runtime, signal);
-    // Never accept a cache generated from another source archive for this pin.
-    const reusable = cached && (await verifyDistribution(this.root, cached)).manifest.archiveSha256 === release.sourceArchiveSha256 ? cached : null;
-    if (reusable) this.logs.add('build', 'Pinned Neutron cache verified; no downloads or Maven build required.');
-    if (!reusable && process.env.NEUTRON_OFFLINE === '1') throw new Error('Offline setup needs an intact verified copy of the pinned Neutron. Connect to repair the cache. Previous version retained.');
+    const reusable = await reusableReleaseDistribution(this.root, this.state.builds, release, runtime, signal);
+    if (!reusable && offlineInstall) throw new Error('Offline setup needs an intact verified Neutron release. Connect to repair it. Previous version retained.');
     if (!reusable) await requireCapacity();
-    const record = reusable ?? await buildDistribution(this.root, release.clientCommit, this.adapter, tools, runtime, signal,
-      phase => { this.state.status = phase; this.changed(); },
-      (line, error) => this.logs.add('build', line, /\[ERROR\]/.test(line) ? 'error' : error ? 'warn' : 'info'), group, release.sourceArchiveSha256, !!release.testedClientCommit);
-    // An old matching manifest is not proof that its Bootstrap ever passed.
+    const record = reusable ?? await installReleaseDistribution(this.root, release, runtime, signal, this.progress,
+      phase => { this.state.status = phase; this.changed(); });
+    signal.throwIfAborted(); this.state.status = 'verify'; this.changed();
     await validateClient(this.root, record, tools, signal, group);
-    const result = await this.verifyAlphaRecord(record);
+    const result = await this.verifyReleaseRecord(record);
     await this.logs.flush();
-    // Everything required for installer success precedes the registry commit.
-    // A receipt counts only when selectedBuildId matches state.json.
+    // The receipt and every required check precede the single registry commit.
     await atomicJson(await owned(this.root, 'logs/installer-result.json'), { ...result, phase: 'verified-before-activation',
       completedAt: new Date().toISOString(), setupMs: Math.round(performance.now() - began) });
     signal.throwIfAborted();
     const previous = { builds: this.state.builds, selected: this.state.selected, runtime: this.runtime };
     this.state.builds = [record, ...this.state.builds.filter(build => build.id !== record.id)].slice(0, 100);
     this.state.selected = record.id; this.runtime = runtime; this.committing = true;
-    try { await this.persist(); this.alphaCommitted = true; this.alphaResult = result; }
+    try { await this.persist(); this.installationCommitted = true; this.installationResult = result; }
     catch (error) { this.state.builds = previous.builds; this.state.selected = previous.selected; this.runtime = previous.runtime; throw error; }
     finally { this.committing = false; }
-    this.state.setupComplete = true; this.state.status = 'ready';
-    this.logs.add('build', 'Neutron installed and verified: ' + release.clientCommit + '. Play starts the local client without Maven. Previous versions and personal data retained.');
+    this.state.setupComplete = true; this.state.status = this.availableStatus();
+    this.logs.add('build', 'Neutron ' + release.version + ' downloaded and verified. Previous versions and personal data retained.');
+    if (play) {
+      if (JSON.stringify(launchOptions) !== JSON.stringify(this.state.options)) throw new Error('Launch options changed during installation. Start the installed version manually.');
+      await this.launch();
+    }
   }
-  private requireWindows() { if (process.platform !== 'win32' || process.arch !== 'x64') throw new Error('This playtest supports Windows x64 only.'); }
+  protected requireWindows() { if (process.platform !== 'win32' || process.arch !== 'x64') throw new Error('This launcher supports Windows x64 only.'); }
   protected async prepareClient(record: BuildRecord, signal: AbortSignal, group: ProcessGroup): Promise<PreparedClient> {
     signal.throwIfAborted();
     const distribution = await verifyDistribution(this.root, record); signal.throwIfAborted();
@@ -249,7 +287,7 @@ export class LauncherService extends EventEmitter {
     const java = await fs.realpath(options.java === 'custom' ? options.javaPath : path.join(tools.javaHome, 'bin/java.exe'));
     if (!path.isAbsolute(java)) throw new Error('Select an absolute Java 8 executable.');
     const javaHome = await validateJava(java, temporary, signal, group); signal.throwIfAborted();
-    const classpath = [...runtime.manifest.javaLibraries.map(name => path.join(runtime.directory, name)), ...distribution.classpath];
+    const classpath = clientClasspath(distribution, runtime);
     const args = launchArguments(options, this.state.maxRamMiB, classpath, runtime.directory, distribution.manifest.version, temporary);
     // javaw avoids a separate console, while allowing the game's first native
     // window to be shown. SW_HIDE on java.exe also hides LWJGL's game window.
@@ -267,7 +305,8 @@ export class LauncherService extends EventEmitter {
   private launch(): Promise<void> {
     this.requireWindows();
     if (this.closing || this.unverifiedLease || this.starting || this.state.runningBuild) throw new Error('A client is already running/starting or its previous process record needs attention.');
-    const record = this.state.builds.find(build => build.id === this.state.selected); if (!record) throw new Error('Build a version first.');
+    const record = this.state.builds.find(build => build.id === this.state.selected); if (!record) throw new Error('Install a Neutron release first.');
+    this.catalogController?.abort();
     // Reserve before preparation, mkdir or any other await. Stop/shutdown can
     // abort this reservation even when no child PID exists yet.
     const controller = new AbortController(); const group = this.createProcessGroup(); this.clientProcesses = group; this.startController = controller;
@@ -325,13 +364,13 @@ export class LauncherService extends EventEmitter {
   }
   async idle() { await this.taskPromise; await this.logs.flush(); return this.snapshot(); }
   async shutdown(preserveRecoveredClient = false) {
-    this.closing = true; this.stopping = true; this.startController?.abort(new Error('Launcher closing.')); this.task?.abort(new Error('Launcher closing.'));
+    this.closing = true; this.stopping = true; this.catalogController?.abort(); if (this.catalogTimer) { clearInterval(this.catalogTimer); this.catalogTimer = null; } this.startController?.abort(new Error('Launcher closing.')); this.task?.abort(new Error('Launcher closing.'));
     try {
       await Promise.all([this.taskProcesses?.stop(), this.clientProcesses?.stop()]);
-      await this.taskPromise; if (!preserveRecoveredClient || !this.recovered) await this.stop(); await this.leaseWrite.catch(() => {}); try { await this.logs.flush(); } catch (error) { if (!this.alphaCommitted) throw error; console.error('Neutron is installed; diagnostic flush failed:', error); } await this.writes;
+      await this.taskPromise; if (!preserveRecoveredClient || !this.recovered) await this.stop(); await this.leaseWrite.catch(() => {}); try { await this.logs.flush(); } catch (error) { if (!this.installationCommitted) throw error; console.error('Neutron is installed; diagnostic flush failed:', error); } await this.writes;
       if (this.timer) clearTimeout(this.timer); if (this.recoveryTimer) clearInterval(this.recoveryTimer);
     } catch (error) { this.closing = false; throw error; }
   }
-  report() { return redact(JSON.stringify({ product: 'Neutron Launcher ' + (this.alphaRelease?.launcherVersion ?? 'development'), platform: 'windows-x64', selected: this.state.builds.find(build => build.id === this.state.selected)?.commit ?? null, exitCode: this.state.exitCode, error: this.state.error, logs: this.logs.lines.slice(-80) }, null, 2)); }
+  report() { return redact(JSON.stringify({ product: 'Neutron Launcher ' + (this.launcherRelease?.launcherVersion ?? 'development'), platform: 'windows-x64', selected: this.state.builds.find(build => build.id === this.state.selected)?.commit ?? null, exitCode: this.state.exitCode, error: this.state.error, logs: this.logs.lines.slice(-80) }, null, 2)); }
   setError(error: unknown) { this.state.error = redact(String(error)); this.logs.add('build', this.state.error, 'error'); this.changed(); }
 }

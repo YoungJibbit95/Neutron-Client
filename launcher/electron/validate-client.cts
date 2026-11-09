@@ -1,14 +1,14 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { verifyDistribution } from './distribution.cjs';
+import { clientClasspath, verifyDistribution } from './distribution.cjs';
 import { verifyRuntime } from './minecraft.cjs';
 import { owned } from './files.cjs';
 import { childEnvironment, runProcess, type ProcessGroup } from './processes.cjs';
 import type { Tools } from './toolchain.cjs';
 import type { BuildRecord } from './contracts.cjs';
 
-// Used for cache reuse as well as freshly built packages. No Maven, network,
+// Used for cache reuse as well as downloaded releases. No network,
 // account data or personal game directory is involved in this local validation.
 export async function validateClient(root: string, record: BuildRecord, tools: Tools, signal: AbortSignal, group?: ProcessGroup) {
   const client = await verifyDistribution(root, record);
@@ -17,11 +17,11 @@ export async function validateClient(root: string, record: BuildRecord, tools: T
   const code = await runProcess(path.join(tools.javaHome, 'bin/java.exe'), [
     '-Xms32M', '-Xmx256M', '-Djava.io.tmpdir=' + temporary,
     '-Djava.library.path=' + path.join(runtime.directory, 'natives'), '-cp',
-    [...runtime.manifest.javaLibraries.map(name => path.join(runtime.directory, name)), ...client.classpath].join(path.delimiter),
+    clientClasspath(client, runtime).join(path.delimiter),
     client.manifest.entryPoint, '--gameDir', temporary, '--assetsDir', path.join(runtime.directory, 'assets'),
     '--nativesDir', path.join(runtime.directory, 'natives'), '--assetIndex', '1.8', '--version', client.manifest.version,
     '--username', 'NeutronPlayer', '--validateOnly',
   ], { cwd: temporary, env: childEnvironment(tools.javaHome, temporary), signal, group, line: () => {} });
-  if (code !== 0) throw new Error('Cached Neutron Bootstrap validation failed (exit ' + code + '). Previous version retained.');
+  if (code !== 0) throw new Error('Neutron Bootstrap validation failed (exit ' + code + '). Previous version retained.');
   signal.throwIfAborted();
 }

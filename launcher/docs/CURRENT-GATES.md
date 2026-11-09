@@ -1,11 +1,30 @@
-# Current Windows release gates
+# Windows release gates — Launcher 0.3.0
 
-- **0.2.3 candidate (PR #97):** Corrected same-name process detection, transport fallback for the exact hash-pinned Temurin archive, and hardened CI packaging. The previously published `launcher-v0.2.2` is immutable; no artifact from this PR may replace its release. The reviewed client pin remains `1411f04c612c58190b5bc7ead0854c901e7945e3` until a separately accepted client update. The exact 0.2.3 installer still requires full standard-user cold install, upgrade, offline reinstall, renderer verification, uninstall, and independent artifact acceptance. No new release or successful full lifecycle is claimed yet.
-- Version **0.2.1**, stable, pins reviewed public client commit `1411f04c612c58190b5bc7ead0854c901e7945e3` and source-archive SHA256 `317d6c2e5f0a5148123622b13849032de392901ac13ae9690a2e40df8df94e4b` (108,214,843 bytes). The final client tree is `01e65c06f4d8a9b0023310fd07f1fac9798b956d`, released from PR #88 after 1,152 native Java-8 tests with no failures/skips, six isolated packaged-runtime checks and five successful PR checks.
-- Package, lockfile, display and tracked release metadata must agree. CI checks this durable pin; synthetic PR merge commits never replace it. No new launcher features are part of this version/pin handoff.
-- TypeScript and the 158-test launcher suite cover integrity, Bootstrap rejection, cancellation, invalid state, protected active clients, receipt failures before activation, diagnostic failures after activation, and intact cache reuse with only 2 GiB available. Each new candidate must pass these checks again.
-- Publication requires the actual final NSIS cold install/client build, offline verification, renderer handshake, failure paths, offline reinstall and uninstall in a disposable ordinary Windows account. The executable, both registration keys and synthetic personal-data marker define real uninstall completion. Elevated/all-users installation is refused; failed or skipped ordinary-user acceptance cannot pass.
-- Fixture environment overrides are removed from the process environment. An empty `NEUTRON_DATA_ROOT` is an invalid explicit override, not an unset variable. PowerShell null-string binding must not leak such an override into NSIS/Electron.
-- Independent source and artifact review must accept the exact CI executable, its SHA256 and receipt before stable publication under `launcher-v0.2.1`. Never rebuild the accepted EXE for upload. Verify the public downloaded bytes. The installer remains unsigned, as authorized; signing/SmartScreen reputation is not claimed.
-- The prior 0.2.0 Windows lifecycle and local offline installation are completed evidence for that earlier pin, not acceptance of 0.2.1. The new release carries its own CI run, source pin, timing receipt and checksum.
-- No local GUI control or further player-machine installation is authorized for this handoff. Complete theme/language/DPI/GPU-loss and real gameplay coverage is not claimed by automated installer checks; report unobserved checks honestly. Existing accounts, worlds, settings and client versions remain protected.
+The current installation uses published JAR/JSON assets. Historical 0.2.x source-build
+receipts do not accept a new executable.
+
+- Package, lockfile and schema-2 release metadata must agree on version/repository.
+- TypeScript, launcher behavior/integrity tests and artifact-review tests must pass.
+- Windows PowerShell 5.1 x64/x86 storage fixtures must pass, including legacy profiles,
+  complete data copies, selected-release receipts, stale receipts and invalid state.
+- The exact NSIS candidate must pass ordinary-user cold install, elevated/all-users
+  refusal, release verification, renderer startup, failure preservation, offline
+  reinstall and uninstall. Fresh setup must not create Maven or client source data.
+- The real historical 0.2.0 installer is followed by the exact candidate. The receipt
+  distinguishes complete old-install upgrade from repair of an incomplete registered
+  install; settings/data preservation and uninstall remain required.
+- Independent artifact review checks EXE SHA-256, version, source SHA and completed
+  receipts. Offline checks must identify the same selected JAR/JSON/manifest.
+- Publication requires a normal protected-main merge and successful Java 8 / Windows
+  regression, Repository policy and Dependency review checks; no rules are bypassed.
+- The accepted EXE is uploaded unchanged. Draft hashes/sizes are checked before
+  publication and the public download afterward. Published releases are not replaced.
+
+The Actions run and attached release-metadata.json, installer-acceptance.json and
+legacy-diagnostic.json identify actual completed checks and timings. This document
+states gates, not acceptance of an untested candidate. Sprint/PR48 reports are
+historical evidence for their own source-build versions.
+
+The installer remains unsigned. Automated checks do not establish SmartScreen
+reputation, every theme/language/DPI/GPU-loss combination or real server gameplay.
+Accounts, worlds, settings and previous versions remain protected.
