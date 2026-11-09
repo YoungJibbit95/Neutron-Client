@@ -1,5 +1,7 @@
 package me.youngjibbit.core.combat;
 
+import me.youngjibbit.core.network.NetworkTestSupport;
+
 import io.netty.channel.embedded.EmbeddedChannel;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.bootstrap.ClientRuntime;

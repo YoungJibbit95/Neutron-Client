@@ -1,5 +1,7 @@
 package me.youngjibbit.core.world;
 
+import me.youngjibbit.core.network.NetworkTestSupport;
+
 import io.netty.channel.embedded.EmbeddedChannel;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.config.ConfigManager;

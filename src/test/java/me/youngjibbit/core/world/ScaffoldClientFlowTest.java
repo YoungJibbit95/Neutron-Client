@@ -1,5 +1,7 @@
 package me.youngjibbit.core.world;
 
+import me.youngjibbit.core.network.NetworkTestSupport;
+
 import me.youngjibbit.core.combat.RotationBehaviorHookTest;
 import me.youngjibbit.core.network.PacketFlowTest;
 import net.minecraft.block.Block;
