@@ -1,5 +1,6 @@
 package me.youngjibbit.core.world;
 
+import java.lang.ref.WeakReference;
 import java.util.List;
 
 /**
@@ -10,6 +11,7 @@ import java.util.List;
 public final class AdaptiveBridgePlanner {
     public static final int MAX_OPTIONS = 24;
     public static final double MAX_PREDICTION_BLOCKS = .6;
+    public static final double MAX_PREDICTION_TICKS = 3;
     private static final double EPS = 1.0e-6;
 
     public enum Face {
@@ -72,6 +74,7 @@ public final class AdaptiveBridgePlanner {
         public int selectedSlot, destinationX, destinationY, destinationZ;
         public double feetX, feetY, feetZ, eyeX, eyeY, eyeZ;
         public double yaw, velocityX, velocityZ, forward, strafe, reach = 4.5;
+        public double predictionTicks = 1;
         public boolean authorized, eagleEnabled, physicalEdgeRisk;
     }
 
@@ -98,6 +101,7 @@ public final class AdaptiveBridgePlanner {
         final Scope scope;
         long lastSequence = Long.MIN_VALUE;
         int destinationX, destinationY, destinationZ, slot;
+        double yaw, forward, strafe, velocityX, velocityZ, predictionTicks;
         Object stack;
         Plan cached;
         State(Scope scope) { this.scope = scope; }
@@ -106,18 +110,42 @@ public final class AdaptiveBridgePlanner {
             destinationX = f.destinationX; destinationY = f.destinationY;
             destinationZ = f.destinationZ; slot = f.selectedSlot;
             stack = f.approvedStack;
+            yaw = f.yaw; forward = f.forward; strafe = f.strafe;
+            velocityX = f.velocityX; velocityZ = f.velocityZ;
+            predictionTicks = f.predictionTicks;
             cached = result;
         }
         boolean sameIntent(Frame f) {
             return destinationX == f.destinationX && destinationY == f.destinationY
                     && destinationZ == f.destinationZ && slot == f.selectedSlot
-                    && stack == f.approvedStack;
+                    && stack == f.approvedStack
+                    && Double.compare(yaw, f.yaw) == 0
+                    && Double.compare(forward, f.forward) == 0
+                    && Double.compare(strafe, f.strafe) == 0
+                    && Double.compare(velocityX, f.velocityX) == 0
+                    && Double.compare(velocityZ, f.velocityZ) == 0
+                    && Double.compare(predictionTicks, f.predictionTicks) == 0;
+        }
+    }
+
+    private static final class Lifetime {
+        final WeakReference<Object> owner, world, player, connection;
+        final long connectionEpoch, acquisitionGeneration;
+        Lifetime(Scope scope) {
+            owner = new WeakReference<>(scope.owner);
+            world = new WeakReference<>(scope.world);
+            player = new WeakReference<>(scope.player);
+            connection = new WeakReference<>(scope.connection);
+            connectionEpoch = scope.connectionEpoch;
+            acquisitionGeneration = scope.acquisitionGeneration;
         }
     }
 
     private final Thread owningThread = Thread.currentThread();
     private State state;
-    private long highestEpoch = -1, highestGeneration = -1;
+    // Epochs belong to one connection; the host generation spans acquisitions.
+    // Keep this complete lifetime tombstone when the active state is reset.
+    private Lifetime highestScope;
 
     public synchronized void reset() {
         if (Thread.currentThread() == owningThread) state = null;
@@ -134,14 +162,16 @@ public final class AdaptiveBridgePlanner {
     public synchronized Plan prepare(Frame frame, List<SupportFace> options) {
         Plan hold = hold(frame);
         if (Thread.currentThread() != owningThread) return hold;
+        // Late invalid callbacks cannot revoke a newer PRE in the same scope.
+        if (frame != null && state != null && state.scope.same(frame.scope)
+                && frame.sequence < state.lastSequence) return hold;
         if (!valid(frame)) { invalidateIfCurrent(frame == null ? null : frame.scope); return hold; }
 
         int order = order(frame.scope);
         if (order < 0) return hold;
         if (order > 0) {
             state = new State(frame.scope);
-            highestEpoch = frame.scope.connectionEpoch;
-            highestGeneration = frame.scope.acquisitionGeneration;
+            highestScope = new Lifetime(frame.scope);
         }
         State active = state;
         if (active == null || !active.scope.same(frame.scope)) return hold;
@@ -194,7 +224,11 @@ public final class AdaptiveBridgePlanner {
                 predicted[0], predicted[1], frame.sequence);
     }
 
-    private static double[] predict(Frame f) {
+    /** Stateless preview. This never consumes a motion sequence or a scope. */
+    public static double[] predict(Frame f) {
+        if (!validMotion(f)) return new double[]{
+                f != null && coordinate(f.feetX) ? f.feetX : 0,
+                f != null && coordinate(f.feetZ) ? f.feetZ : 0};
         double forwards = f.forward, sideways = f.strafe;
         double keyboardLength = Math.hypot(forwards, sideways);
         if (keyboardLength > 1) {
@@ -203,8 +237,8 @@ public final class AdaptiveBridgePlanner {
         double radians = Math.toRadians(f.yaw);
         double keyX = -Math.sin(radians) * forwards + Math.cos(radians) * sideways;
         double keyZ = Math.cos(radians) * forwards + Math.sin(radians) * sideways;
-        double dx = f.velocityX + keyX * .18;
-        double dz = f.velocityZ + keyZ * .18;
+        double dx = (f.velocityX + keyX * .18) * f.predictionTicks;
+        double dz = (f.velocityZ + keyZ * .18) * f.predictionTicks;
         double length = Math.hypot(dx, dz);
         if (length > MAX_PREDICTION_BLOCKS) {
             dx = dx / length * MAX_PREDICTION_BLOCKS;
@@ -218,8 +252,13 @@ public final class AdaptiveBridgePlanner {
                 || f.approvedStack == null || f.sequence < 0
                 || f.selectedSlot < 0 || f.selectedSlot > 8
                 || f.destinationY < 0 || f.destinationY > 255
-                || !coordinate(f.destinationX) || !coordinate(f.destinationZ)
-                || !coordinate(f.feetX) || !coordinate(f.feetY) || !coordinate(f.feetZ)
+                || !coordinate(f.destinationX) || !coordinate(f.destinationZ))
+            return false;
+        return validMotion(f);
+    }
+
+    static boolean validMotion(Frame f) {
+        if (f == null || !coordinate(f.feetX) || !coordinate(f.feetY) || !coordinate(f.feetZ)
                 || !coordinate(f.eyeX) || !coordinate(f.eyeY) || !coordinate(f.eyeZ)
                 || f.eyeY < f.feetY || f.eyeY - f.feetY > 2.4
                 || !Double.isFinite(f.yaw) || !Double.isFinite(f.forward)
@@ -227,7 +266,9 @@ public final class AdaptiveBridgePlanner {
                 || Math.abs(f.strafe) > 1
                 || !Double.isFinite(f.velocityX) || !Double.isFinite(f.velocityZ)
                 || Math.abs(f.velocityX) > 2 || Math.abs(f.velocityZ) > 2
-                || !Double.isFinite(f.reach) || f.reach < 1 || f.reach > 6)
+                || !Double.isFinite(f.reach) || f.reach < 1 || f.reach > 6
+                || !Double.isFinite(f.predictionTicks) || f.predictionTicks < 0
+                || f.predictionTicks > MAX_PREDICTION_TICKS)
             return false;
         return true;
     }
@@ -255,9 +296,19 @@ public final class AdaptiveBridgePlanner {
     }
 
     private int order(Scope token) {
-        if (token.connectionEpoch != highestEpoch)
-            return Long.compare(token.connectionEpoch, highestEpoch);
-        return Long.compare(token.acquisitionGeneration, highestGeneration);
+        if (highestScope == null) return 1;
+        if (token.owner != highestScope.owner.get()) return -1;
+        int generation = Long.compare(token.acquisitionGeneration,
+                highestScope.acquisitionGeneration);
+        if (generation < 0) return -1;
+        if (token.connection != highestScope.connection.get())
+            return generation > 0 ? 1 : -1;
+        // New acquisitions cannot move one connection's epoch backwards.
+        if (token.connectionEpoch < highestScope.connectionEpoch) return -1;
+        if (generation > 0) return 1;
+        if (token.world != highestScope.world.get() || token.player != highestScope.player.get())
+            return -1;
+        return Long.compare(token.connectionEpoch, highestScope.connectionEpoch);
     }
 
     private static boolean coordinate(double d) {

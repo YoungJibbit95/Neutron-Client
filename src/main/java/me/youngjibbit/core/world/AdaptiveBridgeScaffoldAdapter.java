@@ -13,6 +13,7 @@ import java.util.List;
  */
 public final class AdaptiveBridgeScaffoldAdapter {
     private final AdaptiveBridgePlanner planner=new AdaptiveBridgePlanner();
+    private final Thread owningThread=Thread.currentThread();
 
     public static final class Prepared {
         public final PlacementTarget target;
@@ -27,13 +28,59 @@ public final class AdaptiveBridgeScaffoldAdapter {
     public void reset() {planner.reset();}
 
     /**
+     * Inert acquisition for enable/PRE. Unlike findTarget, an occupied current
+     * foot cell does not stop the short look-ahead. Every face still passes the
+     * existing service's real current-world, stack, reach and raycast checks.
+     * Three sampled destinations and six faces bound this to eighteen planFace
+     * calls; subsequent PRE preparation adds at most five alternative faces.
+     * No planner state, rotation request, inventory write or placement is made.
+     */
+    public PlacementTarget findEarlyTarget(ScaffoldPlacementService service,
+            AdaptiveBridgePlanner.Frame frame,int blockY,PlacementTarget preferred) {
+        if(Thread.currentThread()!=owningThread || service==null || frame==null
+                || frame.scope==null || !frame.scope.usable() || !frame.authorized
+                || !AdaptiveBridgePlanner.validMotion(frame) || blockY<0 || blockY>255)return null;
+        double[] predicted=AdaptiveBridgePlanner.predict(frame);
+        BlockPos[] destinations={
+                new BlockPos(frame.feetX,blockY,frame.feetZ),
+                new BlockPos((frame.feetX+predicted[0])*.5,blockY,(frame.feetZ+predicted[1])*.5),
+                new BlockPos(predicted[0],blockY,predicted[1])};
+        for(int index=0;index<destinations.length;index++) {
+            BlockPos destination=destinations[index];
+            boolean duplicate=false;
+            for(int earlier=0;earlier<index;earlier++)
+                if(destination.equals(destinations[earlier]))duplicate=true;
+            if(duplicate)continue;
+            // An actual gap beneath the player takes precedence over a future
+            // kept point. Within one destination keep its exact immutable intent.
+            if(preferred!=null && destination.equals(preferred.getDestination())
+                    && validPreview(service,frame,preferred,predicted))return preferred;
+            for(EnumFacing face:EnumFacing.values()) {
+                PlacementTarget candidate=service.planFace(
+                        destination.offset(face.getOpposite()),face,null);
+                if(validPreview(service,frame,candidate,predicted))return candidate;
+            }
+        }
+        return null;
+    }
+
+    private static boolean validPreview(ScaffoldPlacementService service,
+            AdaptiveBridgePlanner.Frame frame,PlacementTarget target,double[] predicted) {
+        if(target==null || target.world!=frame.scope.world || target.player!=frame.scope.player
+                || !service.isValid(target))return false;
+        Vec3 futureEyes=new Vec3(frame.eyeX+predicted[0]-frame.feetX,frame.eyeY,
+                frame.eyeZ+predicted[1]-frame.feetZ);
+        return futureEyes.squareDistanceTo(target.getHitVec())<=frame.reach*frame.reach;
+    }
+
+    /**
      * Called only from Scaffold PRE. The host service has already validated the
      * initial destination/support/slot/stack. Up to six valid original-destination
      * face proposals are considered. The method cannot mutate inventory or send.
      */
     public Prepared prepare(ScaffoldPlacementService service,PlacementTarget original,
                             AdaptiveBridgePlanner.Frame frame) {
-        if(service==null || original==null || frame==null || frame.scope==null
+        if(Thread.currentThread()!=owningThread || service==null || original==null || frame==null || frame.scope==null
                 || !service.isValid(original))return null;
         if(original.world!=frame.scope.world || original.player!=frame.scope.player)return null;
         final BlockPos destination=original.getDestination();
