@@ -1,5 +1,7 @@
 package me.youngjibbit.core.combat;
 
+import me.youngjibbit.core.network.NetworkTestSupport;
+
 import io.netty.channel.embedded.EmbeddedChannel;
 import me.youngjibbit.core.network.PacketFlowTest;
 import me.youngjibbit.event.EventFlow;
@@ -48,7 +50,7 @@ public class AcceptedPositionRaycastTest {
         NetHandlerPlayClient play=new NetHandlerPlayClient(null,null,network,null);
         Field client=NetHandlerPlayClient.class.getDeclaredField("gameController");client.setAccessible(true);client.set(play,mc);
         Field queue=EntityPlayerSP.class.getDeclaredField("sendQueue");queue.setAccessible(true);queue.set(viewer,play);
-        network.setNetHandler(play);network.configureClientPackets(new PacketFlowTest.MainThread());RaycastService rays=new RaycastService(mc);
+        network.setNetHandler(play);network.configureClientPackets(new NetworkTestSupport.MainThread());RaycastService rays=new RaycastService(mc);
         try {
             network.sendPacket(new C03PacketPlayer.C06PacketPlayerPosLook(0,64,0,0,0,true));while(channel.readOutbound()!=null){}
             assertTrue(rays.canHit(target,0,0,4.5f));

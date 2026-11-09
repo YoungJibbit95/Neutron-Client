@@ -35,14 +35,14 @@ public class NetworkPacketFailureTest {
         context.getConfiguration().addLogger(loggerName, capture);
         context.updateLoggers();
 
-        PacketFlowTest.MainThread main = new PacketFlowTest.MainThread();
+        NetworkTestSupport.MainThread main = new NetworkTestSupport.MainThread();
         NetworkManager network = new NetworkManager(EnumPacketDirection.CLIENTBOUND);
         EmbeddedChannel channel = new EmbeddedChannel(network);
         NullPointerException failure = new NullPointerException("synthetic join handler failure");
         AtomicInteger applications = new AtomicInteger();
         try {
             network.configureClientPackets(main);
-            network.setNetHandler(PacketFlowTest.handler(args -> {
+            network.setNetHandler(NetworkTestSupport.handler(args -> {
                 applications.incrementAndGet();
                 throw failure;
             }));

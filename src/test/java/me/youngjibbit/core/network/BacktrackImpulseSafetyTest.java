@@ -8,7 +8,7 @@ import static org.junit.Assert.*;
 
 public class BacktrackImpulseSafetyTest {
     private Backtrack enable(ExploitHookFixture f, AtomicLong now, String mode) throws Exception {
-        BacktrackLagRangeControlTest.clock(f, now);
+        NetworkTestSupport.clock(f, now);
         f.world.entities.put(1, f.player);
         Backtrack back = new Backtrack(now::get, f.client, (min, max) -> min);
         back.getBooleanSetting("Only Aura").setValue(false);
@@ -53,7 +53,7 @@ public class BacktrackImpulseSafetyTest {
                     assertTrue(f.controller.tryAttackEntity(f.player, enemy, () -> true));
                     move(f); assertEquals(96, enemy.serverPosX);
                     java.util.List<Object> applied = new java.util.ArrayList<>();
-                    f.pipe().inbound(new S06PacketUpdateHealth(10, 20, 0), PacketFlowTest.handler(args -> {
+                    f.pipe().inbound(new S06PacketUpdateHealth(10, 20, 0), NetworkTestSupport.handler(args -> {
                         assertEquals("movement must precede health feedback", 100, enemy.serverPosX);
                         applied.add(args[0]);
                     }), false);

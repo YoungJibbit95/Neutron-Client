@@ -16,22 +16,22 @@ import static org.junit.Assert.*;
 
 /** Common API contract from Scaffold 5cbaa54e: accepted geometry/slot, previous PRE, current POST, final-plan guard. */
 public class ScaffoldPipelineIntegrationTest {
-    private EntityPlayerSP player(SessionConsumerIntegrationTest.Fixture f) throws Exception {
-        EntityPlayerSP player=AttackHookTest.bare(EntityPlayerSP.class);
+    private EntityPlayerSP player(NetworkTestSupport.Fixture f) throws Exception {
+        EntityPlayerSP player=NetworkTestSupport.bare(EntityPlayerSP.class);
         Field send=EntityPlayerSP.class.getDeclaredField("sendQueue");send.setAccessible(true);send.set(player,f.play);
-        player.inventory=new InventoryPlayer(player);player.worldObj=AttackHookTest.bare(AttackHookTest.WorldStub.class);
+        player.inventory=new InventoryPlayer(player);player.worldObj=NetworkTestSupport.bare(NetworkTestSupport.WorldStub.class);
         f.client.thePlayer=player;f.client.theWorld=(net.minecraft.client.multiplayer.WorldClient)player.worldObj;
         f.client.playerController=new PlayerControllerMP(f.client,f.play);return player;
     }
     private void pos(EntityPlayerSP player,double x) {assertEquals(x,player.getLastReportedPosition().xCoord,0);}
     @Test public void acceptedReplacementGeometryIsObservedBeforePacketPostAndMotionPreUsesThePreviousAcceptance() throws Exception {
-        try(SessionConsumerIntegrationTest.Fixture f=new SessionConsumerIntegrationTest.Fixture()) {
+        try(NetworkTestSupport.Fixture f=new NetworkTestSupport.Fixture()) {
             EntityPlayerSP player=player(f);RotationManager rotation=RuntimeServices.rotation();rotation.reset();
             rotation.beginMotion(player,player.worldObj,0,0);rotation.request("scaffold",30,20,70);
             C03PacketPlayer baseline=new C03PacketPlayer.C06PacketPlayerPosLook(1,64,0,20,70,true);
             assertSame(baseline,f.play.addToSendQueueTracked(baseline));rotation.finishMotion(20,70,true);assertTrue(rotation.isOwner("scaffold"));
             rotation.beginMotion(player,player.worldObj,0,0);assertTrue(rotation.canUseRotation(true));pos(player,1);
-            rotation.request("scaffold",30,20,70);PacketFlowTest.Observer packets=new PacketFlowTest.Observer();
+            rotation.request("scaffold",30,20,70);NetworkTestSupport.Observer packets=new NetworkTestSupport.Observer();
             C03PacketPlayer replacement=new C03PacketPlayer.C06PacketPlayerPosLook(3,64,0,-40,10,true);
             packets.action=e->{if(e.isPre())e.setPacket(replacement);else {pos(player,3);assertEquals(-40,rotation.getEffectiveYaw(),0);}};
             Pulsar.BUS.subscribe(packets);
@@ -46,7 +46,7 @@ public class ScaffoldPipelineIntegrationTest {
         }
     }
     @Test public void delayedDirectAndSilentMovementShareTheSameAcceptedPositionAndRotationObservation() throws Exception {
-        try(SessionConsumerIntegrationTest.Fixture f=new SessionConsumerIntegrationTest.Fixture()) {
+        try(NetworkTestSupport.Fixture f=new NetworkTestSupport.Fixture()) {
             EntityPlayerSP player=player(f);RuntimeServices.rotation().reset();Object owner=new Object();
             try {
                 f.network.getClientPackets().delays().request(owner,200,(p,flow)->true);
@@ -63,9 +63,9 @@ public class ScaffoldPipelineIntegrationTest {
         Field f=PlayerControllerMP.class.getDeclaredField("currentPlayerItem");f.setAccessible(true);return f.getInt(controller);
     }
     @Test public void acceptedSlotCacheSurvivesCancellationReplacementAndNestedPostSends() throws Exception {
-        try(SessionConsumerIntegrationTest.Fixture f=new SessionConsumerIntegrationTest.Fixture()) {
+        try(NetworkTestSupport.Fixture f=new NetworkTestSupport.Fixture()) {
             EntityPlayerSP player=player(f);player.inventory.currentItem=2;PlayerControllerMP controller=f.client.playerController;
-            PacketFlowTest.Observer packets=new PacketFlowTest.Observer();Pulsar.BUS.subscribe(packets);
+            NetworkTestSupport.Observer packets=new NetworkTestSupport.Observer();Pulsar.BUS.subscribe(packets);
             try {
                 int previousSlot=slot(controller);
                 packets.action=e->{if(e.isPre())e.cancel();};assertFalse(controller.syncCurrentPlayItemChecked());assertEquals(previousSlot,slot(controller));
@@ -77,8 +77,8 @@ public class ScaffoldPipelineIntegrationTest {
         }
     }
     @Test public void nativePlacementGuardSeesFinalReplacementAndIsRecheckedAfterMovementRelease() throws Exception {
-        try(SessionConsumerIntegrationTest.Fixture f=new SessionConsumerIntegrationTest.Fixture()) {
-            player(f);PacketFlowTest.Observer packets=new PacketFlowTest.Observer();Pulsar.BUS.subscribe(packets);
+        try(NetworkTestSupport.Fixture f=new NetworkTestSupport.Fixture()) {
+            player(f);NetworkTestSupport.Observer packets=new NetworkTestSupport.Observer();Pulsar.BUS.subscribe(packets);
             C08PacketPlayerBlockPlacement plan=new C08PacketPlayerBlockPlacement();
             try {
                 packets.action=e->{if(e.isPre())e.setPacket(new C08PacketPlayerBlockPlacement());};

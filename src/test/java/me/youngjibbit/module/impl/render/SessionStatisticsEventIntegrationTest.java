@@ -1,7 +1,7 @@
 package me.youngjibbit.module.impl.render;
 
 import me.youngjibbit.Pulsar;
-import me.youngjibbit.core.network.SessionConsumerIntegrationTest.Fixture;
+import me.youngjibbit.core.network.NetworkTestSupport.Fixture;
 import me.youngjibbit.event.network.*;
 import me.youngjibbit.event.packet.EventPacket;
 import me.zero.alpine.listener.*;

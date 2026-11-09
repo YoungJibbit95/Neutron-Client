@@ -19,7 +19,7 @@ import static org.junit.Assert.*;
  */
 public class BacktrackReceiptSafeFlowTest {
     private static Backtrack create(ExploitHookFixture f,AtomicLong time) throws Exception {
-        BacktrackLagRangeControlTest.clock(f,time);
+        NetworkTestSupport.clock(f,time);
         Backtrack b=new Backtrack(time::get,f.client,(min,max)->max);
         b.getBooleanSetting("Only Aura").setValue(false);
         b.getModeSetting("Backtrack Mode").setValue("Receipt Safe");

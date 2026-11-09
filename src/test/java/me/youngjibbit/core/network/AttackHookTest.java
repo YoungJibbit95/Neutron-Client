@@ -1,5 +1,7 @@
 package me.youngjibbit.core.network;
 
+import static me.youngjibbit.core.network.NetworkTestSupport.*;
+
 import io.netty.channel.embedded.EmbeddedChannel;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.event.player.*;
@@ -19,17 +21,8 @@ import static org.junit.Assert.*;
 
 /** Executes the real controller and packet hooks with bare entities; never starts a game or renderer. */
 public class AttackHookTest {
-    static <T> T bare(Class<T> type) throws Exception {
-        Field f=sun.misc.Unsafe.class.getDeclaredField("theUnsafe");f.setAccessible(true);
-        return type.cast(((sun.misc.Unsafe)f.get(null)).allocateInstance(type));
-    }
     private static Entity bareUnchecked() {
         try {return bare(EntityOtherPlayerMP.class);} catch(Exception error) {throw new AssertionError(error);}
-    }
-    public static class WorldStub extends WorldClient {
-        Entity target;
-        public WorldStub() {super(null,null,0,null,null);}
-        @Override public Entity getEntityByID(int id) {return target!=null && target.getEntityId()==id?target:null;}
     }
     public static final class Attacks implements Subscriber {
         boolean cancel;int results;
@@ -42,11 +35,11 @@ public class AttackHookTest {
         EntityPlayerSP player=bare(EntityPlayerSP.class);player.worldObj=world;player.inventory=new InventoryPlayer(player);mc.thePlayer=player;mc.theWorld=world;
         world.target=bare(EntityOtherPlayerMP.class);world.target.setEntityId(9);world.target.worldObj=world;
         NetworkManager network=new NetworkManager(EnumPacketDirection.CLIENTBOUND);EmbeddedChannel channel=new EmbeddedChannel(network);
-        NetHandlerPlayClient play=new NetHandlerPlayClient(null,null,network,null);network.configureClientPackets(new PacketFlowTest.MainThread());
+        NetHandlerPlayClient play=new NetHandlerPlayClient(null,null,network,null);network.configureClientPackets(new NetworkTestSupport.MainThread());
         PlayerControllerMP controller=new PlayerControllerMP(mc,play);
         mc.playerController=controller;
         Field mode=PlayerControllerMP.class.getDeclaredField("currentGameType");mode.setAccessible(true);mode.set(controller,WorldSettings.GameType.SPECTATOR);
-        Attacks attacks=new Attacks();PacketFlowTest.Observer packets=new PacketFlowTest.Observer();Pulsar.BUS.subscribe(attacks);Pulsar.BUS.subscribe(packets);
+        Attacks attacks=new Attacks();NetworkTestSupport.Observer packets=new NetworkTestSupport.Observer();Pulsar.BUS.subscribe(attacks);Pulsar.BUS.subscribe(packets);
         try {
             attacks.cancel=true;assertFalse(controller.tryAttackEntity(player,world.target,()->true));assertEquals(0,attacks.results);
             attacks.cancel=false;assertFalse(controller.tryAttackEntity(player,world.target,()->false));assertEquals(0,attacks.results);
@@ -68,10 +61,10 @@ public class AttackHookTest {
         EntityPlayerSP player=bare(EntityPlayerSP.class);player.worldObj=world;player.inventory=new InventoryPlayer(player);mc.thePlayer=player;mc.theWorld=world;
         world.target=bare(EntityOtherPlayerMP.class);world.target.worldObj=world;world.target.setEntityId(9);
         NetworkManager network=new NetworkManager(EnumPacketDirection.CLIENTBOUND);EmbeddedChannel channel=new EmbeddedChannel(network);
-        NetHandlerPlayClient play=new NetHandlerPlayClient(null,null,network,null);network.configureClientPackets(new PacketFlowTest.MainThread());
+        NetHandlerPlayClient play=new NetHandlerPlayClient(null,null,network,null);network.configureClientPackets(new NetworkTestSupport.MainThread());
         PlayerControllerMP controller=new PlayerControllerMP(mc,play);Field mode=PlayerControllerMP.class.getDeclaredField("currentGameType");mode.setAccessible(true);mode.set(controller,WorldSettings.GameType.SPECTATOR);
         mc.playerController=controller;
-        Attacks attacks=new Attacks();PacketFlowTest.Observer packets=new PacketFlowTest.Observer();Pulsar.BUS.subscribe(attacks);Pulsar.BUS.subscribe(packets);
+        Attacks attacks=new Attacks();NetworkTestSupport.Observer packets=new NetworkTestSupport.Observer();Pulsar.BUS.subscribe(attacks);Pulsar.BUS.subscribe(packets);
         try {
             for(int i=0;i<6;i++) {
                 final int scenario=i;
@@ -104,11 +97,11 @@ public class AttackHookTest {
         NetworkManager network=new NetworkManager(EnumPacketDirection.CLIENTBOUND);
         EmbeddedChannel channel=new EmbeddedChannel(network);
         NetHandlerPlayClient play=new NetHandlerPlayClient(null,null,network,null);
-        network.configureClientPackets(new PacketFlowTest.MainThread());
+        network.configureClientPackets(new NetworkTestSupport.MainThread());
         PlayerControllerMP controller=new PlayerControllerMP(mc,play),replacement=new PlayerControllerMP(mc,play);
         Field mode=PlayerControllerMP.class.getDeclaredField("currentGameType");mode.setAccessible(true);
         mode.set(controller,WorldSettings.GameType.SPECTATOR);
-        Attacks attacks=new Attacks();PacketFlowTest.Observer packets=new PacketFlowTest.Observer();
+        Attacks attacks=new Attacks();NetworkTestSupport.Observer packets=new NetworkTestSupport.Observer();
         Pulsar.BUS.subscribe(attacks);Pulsar.BUS.subscribe(packets);
         try {
             for(int scenario=0;scenario<4;scenario++) {

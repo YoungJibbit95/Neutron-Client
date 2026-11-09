@@ -17,8 +17,8 @@ public class SessionInfoLifecycleTest {
         @Subscribe final Listener<EventPacket> event=new Listener<>(e->{if(cancel && e.isInbound() && e.isPre() && e.getPacket() instanceof S02PacketChat)e.cancel();});
     }
     static final class Fixture implements AutoCloseable {
-        final SessionConsumerIntegrationTest.Fixture transport=new SessionConsumerIntegrationTest.Fixture();
-        final PacketFlowTest.MainThread main=transport.main;
+        final NetworkTestSupport.Fixture transport=new NetworkTestSupport.Fixture();
+        final NetworkTestSupport.MainThread main=transport.main;
         final SessionInfoLifecycle tracker=new SessionInfoLifecycle(()->"Tester");
         final PacketPipeline pipe=transport.network.getClientPackets();
         final INetHandlerPlayClient handler=transport.play;
@@ -46,7 +46,7 @@ public class SessionInfoLifecycleTest {
             assertEquals(generation,f.tracker.statistics.generation());assertEquals(1,f.tracker.statistics.snapshot().kills);
             Thread netty=new Thread(()->f.transport.network.closeChannel(new ChatComponentText("end")));netty.start();netty.join();assertTrue(f.tracker.statistics.snapshot().active);
             f.main.drain();assertFalse(f.tracker.statistics.snapshot().active);
-            try(SessionConsumerIntegrationTest.Fixture next=new SessionConsumerIntegrationTest.Fixture()) {
+            try(NetworkTestSupport.Fixture next=new NetworkTestSupport.Fixture()) {
                 next.join();assertTrue(f.tracker.statistics.snapshot().active);assertEquals(0,f.tracker.statistics.snapshot().kills);
                 Pulsar.BUS.post(new me.youngjibbit.event.network.PlaySessionEvent(f.transport.network,
                         me.youngjibbit.event.network.PlaySessionEvent.State.ENDED));

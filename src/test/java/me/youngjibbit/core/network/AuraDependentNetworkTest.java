@@ -64,7 +64,7 @@ public class AuraDependentNetworkTest {
     @Test public void backtrackDefaultsToOrdinaryPacketsWithoutAura() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             AtomicLong now = new AtomicLong();
-            BacktrackLagRangeControlTest.clock(f, now);
+            NetworkTestSupport.clock(f, now);
             Backtrack back = new Backtrack(now::get, f.client);
             back.setToggled(true);
             try {
@@ -80,7 +80,7 @@ public class AuraDependentNetworkTest {
     @Test public void lagRangeDefaultsToOrdinaryPacketsWithoutAura() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             AtomicLong now = new AtomicLong();
-            BacktrackLagRangeControlTest.clock(f, now);
+            NetworkTestSupport.clock(f, now);
             LagRange lag = new LagRange(now::get, (min, max) -> max);
             lag.setToggled(true);
             try {
@@ -114,7 +114,7 @@ public class AuraDependentNetworkTest {
         for (String cause : new String[]{"disabled", "no target", "dead", "removed", "range"}) {
             try (ExploitHookFixture f = new ExploitHookFixture(); AuraSelection selection = new AuraSelection(f)) {
                 AtomicLong now = new AtomicLong();
-                BacktrackLagRangeControlTest.clock(f, now);
+                NetworkTestSupport.clock(f, now);
                 Backtrack back = new Backtrack(now::get, f.client);
                 back.getModeSetting("Backtrack Mode").setValue("Timed");
                 back.setToggled(true);
@@ -136,7 +136,7 @@ public class AuraDependentNetworkTest {
         for (String cause : new String[]{"disabled", "no target", "dead", "removed", "range"}) {
             try (ExploitHookFixture f = new ExploitHookFixture(); AuraSelection selection = new AuraSelection(f)) {
                 AtomicLong now = new AtomicLong();
-                BacktrackLagRangeControlTest.clock(f, now);
+                NetworkTestSupport.clock(f, now);
                 LagRange lag = new LagRange(now::get, (min, max) -> max);
                 lag.getNumberSetting("Start Distance").setValue(0D);
                 lag.setToggled(true);

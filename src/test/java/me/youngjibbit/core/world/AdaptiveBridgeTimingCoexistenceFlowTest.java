@@ -1,5 +1,7 @@
 package me.youngjibbit.core.world;
 
+import me.youngjibbit.core.network.NetworkTestSupport;
+
 import io.netty.channel.embedded.EmbeddedChannel;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.combat.CombatTargetTracker;
@@ -200,7 +202,7 @@ public class AdaptiveBridgeTimingCoexistenceFlowTest {
             ScaffoldClientFlowTest.set(NetHandlerPlayClient.class, play, "gameController", input.f.mc);
             ScaffoldClientFlowTest.set(NetHandlerPlayClient.class, play, "doneLoadingTerrain", true);
             play.clientWorldController = input.scene;
-            manager.configureClientPackets(new PacketFlowTest.MainThread(), play::observeAcceptedOutbound);
+            manager.configureClientPackets(new NetworkTestSupport.MainThread(), play::observeAcceptedOutbound);
             ScaffoldClientFlowTest.set(PacketPipeline.class, manager.getClientPackets(), "delays",
                     new PacketDelays(input.scene.motionTime::get));
         }
