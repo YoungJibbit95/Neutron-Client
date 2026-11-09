@@ -40,7 +40,7 @@ public class ClientSettings extends Module {
     public final CheckBoxValue animations=new CheckBoxValue("UI Animations",this,true);
     public final CheckBoxValue reducedMotion=new CheckBoxValue("Reduced Motion",this,false);
     public final ComboValue motionIntensity=new ComboValue("UI Motion Intensity",this,new String[]{"Calm","Balanced","Expressive"},1);
-    public final ComboValue gradientMethod=new ComboValue("Gradient Method",this,new String[]{"Flow","Ping-Pong","Pulse","Perimeter Orbit"},0);
+    public final ComboValue gradientMethod=new ComboValue("Gradient Method",this,new String[]{"Flow","Ping-Pong","Pulse","Perimeter Orbit","Flame","Neon","Lines"},0);
     public final CheckBoxValue ambientMotion=new CheckBoxValue("Ambient Motion",this,true);
     public final CheckBoxValue semanticColorPriority=new CheckBoxValue("Semantic Color Priority",this,true);
     public final CheckBoxValue notifications=new CheckBoxValue("Notifications",this,true);
@@ -68,6 +68,15 @@ public class ClientSettings extends Module {
     public final SliderValue orbitGlow=new SliderValue("Orbit Glow",this,1.0,0,2);
     public final SliderValue orbitTrail=new SliderValue("Orbit Trail",this,.5,0,1);
 
+    // New shader modes for ESP/GlowESP: Flame, Neon, Lines.
+    // Registered last to keep existing config ids and legacy Value indices stable.
+    public final SliderValue flameSpeed=new SliderValue("Flame Speed",this,.18,.02,2,true);
+    public final SliderValue flameHeight=new SliderValue("Flame Height",this,.5,0,1);
+    public final SliderValue neonCore=new SliderValue("Neon Core",this,.5,0,1);
+    public final SliderValue neonGlow=new SliderValue("Neon Glow",this,1.0,0,2);
+    public final SliderValue lineSegments=new SliderValue("Line Segments",this,4.0,1.0,16.0,true);
+    public final SliderValue lineTrail=new SliderValue("Line Trail",this,.5,0,1);
+
     private ComboValue direction(String name){return new ComboValue(name,this,new String[]{"Theme","Vertical","Horizontal","Up","Left"},0);}
     private ComboValue motion(String name){return new ComboValue(name,this,new String[]{"Theme","Static","Animated","Solid"},0);}
     private SliderValue speed(String name){return new SliderValue(name,this,.18,.02,1);}
@@ -94,6 +103,12 @@ public class ClientSettings extends Module {
         // Perimeter Orbit options only visible when Gradient Method = Perimeter Orbit
         for(Value<?> v:Arrays.asList(orbitDirection,orbitSpeed,orbitGlow,orbitTrail))
             v.setVisibility(m->gradientMethod.getValue().equals("Perimeter Orbit"));
+        // Flame / Neon / Lines options only visible when Gradient Method matches
+        for(Value<?> v:Arrays.asList(flameSpeed,flameHeight,neonCore,neonGlow,lineSegments,lineTrail))
+            v.setVisibility(m->{
+                String m=gradientMethod.getValue();
+                return m.equals("Flame")||m.equals("Neon")||m.equals("Lines");
+            });
     }
     @Override public void beginConfigUpdate(){
         super.beginConfigUpdate();
