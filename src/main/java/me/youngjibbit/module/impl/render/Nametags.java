@@ -6,7 +6,9 @@ import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.ModuleInfo;
 import me.youngjibbit.utils.Theme;
+import me.youngjibbit.utils.RenderUtil;
 import me.youngjibbit.utils.Wrapper;
+import me.youngjibbit.utils.render.ShaderUtil;
 import me.youngjibbit.utils.render.UiEffects;
 import me.youngjibbit.utils.render.UIUtils;
 import me.youngjibbit.value.impl.CheckBoxValue;
@@ -24,6 +26,7 @@ import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.client.renderer.entity.RendererLivingEntity;
+import net.minecraft.client.shader.Framebuffer;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
@@ -52,6 +55,9 @@ public class Nametags extends Module {
     private static Frustum frustrum;
     Theme currentTheme = applyTheme();
 
+    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Static", "Flame", "Neon", "Lines"}, 0);
+    private ShaderUtil nametagFlameShader, nametagNeonShader, nametagLinesShader;
+
     public Theme applyTheme()
     {
         return Theme.resolve(Pulsar.INSTANCE.getDefaultTheme());
@@ -69,6 +75,10 @@ public class Nametags extends Module {
     @Override
     public void onDisable()
     {
+        try(me.youngjibbit.utils.render.RenderState ignored = new me.youngjibbit.utils.render.RenderState()){
+            for(ShaderUtil s:new ShaderUtil[]{nametagFlameShader,nametagNeonShader,nametagLinesShader})if(s!=null)s.close();
+        }
+        nametagFlameShader=nametagNeonShader=nametagLinesShader=null;
         surfaces.close();super.onDisable();
     }
 
@@ -125,8 +135,13 @@ public class Nametags extends Module {
                 int length = (int) Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Medium 15").getWidth(player.getCommandSenderName() + " | " + health) + 6;
                 int tagColor = mc.thePlayer.isOnSameTeam(player) ? Color.green.getRGB() : interpolatedColor;
                 UiEffects.drawGlow(x - 8, y - 17, length + 2, 11, 3, tagColor, 0.65f, 2, 1);
-                UiEffects.drawPanelFill(x-7,y-16,length+2,11,3,new Color(0,0,0,92),5);
-                UIUtils.drawRoundOutline(x - 7, y - 16, length + 2, 11, 3, 0.45f, new Color(0, 0, 0, 1), UiEffects.color(tagColor, 0.62f));
+                String nm = mode.getValue();
+                if (nm.equals("Flame") || nm.equals("Neon") || nm.equals("Lines")) {
+                    renderShaderNametag(x - 7, y - 16, length + 2, 11, currentTheme, tagColor);
+                } else {
+                    UiEffects.drawPanelFill(x-7,y-16,length+2,11,3,new Color(0,0,0,92),5);
+                    UIUtils.drawRoundOutline(x - 7, y - 16, length + 2, 11, 3, 0.45f, new Color(0, 0, 0, 1), UiEffects.color(tagColor, 0.62f));
+                }
 
                 if(Wrapper.mc.thePlayer.getTeam() != null && player.getTeam() != null && Wrapper.mc.thePlayer.getTeam().isSameTeam(player.getTeam()))
                 {
@@ -270,6 +285,27 @@ public class Nametags extends Module {
         return Color.HSBtoRGB(Math.max(0.0f, Math.min(player.getHealth(), player.getMaxHealth()) / player.getMaxHealth()) / 3.0f, 0.56f, 1.0f) | 0xFF000000;
     }
 
+    private ShaderUtil getNametagShader(String mode) {
+        if (mode.equals("Flame")) {
+            if (nametagFlameShader == null) nametagFlameShader = new ShaderUtil("pulsar/shader/esp/flame.frag");
+            return nametagFlameShader;
+        } else if (mode.equals("Neon")) {
+            if (nametagNeonShader == null) nametagNeonShader = new ShaderUtil("pulsar/shader/esp/neon.frag");
+            return nametagNeonShader;
+        } else if (mode.equals("Lines")) {
+            if (nametagLinesShader == null) nametagLinesShader = new ShaderUtil("pulsar/shader/esp/lines.frag");
+            return nametagLinesShader;
+        }
+        return null;
+    }
+
+    private void renderShaderNametag(float x, float y, float w, float h, Theme theme, int tagColor) {
+        ShaderUtil shader=getNametagShader(mode.getValue());
+        if(shader==null)return;
+        UiEffects.drawPanelFill(x,y,w,h,3,new Color(0,0,0,92),5);
+        me.youngjibbit.utils.render.EspEffectStyle.drawRectangle(shader,theme,mode.getValue(),x,y,w,h,tagColor,tagColor);
+    }
+
     public boolean isInViewFrustrum(Entity entity) {
         return this.isInViewFrustrum(entity.getEntityBoundingBox()) || entity.ignoreFrustumCheck;
     }
@@ -281,3 +317,4 @@ public class Nametags extends Module {
         return frustrum.isBoundingBoxInFrustum(bb);
     }
 }
+

@@ -15,6 +15,7 @@ import me.youngjibbit.utils.render.Blur;
 import me.youngjibbit.utils.render.RenderUiUtils;
 import me.youngjibbit.utils.render.Roundedutil;
 import me.youngjibbit.utils.render.UIUtils;
+import me.youngjibbit.utils.render.UiEffects;
 import me.youngjibbit.utils.render.shader.KawaseBloom;
 import me.youngjibbit.utils.render.shader.ShaderUtil;
 import me.youngjibbit.value.impl.CheckBoxValue;
@@ -59,7 +60,8 @@ public class ESP extends Module
     private final FloatBuffer vector = GLAllocation.createDirectFloatBuffer(4);
     private static final Frustum frustrum = new Frustum();
     private final ComboValue theme = new ComboValue("Theme", this, Theme.themes, 1);
-    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Static", "Morden", "None"}, 1);
+    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Static", "Morden", "None", "Flame", "Neon", "Lines"}, 1);
+    private ShaderUtil flameShader, neonShader, linesShader;
     private final CheckBoxValue blur = new CheckBoxValue("Blur", this, false);
     public CheckBoxValue healthBar = new CheckBoxValue("Health Bar", this, true);
     private final me.youngjibbit.utils.render.ArrayListSurface surfaces=new me.youngjibbit.utils.render.ArrayListSurface(this);
@@ -91,7 +93,13 @@ public class ESP extends Module
         return Theme.resolve(Pulsar.INSTANCE.getDefaultTheme());
     }
 
-    @Override public void onDisable(){surfaces.close();super.onDisable();}
+    @Override public void onDisable(){
+        try(me.youngjibbit.utils.render.RenderState ignored = new me.youngjibbit.utils.render.RenderState()){
+            for(ShaderUtil s:new ShaderUtil[]{flameShader,neonShader,linesShader})if(s!=null)s.close();
+        }
+        flameShader=neonShader=linesShader=null;
+        surfaces.close();super.onDisable();
+    }
 
     @Subscribe
     private final Listener<Event3D> on3D = new Listener<>(e ->
@@ -242,6 +250,13 @@ public class ESP extends Module
                         GlStateManager.popMatrix();
                         break;
                     }
+                    case "Flame":
+                    case "Neon":
+                    case "Lines":
+                    {
+                        renderShaderBox(ent, x, y, w, h, currentTheme);
+                        break;
+                    }
                 }
             }
             GlStateManager.enableDepth();
@@ -283,6 +298,29 @@ public class ESP extends Module
 
         // Clean up the temporary framebuffer
         entityFramebuffer.deleteFramebuffer();
+    }
+
+    private ShaderUtil getEspShader(String mode) {
+        if (mode.equals("Flame")) {
+            if (flameShader == null) flameShader = new ShaderUtil("pulsar/shader/esp/flame.frag");
+            return flameShader;
+        } else if (mode.equals("Neon")) {
+            if (neonShader == null) neonShader = new ShaderUtil("pulsar/shader/esp/neon.frag");
+            return neonShader;
+        } else if (mode.equals("Lines")) {
+            if (linesShader == null) linesShader = new ShaderUtil("pulsar/shader/esp/lines.frag");
+            return linesShader;
+        }
+        return null;
+    }
+
+    private void renderShaderBox(EntityLivingBase ent, float x, float y, float w, float h, Theme theme) {
+        ShaderUtil shader=getEspShader(mode.getValue());
+        if(shader==null)return;
+        boolean teammate=ent instanceof EntityPlayer && mc.thePlayer.isOnSameTeam((EntityPlayer)ent);
+        int primary=teammate?Color.green.getRGB():theme.getPrimaryGradientRGB();
+        int secondary=teammate?primary:theme.getSecondaryGradientRGB();
+        me.youngjibbit.utils.render.EspEffectStyle.drawRectangle(shader,theme,mode.getValue(),x,y,w,h,primary,secondary);
     }
 
     private static int interpolateTwoColorsSmoothly(int color1, int color2, long currentTime, float cycleDuration) {
@@ -369,3 +407,4 @@ public class ESP extends Module
         return this.healthBar;
     }
 }
+

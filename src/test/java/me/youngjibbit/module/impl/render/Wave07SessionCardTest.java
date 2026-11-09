@@ -11,7 +11,8 @@ public class Wave07SessionCardTest {
     @Test public void modernOverlayPreservesAllFourHistoricalModesAndDefault(){
         SessionInfo session=new SessionInfo();
         ComboValue mode=session.getModeSetting("Mode");
-        assertArrayEquals(new String[]{"Basic","Outline","Tenacity","Rue (Rise)"},mode.getOptions());
+        String[] expected={"Basic","Outline","Tenacity","Rue (Rise)","Modern","Creative"};
+        assertArrayEquals(expected,mode.getOptions());
         assertEquals("Outline",mode.getValue());
         assertEquals(1,mode.getSelectedIndex());
         assertEquals("Outline",SessionInfo.modernFor(mode.getValue(),false));
@@ -20,6 +21,10 @@ public class Wave07SessionCardTest {
         for(String legacy:new String[]{"Basic","Tenacity","Rue (Rise)"})
             assertEquals(legacy,SessionInfo.modernFor(legacy,true));
         assertEquals(5000d,session.getNumberSetting("Gradient Speed").getValue(),0);
+        for(int i=0;i<expected.length;i++){
+            mode.setValue(expected[i]);assertEquals(i,mode.getSelectedIndex());
+        }
+        assertEquals("Outline",mode.getDefaultValue());
     }
 
     @Test public void localVerifiedSessionStatsAreNeverSynthesized() {
