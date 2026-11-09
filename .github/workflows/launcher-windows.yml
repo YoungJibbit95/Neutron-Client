@@ -16,7 +16,9 @@ permissions:
   contents: read
 concurrency:
   group: launcher-windows-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: false
+  # A newer PR revision replaces its obsolete candidate; publishing from main
+  # always finishes without being cancelled by a later push.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   candidate:
     runs-on: windows-latest

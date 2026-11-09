@@ -105,8 +105,8 @@
     ${If} $neutronStoragePage == error
       Abort
     ${EndIf}
-    !insertmacro MUI_HEADER_TEXT "Neutron-Datenordner" "Hier liegen Java, Spieldateien, Build-Daten und installierte Client-Versionen."
-    ${NSD_CreateLabel} 0 0 100% 28u "Dieser Ordner ist vom Launcher-Programmordner getrennt. Waehlen Sie einen lokalen Ordner auf einem Laufwerk mit mindestens 3 GiB freiem Platz fuer einen neuen Build."
+    !insertmacro MUI_HEADER_TEXT "Neutron-Datenordner" "Hier liegen Java, Spieldateien und heruntergeladene Client-Versionen."
+    ${NSD_CreateLabel} 0 0 100% 28u "Dieser Ordner ist vom Launcher-Programmordner getrennt. Waehlen Sie einen lokalen Ordner auf einem Laufwerk mit mindestens 3 GiB freiem Platz fuer Download und Installation einer Client-Version."
     Pop $neutronStorageHandle
     ${NSD_CreateDirRequest} 0 35u 78% 14u "$neutronDataRoot"
     Pop $neutronStorageEdit

@@ -30,7 +30,7 @@ function Invoke-ObservedInstaller([string]$File,[string]$Arguments,[string]$Labe
     # Assisted means the actual visible dialogs: no /S or equivalent is passed.
     $process=Start-Process -FilePath $File -ArgumentList $Arguments -WindowStyle Normal -PassThru
     $owned=@{}; $owned[$process.Id]=@{process=$process;path=$File;exitRecorded=$false}
-    $seenUi=$false; $failure=$null; $lastUi=''; $lastClick=[datetime]::MinValue; $failedButtonHandle=0L; $buttonFailures=0
+    $seenUi=$false; $failure=$null; $lastUiByWindow=@{}; $lastClick=[datetime]::MinValue; $failedButtonHandle=0L; $buttonFailures=0; $pendingNavigation=$null
     $deadline=[datetime]::UtcNow.AddMinutes(15)
     while($true) {
         foreach($item in @(Get-CimInstance Win32_Process)) {
@@ -55,20 +55,50 @@ function Invoke-ObservedInstaller([string]$File,[string]$Arguments,[string]$Labe
         foreach($window in $windows) {
             $texts=($window.Controls | Where-Object Visible | ForEach-Object Text) -join "`n"
             $signature=$window.Title+"`n"+$texts
-            if($signature -ne $lastUi){$events.Add(@{label=$Label;date=[datetime]::UtcNow.ToString('o');visible=$window.Visible;pid=$window.Pid;title=$window.Title;controls=$window.Controls});$lastUi=$signature;Save-Evidence}
+            $windowKey=([string]$window.Pid)+':'+([string]$window.Handle)
+            $controlStates=($window.Controls | ForEach-Object {([string]$_.Handle)+':'+([string]$_.Visible)+':'+([string]$_.Enabled)}) -join ';'
+            $snapshotSignature=([string]$window.Visible)+':'+([string]$window.Enabled)+':'+$controlStates+':'+$signature
+            if(-not $lastUiByWindow.ContainsKey($windowKey) -or $snapshotSignature -ne $lastUiByWindow[$windowKey]){
+                $events.Add(@{label=$Label;date=[datetime]::UtcNow.ToString('o');visible=$window.Visible;enabled=$window.Enabled;pid=$window.Pid;windowHandle=$window.Handle;title=$window.Title;controls=$window.Controls})
+                $lastUiByWindow[$windowKey]=$snapshotSignature; Save-Evidence
+            }
             if($window.Visible -and @($window.Controls | Where-Object Visible).Count -gt 0){$seenUi=$true}
+            $page=($window.Controls | Where-Object {$_.Visible -and $_.Id -eq 1037} | ForEach-Object Text) -join ' '
+            if($pendingNavigation -and $window.Handle -eq $pendingNavigation.windowHandle -and $window.Visible -and $signature -ne $pendingNavigation.signature){
+                $events.Add(@{label=$Label;date=[datetime]::UtcNow.ToString('o');action='observed-page-change';pid=$window.Pid;windowHandle=$window.Handle;fromPage=$pendingNavigation.page;toPage=$page;notificationAt=$pendingNavigation.postedAt.ToString('o')})
+                $pendingNavigation=$null; Save-Evidence
+            }
             if($texts -match '(cannot be closed|konnte nicht geschlossen|kann nicht geschlossen|Can.t rename|Error opening file|Fehler beim|Failed to uninstall)') {
                 $failure=$texts
                 $cancel=@($window.Controls | Where-Object {$_.ClassName -eq 'Button' -and $_.Enabled -and $_.Visible -and $_.Id -eq 2})
                 if($cancel.Count){[NeutronInstallerUi]::Click($cancel[0].Handle,$window.Pid)}
                 continue
             }
-            if($Assisted -and $window.Visible -and [datetime]::UtcNow -gt $lastClick.AddSeconds(1)) {
+            if($pendingNavigation -and $window.Handle -eq $pendingNavigation.windowHandle){
+                $pendingButton=@($window.Controls | Where-Object {$_.Handle -eq $pendingNavigation.buttonHandle -and $_.Enabled -and $_.Visible})
+                if(-not $window.Visible -or -not $window.Enabled -or $pendingButton.Count -eq 0){$pendingNavigation.unchangedEnabledSince=$null}
+            }
+            if($Assisted -and $window.Visible -and $window.Enabled -and [datetime]::UtcNow -gt $lastClick.AddSeconds(1)) {
                 $next=@($window.Controls | Where-Object {$_.ClassName -eq 'Button' -and $_.Enabled -and $_.Visible -and $_.Id -eq 1 -and $_.Text -match '(Next|Install|Finish|Uninstall|Weiter|Fertig|Deinstallieren)'})
                 if($next.Count){
                     $handle=[long]$next[0].Handle
+                    # Wait for an observed transition after posting. Do not
+                    # repeatedly queue clicks against the same unchanged page.
+                    if($pendingNavigation -and $window.Handle -eq $pendingNavigation.windowHandle -and $handle -eq $pendingNavigation.buttonHandle){
+                        if($null -eq $pendingNavigation.unchangedEnabledSince){$pendingNavigation.unchangedEnabledSince=[datetime]::UtcNow}
+                        if([datetime]::UtcNow -gt $pendingNavigation.unchangedEnabledSince.AddSeconds(60)){
+                            $events.Add(@{label=$Label;date=[datetime]::UtcNow.ToString('o');action='unchanged-enabled-page';pid=$window.Pid;windowHandle=$window.Handle;buttonHandle=$handle;button=$next[0].Text;page=$page;notificationAt=$pendingNavigation.postedAt.ToString('o');waitSeconds=60})
+                            Save-Evidence
+                            throw ($Label+': posted button notification produced no visible transition for 60 seconds while the same page and button remained enabled; inspect UI/process evidence.')
+                        }
+                        continue
+                    }
                     try {
                         [NeutronInstallerUi]::Click($handle,$window.Pid)
+                        $postedAt=[datetime]::UtcNow
+                        $pendingNavigation=@{windowHandle=$window.Handle;buttonHandle=$handle;signature=$signature;page=$page;postedAt=$postedAt;unchangedEnabledSince=$postedAt}
+                        $events.Add(@{label=$Label;date=$postedAt.ToString('o');action='posted-button-notification';notification='WM_COMMAND/BN_CLICKED';pid=$window.Pid;windowHandle=$window.Handle;buttonHandle=$handle;controlId=$next[0].Id;button=$next[0].Text;page=$page})
+                        Save-Evidence
                         $failedButtonHandle=0L; $buttonFailures=0
                     } catch {
                         if($failedButtonHandle -ne $handle){$failedButtonHandle=$handle; $buttonFailures=0}
@@ -92,6 +122,8 @@ function Invoke-ObservedInstaller([string]$File,[string]$Arguments,[string]$Labe
     if($Assisted -and -not $seenUi){throw 'Assisted acceptance did not observe real visible installer controls.'}
     $process.Refresh()
     if($process.ExitCode -ne 0){throw ($Label+': installer exit '+$process.ExitCode)}
+    $events.Add(@{label=$Label;date=[datetime]::UtcNow.ToString('o');action='observed-installer-exit';pid=$process.Id;exitCode=$process.ExitCode;assisted=$Assisted})
+    Save-Evidence
 }
 # Historical release binaries are immutable. Retry only transport errors,
 # never a digest mismatch; partially downloaded files cannot enter the fixture.
