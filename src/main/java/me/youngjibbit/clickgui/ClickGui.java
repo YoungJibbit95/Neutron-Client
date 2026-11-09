@@ -69,7 +69,7 @@ public class ClickGui extends GuiScreen {
     /** Legacy panel presentation. */
     protected boolean modernPresentation(){return false;}
     /** Creative 2.0 presentation: spatial, dynamic, expressive. */
-    protected boolean creativePresentation(){return false;}
+    protected boolean creativePresentation(){return ClientSettings.creativeScreenStyle();}
     private boolean two(){return modernPresentation()||ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());}
     private boolean modern(){return two()&&!creativePresentation();}
     private boolean creative(){return two()&&creativePresentation();}
@@ -123,7 +123,7 @@ public class ClickGui extends GuiScreen {
 
     private void fitWindow() {
         if(!positioned&&two()){
-            width=Math.min(760,NeutronVisualTokens.width(super.width));
+            width=Math.min(760,creative()?Math.max(720,NeutronVisualTokens.width(super.width)):NeutronVisualTokens.width(super.width));
             height=Math.min(448,NeutronVisualTokens.height(super.height));
         }
         float availableWidth = Math.max(1, super.width - MARGIN * 2);
@@ -423,19 +423,29 @@ public class ClickGui extends GuiScreen {
                 y + headerHeight() + detailHeaderHeight() + 4,
                 width - sidebarWidth() - (two()?30:20),
                 height - headerHeight() - detailHeaderHeight() - footerHeight() - 8);
-        float contentHeight = 0;
-        for (ClickModule module : modules) {
-            module.updatePanelAnimation(delta);
-            contentHeight += module.getHeight() + rowGap();
+        int columns=creative()&&viewport.width>=520?2:1;
+        float contentHeight=0;
+        for(ClickModule module:modules)module.updatePanelAnimation(delta);
+        for(int start=0;start<modules.size();start+=columns){
+            float rowHeight=0;
+            for(int col=0;col<columns&&start+col<modules.size();col++)
+                rowHeight=Math.max(rowHeight,modules.get(start+col).getHeight());
+            contentHeight+=rowHeight+rowGap();
         }
         maxScroll = Math.max(0, contentHeight - (modules.isEmpty()?0:rowGap()) - viewport.height);
         targetScrollOffset = Math.max(-maxScroll, Math.min(0, targetScrollOffset));
         scrollOffset += (targetScrollOffset - scrollOffset) * me.youngjibbit.utils.render.UiEffects.response(delta,20);
         scrollOffset = Math.max(-maxScroll, Math.min(0, scrollOffset));
-        float moduleY = viewport.y + scrollOffset;
-        for (ClickModule module : modules) {
-            module.layout(viewport.x + 1, moduleY + 1, viewport.width - 2, viewport);
-            moduleY += module.getHeight() + rowGap();
+        float moduleY=viewport.y+scrollOffset;
+        float columnWidth=(viewport.width-(columns-1)*rowGap())/columns;
+        for(int start=0;start<modules.size();start+=columns){
+            float rowHeight=0;
+            for(int col=0;col<columns&&start+col<modules.size();col++){
+                ClickModule module=modules.get(start+col);
+                module.layout(viewport.x+col*(columnWidth+rowGap())+1,moduleY+1,columnWidth-2,viewport);
+                rowHeight=Math.max(rowHeight,module.getHeight());
+            }
+            moduleY+=rowHeight+rowGap();
         }
         if(focus!=null&&!focusables().contains(focus)){
             Component replacement=null;

@@ -91,16 +91,26 @@ public class SettingsMenu extends GuiScreen {
         if(editValue!=null){editing=visible.indexOf(editValue);if(editing<0)editValue=null;}
         if(dragValue!=null){drag=visible.indexOf(dragValue);if(drag<0)dragValue=null;}
         if(popupValue!=null&&!visible.contains(popupValue))dismissPopup(false);
-        float max=Math.max(0,visible.size()*42-view().height);
+        float max=Math.max(0,contentHeight(visible.size())-view().height);
         targetScroll=Math.max(0,Math.min(targetScroll,max));scroll=Math.max(0,Math.min(scroll,max));
     }
     private boolean two(){return ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());}
     private boolean modern(){return two()&&!creative();}
     private boolean creative(){return two()&&creativePresentation();}
-    protected boolean creativePresentation(){return false;}
+    protected boolean creativePresentation(){return ClientSettings.creativeScreenStyle();}
     protected ClipRect view(){return new ClipRect(x+inset(),y+94,w-inset()-14,Math.max(1,h-186));}
-    protected ClipRect rowBounds(int row){ClipRect v=view();return new ClipRect(v.x,v.y+row*42-scroll,v.width,38);}
-    protected ClipRect controlBounds(int row){ClipRect r=rowBounds(row);float cw=Math.min(180,r.width*.45f);return new ClipRect(r.x+r.width-cw-7,r.y+4,cw,30);}
+    private int columns(){return creative()&&view().width>=500?2:1;}
+    private float rowPitch(){return columns()==2?66:42;}
+    private float contentHeight(int count){return ((count+columns()-1)/columns())*rowPitch();}
+    protected ClipRect rowBounds(int row){
+        ClipRect v=view();int cols=columns();float cell=(v.width-(cols-1)*8)/cols;
+        return new ClipRect(v.x+(row%cols)*(cell+8),v.y+(row/cols)*rowPitch()-scroll,cell,cols==2?60:38);
+    }
+    protected ClipRect controlBounds(int row){
+        ClipRect r=rowBounds(row);
+        if(columns()==2)return new ClipRect(r.x+8,r.y+27,r.width-16,30);
+        float cw=Math.min(180,r.width*.45f);return new ClipRect(r.x+r.width-cw-7,r.y+4,cw,30);
+    }
     protected ClipRect categoryBounds(int index){
         return ThemeMode.APPROACH_TWO.equals(ThemeMode.selected()) && rail()?
                 new ClipRect(x+15,y+68+index*35,162,31):
@@ -258,14 +268,14 @@ public class SettingsMenu extends GuiScreen {
                         10, me.youngjibbit.utils.render.UiEffects.accent(theme.getSecondaryGradientRGB(), .05f*motion.glow()));
             }
         }
-        text(fit(UiEffects.settingLabel(value),control.x-row.x-12),
-                row.x+(modern?12:5),row.y+13,
+        text(fit(UiEffects.settingLabel(value),columns()==2?row.width-20:control.x-row.x-12),
+                row.x+(modern?12:5),row.y+(columns()==2?8:13),
                 GuiStyle.ink(two()?NeutronVisualTokens.INK:0xffe1e7f1,motion));
         GuiStyle.feedback(row,motion);
         if(value instanceof CheckBoxValue){
             boolean on=((CheckBoxValue)value).getValue();
-            float amount=follow(value,on?1:0,dt),sx=control.x+control.width-36,sy=row.y+11;
-            text(on?"On":"Off",sx-25,row.y+13,on?0xffe5ecf7:0xff9da9bb);
+            float amount=follow(value,on?1:0,dt),sx=control.x+control.width-36,sy=control.y+7;
+            text(on?"On":"Off",sx-25,control.y+9,on?0xffe5ecf7:0xff9da9bb);
             if(two()){
                 UIUtils.drawRound(sx,sy,34,16,8,NeutronVisualTokens.CONTROL);
                 if(amount>.006f)UIUtils.drawRound(sx+1,sy+1,
@@ -282,9 +292,9 @@ public class SettingsMenu extends GuiScreen {
         }else if(value instanceof SliderValue){
             SliderValue slider=(SliderValue)value;
             String shown=editing==index?input+"_":number(slider);
-            text(fit(shown,control.width-8),control.x+3,row.y+6,GuiStyle.ink(0xffe5edf9,motion));
+            text(fit(shown,control.width-8),control.x+3,control.y+2,GuiStyle.ink(0xffe5edf9,motion));
             float fraction=(float)((slider.getValue()-slider.getMin())/Math.max(.0001,slider.getMax()-slider.getMin()));
-            float amount=follow(value,fraction,dt),track=control.width-8,cy=row.y+29;
+            float amount=follow(value,fraction,dt),track=control.width-8,cy=control.y+25;
             UIUtils.drawDecorationRound(control.x+4,cy,track,2,1,
                     two()?NeutronVisualTokens.TRACK:new Color(68,78,95));
             UIUtils.drawDecorationRound(control.x+4,cy,Math.max(.01f,track*amount),
@@ -318,7 +328,7 @@ public class SettingsMenu extends GuiScreen {
         return v.isInteger()?Integer.toString(v.getValue().intValue()):String.format(Locale.ROOT,"%.2f",v.getValue());
     }
     private void drawScrollBar(){
-        float content=rows().size()*42,visible=view().height;
+        float content=contentHeight(rows().size()),visible=view().height;
         if(content<=visible)return;
         float thumb=Math.max(12,visible*visible/content);
         UIUtils.drawDecorationRound(view().x+view().width-2,
@@ -502,7 +512,7 @@ public class SettingsMenu extends GuiScreen {
         super.handleMouseInput();int wheel=Mouse.getDWheel();if(wheel==0)return;
         if(popupValue!=null){
             popupOffset=Math.max(0,Math.min(popupValue.getOptions().length-popupRows(),popupOffset-(int)Math.signum(wheel)));
-        }else{targetScroll-=Math.signum(wheel)*42;layout();}
+        }else{targetScroll-=Math.signum(wheel)*rowPitch();layout();}
     }
     private void ensureFocus(){if(focus>=rows().size())return;ClipRect r=rowBounds(focus),v=view();if(r.y<v.y)scroll=targetScroll=Math.max(0,scroll+r.y-v.y);else if(r.y+r.height>v.y+v.height)scroll=targetScroll=scroll+r.y+r.height-v.y-v.height;layout();}
     protected boolean shift(){return Keyboard.isCreated()&&isShiftKeyDown();}protected boolean ctrl(){return Keyboard.isCreated()&&isCtrlKeyDown();}

@@ -13,10 +13,13 @@ public final class UiEffects {
     /** A component-local coordinate domain; palette, channel settings and clock remain global. */
     private static final java.util.Deque<GradientSpace> gradientSpaces = new java.util.ArrayDeque<>();
     public static final class GradientSpace implements AutoCloseable {
-        final float x,y,width,height;
+        final float x,y,width,height,radius;
+        final boolean perimeterOnly;
         private boolean closed;
-        private GradientSpace(float x,float y,float width,float height) {
+        private GradientSpace(float x,float y,float width,float height,float radius,boolean perimeterOnly) {
             this.x=x;this.y=y;this.width=Math.max(1,width);this.height=Math.max(1,height);
+            this.radius=Float.isFinite(radius)?Math.max(0,Math.min(radius,Math.min(this.width,this.height)/2)):0;
+            this.perimeterOnly=perimeterOnly;
             gradientSpaces.push(this);
         }
         @Override public void close() {
@@ -27,16 +30,28 @@ public final class UiEffects {
     }
     /** Bounds are GUI screen coordinates, independent of a column's scroll offset. */
     public static GradientSpace gradientSpace(float x,float y,float width,float height) {
-        return new GradientSpace(x,y,width,height);
+        return new GradientSpace(x,y,width,height,0,false);
     }
-    static GradientSpace gradientSpace(){return gradientSpaces.peek();}
+    /** An actual component contour for Orbit; other modes keep their inherited coordinate domain. */
+    public static GradientSpace perimeterSpace(float x,float y,float width,float height,float radius) {
+        return new GradientSpace(x,y,width,height,radius,true);
+    }
+    static GradientSpace gradientSpace(){return gradientSpace(false);}
+    private static GradientSpace gradientSpace(boolean perimeter) {
+        for(GradientSpace space:gradientSpaces)if(perimeter||!space.perimeterOnly)return space;
+        return null;
+    }
+    private static float gradientRadius(GradientSpace space,float fallback) {
+        return space!=null&&space.perimeterOnly?space.radius:fallback;
+    }
     /** Legacy form without a component radius; the radius only affects Perimeter Orbit. */
     public static float gradientPosition(Gradient gradient,float x,float y,float width,float height){
         return gradientPosition(gradient,x,y,width,height,0);
     }
     public static float gradientPosition(Gradient gradient,float x,float y,float width,float height,float radius){
-        GradientSpace space=gradientSpace();
-        return space==null?gradient.position(x,y,width,height,radius):gradient.position(x-space.x,y-space.y,space.width,space.height,radius);
+        GradientSpace space=gradientSpace(gradient.mode==5);
+        float contourRadius=gradientRadius(space,radius);
+        return space==null?gradient.position(x,y,width,height,contourRadius):gradient.position(x-space.x,y-space.y,space.width,space.height,contourRadius);
     }
 
     public enum Channel { TEXT, BORDER, GLOW }
@@ -132,6 +147,9 @@ public final class UiEffects {
         float scale=new net.minecraft.client.gui.ScaledResolution(mc).getScaleFactor();
         shader.setUniformf("uiGradientBounds",space==null?0:space.x*scale,space==null?0:space.y*scale,
                 space==null?mc.displayWidth:space.width*scale,space==null?mc.displayHeight:space.height*scale);
+        GradientSpace orbit=gradientSpace(true);
+        shader.setUniformf("uiOrbitBounds",orbit==null?0:orbit.x*scale,orbit==null?0:orbit.y*scale,
+                orbit==null?mc.displayWidth:orbit.width*scale,orbit==null?mc.displayHeight:orbit.height*scale);
         for(Channel channel:Channel.values()){
             Gradient g=override==null?gradient(theme,channel):override;String n=channel==Channel.TEXT?"uiText":channel==Channel.BORDER?"uiBorder":"uiGlow";
             shader.setUniformf(n,g.axis,options().gradients?g.mode:0,g.phase);
@@ -140,7 +158,7 @@ public final class UiEffects {
         Gradient tg=override==null?gradient(theme,Channel.TEXT):override;
         shader.setUniformf("uiShaderParam2",tg.param2);
         shader.setUniformf("uiShaderSpeed",tg.speed);
-        shader.setUniformf("uiGradientRadius",options().roundness*scale);
+        shader.setUniformf("uiGradientRadius",gradientRadius(orbit,options().roundness)*scale);
     }
     public static int gradientColor(Theme theme,Channel channel,float x,float y){
         theme=theme(theme);
