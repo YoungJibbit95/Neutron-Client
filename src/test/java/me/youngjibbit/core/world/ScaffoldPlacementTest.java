@@ -335,7 +335,7 @@ public class ScaffoldPlacementTest {
         });
     }
     private NetHandlerPlayClient handler(Transport transport) {
-        transport.configureClientPackets(new me.youngjibbit.core.network.PacketFlowTest.MainThread());
+        transport.configureClientPackets(new me.youngjibbit.core.network.NetworkTestSupport.MainThread());
         return new NetHandlerPlayClient(null,null,transport,new GameProfile(new UUID(0,1),"ScaffoldFixture"));
     }
 

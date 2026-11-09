@@ -243,7 +243,7 @@ public class AutoHealTickEventGateProbeTest {
     }
     @Test public void reentrantPipelineReplacementDeniesThenFreshCheckCanResume() throws Exception {
         observer.beginOuterTick(); duringSampling(2, () ->
-                f.network.configureClientPackets(new me.youngjibbit.core.network.PacketFlowTest.MainThread()));
+                f.network.configureClientPackets(new me.youngjibbit.core.network.NetworkTestSupport.MainThread()));
         denied(); tick(); assertEquals(1, uses(drain()));
     }
     @Test public void reentrantCanonicalObserverRemovalDenies() throws Exception {

@@ -13,7 +13,7 @@ import static org.junit.Assert.*;
  */
 public class TickbaseStableFrameFlowTest {
     private static Tickbase enable(ExploitHookFixture fixture,AtomicLong time) throws Exception {
-        BacktrackLagRangeControlTest.clock(fixture,time);
+        NetworkTestSupport.clock(fixture,time);
         Tickbase tick=new Tickbase(time::get,fixture.client);
         tick.getBooleanSetting("Only Aura").setValue(false);
         tick.getBooleanSetting("Debug").setValue(true);

@@ -16,7 +16,7 @@ public class SilentContextHookTest {
     private void correction(ExploitHookFixture f) throws Exception {
         Field loaded=NetHandlerPlayClient.class.getDeclaredField("doneLoadingTerrain");loaded.setAccessible(true);loaded.setBoolean(f.connection.play,true);
         Field config=net.minecraft.src.Config.class.getDeclaredField("minecraft");config.setAccessible(true);Object previous=config.get(null);
-        f.client.renderGlobal=AttackHookTest.bare(net.minecraft.client.renderer.RenderGlobal.class);
+        f.client.renderGlobal=NetworkTestSupport.bare(net.minecraft.client.renderer.RenderGlobal.class);
         config.set(null,f.client);
         try {f.connection.network.receivePacketSilent(new S08PacketPlayerPosLook(0,0,0,0,0,Collections.emptySet()));}
         finally {config.set(null,previous);}

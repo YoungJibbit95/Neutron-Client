@@ -20,7 +20,7 @@ import static org.junit.Assert.*;
 public class NetworkDisableLifecycleTest {
     @Test public void backtrackDisableCannotReacquireAHoldFromAReleaseCallback() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
-            AtomicLong now = new AtomicLong(); BacktrackLagRangeControlTest.clock(f, now);
+            AtomicLong now = new AtomicLong(); NetworkTestSupport.clock(f, now);
             Backtrack module = new Backtrack(now::get, f.client);
             module.getBooleanSetting("Only Aura").setValue(false);
             module.getBooleanSetting("Diagnostics").setValue(true);
@@ -28,7 +28,7 @@ public class NetworkDisableLifecycleTest {
             module.getModeSetting("Backtrack Mode").setValue("Timed");
             module.getNumberSetting("Cooldown Ticks").setValue(0D);
             module.setToggled(true);
-            PacketFlowTest.Observer observer = new PacketFlowTest.Observer();
+            NetworkTestSupport.Observer observer = new NetworkTestSupport.Observer();
             AtomicBoolean callback = new AtomicBoolean();
             try {
                 ExploitHookFixture.Enemy enemy = f.enemy(7, 3); f.cursor(enemy);
@@ -56,11 +56,11 @@ public class NetworkDisableLifecycleTest {
 
     @Test public void lagRangeDisableCannotRenewItsQueueDuringReleasedPacketCallbacks() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
-            AtomicLong now = new AtomicLong(); BacktrackLagRangeControlTest.clock(f, now);
+            AtomicLong now = new AtomicLong(); NetworkTestSupport.clock(f, now);
             LagRange module = new LagRange(now::get, (min, max) -> 500);
             module.getBooleanSetting("Only Aura").setValue(false);
             module.setToggled(true);
-            PacketFlowTest.Observer observer = new PacketFlowTest.Observer();
+            NetworkTestSupport.Observer observer = new NetworkTestSupport.Observer();
             AtomicBoolean callback = new AtomicBoolean();
             try {
                 f.enemy(7, 6); Pulsar.BUS.post(new TickEvent());

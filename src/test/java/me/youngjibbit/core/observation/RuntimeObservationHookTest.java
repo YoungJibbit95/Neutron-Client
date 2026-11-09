@@ -26,7 +26,7 @@ public class RuntimeObservationHookTest {
     private static Field field(Class<?> type, String name) throws Exception {
         Field f = type.getDeclaredField(name); f.setAccessible(true); return f;
     }
-    public static class LoadedWorld extends AttackHookTest.WorldStub {
+    public static class LoadedWorld extends NetworkTestSupport.WorldStub {
         Entity target;
         public LoadedWorld() { super(); }
         @Override public boolean isBlockLoaded(BlockPos pos) { return true; }

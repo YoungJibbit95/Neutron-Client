@@ -1,5 +1,7 @@
 package me.youngjibbit.core.network;
 
+import static me.youngjibbit.core.network.NetworkTestSupport.*;
+
 import com.google.common.util.concurrent.ListenableFuture;
 import io.netty.channel.embedded.EmbeddedChannel;
 import me.youngjibbit.Pulsar;
@@ -20,57 +22,11 @@ import static org.junit.Assert.*;
 
 /** Executes the real play-chat handler and its PacketThreadUtil/GUI boundary, without a renderer or server. */
 public class SessionConsumerIntegrationTest {
-    public static class Client extends Minecraft {
-        PacketFlowTest.MainThread main;
-        public Client() {super(null);}
-        @Override public boolean isCallingFromMinecraftThread() {return main.isCallingFromMinecraftThread();}
-        @Override public ListenableFuture<Object> addScheduledTask(Runnable task) {return main.addScheduledTask(task);}
-    }
-    public static class Chat extends GuiNewChat {
-        public List<String> displayed=new ArrayList<>();public boolean fail;public Runnable after=()->{};
-        public Chat() {super(null);}
-        @Override public void printChatMessage(IChatComponent text) {
-            if(fail)throw new IllegalStateException("chat application failed");
-            displayed.add(text.getUnformattedText());after.run();
-        }
-    }
-    public static class Gui extends GuiIngame {
-        Chat chat;
-        public Gui() {super(null);}
-        @Override public GuiNewChat getChatGUI() {return chat;}
-        @Override public void setRecordPlaying(IChatComponent text,boolean playing) {chat.printChatMessage(text);}
-    }
-    public static class Play extends NetHandlerPlayClient {
-        final Client client;int joins,respawns;boolean failJoin;
-        Play(Client client,NetworkManager network) {super(client,null,network,null);this.client=client;}
-        @Override public void handleJoinGame(S01PacketJoinGame packet) {
-            PacketThreadUtil.checkThreadAndEnqueue(packet,this,client);
-            if(failJoin)throw new IllegalStateException("join application failed");
-            joins++;
-        }
-        @Override public void handleRespawn(S07PacketRespawn packet) {
-            PacketThreadUtil.checkThreadAndEnqueue(packet,this,client);respawns++;getNetworkManager().getClientPackets().worldChanged();
-        }
-    }
-    public static final class Fixture implements AutoCloseable {
-        public final PacketFlowTest.MainThread main=new PacketFlowTest.MainThread();
-        public final NetworkManager network=new NetworkManager(EnumPacketDirection.CLIENTBOUND);
-        public final EmbeddedChannel channel=new EmbeddedChannel(network);
-        public final Client client;public final Chat chat=new Chat();public final Play play;
-        public Fixture() throws Exception {
-            client=AttackHookTest.bare(Client.class);client.main=main;
-            Gui gui=AttackHookTest.bare(Gui.class);gui.chat=chat;client.ingameGUI=gui;
-            play=new Play(client,network);network.setNetHandler(play);
-        }
-        public void join() {channel.writeInbound(new S01PacketJoinGame());}
-        public void netty(Runnable action) throws Exception {Thread worker=new Thread(action);worker.start();worker.join();}
-        public void close() {channel.finish();main.drain();}
-    }
     /** The replacement adapter subscribes once, independently of HUD enable/disable. */
     public static final class Consumer implements Subscriber {
         Object active;int starts,ends;final List<String> accepted=new ArrayList<>(),order=new ArrayList<>();
-        PacketFlowTest.MainThread main;
-        Consumer(PacketFlowTest.MainThread main) {this.main=main;}
+        NetworkTestSupport.MainThread main;
+        Consumer(NetworkTestSupport.MainThread main) {this.main=main;}
         @Subscribe final Listener<PlaySessionEvent> sessions=new Listener<>(event->{
             assertTrue(this.main.isCallingFromMinecraftThread());
             if(event.getState()==PlaySessionEvent.State.STARTED) {active=event.getConnection();starts++;order.add("start");}
@@ -103,7 +59,7 @@ public class SessionConsumerIntegrationTest {
     }
     @Test public void cancelledFailedOrDisconnectedJoinNeverConfirmsAStartedSession() throws Exception {
         for(int mode=0;mode<3;mode++)try(Fixture f=new Fixture()) {
-            Consumer consumer=new Consumer(f.main);PacketFlowTest.Observer packets=new PacketFlowTest.Observer();
+            Consumer consumer=new Consumer(f.main);NetworkTestSupport.Observer packets=new NetworkTestSupport.Observer();
             if(mode==0)packets.action=e->{if(e.isPre())e.cancel();};if(mode==1)f.play.failJoin=true;
             Pulsar.BUS.subscribe(consumer);Pulsar.BUS.subscribe(packets);
             try {f.netty(()->f.channel.writeInbound(new S01PacketJoinGame()));
@@ -114,7 +70,7 @@ public class SessionConsumerIntegrationTest {
     }
     @Test public void onlyTheFinalSuccessfullyDisplayedChatIsDeliveredIncludingSilentFirstApplication() throws Exception {
         try(Fixture f=new Fixture()) {
-            Consumer consumer=new Consumer(f.main);PacketFlowTest.Observer packets=new PacketFlowTest.Observer();Pulsar.BUS.subscribe(consumer);Pulsar.BUS.subscribe(packets);
+            Consumer consumer=new Consumer(f.main);NetworkTestSupport.Observer packets=new NetworkTestSupport.Observer();Pulsar.BUS.subscribe(consumer);Pulsar.BUS.subscribe(packets);
             try {f.join();S02PacketChat replacement=chat("Victim was slain by Tester");
                 packets.action=e->{if(e.isPre() && e.getPacket() instanceof S02PacketChat)e.setPacket(replacement);};
                 f.netty(()->f.channel.writeInbound(chat("original")));assertTrue(consumer.accepted.isEmpty());f.main.drain();
@@ -144,7 +100,7 @@ public class SessionConsumerIntegrationTest {
     }
     @Test public void chatActuallyAppliedDuringCloseIsDeliveredBeforeSessionEndEvenWithoutPacketPost() throws Exception {
         try(Fixture f=new Fixture()) {
-            Consumer consumer=new Consumer(f.main);PacketFlowTest.Observer packets=new PacketFlowTest.Observer();Pulsar.BUS.subscribe(consumer);Pulsar.BUS.subscribe(packets);
+            Consumer consumer=new Consumer(f.main);NetworkTestSupport.Observer packets=new NetworkTestSupport.Observer();Pulsar.BUS.subscribe(consumer);Pulsar.BUS.subscribe(packets);
             try {f.join();packets.calls.clear();f.chat.after=()->f.network.closeChannel(new ChatComponentText("during GUI application"));
                 f.channel.writeInbound(chat("Victim was slain by Tester"));
                 assertEquals(Arrays.asList("start","chat","end"),consumer.order);assertEquals(1,consumer.accepted.size());

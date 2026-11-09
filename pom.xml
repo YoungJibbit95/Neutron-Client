@@ -473,6 +473,8 @@
                         <configuration>
                             <finalName>neutron-client</finalName>
                             <archive><manifest><mainClass>me.neutron.launcher.ClientBootstrap</mainClass></manifest></archive>
+                            <!-- Keep the IDE entrypoint compiled, but out of the distribution. -->
+                            <excludes><exclude>Start.class</exclude></excludes>
                         </configuration>
                     </plugin>
                     <plugin>
@@ -527,6 +529,7 @@
                                         <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/INDEX.LIST</exclude>
                                         <exclude>module-info.class</exclude>
+                                        <exclude>Start.class</exclude>
                                     </excludes>
                                 </filter>
                             </filters>

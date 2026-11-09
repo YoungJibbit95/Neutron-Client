@@ -44,7 +44,7 @@ public class NetworkResearchHookTest {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             NetworkResearch research = new NetworkResearch(() -> 0, f.client);
             research.getModeSetting("Mode").setValue("Lagrange"); research.setToggled(enabled);
-            PacketFlowTest.Observer observer = new PacketFlowTest.Observer();
+            NetworkTestSupport.Observer observer = new NetworkTestSupport.Observer();
             List<String> order = new ArrayList<>(); Packet<?>[] expected = {null};
             observer.action = event -> {
                 assertSame(expected[0], event.getPacket());

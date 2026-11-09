@@ -1,5 +1,7 @@
 package me.youngjibbit.core.world;
 
+import me.youngjibbit.core.network.NetworkTestSupport;
+
 import me.youngjibbit.core.combat.RotationBehaviorHookTest;
 import me.youngjibbit.core.network.PacketFlowTest;
 import net.minecraft.block.Block;
@@ -76,7 +78,7 @@ public class ScaffoldClientFlowTest {
         f.mc.gameSettings.keyBindSneak=new KeyBinding("synthetic.sneak",0,"synthetic");f.mc.gameSettings.mouseSensitivity=.5f;
         f.mc.timer=new net.minecraft.util.Timer(20,()->0);
         set(NetHandlerPlayClient.class,f.player.sendQueue,"gameController",f.mc);
-        f.network.configureClientPackets(new PacketFlowTest.MainThread(),f.player.sendQueue::observeAcceptedOutbound);
+        f.network.configureClientPackets(new NetworkTestSupport.MainThread(),f.player.sendQueue::observeAcceptedOutbound);
         set(me.youngjibbit.core.bootstrap.ClientRuntime.class,f.runtime,"rotationManager",new me.youngjibbit.core.combat.RotationManager(scene.motionTime::get,781));
         f.scaffold.getBooleanSetting("Swing").setValue(false);
         return scene;

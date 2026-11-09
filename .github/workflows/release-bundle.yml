@@ -2,6 +2,7 @@ name: Release bundle
 
 on:
   push:
+    branches: [main]
     tags: ['v[0-9]*']
   pull_request:
     paths:
@@ -30,7 +31,7 @@ jobs:
     runs-on: windows-2022
     timeout-minutes: 30
     env:
-      RELEASE_VERSION: ${{ github.event_name == 'push' && github.ref_name || inputs.version || format('v0.0.0-pr.{0}', github.event.pull_request.number) }}
+      RELEASE_VERSION: ${{ github.event_name == 'push' && github.ref_type == 'tag' && github.ref_name || inputs.version || github.event_name == 'push' && 'v0.0.0-main' || format('v0.0.0-pr.{0}', github.event.pull_request.number) }}
     defaults:
       run:
         shell: pwsh

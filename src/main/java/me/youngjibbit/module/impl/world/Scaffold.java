@@ -1,6 +1,8 @@
 package me.youngjibbit.module.impl.world;
 
 import me.youngjibbit.core.bootstrap.RuntimeServices;
+import me.youngjibbit.core.activity.ActivityInventoryContext;
+import me.youngjibbit.core.activity.ScaffoldActivitySnapshot;
 import me.youngjibbit.core.contract.AutomationEligibility.ModuleAction;
 import me.youngjibbit.core.observation.AutomatedActionAdmission;
 import me.youngjibbit.core.observation.RuntimeObservation;
@@ -159,6 +161,80 @@ public class Scaffold extends Module {
     private boolean hasHoldBasis;
     private float holdYaw, holdPitch;
     private static Scaffold active;
+    private ScaffoldActivitySnapshot activitySnapshot;
+    private ActivityInventoryContext activityContext;
+    private final java.util.function.LongSupplier activityClock = System::nanoTime;
+    private long activitySequence, activityRevision, activityPlacements;
+    private long activityPlacedMotionSequence = -1;
+
+    /** Bounded cached-fact validation only: never queries geometry or plans/places a block. */
+    public ScaffoldActivitySnapshot getActivitySnapshot() {
+        ScaffoldActivitySnapshot cached = activitySnapshot;
+        ActivityInventoryContext context = activityContext;
+        long now = activityClock.getAsLong();
+        Minecraft client = Minecraft.getMinecraft();
+        if (cached == null || cached != activitySnapshot || active != this || !isToggled()
+                || client == null || client.currentScreen != null || !client.inGameHasFocus || client.isGamePaused()
+                || !cached.isFresh(now) || context == null || !context.isCurrent(client)) {
+            if (cached != null && cached == activitySnapshot) clearActivity();
+            return null;
+        }
+        return cached == activitySnapshot ? cached : null;
+    }
+
+    private void clearActivity() {
+        activityRevision++;
+        activityPlacedMotionSequence = -1;
+        activitySnapshot = null;
+        activityContext = null;
+    }
+
+    /** Runs only after an existing motion/input producer path, using the original block policy. */
+    private void publishActivity(boolean placed, long generation, long revision) {
+        Minecraft client = Minecraft.getMinecraft();
+        long now = activityClock.getAsLong();
+        if (generation != lifecycleGeneration || revision != activityRevision || active != this || !isToggled()
+                || client == null || client.currentScreen != null || !client.inGameHasFocus || client.isGamePaused()
+                || client.thePlayer == null || client.thePlayer != contextPlayer || client.theWorld != contextWorld
+                || client.thePlayer.openContainer != client.thePlayer.inventoryContainer) return;
+        ActivityInventoryContext scene = ActivityInventoryContext.capture(client);
+        if (scene == null) return;
+        me.youngjibbit.core.world.ScaffoldPlacementService service = RuntimeServices.scaffoldPlacement();
+        int count = service.getBlockCount(), slot = service.getBlockSlot();
+        if (count < 0) count = -1; // An overflowing/malformed live total is unknown, never fabricated.
+        net.minecraft.item.ItemStack stack = slot < 0 ? null : client.thePlayer.inventory.getStackInSlot(slot);
+        int itemId = stack == null ? -1 : net.minecraft.item.Item.getIdFromItem(stack.getItem());
+        int metadata = stack == null ? -1 : stack.getMetadata();
+        if (metadata < 0) metadata = -1;
+        ActivityInventoryContext captured = slot < 0 ? ActivityInventoryContext.capture(client)
+                : ActivityInventoryContext.capture(client, 36 + slot);
+        if (captured == null || generation != lifecycleGeneration || revision != activityRevision
+                || !scene.sameScene(client) || active != this || !isToggled()) return;
+        boolean observedPlacement = placed || activityPlacedMotionSequence >= 0
+                && activityPlacedMotionSequence == contextMotionSequence;
+        ScaffoldActivitySnapshot.Status status = adaptiveBridge() ? ScaffoldActivitySnapshot.Status.valueOf(bridgeSafety.getState().name())
+                : currentTarget != null ? ScaffoldActivitySnapshot.Status.ALIGNING
+                : ScaffoldActivitySnapshot.Status.SEARCHING;
+        if (observedPlacement && status != ScaffoldActivitySnapshot.Status.RECOVERING
+                && status != ScaffoldActivitySnapshot.Status.EDGE_GUARD) status = ScaffoldActivitySnapshot.Status.PLACING;
+        String profile = adaptiveBridge() ? bridgeRotationProfile.getValue() : arsenic() ? "" : rotationMode.getValue();
+        ScaffoldActivitySnapshot previous = activitySnapshot;
+        if (placed || previous == null || !previous.hasSameFacts(itemId, metadata, count, approach.getValue(), profile, status))
+            activitySequence++;
+        activityContext = captured;
+        activitySnapshot = new ScaffoldActivitySnapshot(activitySequence, now, itemId, metadata, count,
+                approach.getValue(), profile, status);
+    }
+
+    @Subscribe private final Listener<me.youngjibbit.event.packet.EventPacket> activityPackets =
+            new Listener<>(event -> {
+                if (event.isPost() && event.isInbound()
+                        && (event.getPacket() instanceof net.minecraft.network.play.server.S2FPacketSetSlot
+                        || event.getPacket() instanceof net.minecraft.network.play.server.S30PacketWindowItems
+                        || event.getPacket() instanceof net.minecraft.network.play.server.S2DPacketOpenWindow
+                        || event.getPacket() instanceof net.minecraft.network.play.server.S2EPacketCloseWindow))
+                    clearActivity();
+            });
 
     /** Relinquish control if another writer changes the timer; never restore over that writer. */
     public static final class TimerControl {
@@ -255,6 +331,7 @@ public class Scaffold extends Module {
         else if(value==movefix)syncMovementCorrection();
     }
     @Override public void onValueChange() {
+        clearActivity();
         long generation = ++lifecycleGeneration;
         sneakInterval.reset();
         releasePlacement();
@@ -287,6 +364,7 @@ public class Scaffold extends Module {
 
     @Override
     public void onDisable() {
+        clearActivity();
         final long generation = ++lifecycleGeneration;
         // Detach normal action listeners before any scene supplier can reenter the lifecycle.
         super.onDisable();
@@ -417,6 +495,7 @@ public class Scaffold extends Module {
     }
 
     private void clearState() {
+        clearActivity();
         sneakInterval.reset();
         arsenicController.reset();
         resetBridgeAcquisition(true);
@@ -447,6 +526,16 @@ public class Scaffold extends Module {
     @Subscribe private final Listener<EventRotation> prepareRotation = new Listener<>(preparation -> handleMotion(preparation.motion(), preparation));
 
     private void handleMotion(EventMotion event, EventRotation preparation) {
+        long generation = lifecycleGeneration, revision = activityRevision, placements = activityPlacements;
+        boolean completed = false;
+        try { handleMotionObserved(event, preparation); completed = true; }
+        finally {
+            if (completed && generation == lifecycleGeneration && revision == activityRevision)
+                publishActivity(activityPlacements != placements, generation, revision);
+        }
+    }
+
+    private void handleMotionObserved(EventMotion event, EventRotation preparation) {
         Minecraft mc = Minecraft.getMinecraft();
         if (!isToggled()) return;
         if (!liveContext()) { diagnose(me.youngjibbit.core.world.ScaffoldPlacementService.Rejection.CONTEXT);clearState(); return; }
@@ -531,6 +620,7 @@ public class Scaffold extends Module {
 
     /** Release only this approach's short-lived acquisition; never a physical key. */
     private void resetBridgeAcquisition(boolean sequences) {
+        clearActivity();
         if(bridgeCadence!=null && bridgeCadenceScope!=null)bridgeCadence.reset(bridgeCadenceScope);
         bridgeCadenceScope=null;
         bridgeCadenceStack=null;
@@ -883,6 +973,8 @@ public class Scaffold extends Module {
             boolean confirmed=placed && service.hasLocallyPlacedBlock(accepted);
             if(!bridgeCurrent(sequence,generation,acquisition))return;
             if(confirmed) {
+                activityPlacements++;
+                activityPlacedMotionSequence=sequence;
                 if(bridgeConfirmedPlacements<Integer.MAX_VALUE)bridgeConfirmedPlacements++;
                 if(bridgeBlocksSinceJump<bridgeJumpAfter.getValue().intValue())bridgeBlocksSinceJump++;
             }
@@ -969,6 +1061,16 @@ public class Scaffold extends Module {
 
     /** Applied after every MovementInputEvent consumer, on the existing fresh-input hook. */
     private void applyBridgeSafety(MovementInput input) {
+        long generation = lifecycleGeneration, revision = activityRevision;
+        boolean completed = false;
+        try { applyBridgeSafetyObserved(input); completed = true; }
+        finally {
+            if (completed && generation == lifecycleGeneration && revision == activityRevision)
+                publishActivity(false, generation, revision);
+        }
+    }
+
+    private void applyBridgeSafetyObserved(MovementInput input) {
         if(input==null || active!=this || !isToggled() || !adaptiveBridge() || contextRotation==null)return;
         long sequence=contextRotation.getMotionSequence(),generation=lifecycleGeneration,
                 acquisition=bridgeGeneration;
@@ -1169,10 +1271,15 @@ public class Scaffold extends Module {
             long generation = scaffold.lifecycleGeneration;
             long sequence = scaffold.contextRotation == null ? -1 : scaffold.contextRotation.getMotionSequence();
             if (!scaffold.continueMotion(sequence, generation)) return;
-            if (scaffold.sneakInterval.input(++scaffold.freshInputSequence) && !input.sneak) {
-                input.sneak = true;
-                input.moveForward *= .3f;
-                input.moveStrafe *= .3f;
+            if (scaffold.sneakInterval.input(++scaffold.freshInputSequence)) {
+                if (!input.sneak) {
+                    input.sneak = true;
+                    input.moveForward *= .3f;
+                    input.moveStrafe *= .3f;
+                }
+                // The earned final sneak owns automatic jump admission for this sample.
+                // Preserve the player's physical jump, as the Adaptive edge guard does.
+                if (!keyDown(mc.gameSettings.keyBindJump)) input.jump = false;
             }
         }
         if(allowInterval && scaffold!=null && scaffold.adaptiveBridge())scaffold.applyBridgeSafety(input);
@@ -1256,10 +1363,21 @@ public class Scaffold extends Module {
                 diagnose(me.youngjibbit.core.world.ScaffoldPlacementService.Rejection.ROTATION);return false;
             }
         }
-        long placementGeneration = lifecycleGeneration;
+        long placementGeneration = lifecycleGeneration, placementActivity = activityRevision;
+        Minecraft activityClient = Minecraft.getMinecraft();
+        Object activityPlayer = activityClient == null ? null : activityClient.thePlayer;
+        Object activityWorld = activityClient == null ? null : activityClient.theWorld;
+        Object activityScreen = activityClient == null ? null : activityClient.currentScreen;
         boolean placed = RuntimeServices.scaffoldPlacement().placeWithAuthority(target, rotation, pre, sequence,
                 placeDelay.getValue().longValue(), itemSpoof.getValue(), swing.getValue(), "Silent".equalsIgnoreCase(swingMode.getValue()),
                 rotationRequired ? "scaffold" : null, actionValid, sceneValid);
+        if (placed && !adaptiveBridge() && placementGeneration == lifecycleGeneration && placementActivity == activityRevision
+                && active == this && isToggled() && Minecraft.getMinecraft() == activityClient
+                && activityClient != null && activityClient.thePlayer == activityPlayer
+                && activityClient.theWorld == activityWorld && activityClient.currentScreen == activityScreen) {
+            activityPlacements++;
+            activityPlacedMotionSequence = sequence;
+        }
         if (placed && sneakAfterBlocks.getValue() > 0 && continueMotion(sequence, placementGeneration))
             sneakInterval.placed(sneakAfterBlocks.getValue().intValue());
         if (!placed) diagnose(RuntimeServices.scaffoldPlacement().getLastRejection());
