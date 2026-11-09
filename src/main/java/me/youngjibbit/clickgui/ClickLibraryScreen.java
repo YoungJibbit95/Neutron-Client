@@ -27,8 +27,8 @@ public class ClickLibraryScreen extends GuiScreen {
     private final ThemeCatalog catalog;
     private final ArrayListSurface surface = new ArrayListSurface();
     private final UiSpring[] motion = new UiSpring[9];
-    private boolean themes, replace, repeatBefore;
-    private String query = "", name = "", selectedTheme = "", message = "";
+    private boolean themes, replace, repeatBefore, renaming;
+    private String query = "", name = "", selectedTheme = "", message = "", renameBuffer = "";
     private float x, y, w, h, scroll, targetScroll;
     private int focus = -1, pressed = -99;
     private long lastFrame = System.nanoTime();
@@ -41,7 +41,15 @@ public class ClickLibraryScreen extends GuiScreen {
         selectedTheme = catalog.selectedReference();
         for (int i = 0; i < motion.length; i++) motion[i] = new UiSpring();
     }
+    /** Legacy presentation. */
+    protected boolean modernPresentation(){return false;}
+    /** Creative 2.0 presentation: spatial, dynamic, expressive. */
+    protected boolean creativePresentation(){return false;}
+    private boolean two(){return modernPresentation()||ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());}
+    private boolean modern(){return two()&&!creativePresentation();}
+    private boolean creative(){return two()&&creativePresentation();}
     @Override public void initGui() {
+        renaming=false;renameBuffer="";
         layout(); configs.refresh(); if(catalog.find(selectedTheme)==null)selectedTheme=catalog.selectedReference(); lastFrame = System.nanoTime(); pressed = -99;
         if (Keyboard.isCreated()) { repeatBefore = Keyboard.areRepeatEventsEnabled(); Keyboard.enableRepeatEvents(true); }
     }
@@ -50,9 +58,8 @@ public class ClickLibraryScreen extends GuiScreen {
         font().drawString(ClickControlStyle.fit(font(), text, width), x, y, ink);
     }
     private void layout() {
-        boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
-        w = Math.min(modern?780:640, Math.max(1,width-20));
-        h = Math.min(modern?480:420, Math.max(1,height-20));
+        w = Math.min(two()?780:640, Math.max(1,width-20));
+        h = Math.min(two()?460:420, Math.max(1,height-20));
         x = (width - w) / 2; y = (height - h) / 2;
         float max = Math.max(0, rowsHeight() - listBounds().height);
         targetScroll = Math.max(0, Math.min(max, targetScroll)); scroll = Math.max(0, Math.min(max, scroll));
@@ -79,12 +86,17 @@ public class ClickLibraryScreen extends GuiScreen {
         if (id == 8) return new ClipRect(x + w - 50, y + 10, 38, 22);
         if (!themes) {
             if (id == 3) { ClipRect search = searchBounds(); return new ClipRect(search.x + search.width + 6, search.y, 64, 20); }
-            if (splitConfigs()) return new ClipRect(detailsX(), y + (id == 0 ? 236 : id == 1 ? 112 : 144), detailsWidth(), 26);
+            if (splitConfigs()) {
+                if (id == 4) return new ClipRect(detailsX(), y + 172, detailsWidth(), 26);
+                return new ClipRect(detailsX(), y + (id == 0 ? 236 : id == 1 ? 112 : 144), detailsWidth(), 26);
+            }
             if (id == 0) return new ClipRect(x + w - 84, y + h - 44, 72, 22);
-            float half = (w - 30) / 2;
-            return new ClipRect(x + 12 + (id - 1) * (half + 6), y + h - 86, half, 22);
+            float third = Math.max(1,(w - 36) / 3);
+            int column = id == 4 ? 2 : id - 1;
+            return new ClipRect(x + 12 + column * (third + 6), y + h - 86, third, 22);
         }
-        float bw = (w - 42) / 4;
+        int tb = themes ? 5 : 4;
+        float bw = Math.max(1,(w - 24 - 6 * (tb - 1)) / tb);
         return new ClipRect(x + 12 + id * (bw + 6), y + h - 50, bw, 24);
     }
     private int columns() { return themes ? Math.max(1, Math.min(3, (int)((w - 18) / 150))) : 1; }
@@ -113,14 +125,14 @@ public class ClickLibraryScreen extends GuiScreen {
         if (id == 6 || id == 7 || id == 8 || id == 3) return true;
         if (themes) {
             Theme theme = catalog.find(selectedTheme);
-            return theme != null && (id == 0 || !catalog.isReadOnly());
+            return theme != null && (id == 0 || (!catalog.isReadOnly() && (id != 4 || theme.isCustom())));
         }
         return configs.available() && (id == 0 || !visibleConfigSelection().isEmpty());
     }
     private String label(int id) {
         if (id == 6) return "Configs"; if (id == 7) return "Themes"; if (id == 8) return "Done";
-        if (!themes) return new String[]{"Save as", "Load config", "Delete", "Refresh"}[id];
-        return new String[]{"Use theme", "Edit", "Duplicate", "Effects"}[id];
+        if (!themes) return new String[]{"Save as", "Load config", "Delete", "Refresh", "Rename"}[id];
+        return new String[]{"Use theme", "Edit", "Duplicate", "Effects", "Rename"}[id];
     }
     @Override public void drawScreen(int mx, int my, float partialTicks) {
         layout(); long now = System.nanoTime(); float dt = Math.min(.05f, Math.max(0, (now - lastFrame) / 1e9f)); lastFrame = now;
@@ -128,49 +140,66 @@ public class ClickLibraryScreen extends GuiScreen {
         Theme theme=Theme.getDefaultTheme();
         int ink=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())?
                 NeutronVisualTokens.ink(theme):theme.getTextColor().getRGB();
+        boolean modern=two()&&!creativePresentation();
+        boolean creative=two()&&creativePresentation();
         try (RenderState state = new RenderState()) {
             state.screenSpace();
             if(mc.theWorld==null)me.youngjibbit.gui.MainMenu.drawBackdrop(theme);else UIUtils.drawDecorationRound(0, 0, width, height, 0, new Color(5, 7, 12, 115));
-            boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
-            surface.panel(x,y,w,h,modern?14:6,theme,true,true,!modern,
-                    modern?4:8,modern?.98f:.92f,modern?.2f:.8f,()->{
+            surface.panel(x,y,w,h,two()?14:6,theme,true,true,!two(),
+                    two()?4:8,two()?.98f:.92f,two()?.2f:.8f,()->{
                 try(GuiClip clip=GuiClip.push(new ClipRect(x+2,y+2,w-4,h-4))){
-                    if(modern){
-                        UIUtils.drawRound(x+1,y+1,w-2,h-2,14,NeutronVisualTokens.FRAME);
-                        UIUtils.drawRound(x+1,y+1,w-2,31,14,NeutronVisualTokens.HEADER);
+                    if(two()){
+                        UIUtils.drawRound(x+1,y+1,w-2,h-2,14,
+                                creative?NeutronVisualTokens.alpha(NeutronVisualTokens.FRAME.getRGB(),250):NeutronVisualTokens.FRAME);
+                        UIUtils.drawRound(x+1,y+1,w-2,31,14,
+                                creative?NeutronVisualTokens.alpha(NeutronVisualTokens.HEADER.getRGB(),248):NeutronVisualTokens.HEADER);
                         UIUtils.drawRound(x+7,y+(themes?88:splitConfigs()?104:78),
                                 Math.max(1,configListWidth()+10),
                                 Math.max(1,h-(themes?164:splitConfigs()?138:170)),
-                                9,NeutronVisualTokens.PANEL);
+                                9,creative?NeutronVisualTokens.alpha(NeutronVisualTokens.PANEL.getRGB(),240):NeutronVisualTokens.PANEL);
                         if(splitConfigs()){
                             UIUtils.drawRound(detailsX()-3,y+102,
                                     Math.max(1,detailsWidth()+7),Math.max(1,h-136),
-                                    9,NeutronVisualTokens.PANEL);
+                                    9,creative?NeutronVisualTokens.alpha(NeutronVisualTokens.PANEL.getRGB(),240):NeutronVisualTokens.PANEL);
                         }
                         UIUtils.drawDecorationRound(x+17,y+31,
                                 Math.max(1,w-34),1,.5f,NeutronVisualTokens.HAIRLINE);
                         UIUtils.drawDecorationRound(x+12,y+11,2,18,1,
                                 NeutronVisualTokens.accent(theme,200));
+                        if(creative){
+                            // Dynamic header accent spark.
+                            float spark=UiEffects.time()*1.5f;
+                            float sx=x+w-28+(float)Math.sin(spark)*8f;
+                            float sy=y+15+(float)Math.cos(spark*.6f)*5f;
+                            UIUtils.drawRound(sx,sy,6,6,3,NeutronVisualTokens.accent(theme,(int)(150+80*Math.abs((float)Math.sin(spark*.3f)))));
+                        }
                     }
-                    Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Bold 28").drawString(
-                            modern?"Library":"Neutron",x+(modern?21:12),y+12,
-                            modern?NeutronVisualTokens.INK:ink);
-                    if(w>370)text(modern?themes?"Theme palettes":"Saved configurations":
-                            themes?"Configs & themes":"Local configs",
-                            x+(modern?115:107),y+17,w-170,
-                            modern?NeutronVisualTokens.MUTED:ink);
+                    TTFFontRenderer brand=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Bold 28");
+                    brand.drawString(two()?"Library":"Neutron",x+(two()?21:12),y+12,
+                            two()?NeutronVisualTokens.INK:ink);
+                    TTFFontRenderer sub=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 16");
+                    sub.drawString(ClickControlStyle.fit(sub,two()?(themes?"Theme palettes":"Saved configurations"):
+                            themes?"Configs & themes":"Local configs",w-170),
+                            x+(two()?115:107),y+17,
+                            two()?(creative?NeutronVisualTokens.accent(theme,180).getRGB():NeutronVisualTokens.MUTED):ink);
                     if (!themes) configSections(ink);
-                    for (int id : new int[]{0,1,2,3,6,7,8}) {
+                    for (int id : new int[]{0,1,2,3,4,6,7,8}) {
                         ClipRect r = actionBounds(id); boolean active = enabled(id);
                         motion[id].stepForInput(dt, r.contains(mx,my), focus == id, pressed == id, active, ClientSettings.current());
                         r = GuiStyle.buttonBounds(r, motion[id]);
-                        if(modern){
+                        if(two()){
                             UIUtils.drawRound(r.x,r.y,r.width,r.height,7,
-                                    active?NeutronVisualTokens.CONTROL:NeutronVisualTokens.PANEL);
+                                    active?(creative?NeutronVisualTokens.alpha(NeutronVisualTokens.CONTROL.getRGB(),245):NeutronVisualTokens.CONTROL):
+                                            (creative?NeutronVisualTokens.alpha(NeutronVisualTokens.PANEL.getRGB(),200):NeutronVisualTokens.PANEL));
                             if(active&&(id==1||id==6||id==7))
                                 UIUtils.drawDecorationRound(r.x+3,r.y+r.height-3,
                                         Math.max(1,r.width-6),1,.5f,
                                         NeutronVisualTokens.accent(theme,152));
+                            if(creative&&active&&motion[id].glow()>.03f){
+                                UIUtils.drawDecorationRound(r.x-motion[id].lift()*2f, r.y-motion[id].lift()*2f,
+                                        r.width+motion[id].lift()*4f, r.height+motion[id].lift()*4f,
+                                        9, me.youngjibbit.utils.render.UiEffects.accent(theme.getSecondaryGradientRGB(), .05f*motion[id].glow()));
+                            }
                         }else if(themes)
                             UIUtils.drawRound(r.x,r.y,r.width,r.height,3,new Color(21,24,31));
                         else {
@@ -188,12 +217,12 @@ public class ClickLibraryScreen extends GuiScreen {
                         for (int i = 0; i < items.size(); i++) {
                             ClipRect r = itemBounds(i); if (r.intersect(listBounds()).isEmpty()) continue;
                             String ref = items.get(i); boolean chosen = ref.equals(selected());
-                            if(modern){
+                            if(two()){
                                 UIUtils.drawRound(r.x+2,r.y+2,Math.max(1,r.width-5),
                                         Math.max(1,r.height-4),8,
                                         chosen?NeutronVisualTokens.CARD_HOVER:
                                                 r.contains(mx,my)?NeutronVisualTokens.CARD:
-                                                NeutronVisualTokens.PANEL);
+                                                        NeutronVisualTokens.PANEL);
                                 if(chosen)UIUtils.drawDecorationRound(r.x+4,r.y+7,2,
                                         Math.max(1,r.height-14),1,
                                         NeutronVisualTokens.accent(theme,215));
@@ -201,6 +230,14 @@ public class ClickLibraryScreen extends GuiScreen {
                                     UIUtils.drawDecorationRound(r.x+8,r.y+r.height-4,
                                             Math.max(1,r.width-16),1,.5f,
                                             NeutronVisualTokens.secondary(theme,166));
+                                if(creative&&r.contains(mx,my)){
+                                    float itemGlow=motion[Math.min(8,i%9)].glow();
+                                    if(itemGlow>.02f){
+                                        UIUtils.drawDecorationRound(r.x+2-itemGlow*2f, r.y+2-itemGlow*2f,
+                                                Math.max(1,r.width-5)+itemGlow*4f, Math.max(1,r.height-4)+itemGlow*4f,
+                                                10, me.youngjibbit.utils.render.UiEffects.accent(theme.getSecondaryGradientRGB(), .04f*itemGlow));
+                                    }
+                                }
                             }else if(themes)
                                 GuiStyle.panel(r.x,r.y,r.width,r.height,3,
                                         chosen?1:r.contains(mx,my)?.4f:.05f,new Color(17,20,27));
@@ -234,7 +271,7 @@ public class ClickLibraryScreen extends GuiScreen {
                         ClipRect r=listBounds(); float thumb=Math.max(10,r.height*r.height/content);
                         UIUtils.drawDecorationRound(r.x+r.width-2,r.y+scroll/(content-r.height)*(r.height-thumb),2,thumb,1,UiEffects.color(ink,.7f));
                     }
-                    if (!themes) field(nameBounds(),name.isEmpty()&&focus!=-3?"Config name":name+(focus==-3?"_":""),focus==-3,ink);
+                    if (!themes) field(nameBounds(),renaming&&focus==-4?(renameBuffer.isEmpty()?"New name":renameBuffer+(focus==-4?"_":"")):(name.isEmpty()&&focus!=-3?"Config name":name+(focus==-3?"_":"")),renaming?focus==-4:focus==-3,ink);
                     else {
                         Theme selection=catalog.find(selectedTheme);
                         String info=selection==null?"Select a theme":selection.getDisplayName()+(selection.isCustom()?" / Custom":" / Preset")+
@@ -242,7 +279,7 @@ public class ClickLibraryScreen extends GuiScreen {
                         text(info,nameBounds().x,nameBounds().y+6,nameBounds().width,ink);
                     }
                     String status = !message.isEmpty() ? message : themes ? catalog.isReadOnly() ? "Theme library is read-only. Presets can still be used." : "Select to inspect. Use theme applies; Edit previews before saving."
-                            : configs.status().isEmpty() ? "Local files Â· Module values, binds & client settings" : configs.status();
+                            : configs.status().isEmpty() ? "Local files · Module values, binds & client settings" : configs.status();
                     text(status,x+12,y+h-(themes?20:16),w-24,UiEffects.alpha(ink,.85f));
                     if(configs.pending()!=ConfigLibrary.Pending.NONE) confirmation(ink);
                 }
@@ -251,7 +288,7 @@ public class ClickLibraryScreen extends GuiScreen {
     }
     private void configSections(int ink) {
         if (splitConfigs()) {
-            text("Saved configs Â· " + configs.entries().size(),x+12,y+65,configListWidth(),ink);
+            text("Saved configs · " + configs.entries().size(),x+12,y+65,configListWidth(),ink);
             UIUtils.drawDecorationRound(detailsX()-8,y+64,1,h-96,0,UiEffects.color(ink,.12f));
             text("Selected config",detailsX(),y+66,detailsWidth(),UiEffects.alpha(ink,.72f));
             String visible = visibleConfigSelection();
@@ -281,7 +318,10 @@ public class ClickLibraryScreen extends GuiScreen {
         UIUtils.drawDecorationRound(x,y,w,h,5,new Color(4,6,10,205));
         float cw=Math.min(340,w-24),left=x+(w-cw)/2,top=y+h/2-48;
         GuiStyle.panel(left,top,cw,105,5,1,new Color(19,22,29));
-        text(configs.pending()==ConfigLibrary.Pending.DELETE?"Delete config?":"Replace config?",left+12,top+12,cw-24,ink);
+        String confirmTitle = configs.pending()==ConfigLibrary.Pending.DELETE ? "Delete config?"
+                : configs.pending()==ConfigLibrary.Pending.RENAME ? "Rename config?"
+                : "Replace config?";
+        text(confirmTitle,left+12,top+12,cw-24,ink);
         text(configs.target(),left+12,top+33,cw-24,ink);
         for(boolean accept:new boolean[]{true,false}) {
             ClipRect r=confirmBounds(accept);GuiStyle.panel(r.x,r.y,r.width,r.height,3,accept?.7f:.1f,new Color(26,29,37));
@@ -292,14 +332,21 @@ public class ClickLibraryScreen extends GuiScreen {
     protected void activate(int id) {
         if(!enabled(id))return;
         message="";
+        if(id!=4){renaming=false;renameBuffer="";}
         if(id==8){open(parent);return;}
         if(id==6||id==7){themes=id==7;query="";scroll=targetScroll=0;configs.cancel();focus=-1;return;}
         if(themes) {
+            if(id==4){
+                // The editor changes the display name and preserves the stable custom ID.
+                open(new ThemeEditorScreen(this,catalog,ThemeRuntime::select).editTheme(catalog.find(selectedTheme),false));
+                return;
+            }
             Theme theme=catalog.find(selectedTheme);
             if(id==0){ThemeRuntime.select(selectedTheme);message="Using "+theme.getDisplayName();}
             else if(id==1||id==2)open(new ThemeEditorScreen(this,catalog,ThemeRuntime::select).editTheme(theme,id==2||!theme.isCustom()));
             else if(id==3)open(new SettingsMenu(this));
         } else {
+            if(id==4){renaming=true;renameBuffer=configs.selected();focus=-4;message="";layout();return;}
             if(id==0)configs.save(name);
             else if(id==1){configs.load();if(mc.currentScreen!=this)open(this);}
             else if(id==2)configs.requestDelete();
@@ -308,6 +355,7 @@ public class ClickLibraryScreen extends GuiScreen {
         layout();
     }
     private void select(int index) {
+        renaming=false;renameBuffer="";
         List<String> entries=items();if(index<0||index>=entries.size())return;
         if(themes)selectedTheme=entries.get(index);else{configs.select(entries.get(index));name=configs.selected();}
         focus=-2;message="";
@@ -323,13 +371,13 @@ public class ClickLibraryScreen extends GuiScreen {
     @Override protected void mouseClicked(int mx,int my,int button)throws IOException {
         if(button!=0)return;layout();
         if(configs.pending()!=ConfigLibrary.Pending.NONE) {
-            if(confirmBounds(true).contains(mx,my))configs.confirm();
-            else if(confirmBounds(false).contains(mx,my))configs.cancel();
+            if(confirmBounds(true).contains(mx,my)){finishConfirmation(true);return;}
+            else if(confirmBounds(false).contains(mx,my)){finishConfirmation(false);return;}
             return;
         }
         if(searchBounds().contains(mx,my)){focus=-1;replace=false;return;}
-        if(!themes&&nameBounds().contains(mx,my)){focus=-3;replace=false;return;}
-        for(int id:new int[]{0,1,2,3,6,7,8})if(actionBounds(id).contains(mx,my)){focus=id;pressed=id;activate(id);return;}
+        if(!themes&&nameBounds().contains(mx,my)){focus=renaming?-4:-3;replace=false;return;}
+        for(int id:new int[]{0,1,2,3,4,6,7,8})if(actionBounds(id).contains(mx,my)){focus=id;pressed=id;activate(id);return;}
         if(listBounds().contains(mx,my))for(int i=0;i<items().size();i++)if(itemBounds(i).contains(mx,my)){select(i);return;}
     }
     @Override protected void mouseReleased(int mx,int my,int button) { pressed=-99; }
@@ -342,19 +390,27 @@ public class ClickLibraryScreen extends GuiScreen {
         if(configs.pending()!=ConfigLibrary.Pending.NONE||!listBounds().contains(mx,my)||wheel==0)return;
         targetScroll-=Math.signum(wheel)*rowHeight()*2;layout();
     }
+    private void finishConfirmation(boolean confirm) {
+        ConfigLibrary.Pending action=configs.pending();
+        if(confirm)configs.confirm();else configs.cancel();
+        renaming=false;renameBuffer="";
+        // Return to the originating action. A fresh Enter must open a new dialog.
+        focus=action==ConfigLibrary.Pending.DELETE?2:action==ConfigLibrary.Pending.RENAME?4:0;
+        layout();
+    }
     protected boolean ctrlDown(){return Keyboard.isCreated()&&isCtrlKeyDown();}
     protected boolean shiftDown(){return Keyboard.isCreated()&&isShiftKeyDown();}
     @Override protected void keyTyped(char c,int key)throws IOException {
         pressed=-99;
         boolean enter=key==Keyboard.KEY_RETURN||key==Keyboard.KEY_NUMPADENTER;
         if(configs.pending()!=ConfigLibrary.Pending.NONE) {
-            if(key==Keyboard.KEY_ESCAPE)configs.cancel();
-            else if(enter)configs.confirm();
+            if(key==Keyboard.KEY_ESCAPE){finishConfirmation(false);return;}
+            else if(enter){finishConfirmation(true);return;}
             return;
         }
-        if(key==Keyboard.KEY_ESCAPE){open(parent);return;}
+        if(key==Keyboard.KEY_ESCAPE){if(renaming){renaming=false;renameBuffer="";focus=-1;return;}open(parent);return;}
         if(key==Keyboard.KEY_TAB) {
-            int[] order=themes?new int[]{6,7,-1,-2,0,1,2,3,8}:new int[]{6,7,-1,3,-2,1,2,-3,0,8};
+            int[] order=themes?new int[]{6,7,-1,-2,0,1,2,3,4,8}:new int[]{6,7,-1,3,-2,1,2,-3,4,0,8};
             int current=0;for(int i=0;i<order.length;i++)if(order[i]==focus)current=i;
             focus=order[(current+(shiftDown()?order.length-1:1))%order.length];replace=false;
             if(focus==-2)revealItem(items().indexOf(selected()));
@@ -378,6 +434,13 @@ public class ClickLibraryScreen extends GuiScreen {
             if(focus==-1){query=value;scroll=targetScroll=0;}else name=value;
             return;
         }
+        if(focus==-4 && renaming && !themes) {
+            if(key==Keyboard.KEY_ESCAPE){renaming=false;renameBuffer="";focus=-1;return;}
+            if(enter){renaming=false;if(configs.rename(renameBuffer)){message="Renamed "+renameBuffer;}renameBuffer="";focus=-1;layout();return;}
+            if(key==Keyboard.KEY_BACK){renameBuffer=renameBuffer.substring(0,Math.max(0,renameBuffer.length()-1));return;}
+            else if(c>=32&&c!=127&&renameBuffer.length()<64){renameBuffer=renameBuffer+c;return;}
+            else return;
+        }
         if(focus==-2) {
             List<String> entries=items();int index=entries.indexOf(selected());
             if(key==Keyboard.KEY_UP||key==Keyboard.KEY_DOWN||key==Keyboard.KEY_LEFT||key==Keyboard.KEY_RIGHT) {
@@ -389,7 +452,7 @@ public class ClickLibraryScreen extends GuiScreen {
         if(enter||key==Keyboard.KEY_SPACE)activate(focus);
     }
     @Override public void onGuiClosed() {
-        pressed=-99;configs.cancel();surface.close();for(UiSpring state:motion)state.reset();
+        pressed=-99;configs.cancel();renaming=false;renameBuffer="";surface.close();for(UiSpring state:motion)state.reset();
         if(Keyboard.isCreated())Keyboard.enableRepeatEvents(repeatBefore);
     }
     @Override public boolean doesGuiPauseGame(){return false;}
