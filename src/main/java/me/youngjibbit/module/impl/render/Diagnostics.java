@@ -4,6 +4,7 @@ import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.bootstrap.RuntimeServices;
 import me.youngjibbit.core.combat.RotationManager;
 import me.youngjibbit.core.diagnostics.CorrectionHistory;
+import me.youngjibbit.core.activity.LocalCorrectionSnapshot;
 import me.youngjibbit.core.diagnostics.RenderTimings;
 import me.youngjibbit.core.network.PacketDelays;
 import me.youngjibbit.core.network.PacketPipeline;
@@ -39,6 +40,7 @@ import static org.lwjgl.opengl.GL11.*;
 @ModuleInfo(name="Diagnostics", description="Movable render, rotation, network and possible setback diagnostics", category=Category.Render)
 public final class Diagnostics extends Module {
     private static Diagnostics active;
+    private static final java.util.concurrent.atomic.AtomicLong warningRuns=new java.util.concurrent.atomic.AtomicLong();
     final ComboValue displayMode = new ComboValue("Display Mode", this, "Text", new String[]{"Text", "Simple"});
     private final Deque<Integer> pingHistory = new ArrayDeque<>();
     private final CheckBoxValue performanceWidget=new CheckBoxValue("Performance Widget",this,true);
@@ -68,6 +70,8 @@ public final class Diagnostics extends Module {
     final Widget[] widgets={new Widget("Performance",12,14),new Widget("Rotation",276,14),
             new Widget("Network",12,174),new Widget("Flags",276,160)};
     private final CorrectionHistory corrections=new CorrectionHistory();
+    private LocalCorrectionSnapshot localWarning;
+    private long localWarningRun;
     private RenderTimings.Snapshot renderSnapshot=RenderTimings.Snapshot.EMPTY;
     private RotationManager.DiagnosticSnapshot rotation;
     private PacketDelays.Diagnostics queue;
@@ -96,7 +100,7 @@ public final class Diagnostics extends Module {
         cachedPanels=null;
         if(widgets!=null)for(Widget widget:widgets)widget.syncPosition();
         if(active==this)updateProfiling();
-        if(flagDetector!=null&&!flagDetector.getValue()){corrections.clear();runId++;}
+        if(flagDetector!=null&&!flagDetector.getValue()){corrections.clear();localWarning=null;localWarningRun=warningRuns.incrementAndGet();runId++;}
     }
     private void updateProfiling() {
         boolean requested=performanceWidget.getValue()||consolePerformance.getValue();
@@ -125,11 +129,27 @@ public final class Diagnostics extends Module {
         cancelDrag();
     }
     private static int contentHeight(int height) {return mc!=null&&mc.currentScreen instanceof DiagnosticsEditor?Math.max(1,height-DiagnosticsEditor.CONTROL_STRIP):height;}
-    public void clearHistory() {corrections.clear();notified=false;cachedPanels=null;runId++;}
+    public void clearHistory() {corrections.clear();localWarning=null;localWarningRun=warningRuns.incrementAndGet();notified=false;cachedPanels=null;runId++;}
+    /** Cached applied-correction facts; no packet processing, telemetry sampling or history scan. */
+    public LocalCorrectionSnapshot getLocalCorrectionSnapshot(long now){
+        LocalCorrectionSnapshot cached=localWarning;
+        if(cached==null)return null;
+        if(mc==null||!mc.isCallingFromMinecraftThread())return null;
+        PacketPipeline pipe=mc==null?null:pipeline();
+        if(cached==null||active!=this||!isToggled()||!flagDetector.getValue()||!cached.isFresh(now)
+                ||mc==null||mc.thePlayer==null||mc.theWorld==null||mc.thePlayer.isDead
+                ||player.get()!=mc.thePlayer||world.get()!=mc.theWorld||connection.get()!=pipe
+                ||pipe==null||!pipe.isActive()||cached.getRunId()!=localWarningRun){
+            if(cached==localWarning)localWarning=null;
+            return null;
+        }
+        return cached==localWarning?cached:null;
+    }
     private void resetRun() {
         runId++;
+        localWarningRun=warningRuns.incrementAndGet();
         if(active==this&&RenderTimings.INSTANCE.isEnabled())RenderTimings.INSTANCE.enable(mc.mcProfiler);
-        corrections.clear();renderSnapshot=RenderTimings.Snapshot.EMPTY;rotation=null;queue=null;network=values=Collections.emptyList();
+        corrections.clear();localWarning=null;renderSnapshot=RenderTimings.Snapshot.EMPTY;rotation=null;queue=null;network=values=Collections.emptyList();
         cachedPanels=null;
         pingHistory.clear();
         for(Widget w:widgets){w.graphSpring.reset();w.graphTail=Float.NaN;}
@@ -254,6 +274,8 @@ public final class Diagnostics extends Module {
         float angle=Math.max(Math.abs(net.minecraft.util.MathHelper.wrapAngleTo180_float(mc.thePlayer.rotationYaw-probe.yaw)),Math.abs(mc.thePlayer.rotationPitch-probe.pitch));
         CorrectionHistory.Entry entry=d.corrections.record(now,distance,angle,probe.initialization,probe.replay,probe.context,probe.values,probe.advice);
         if(entry==null)return;
+        if(entry.possibleSetback&&!entry.initialization&&!entry.replay)
+            d.localWarning=new LocalCorrectionSnapshot(d.localWarningRun,entry.id,now,entry.distance,entry.angle);
         d.cachedPanels=null;
         if(d.consoleFlags.getValue()) {
             log("correction",now,"event="+entry.id+" kind="+entry.kind()+" displacement="+fmt(distance)+" angle="+fmt(angle)+" cause=UNCONFIRMED serverCheck=UNKNOWN context="+entry.context);

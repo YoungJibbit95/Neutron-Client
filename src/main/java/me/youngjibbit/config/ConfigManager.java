@@ -4,6 +4,7 @@ import com.google.gson.*;
 import com.google.gson.stream.JsonReader;
 import com.google.gson.stream.JsonToken;
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.core.activity.ModuleToggleJournal;
 import me.youngjibbit.notifications.NotificationManager;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.value.Value;
@@ -291,6 +292,7 @@ public class ConfigManager {
         if (ready.getAsBoolean() && !pendingActivation.isEmpty()) {
             applying = true;
             try {
+                ModuleToggleJournal.beginConfigApplication();
                 for (Map.Entry<Module, Boolean> entry : new ArrayList<>(pendingActivation.entrySet())) {
                     Module module = entry.getKey();
                     if (module.isToggled()) module.setToggled(false);
@@ -303,7 +305,10 @@ public class ConfigManager {
                 fail("Module activation failed; automatic saving paused", e);
                 messages.accept(lastError);
                 pendingActivation.clear();
-            } finally { applying = false; }
+            } finally {
+                applying = false;
+                ModuleToggleJournal.endConfigApplication();
+            }
         }
         if (dirty && !automaticReadOnly && clock.getAsLong() >= saveAfter) saveDefaultConfig();
     }
@@ -703,6 +708,7 @@ public class ConfigManager {
         if (applying) throw new IllegalStateException("Recursive config load is not allowed.");
         applying = true;
         try {
+            ModuleToggleJournal.beginConfigApplication();
             boolean canActivate = ready.getAsBoolean();
             for (Change change : plan.changes) {
                 change.desired = change.enabled != null ? change.enabled : pendingActivation.getOrDefault(change.module, change.module.isToggled());
@@ -729,8 +735,12 @@ public class ConfigManager {
             automaticReadOnly = true;
             throw new IllegalStateException("Application failed; state may be partially applied. Automatic saving paused: " + e.getMessage(), e);
         } finally {
-            for (Change change : plan.changes) change.module.cancelConfigUpdate();
-            applying = false;
+            try {
+                for (Change change : plan.changes) change.module.cancelConfigUpdate();
+                applying = false;
+            } finally {
+                ModuleToggleJournal.endConfigApplication();
+            }
         }
     }
 
