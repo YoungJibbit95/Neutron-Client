@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1200" height="48" viewBox="0 0 1200 48" aria-hidden="true">
   <defs>
-    <linearGradient id="neutron-line">
+    <linearGradient id="neutron-line" gradientUnits="userSpaceOnUse" x1="24" y1="24" x2="1176" y2="24">
       <stop stop-color="#FF00EA" stop-opacity="0"/>
       <stop offset=".28" stop-color="#FF00EA" stop-opacity=".46"/>
       <stop offset=".72" stop-color="#FF6200" stop-opacity=".46"/>
