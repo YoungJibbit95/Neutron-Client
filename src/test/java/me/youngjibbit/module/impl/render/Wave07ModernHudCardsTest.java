@@ -40,7 +40,7 @@ public class Wave07ModernHudCardsTest {
     @Test public void allEightSavedTargetDesignsAndDefaultRemainValid() {
         TargetHUD hud=new TargetHUD();
         String[] expected={"Neutron Default","Neutron White","Neutron Outline",
-                "Rise","Tenacity","Basic","Test","Neutron 2.0"};
+                "Rise","Tenacity","Basic","Test","Neutron 2.0","Modern","Creative"};
         assertArrayEquals(expected,hud.getModeSetting("Mode").getOptions());
         assertEquals("Neutron White",hud.getModeSetting("Mode").getValue());
         assertEquals(1,hud.getModeSetting("Mode").getSelectedIndex());
@@ -97,4 +97,13 @@ public class Wave07ModernHudCardsTest {
         assertTrue(springs[0].step(1,.016f,true,false,"Expressive")>0);
         assertEquals(springs[0].value(),springs[0].step(0,0,true,false,"Expressive"),0);
     }
+    @Test public void creativeKeystrokesNeverGrowBeyondTheOriginalCells() {
+        for(float press:new float[]{-1,0,.5f,1,1.5f,10}) {
+            float scale=Keystrokes.creativeScale(press);
+            assertTrue("press animation remains inside each key",scale>0&&scale<=1);
+        }
+        assertEquals(1f,Keystrokes.creativeScale(0),0);
+        assertTrue(Keystrokes.creativeScale(1)<1f);
+    }
+
 }

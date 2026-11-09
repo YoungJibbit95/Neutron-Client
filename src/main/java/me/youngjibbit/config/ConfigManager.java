@@ -131,6 +131,19 @@ public class ConfigManager {
         catch (RuntimeException e) { return fail("Cannot serialize config", e); }
     }
 
+    /** A new library entry never replaces an independently created file. */
+    public boolean createConfig(String name) {
+        if (applying) return fail("Cannot save during config application", new IllegalStateException("Load is in progress."));
+        try {
+            Path path=namedPath(name);
+            String content=serialize();
+            parse(content);
+            writeAtomically(path,content,false);
+            collectConfigs();lastError="";
+            return true;
+        } catch(IOException | RuntimeException e) { return fail("Cannot create config",e); }
+    }
+
     public boolean saveConfig(String name, String content) {
         if (applying) return fail("Cannot save during config application", new IllegalStateException("Load is in progress."));
         try {
@@ -144,6 +157,17 @@ public class ConfigManager {
         } catch (IOException | RuntimeException e) {
             return fail("Cannot save config", e);
         }
+    }
+
+    /** Rename the stored file itself; never serialize the currently running client. */
+    public boolean renameConfig(String sourceName, String targetName) {
+        if (applying) return fail("Cannot rename during config application", new IllegalStateException("Load is in progress."));
+        try {
+            ConfigRename.rename(namedPath(sourceName), namedPath(targetName));
+            collectConfigs();
+            lastError = "";
+            return true;
+        } catch (IOException | RuntimeException e) { return fail("Cannot rename config", e); }
     }
 
     public boolean delete(String name) {
@@ -304,7 +328,17 @@ public class ConfigManager {
     }
 
     private void writeAtomically(Path target, String content) throws IOException {
+        writeAtomically(target,content,true);
+    }
+
+    private void writeAtomically(Path target, String content, boolean replace) throws IOException {
         Files.createDirectories(directory);
+        if(!replace) {
+            try(DirectoryStream<Path> files=Files.newDirectoryStream(directory)) {
+                for(Path file:files) if(file.getFileName().toString().equalsIgnoreCase(target.getFileName().toString()))
+                    throw new FileAlreadyExistsException(file.toString());
+            }
+        }
         if (Files.isSymbolicLink(target)) throw new IOException("Config links are not supported.");
         Path temporary = Files.createTempFile(directory, ".config-", ".tmp");
         try {
@@ -312,8 +346,14 @@ public class ConfigManager {
                 stream.write(content.getBytes(StandardCharsets.UTF_8));
                 stream.getFD().sync();
             }
-            replaceFile(temporary, target);
+            if(replace)replaceFile(temporary,target);else installNewFile(temporary,target);
         } finally { Files.deleteIfExists(temporary); }
+    }
+
+    protected void installNewFile(Path temporary, Path target) throws IOException {
+        // ATOMIC_MOVE can replace an existing target on some providers even without
+        // REPLACE_EXISTING. New library entries require the non-replacing move.
+        Files.move(temporary,target);
     }
 
     protected void replaceFile(Path temporary, Path target) throws IOException {
