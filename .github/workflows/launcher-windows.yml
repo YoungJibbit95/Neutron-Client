@@ -1,10 +1,24 @@
-name: Launcher Windows candidate
+name: Launcher Windows release
 on:
   pull_request:
     paths: ['launcher/**', '.github/workflows/launcher-windows.yml']
+  push:
+    branches: [main]
+    paths: ['launcher/**', '.github/workflows/launcher-windows.yml']
   workflow_dispatch:
+    inputs:
+      publish:
+        description: 'Publish the accepted installer from main after its required merged-PR checks'
+        type: boolean
+        required: true
+        default: false
 permissions:
   contents: read
+concurrency:
+  group: launcher-windows-${{ github.event.pull_request.number || github.ref }}
+  # A newer PR revision replaces its obsolete candidate; publishing from main
+  # always finishes without being cancelled by a later push.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   candidate:
     runs-on: windows-latest
@@ -35,12 +49,14 @@ jobs:
       - run: npm ci --ignore-scripts --no-audit --no-fund
       - run: node scripts/build.mjs
       - run: node node_modules/vitest/vitest.mjs run
+      - name: Artifact review regression tests
+        run: node --test scripts/review-release.test.mjs scripts/publish-release.test.mjs
       - name: Storage preflight regression fixtures (Windows PowerShell 5.1)
         run: '& "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -File scripts/test-storage-preflight.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'
       - name: Storage fixtures in the 32-bit installer PowerShell
         run: '& "$env:SystemRoot\SysWOW64\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -File scripts/test-storage-preflight.ps1; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }'
-      - name: Check the tracked durable Alpha source pin
-        run: node scripts/pin-alpha.mjs --check
+      - name: Check release repository and launcher package versions
+        run: node scripts/check-release.mjs
       - name: Package Windows NSIS candidate (log exact tool downloads)
         run: node scripts/package-windows.mjs
         env:
@@ -67,3 +83,59 @@ jobs:
             ${{ runner.temp }}\neutron-legacy-*\diagnostic.log
           retention-days: 7
           if-no-files-found: error
+
+  artifact-review:
+    name: Review exact Windows release artifact
+    needs: candidate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '26.3.1'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: unsigned-windows-candidate
+          path: ${{ runner.temp }}/downloaded-candidate
+      - name: Verify independent receipts, source revision and installer bytes
+        env:
+          CANDIDATE_DIRECTORY: ${{ runner.temp }}/downloaded-candidate
+          REVIEWED_DIRECTORY: ${{ runner.temp }}/reviewed-release
+        run: node launcher/scripts/review-release.mjs "$CANDIDATE_DIRECTORY" "$REVIEWED_DIRECTORY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: accepted-windows-release
+          path: ${{ runner.temp }}/reviewed-release/
+          retention-days: 14
+          if-no-files-found: error
+
+  publish:
+    name: Publish accepted Windows installer
+    needs: artifact-review
+    # Main integration produces reviewed artifacts; publication is an explicit later action.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      checks: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '26.3.1'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: accepted-windows-release
+          path: ${{ runner.temp }}/accepted-release
+      - name: Publish unchanged accepted files and verify the public download
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ACCEPTED_DIRECTORY: ${{ runner.temp }}/accepted-release
+        run: node launcher/scripts/publish-release.mjs "$ACCEPTED_DIRECTORY"

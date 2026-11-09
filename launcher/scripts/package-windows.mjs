@@ -10,7 +10,7 @@ if (output === path.parse(output).root) throw new Error('A drive root is not a p
 for (const target of [output, path.join(output, 'win-unpacked')]) {
   if (existsSync(target) && (lstatSync(target).isSymbolicLink() || realpathSync(target).toLowerCase() !== target.toLowerCase())) throw new Error('Refusing a redirected package output directory.');
 }
-run('scripts/pin-alpha.mjs', ['--check']);
+run('scripts/check-release.mjs');
 process.env.CSC_IDENTITY_AUTO_DISCOVERY = 'false';
 // Only retry a confirmed network 504. Keep electron-builder's own pinned
 // binary SHA checks and the same NSIS script; never turn compilation failures

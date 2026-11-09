@@ -35,6 +35,7 @@ try {
     $body=@'
 $ErrorActionPreference='Stop'
 $env:GITHUB_ACTIONS='true'; $env:RUNNER_ENVIRONMENT='github-hosted'; $env:NEUTRON_DIAGNOSTIC_CHILD='1'
+$env:GITHUB_SHA='__REVISION__'
 $env:NEUTRON_DIAGNOSTIC_ROOT='__ROOT__'
 $env:NEUTRON_DIAGNOSTIC_CANDIDATE='__CANDIDATE__'
 $env:NEUTRON_DIAGNOSTIC_CANDIDATE_HASH='__HASH__'
@@ -48,6 +49,8 @@ catch { $_ | Out-String | Add-Content -LiteralPath '__ROOT__\diagnostic.log'; ex
 '@
     $body=$body.Replace('__ROOT__',$root.Replace("'","''")).Replace('__SID__',$sid).Replace('__SCRIPT__',$script.Replace("'","''"))
     $body=$body.Replace('__CANDIDATE__',$candidatePath.Replace("'","''")).Replace('__HASH__',$candidateHash).Replace('__VERSION__',$candidateVersion)
+    if($env:GITHUB_SHA -notmatch '^[a-f0-9]{40}$'){throw 'A concrete source revision is required for diagnostic evidence.'}
+    $body=$body.Replace('__REVISION__',$env:GITHUB_SHA)
     [IO.File]::WriteAllText($wrapper,$body)
     $credential=[pscredential]::new(($env:COMPUTERNAME+'\'+$name),$password)
     $child=Start-Process -FilePath (Join-Path $PSHOME 'pwsh.exe') -Credential $credential -LoadUserProfile -WorkingDirectory $root -ArgumentList ('-NoProfile -NonInteractive -File "'+$wrapper+'"') -WindowStyle Hidden -PassThru

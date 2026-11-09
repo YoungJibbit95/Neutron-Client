@@ -3,18 +3,20 @@ export interface LaunchOptions {
   width: number; height: number; fullscreen: boolean; jvmArgs: string;
 }
 export interface Preferences { theme: 'sunset' | 'ocean' | 'violet' | 'graphite'; locale: 'de' | 'en'; scale: number; effects: number; reducedMotion: boolean }
-export interface BuildRecord { id: string; commit: string; date: string; sizeMiB: number; manifestSha256: string }
+export interface ReleaseAsset { id: number; name: string; url: string; sha256: string; size: number }
+export interface ClientRelease { id: number; tag: string; version: string; publishedAt: string; prerelease: boolean; jar: ReleaseAsset; json: ReleaseAsset }
+export interface BuildRecord { id: string; commit: string; date: string; sizeMiB: number; manifestSha256: string; releaseTag?: string; releaseId?: number; version?: string }
 export interface LogRecord { id: number; time: string; source: 'client' | 'build'; level: 'info' | 'warn' | 'error'; message: { de: string; en: string } }
-export type Status = 'first-run' | 'empty' | 'ready' | 'offline' | 'update' | 'prepare' | 'download' | 'build' | 'verify' | 'cancelled' | 'error' | 'running' | 'crash';
+export type Status = 'first-run' | 'empty' | 'ready' | 'offline' | 'update' | 'prepare' | 'download' | 'verify' | 'cancelled' | 'error' | 'running' | 'crash';
 export interface Snapshot {
   revision: number; status: Status; online: boolean; setupComplete: boolean; builds: BuildRecord[]; selected: string | null;
   runningBuild: string | null; clientStarting: boolean; options: LaunchOptions; preferences: Preferences; logs: LogRecord[];
-  latestCommit: string | null; lastChecked: string | null; error: string | null; exitCode: number | null;
+  releases: ClientRelease[]; latestRelease: string | null; launcherVersion: string; lastChecked: string | null; error: string | null; exitCode: number | null;
   physicalMiB: number; maxRamMiB: number; download: { received: number; total: number | null } | null;
 }
 export type Command =
   | { type: 'setup' | 'check' | 'launch' | 'stop' | 'cancel' | 'report' }
-  | { type: 'build'; play: boolean }
+  | { type: 'install'; tag?: string; play: boolean }
   | { type: 'select' | 'remove'; id: string }
   | { type: 'save-options'; patch: Partial<LaunchOptions> }
   | { type: 'save-preferences'; patch: Partial<Preferences> }
@@ -55,7 +57,11 @@ export function parseCommand(value: unknown): Command {
   const command = record(value);
   switch (command.type) {
     case 'setup': case 'check': case 'launch': case 'stop': case 'cancel': case 'report': keys(command, ['type']); break;
-    case 'build': keys(command, ['type', 'play']); if (typeof command.play !== 'boolean') throw new Error('Invalid play flag.'); break;
+    case 'install':
+      keys(command, ['type', 'tag', 'play']);
+      if (typeof command.play !== 'boolean') throw new Error('Invalid play flag.');
+      if (command.tag !== undefined && (typeof command.tag !== 'string' || !/^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(command.tag) || command.tag.length > 120)) throw new Error('Invalid release tag.');
+      break;
     case 'select': case 'remove': keys(command, ['type', 'id']); if (typeof command.id !== 'string' || !/^[a-f0-9]{40}-[a-f0-9-]{36}$/.test(command.id)) throw new Error('Invalid build ID.'); break;
     case 'save-options': keys(command, ['type', 'patch']); optionPatch(command.patch); break;
     case 'save-preferences': keys(command, ['type', 'patch']); preferencePatch(command.patch); break;

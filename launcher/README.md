@@ -1,27 +1,49 @@
 # Neutron Launcher — Windows x64
 
-Electron/React launcher with managed Java/Maven, verified Minecraft assets, commit-specific local client builds, persistent options and real process output. The installer prepares the pinned client before completing, so Play starts the local version without Maven. The four views share the Sunset Graphite theme and Neutron's Liquid Glass material, with a resizable console and opaque CSS fallback. Reduced motion and zero effects skip GPU allocation. See the [installation and release contract](docs/ALPHA-INSTALLATION.md).
+Version 0.3.0 downloads published Neutron JAR and version JSON files from
+[GitHub Releases](https://github.com/YoungJibbit95/Neutron-Client/releases).
+The catalog refreshes at startup, every five minutes while idle, manually and
+before installation. Choose a version to download or download and start; the
+newest stable client is the default and prereleases are marked separately.
+Installed versions can be started locally.
+
+Setup prepares managed Java 8, Minecraft assets/natives and verified release
+files. Client source downloads, Maven and the source adapter are removed.
+JAR/JSON hashes and sizes, the version contract, runtime and Bootstrap are checked
+before activation. Failed operations preserve the prior selected client and settings.
+The Electron/React interface, Liquid Glass, options and process console are retained.
+
+## Installation
+
+Run a launcher-v release EXE in your ordinary Windows account. The program and
+persistent data folders are selected separately. First setup requires internet
+and at least 3 GiB free on the data drive. Existing settings, versions and game
+data remain on disk. The installer is unsigned and supports Windows x64 only.
+See [installation](docs/RELEASE-INSTALLATION.md) and [release gates](docs/CURRENT-GATES.md).
 
 ## Development
 
-Use Node with the pinned lockfile. Run from `launcher/`:
+Run from launcher/ using the pinned lockfile:
 
 ```powershell
 npm ci --ignore-scripts
+node scripts/check-release.mjs
 node scripts/build.mjs
 node node_modules/vitest/vitest.mjs run
+node --test scripts/review-release.test.mjs scripts/publish-release.test.mjs
 ```
 
-Desktop development requires an absolute `NEUTRON_DATA_ROOT` for isolated launcher data. Setup persists the selected data folder separately from the program folder; ordinary startup follows that selection. Existing installations retain their legacy data folder until a successful explicit selection. No personal `test_run`, account data, build outputs or internal evidence is included here. See [measurement and change report](docs/SPRINT-20261105.md) and [current gates](docs/CURRENT-GATES.md).
+Desktop development requires an absolute NEUTRON_DATA_ROOT for isolated data.
+No personal game directories, accounts or full client copies belong in the package.
 
-## Current limitations
+## GitHub publication
 
-Version 0.2.3 is the next candidate; it must pass its own Windows installation and upgrade acceptance before a release is published. The installer is unsigned; signing/SmartScreen reputation is not claimed. Only the exact installer that passes final acceptance may be published; see the current gates for executed and pending checks. No Linux/macOS support is claimed.
-
-## Reviewed source builds
-
-The launcher uses the upstream `launcher-dist` profile, Bootstrap and JavaFX bundle. `resources/source-adapter/contract.json` pins the reviewed POM, JavaFX build script and Bootstrap source/tests. A changed build input stops a fresh build before Maven and requires an explicit contract review. The adapter only maps seven historical Maven aliases to Mojang's checksum-verified coordinates and omits the unused, unavailable `patchy:1.7.7` artifact. All other dependency/plugin versions remain upstream versions. The source snapshot records both original build-input hashes and the effective build tree; no full replacement POM is shipped.
-
-Managed tools are Temurin 8u482-b08 and Maven 3.9.15, pinned to vendor archive hashes. An older toolchain requires Setup again; immutable old files, saved settings, versions and game data remain on disk. Exact commit/adapter/runtime/client-byte matches can reuse verified builds after setup.
-
-The Windows candidate workflow packages without publishing and tests the actual NSIS installer on a disposable hosted runner. Its lifecycle test refuses existing launcher installations/data, checks installed application bytes and the renderer startup handshake with a system-only PATH, then checks reinstall/uninstall and preservation of synthetic personal data. It deliberately refuses to run on a developer machine.
+Launcher Windows release builds and tests the actual NSIS candidate on PRs and
+relevant main pushes. Independent artifact review checks the exact EXE, source
+revision and standard-user cold/offline/upgrade receipts. Main pushes retain the
+reviewed artifacts for playtesting. Publication requires an explicit manual
+dispatch with publish enabled on main after the user's playtest approval, a
+normal protected-branch merge and successful required checks.
+The unchanged accepted EXE is uploaded, draft asset hashes are verified, and the
+public download is rehashed after publication. Existing releases are retained.
+Manual dispatch defaults to build-only; publish is accepted only on main.

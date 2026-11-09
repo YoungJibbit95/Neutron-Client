@@ -7,6 +7,12 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+function Assert-NeutronReleaseMetadata($Release) {
+    if ($Release.schemaVersion -ne 2 -or $Release.channel -cne 'stable' -or $Release.launcherVersion -notmatch '^[0-9]+[.][0-9]+[.][0-9]+$' -or $Release.repository -cne 'YoungJibbit95/Neutron-Client') {
+        throw 'The installer release catalog metadata is invalid.'
+    }
+}
+
 function Get-NeutronStoragePath([string]$Value, [string]$Install) {
     if (-not $Value -or $Value.Length -gt 900 -or $Value -match '[\x00-\x1f<>"|?*]' -or $Value -notmatch '^[A-Za-z]:[\\/]' -or $Value.Substring(2).Contains(':')) { throw 'Choose an absolute local data folder, for example F:\Neutron Data.' }
     $full = [IO.Path]::GetFullPath($Value).TrimEnd('\')
@@ -75,6 +81,11 @@ function Read-NeutronProfile([string]$Root) {
         if (-not ($value -is [int] -or $value -is [long] -or $value -is [double] -or $value -is [decimal]) -or [double]::IsNaN([double]$value) -or [double]::IsInfinity([double]$value) -or $value -ne [math]::Floor($value) -or $value -lt 0 -or $value -gt 100) { throw 'settings' }
         foreach($record in $state.builds) {
             if ($record.id -notmatch '^[a-f0-9]{40}-[a-f0-9-]{36}$' -or $record.commit -notmatch '^[a-f0-9]{40}$' -or $record.manifestSha256 -notmatch '^[a-f0-9]{64}$' -or $record.sizeMiB -lt 0) { throw 'build' }
+            if ($record.PSObject.Properties['releaseId'] -or $record.PSObject.Properties['releaseTag'] -or $record.PSObject.Properties['version']) {
+                if (-not $record.PSObject.Properties['releaseId'] -or -not $record.PSObject.Properties['releaseTag'] -or -not $record.PSObject.Properties['version'] -or
+                    ($record.releaseId -isnot [long] -and $record.releaseId -isnot [int]) -or $record.releaseId -le 0 -or $record.releaseId -gt 9007199254740991 -or
+                    $record.releaseTag -notmatch '^v[0-9]+[.][0-9]+[.][0-9]+(?:-[A-Za-z0-9]+(?:[.-][A-Za-z0-9]+)*)?$' -or $record.version -isnot [string] -or $record.version.Length -gt 128) { throw 'release' }
+            }
             $null=[datetime]$record.date
         }
         if ($null -ne $state.selected) {
@@ -155,6 +166,7 @@ function Test-NeutronInstalledLauncherRunning([string]$Install, [object[]]$Candi
 }
 
 function Test-NeutronStorage([string]$Root, [string]$Install, [string]$Control, $Release, [bool]$Override, [bool]$VerifyCopy=$true) {
+    Assert-NeutronReleaseMetadata $Release
     $Root=Get-NeutronStoragePath $Root $Install
     $free=Get-NeutronFreeBytes $Root
     Assert-NeutronNoLinks $Root
@@ -173,10 +185,15 @@ function Test-NeutronStorage([string]$Root, [string]$Install, [string]$Control, 
     if ([IO.Directory]::Exists($Root) -and $null -eq $state -and -not $ownedMarker -and [IO.Directory]::GetFileSystemEntries($Root).Length) { throw 'The chosen folder contains unrelated or incomplete data. Choose an empty dedicated folder or a complete existing Neutron data folder.' }
     $cached=$false
     if ($state) {
-        foreach($record in @($state.builds | Where-Object {$_.commit -ceq $Release.clientCommit})) {
+        foreach($record in @($state.builds | Where-Object {$_.id -ceq $state.selected -and $_.PSObject.Properties['releaseId']})) {
             $manifest=Join-Path $Root ('versions/'+$record.id+'/launch-manifest.json')
             if ([IO.File]::Exists($manifest) -and (Get-NeutronFileHash $manifest) -ceq $record.manifestSha256) {
-                try { $content=[IO.File]::ReadAllText($manifest) | ConvertFrom-Json; if ($content.archiveSha256 -ceq $Release.sourceArchiveSha256) { $cached=$true } } catch { }
+                try {
+                    $content=[IO.File]::ReadAllText($manifest) | ConvertFrom-Json
+                    if ($content.schemaVersion -eq 2 -and $content.commit -ceq $record.commit -and $content.release.id -eq $record.releaseId -and $content.release.tag -ceq $record.releaseTag -and
+                        $content.release.jar.sha256 -match '^[a-f0-9]{64}$' -and $content.release.json.sha256 -match '^[a-f0-9]{64}$' -and
+                        $content.classpath.Count -eq 1 -and $content.classpath[0].sha256 -ceq $content.release.jar.sha256 -and $content.versionJson.sha256 -ceq $content.release.json.sha256) { $cached=$true }
+                } catch { }
             }
         }
     }
@@ -199,11 +216,26 @@ function Test-NeutronWrite([string]$Root) {
 }
 
 function Complete-NeutronStorage([string]$Root, [string]$Install, [string]$Control, $Release, $Check, [bool]$Override) {
+    Assert-NeutronReleaseMetadata $Release
     $Root=Get-NeutronStoragePath $Root $Install
-    if (-not $Root.Equals([string]$Check.root,[StringComparison]::OrdinalIgnoreCase) -or $Check.clientCommit -cne $Release.clientCommit) { throw 'The data selection changed after preflight. Rerun setup.' }
+    if (-not $Root.Equals([string]$Check.root,[StringComparison]::OrdinalIgnoreCase) -or $Check.launcherVersion -cne $Release.launcherVersion -or $Check.repository -cne $Release.repository) { throw 'The data selection changed after preflight. Rerun setup.' }
     $state=Read-NeutronProfile $Root
     $receipt=[IO.File]::ReadAllText((Join-Path $Root 'logs/installer-result.json')) | ConvertFrom-Json
-    if ($receipt.launcherVersion -cne $Release.launcherVersion -or $receipt.clientCommit -cne $Release.clientCommit -or $receipt.sourceArchiveSha256 -cne $Release.sourceArchiveSha256 -or $receipt.phase -cne 'verified-before-activation' -or $receipt.selectedBuildId -cne $state.selected -or ([datetime]$receipt.completedAt).ToUniversalTime() -lt ([datetime]$Check.startedAt).ToUniversalTime()) { throw 'Setup has no fresh committed receipt for this version and data folder. The previous data selection was retained.' }
+    if ($receipt.schemaVersion -ne 2 -or $receipt.launcherVersion -cne $Release.launcherVersion -or $receipt.clientCommit -notmatch '^[a-f0-9]{40}$' -or
+        $receipt.clientJarSha256 -notmatch '^[a-f0-9]{64}$' -or $receipt.versionJsonSha256 -notmatch '^[a-f0-9]{64}$' -or $receipt.clientManifestSha256 -notmatch '^[a-f0-9]{64}$' -or
+        $receipt.toolchainId -cne 'temurin8u482b08' -or $receipt.phase -cne 'verified-before-activation' -or $receipt.selectedBuildId -cne $state.selected -or
+        ([datetime]$receipt.completedAt).ToUniversalTime() -lt ([datetime]$Check.startedAt).ToUniversalTime()) { throw 'Setup has no fresh committed receipt for this version and data folder. The previous data selection was retained.' }
+    $selected=@($state.builds | Where-Object {$_.id -ceq $state.selected})
+    $manifestPath=Join-Path $Root ('versions/'+$state.selected+'/launch-manifest.json')
+    $manifest=[IO.File]::ReadAllText($manifestPath) | ConvertFrom-Json
+    if ($selected.Count -ne 1 -or -not $selected[0].PSObject.Properties['releaseId'] -or $selected[0].commit -cne $receipt.clientCommit -or
+        $selected[0].releaseId -ne $receipt.releaseId -or $selected[0].releaseTag -cne $receipt.releaseTag -or $selected[0].version -cne $receipt.clientVersion -or
+        $selected[0].manifestSha256 -cne $receipt.clientManifestSha256 -or (Get-NeutronFileHash $manifestPath) -cne $receipt.clientManifestSha256 -or
+        $manifest.schemaVersion -ne 2 -or $manifest.release.id -ne $receipt.releaseId -or $manifest.release.tag -cne $receipt.releaseTag -or
+        $manifest.release.jar.sha256 -cne $receipt.clientJarSha256 -or $manifest.release.json.sha256 -cne $receipt.versionJsonSha256 -or
+        $manifest.classpath.Count -ne 1 -or $manifest.classpath[0].sha256 -cne $receipt.clientJarSha256 -or $manifest.versionJson.sha256 -cne $receipt.versionJsonSha256) {
+        throw 'Setup receipt does not match the verified selected release. The previous data selection was retained.'
+    }
     if ($null -ne $Check.options) {
         foreach($name in @('options','preferences')) {
             foreach($property in $Check.$name.PSObject.Properties) { if($state.$name.($property.Name) -cne $property.Value) { throw 'Saved settings changed during preparation. The previous data selection was retained.' } }
@@ -241,7 +273,7 @@ try {
     }
     else {
         $release=[IO.File]::ReadAllText($ReleaseFile) | ConvertFrom-Json
-        if ($release.clientCommit -notmatch '^[a-f0-9]{40}$' -or $release.sourceArchiveSha256 -notmatch '^[a-f0-9]{64}$') { throw 'The installer source pin is invalid.' }
+        Assert-NeutronReleaseMetadata $release
         if ($Action -eq 'Commit') {
             $check=[IO.File]::ReadAllText($CheckFile) | ConvertFrom-Json
             $answer=Complete-NeutronStorage $DataRoot $InstallDirectory $ControlDirectory $release $check ([bool]$ProcessOverride)
@@ -259,7 +291,7 @@ try {
                 if ([IO.File]::Exists($pointer) -and ([IO.File]::GetAttributes($pointer) -band [IO.FileAttributes]::ReadOnly)) { throw 'The saved data location is read-only. The existing location was retained.' }
             }
             $profile=Read-NeutronProfile $result.Root
-            @{root=$result.Root;clientCommit=$release.clientCommit;startedAt=$started;options=$(if($profile){$profile.options}else{$null});preferences=$(if($profile){$profile.preferences}else{$null})} | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $CheckFile -Encoding UTF8
+            @{root=$result.Root;launcherVersion=$release.launcherVersion;repository=$release.repository;startedAt=$started;options=$(if($profile){$profile.options}else{$null});preferences=$(if($profile){$profile.preferences}else{$null})} | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $CheckFile -Encoding UTF8
             $answer=$result.Root
         }
     }

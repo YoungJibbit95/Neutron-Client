@@ -16,20 +16,31 @@ $env:TEMP=$temp; $env:TMP=$temp
 if([IO.Path]::GetPathRoot($install) -eq [IO.Path]::GetPathRoot($temp)){throw 'The diagnostic must exercise different installation and TEMP volumes.'}
 $events=[Collections.Generic.List[object]]::new()
 $processes=[Collections.Generic.List[object]]::new()
+$completed=$false; $oldInstallationComplete=$false; $acceptedCandidateHash=''; $newVersion=''
 function Save-Evidence {
     $logs=@{}
     foreach($name in @('installer-error.json','installer-result.json','headless-startup.jsonl','build.log')) {
         $file=Join-Path $control ('logs/'+$name)
         if(Test-Path -LiteralPath $file){$logs[$name]=@(Get-Content -LiteralPath $file -Tail 80)}
     }
-    @{install=$install;temp=$temp;ordinaryAccount=$true;uiEvents=$events.ToArray();processes=$processes.ToArray();logs=$logs} | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $root 'legacy-diagnostic.json') -Encoding utf8
+    @{schemaVersion=2;revision=$env:GITHUB_SHA;launcherVersion=$newVersion;installerSha256=$acceptedCandidateHash;completed=$completed;oldInstallationComplete=$oldInstallationComplete;upgradeMode=$(if($oldInstallationComplete){'complete-old-install'}else{'repair-incomplete-old-install'});install=$install;temp=$temp;ordinaryAccount=$true;uiEvents=$events.ToArray();processes=$processes.ToArray();logs=$logs} | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $root 'legacy-diagnostic.json') -Encoding utf8
+}
+function Test-ExecutableVersion([string]$File,[string]$Expected,[string]$Label) {
+    $version=(Get-Item -LiteralPath $File).VersionInfo
+    $actualProductVersion=[string]$version.ProductVersion
+    $events.Add(@{label=$Label;date=[datetime]::UtcNow.ToString('o');action='observed-executable-version';path=$File;expectedVersion=$Expected;productVersion=$actualProductVersion;fileVersion=[string]$version.FileVersion})
+    Save-Evidence
+    # electron-builder writes ProductVersion as X.Y.Z.0 while FileVersion and
+    # release.json retain X.Y.Z. Require both exact fields, never other
+    # revisions, suffixes or numeric coercions.
+    return ([string]$version.FileVersion -ceq $Expected -and $actualProductVersion -ceq ($Expected+'.0'))
 }
 function Invoke-ObservedInstaller([string]$File,[string]$Arguments,[string]$Label,[bool]$Assisted) {
     $started=[datetime]::UtcNow
     # Assisted means the actual visible dialogs: no /S or equivalent is passed.
     $process=Start-Process -FilePath $File -ArgumentList $Arguments -WindowStyle Normal -PassThru
     $owned=@{}; $owned[$process.Id]=@{process=$process;path=$File;exitRecorded=$false}
-    $seenUi=$false; $failure=$null; $lastUi=''; $lastClick=[datetime]::MinValue; $failedButtonHandle=0L; $buttonFailures=0
+    $seenUi=$false; $failure=$null; $lastUiByWindow=@{}; $lastClick=[datetime]::MinValue; $failedButtonHandle=0L; $buttonFailures=0; $pendingNavigation=$null
     $deadline=[datetime]::UtcNow.AddMinutes(15)
     while($true) {
         foreach($item in @(Get-CimInstance Win32_Process)) {
@@ -54,20 +65,50 @@ function Invoke-ObservedInstaller([string]$File,[string]$Arguments,[string]$Labe
         foreach($window in $windows) {
             $texts=($window.Controls | Where-Object Visible | ForEach-Object Text) -join "`n"
             $signature=$window.Title+"`n"+$texts
-            if($signature -ne $lastUi){$events.Add(@{label=$Label;date=[datetime]::UtcNow.ToString('o');visible=$window.Visible;pid=$window.Pid;title=$window.Title;controls=$window.Controls});$lastUi=$signature;Save-Evidence}
+            $windowKey=([string]$window.Pid)+':'+([string]$window.Handle)
+            $controlStates=($window.Controls | ForEach-Object {([string]$_.Handle)+':'+([string]$_.Visible)+':'+([string]$_.Enabled)}) -join ';'
+            $snapshotSignature=([string]$window.Visible)+':'+([string]$window.Enabled)+':'+$controlStates+':'+$signature
+            if(-not $lastUiByWindow.ContainsKey($windowKey) -or $snapshotSignature -ne $lastUiByWindow[$windowKey]){
+                $events.Add(@{label=$Label;date=[datetime]::UtcNow.ToString('o');visible=$window.Visible;enabled=$window.Enabled;pid=$window.Pid;windowHandle=$window.Handle;title=$window.Title;controls=$window.Controls})
+                $lastUiByWindow[$windowKey]=$snapshotSignature; Save-Evidence
+            }
             if($window.Visible -and @($window.Controls | Where-Object Visible).Count -gt 0){$seenUi=$true}
+            $page=($window.Controls | Where-Object {$_.Visible -and $_.Id -eq 1037} | ForEach-Object Text) -join ' '
+            if($pendingNavigation -and $window.Handle -eq $pendingNavigation.windowHandle -and $window.Visible -and $signature -ne $pendingNavigation.signature){
+                $events.Add(@{label=$Label;date=[datetime]::UtcNow.ToString('o');action='observed-page-change';pid=$window.Pid;windowHandle=$window.Handle;fromPage=$pendingNavigation.page;toPage=$page;notificationAt=$pendingNavigation.postedAt.ToString('o')})
+                $pendingNavigation=$null; Save-Evidence
+            }
             if($texts -match '(cannot be closed|konnte nicht geschlossen|kann nicht geschlossen|Can.t rename|Error opening file|Fehler beim|Failed to uninstall)') {
                 $failure=$texts
                 $cancel=@($window.Controls | Where-Object {$_.ClassName -eq 'Button' -and $_.Enabled -and $_.Visible -and $_.Id -eq 2})
                 if($cancel.Count){[NeutronInstallerUi]::Click($cancel[0].Handle,$window.Pid)}
                 continue
             }
-            if($Assisted -and $window.Visible -and [datetime]::UtcNow -gt $lastClick.AddSeconds(1)) {
+            if($pendingNavigation -and $window.Handle -eq $pendingNavigation.windowHandle){
+                $pendingButton=@($window.Controls | Where-Object {$_.Handle -eq $pendingNavigation.buttonHandle -and $_.Enabled -and $_.Visible})
+                if(-not $window.Visible -or -not $window.Enabled -or $pendingButton.Count -eq 0){$pendingNavigation.unchangedEnabledSince=$null}
+            }
+            if($Assisted -and $window.Visible -and $window.Enabled -and [datetime]::UtcNow -gt $lastClick.AddSeconds(1)) {
                 $next=@($window.Controls | Where-Object {$_.ClassName -eq 'Button' -and $_.Enabled -and $_.Visible -and $_.Id -eq 1 -and $_.Text -match '(Next|Install|Finish|Uninstall|Weiter|Fertig|Deinstallieren)'})
                 if($next.Count){
                     $handle=[long]$next[0].Handle
+                    # Wait for an observed transition after posting. Do not
+                    # repeatedly queue clicks against the same unchanged page.
+                    if($pendingNavigation -and $window.Handle -eq $pendingNavigation.windowHandle -and $handle -eq $pendingNavigation.buttonHandle){
+                        if($null -eq $pendingNavigation.unchangedEnabledSince){$pendingNavigation.unchangedEnabledSince=[datetime]::UtcNow}
+                        if([datetime]::UtcNow -gt $pendingNavigation.unchangedEnabledSince.AddSeconds(60)){
+                            $events.Add(@{label=$Label;date=[datetime]::UtcNow.ToString('o');action='unchanged-enabled-page';pid=$window.Pid;windowHandle=$window.Handle;buttonHandle=$handle;button=$next[0].Text;page=$page;notificationAt=$pendingNavigation.postedAt.ToString('o');waitSeconds=60})
+                            Save-Evidence
+                            throw ($Label+': posted button notification produced no visible transition for 60 seconds while the same page and button remained enabled; inspect UI/process evidence.')
+                        }
+                        continue
+                    }
                     try {
                         [NeutronInstallerUi]::Click($handle,$window.Pid)
+                        $postedAt=[datetime]::UtcNow
+                        $pendingNavigation=@{windowHandle=$window.Handle;buttonHandle=$handle;signature=$signature;page=$page;postedAt=$postedAt;unchangedEnabledSince=$postedAt}
+                        $events.Add(@{label=$Label;date=$postedAt.ToString('o');action='posted-button-notification';notification='WM_COMMAND/BN_CLICKED';pid=$window.Pid;windowHandle=$window.Handle;buttonHandle=$handle;controlId=$next[0].Id;button=$next[0].Text;page=$page})
+                        Save-Evidence
                         $failedButtonHandle=0L; $buttonFailures=0
                     } catch {
                         if($failedButtonHandle -ne $handle){$failedButtonHandle=$handle; $buttonFailures=0}
@@ -91,6 +132,8 @@ function Invoke-ObservedInstaller([string]$File,[string]$Arguments,[string]$Labe
     if($Assisted -and -not $seenUi){throw 'Assisted acceptance did not observe real visible installer controls.'}
     $process.Refresh()
     if($process.ExitCode -ne 0){throw ($Label+': installer exit '+$process.ExitCode)}
+    $events.Add(@{label=$Label;date=[datetime]::UtcNow.ToString('o');action='observed-installer-exit';pid=$process.Id;exitCode=$process.ExitCode;assisted=$Assisted})
+    Save-Evidence
 }
 # Historical release binaries are immutable. Retry only transport errors,
 # never a digest mismatch; partially downloaded files cannot enter the fixture.
@@ -134,6 +177,7 @@ try {
     } else {
         Get-PinnedInstaller @{path=$new;version='0.2.2';assetId=722300068;hash='acfc43e605fc0af9d591068bd12b08d1e05a1a6b5936cdc3af312aaddd6a27bc'}
     }
+    $acceptedCandidateHash=(Get-FileHash -LiteralPath $new -Algorithm SHA256).Hash.ToLowerInvariant()
     $reference=Join-Path $root 'reference'; [IO.Directory]::CreateDirectory($reference) | Out-Null
     $seven=Join-Path $env:ProgramFiles '7-Zip/7z.exe'
     & $seven x $new ('-o'+$reference) '-y' '$PLUGINSDIR\app-64.7z' | Out-Null
@@ -141,13 +185,15 @@ try {
     & $seven x (Join-Path $reference '$PLUGINSDIR/app-64.7z') ('-o'+$reference) '-y' 'resources/app.asar' | Out-Null
     if($LASTEXITCODE){throw 'Could not read the expected application ASAR.'}
     $expectedAsar=(Get-FileHash -LiteralPath (Join-Path $reference 'resources/app.asar')).Hash
-    try { Invoke-ObservedInstaller $old ("/S /currentuser /D="+$install) 'old-0.2.0-install' $false }
+    try { Invoke-ObservedInstaller $old ("/S /currentuser /D="+$install) 'old-0.2.0-install' $false; $oldInstallationComplete=$true }
     catch {
         # Diagnostics can still observe repair of a registered but incomplete
         # old install. This is explicitly NOT evidence of a complete old setup.
         $oldExe=Join-Path $install 'Neutron Launcher.exe'
         $registration=Get-ItemProperty -LiteralPath 'HKCU:\Software\17d12e18-c0d2-5a05-b898-3c34ccfad7ff' -ErrorAction SilentlyContinue
-        if(-not (Test-Path -LiteralPath $oldExe) -or (Get-Item -LiteralPath $oldExe).VersionInfo.FileVersion -ne '0.2.0' -or (Get-Item -LiteralPath $oldExe).VersionInfo.ProductVersion -ne '0.2.0.0' -or $null -eq $registration -or $registration.InstallLocation -ne $install){throw}
+        $oldVersionMatches=$false
+        if(Test-Path -LiteralPath $oldExe){$oldVersionMatches=Test-ExecutableVersion $oldExe '0.2.0' 'old-fixture-version'}
+        if(-not $oldVersionMatches -or $null -eq $registration -or $registration.InstallLocation -ne $install){throw}
         $events.Add(@{label='old-fixture-incomplete';error=$_.Exception.Message;fullOldInstallationAccepted=$false})
         Save-Evidence
     }
@@ -157,18 +203,25 @@ try {
     $events.Add(@{label='assisted-install-location';requested=$install;registered=$registeredInstall})
     if(-not $registeredInstall.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Registered install escaped the owned fixture.'}
     $installedExe=Join-Path $registeredInstall 'Neutron Launcher.exe'
-    # Electron records the release in FileVersion and its four-part Windows form in ProductVersion.
-    $installedVersion=(Get-Item -LiteralPath $installedExe).VersionInfo
-    $events.Add(@{label='assisted-installed-version';expected=$newVersion;fileVersion=$installedVersion.FileVersion;productVersion=$installedVersion.ProductVersion})
-    if($installedVersion.FileVersion -ne $newVersion -or $installedVersion.ProductVersion -ne ($newVersion+'.0')){throw ('Assisted upgrade version mismatch: expected '+$newVersion+'; FileVersion='+$installedVersion.FileVersion+'; ProductVersion='+$installedVersion.ProductVersion+'.')}
+    if(-not (Test-ExecutableVersion $installedExe $newVersion 'assisted-installed-version')){throw ('Assisted upgrade did not install version '+$newVersion+'; inspect observed-executable-version evidence for the actual PE metadata.')}
     $metadata=Get-Content -LiteralPath (Join-Path $registeredInstall 'resources/release.json') -Raw | ConvertFrom-Json
     if($metadata.launcherVersion -ne $newVersion){throw 'Installed release metadata differs from the candidate.'}
     if((Get-FileHash -LiteralPath (Join-Path $registeredInstall 'resources/app.asar')).Hash -ne $expectedAsar){throw 'Assisted upgrade application bytes differ from the expected pinned candidate.'}
+    if($candidate -and $metadata.schemaVersion -eq 2) {
+        $pointer=Join-Path $control 'data-directory.txt'
+        $data=[IO.File]::ReadAllText($pointer,[Text.Encoding]::Unicode).TrimStart([char]0xfeff).TrimEnd("`r","`n")
+        $prepared=Get-Content -LiteralPath (Join-Path $data 'logs/installer-result.json') -Raw | ConvertFrom-Json
+        $state=Get-Content -LiteralPath (Join-Path $data 'state.json') -Raw | ConvertFrom-Json
+        if($prepared.schemaVersion -ne 2 -or $prepared.phase -cne 'verified-before-activation' -or $prepared.selectedBuildId -cne $state.selected -or
+            $prepared.launcherVersion -cne $newVersion -or $prepared.clientJarSha256 -notmatch '^[a-f0-9]{64}$' -or $prepared.versionJsonSha256 -notmatch '^[a-f0-9]{64}$') { throw 'Assisted upgrade did not commit a verified release client.' }
+        $events.Add(@{label='verified-release-upgrade';releaseTag=$prepared.releaseTag;clientJarSha256=$prepared.clientJarSha256;versionJsonSha256=$prepared.versionJsonSha256})
+    }
     Invoke-ObservedInstaller $new ("/S /currentuser /D="+$registeredInstall) ('silent-'+$newVersion+'-reinstall') $false
     $uninstaller=Join-Path $registeredInstall 'Uninstall Neutron Launcher.exe'
     Invoke-ObservedInstaller $uninstaller '/currentuser /KEEP_APP_DATA' ('assisted-uninstall-'+$newVersion) $true
     if((Test-Path -LiteralPath (Join-Path $registeredInstall 'Neutron Launcher.exe')) -or (Test-Path -LiteralPath 'HKCU:\Software\17d12e18-c0d2-5a05-b898-3c34ccfad7ff')){throw 'Assisted uninstaller did not remove application files and registration.'}
     if((Get-FileHash -LiteralPath $marker).Hash -ne $markerHash){throw 'Uninstall changed synthetic personal data.'}
+    $completed=$true
     $events.Add(@{label='completed';result='all observed operations succeeded; user failure not reproduced'})
 } finally {
     foreach($entry in $processes){$entry | ConvertTo-Json -Compress | Write-Host}
