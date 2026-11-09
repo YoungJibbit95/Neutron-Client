@@ -1,7 +1,8 @@
 // One coordinate/time contract for theme text, outlines and halos. GLSL 1.20.
 uniform bool uiEnabled;
 uniform vec2 uiResolution;
-uniform vec4 uiGradientBounds; // screen-space origin and extent; shared by every channel
+uniform vec4 uiGradientBounds; // inherited screen-space domain for ordinary modes
+uniform vec4 uiOrbitBounds; // actual component contour, used only by mode 5
 uniform vec3 uiText, uiBorder, uiGlow; // signed axis, mode, phase
 uniform float uiGradientRadius;
 uniform float uiShaderSpeed;
@@ -43,7 +44,8 @@ float uiPosition(vec3 channel){
  if(channel.y<3.5){float travel=.5-.5*cos(6.28318530718*channel.z);return .5-.5*cos(6.28318530718*(t-travel));}
  if(channel.y<4.5)return .5+(clamp(t,0.0,1.0)-.5)*cos(6.28318530718*channel.z);
  if(channel.y<5.5){
-  float contour=uiContour(p*uiGradientBounds.zw,uiGradientBounds.zw,uiGradientRadius);
+  vec2 point=vec2(gl_FragCoord.x,uiResolution.y-gl_FragCoord.y)-uiOrbitBounds.xy;
+  float contour=uiContour(point,uiOrbitBounds.zw,uiGradientRadius);
   float travel=channel.x<0.0?-channel.z:channel.z;
   float sample=.5+.5*cos(6.28318530718*(contour-travel));
   return pow(clamp(sample,0.0,1.0),1.0+6.0*(1.0-clamp(uiShaderParam2,0.0,1.0)));

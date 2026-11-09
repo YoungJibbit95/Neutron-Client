@@ -22,7 +22,7 @@ public class Qa02SettingsTest {
         assertArrayEquals(new String[]{"Follow Global","Obsidian","Aurora","Neon Edge","Minimal"},v.getOptions());
         List<Value<?>> group=c.groups().get("Notifications");assertSame(v,group.get(group.indexOf(c.notificationDesign)+1));
         int count=0;for(List<Value<?>> values:c.groups().values())for(Value<?> each:values)if(each==v)count++;
-        assertEquals(1,count);assertTrue(v.isVisible());assertEquals(65,c.getValues().size());
+        assertEquals(1,count);assertTrue(v.isVisible());assertEquals(66,c.getValues().size());
         assertEquals(5,c.groups().get("Typography").size());
         assertSame(v,c.getValues().get(49)); // no old registration index moves
     }
@@ -70,7 +70,7 @@ public class Qa02SettingsTest {
         List<String> actual=new ArrayList<>();for(Value<?> v:c.getValues())if(!ClientSettingsVis02Test.isVisualAddition(v)&&!Arrays.asList("notification_theme","ui_font","text_glow","text_glow_strength","text_glow_radius","text_glow_color").contains(v.getId()))
             actual.add(ClientSettingsVis02Test.signature(v));
         assertEquals(49,expected.size());assertEquals(expected,actual);
-        // Also compare the entire 65-value registration, including every old index and both exact tails.
+        // Also compare the entire 66-value registration, including every old index and both exact tails.
         expected.addAll(Arrays.asList(
                 "notification_theme|Notification Theme|Follow Global|Follow Global,Obsidian,Aurora,Neon Edge,Minimal",
                 "ui_font|UI Font|Original|Original,DM Sans,Inter,Poppins,Product Sans,SF Pro,Tenorite",
@@ -80,7 +80,7 @@ public class Qa02SettingsTest {
                 "text_glow_color|Text Glow Color|Text|Text,Theme"));
         expected.addAll(Arrays.asList(ClientSettingsVis02Test.VISUAL_ADDITIONS));
         actual.clear();for(Value<?> v:c.getValues())actual.add(ClientSettingsVis02Test.signature(v));
-        assertEquals(65,expected.size());assertEquals(expected,actual);
+        assertEquals(66,expected.size());assertEquals(expected,actual);
     }
     private ConfigManager codec(ClientSettings c)throws Exception{return new ConfigManager(folder.newFolder().toPath(),Collections.singletonList(c),()->false,s->{});}
 }
