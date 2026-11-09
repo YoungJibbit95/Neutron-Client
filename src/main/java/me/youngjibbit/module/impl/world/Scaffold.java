@@ -1271,10 +1271,15 @@ public class Scaffold extends Module {
             long generation = scaffold.lifecycleGeneration;
             long sequence = scaffold.contextRotation == null ? -1 : scaffold.contextRotation.getMotionSequence();
             if (!scaffold.continueMotion(sequence, generation)) return;
-            if (scaffold.sneakInterval.input(++scaffold.freshInputSequence) && !input.sneak) {
-                input.sneak = true;
-                input.moveForward *= .3f;
-                input.moveStrafe *= .3f;
+            if (scaffold.sneakInterval.input(++scaffold.freshInputSequence)) {
+                if (!input.sneak) {
+                    input.sneak = true;
+                    input.moveForward *= .3f;
+                    input.moveStrafe *= .3f;
+                }
+                // The earned final sneak owns automatic jump admission for this sample.
+                // Preserve the player's physical jump, as the Adaptive edge guard does.
+                if (!keyDown(mc.gameSettings.keyBindJump)) input.jump = false;
             }
         }
         if(allowInterval && scaffold!=null && scaffold.adaptiveBridge())scaffold.applyBridgeSafety(input);
