@@ -121,4 +121,30 @@ public class BlockStackPlannerTest {
         assertEquals(1, first.trashBlockStacks.size());
         assertEquals(8, first.trashBlockStacks.get(0).slot);
     }
+
+    @Test public void publishedPlanListsCannotBeMutatedOrAliased() {
+        List<BlockStackPlanner.Snapshot> input = new ArrayList<>(Arrays.asList(b(0, 64), b(1, 4)));
+        BlockStackPlanner.Plan plan = BlockStackPlanner.plan(input, 1);
+        input.clear();
+        assertEquals(2, plan.usableBlocks.size());
+        for (List<BlockStackPlanner.Snapshot> view : Arrays.asList(
+                plan.usableBlocks, plan.keptBlockStacks, plan.trashBlockStacks)) {
+            try { view.clear(); fail("published plan lists must be immutable"); }
+            catch (UnsupportedOperationException expected) { }
+        }
+        assertEquals(Arrays.asList(b(0, 64), b(1, 4)), plan.usableBlocks);
+        assertEquals(Collections.singletonList(b(0, 64)), plan.keptBlockStacks);
+        assertEquals(Collections.singletonList(b(1, 4)), plan.trashBlockStacks);
+        assertEquals(b(0, 64), plan.bestBuildStack);
+    }
+
+    @Test public void emptyStacksAreNotBuildCandidatesOrBudgetConsumers() {
+        BlockStackPlanner.Plan plan = BlockStackPlanner.plan(
+                Arrays.asList(b(0, 0), special(1, 0), b(2, 4)), 1);
+        assertEquals(Collections.singletonList(b(2, 4)), plan.usableBlocks);
+        assertEquals(Collections.singletonList(b(2, 4)), plan.keptBlockStacks);
+        assertTrue(plan.trashBlockStacks.isEmpty());
+        assertEquals(2, plan.bestBuildStack.slot);
+        assertNull(BlockStackPlanner.plan(Collections.singletonList(b(0, 0)), 1).bestBuildStack);
+    }
 }

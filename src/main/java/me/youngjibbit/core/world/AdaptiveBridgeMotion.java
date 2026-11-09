@@ -7,41 +7,88 @@ import java.lang.ref.WeakReference;
 /** Scaffold-only mathematics. The host keeps every rotation, input and placement permission. */
 public final class AdaptiveBridgeMotion {
     public enum Mode { ADAPTIVE, GODBRIDGE }
+    /**
+     * Preset fractions of the host yaw/pitch slider base (degrees per 50 ms).
+     * The keeping multipliers reproduce the accepted W08 pace exactly, so a
+     * preset change cannot silently alter the settled micro-correction speed.
+     */
     public enum Speed {
-        CALM(.38, .75), BALANCED(.55, 1), FAST(.8, 1.15);
-        final double speed, acceleration;
-        Speed(double speed, double acceleration) { this.speed = speed; this.acceleration = acceleration; }
+        CALM(.5, .38, .75), BALANCED(.75, .55, 1), SWIFT(1, .8, 1.15), CUSTOM(1, 1, 1);
+        final double initial, keeping, acceleration;
+        Speed(double initial, double keeping, double acceleration) {
+            this.initial = initial; this.keeping = keeping; this.acceleration = acceleration;
+        }
     }
 
-    /** Original yaw/pitch sliders remain degrees per 50 ms. */
+    /** Original yaw/pitch sliders remain degrees per 50 ms; caps are degrees per second. */
     public static final class Settings {
         public final Mode mode;
         public final Speed speed;
-        public final double variation, yawTicks, pitchTicks;
-        public final double maxYawSpeed, maxPitchSpeed, maxAcceleration, maxJerk;
+        public final double variation;
+        /** Initial-phase slider base (degrees per 50 ms). */
+        public final double initialYawTicks, initialPitchTicks;
+        /** Keeping-phase slider base, or null for the flat W08 limits of the preset constructor. */
+        public final Double keepingYawTicks, keepingPitchTicks;
+        public final double maxYawSpeed, maxPitchSpeed;
+        /** Degrees per second caps of the settled keeping phase; equal to the base caps when flat. */
+        public final double keepingYawSpeed, keepingPitchSpeed;
+        public final double maxAcceleration, maxJerk;
+        /** The keeping phase engages once this fraction of the initial distance is covered. */
+        static final double KEEPING_PROGRESS = .4;
+
         public Settings(Mode mode, Speed speed, double variation, double yawTicks, double pitchTicks) {
+            this(mode, speed, variation, yawTicks, pitchTicks, null, null);
+        }
+
+        public Settings(Mode mode, Speed speed, double variation,
+                double initialYawTicks, double initialPitchTicks,
+                double keepingYawTicks, double keepingPitchTicks) {
+            this(mode, speed, variation, initialYawTicks, initialPitchTicks,
+                    Double.valueOf(keepingYawTicks), Double.valueOf(keepingPitchTicks));
+        }
+
+        private Settings(Mode mode, Speed speed, double variation,
+                double initialYawTicks, double initialPitchTicks,
+                Double keepingYawTicks, Double keepingPitchTicks) {
             if (mode == null || speed == null || !finite(variation) || variation < 0 || variation > 1
-                    || !positive(yawTicks) || !positive(pitchTicks) || yawTicks > 90 || pitchTicks > 90)
+                    || !positive(initialYawTicks) || !positive(initialPitchTicks)
+                    || initialYawTicks > 90 || initialPitchTicks > 90
+                    || keepingYawTicks != null && (!positive(keepingYawTicks) || keepingYawTicks > 90)
+                    || keepingPitchTicks != null && (!positive(keepingPitchTicks) || keepingPitchTicks > 90))
                 throw new IllegalArgumentException("invalid bridge rotation settings");
             this.mode = mode; this.speed = speed; this.variation = variation;
-            this.yawTicks = yawTicks; this.pitchTicks = pitchTicks;
+            this.initialYawTicks = initialYawTicks; this.initialPitchTicks = initialPitchTicks;
+            this.keepingYawTicks = keepingYawTicks; this.keepingPitchTicks = keepingPitchTicks;
             double profileScale = mode == Mode.GODBRIDGE ? .8 : 1;
-            maxYawSpeed = clamp(yawTicks * 20 * speed.speed * profileScale, 20, 720);
-            maxPitchSpeed = clamp(pitchTicks * 20 * speed.speed * profileScale, 20, 720);
+            // The flat preset constructor keeps the accepted W08 caps as uniform limits;
+            // the split constructor strengthens only the initial phase.
+            double initialMultiplier = keepingYawTicks == null ? speed.keeping : speed.initial;
+            maxYawSpeed = clamp(initialYawTicks * 20 * initialMultiplier * profileScale, 20, 720);
+            maxPitchSpeed = clamp(initialPitchTicks * 20 * initialMultiplier * profileScale, 20, 720);
+            keepingYawSpeed = keepingYawTicks == null ? maxYawSpeed
+                    : clamp(keepingYawTicks * 20 * speed.keeping * profileScale, 20, 720);
+            keepingPitchSpeed = keepingPitchTicks == null ? maxPitchSpeed
+                    : clamp(keepingPitchTicks * 20 * speed.keeping * profileScale, 20, 720);
             maxAcceleration = clamp(Math.max(maxYawSpeed, maxPitchSpeed) * 6 * speed.acceleration, 300, 4200);
             maxJerk = clamp(maxAcceleration * 20, 9000, 84000);
         }
         private AdaptiveMotionController.Limits limits() {
             // Reserve the reused engine's immutable acceleration-scale maximum.
             // It adds no second angular random walk or lateral curvature here.
+            if (keepingYawTicks == null)
+                return new AdaptiveMotionController.Limits(maxYawSpeed, maxPitchSpeed,
+                        maxAcceleration / 1.18, maxJerk, 0, 0);
             return new AdaptiveMotionController.Limits(maxYawSpeed, maxPitchSpeed,
-                    maxAcceleration / 1.18, maxJerk, 0, 0);
+                    maxAcceleration / 1.18, maxJerk, 0, 0,
+                    keepingYawSpeed, keepingPitchSpeed, KEEPING_PROGRESS);
         }
         public boolean same(Settings other) {
             return other != null && mode == other.mode && speed == other.speed
                     && Double.compare(variation, other.variation) == 0
-                    && Double.compare(yawTicks, other.yawTicks) == 0
-                    && Double.compare(pitchTicks, other.pitchTicks) == 0;
+                    && Double.compare(initialYawTicks, other.initialYawTicks) == 0
+                    && Double.compare(initialPitchTicks, other.initialPitchTicks) == 0
+                    && java.util.Objects.equals(keepingYawTicks, other.keepingYawTicks)
+                    && java.util.Objects.equals(keepingPitchTicks, other.keepingPitchTicks);
         }
     }
 
