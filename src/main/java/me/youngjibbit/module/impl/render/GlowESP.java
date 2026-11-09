@@ -18,6 +18,7 @@ import me.youngjibbit.utils.render.ESPUtil;
 import me.youngjibbit.utils.render.GLUtils;
 import me.youngjibbit.utils.render.RenderUiUtils;
 import me.youngjibbit.utils.render.ShaderUtil;
+import me.youngjibbit.utils.render.UiEffects;
 import me.youngjibbit.utils.render.shader.KawasePass;
 import me.youngjibbit.value.impl.CheckBoxValue;
 import me.youngjibbit.value.impl.ComboValue;
@@ -57,6 +58,7 @@ public class GlowESP extends Module
 
     private final CheckBoxValue kawaseGlow = new CheckBoxValue("Kawase Glow", this, false);
     private final ComboValue colorMode = new ComboValue("Color Mode", this, new String[]{"Sync", "Random", "Custom"}, 0);
+    private final ComboValue glowMode = new ComboValue("Glow Mode", this, new String[]{"Standard", "Flame", "Neon", "Lines"}, 0);
 
     private final CheckBoxValue players = new CheckBoxValue("Players", this, true);
     private final CheckBoxValue animals = new CheckBoxValue("Animals", this, true);
@@ -66,7 +68,7 @@ public class GlowESP extends Module
     private final SliderValue iterationsSetting = new SliderValue("Iterations", this, 4.0, 2, 6, true);
     private final SliderValue offsetSetting = new SliderValue("Offset", this, 4.0, 2, 10, true);
     private final SliderValue exposure = new SliderValue("Intensity", this,  3.0, 0.5, 3.5, false);
-    private ShaderUtil chamsShader,outlineShader,glowShader,kawaseGlowShader,kawaseGlowShader2;
+    private ShaderUtil chamsShader,outlineShader,glowShader,kawaseGlowShader,kawaseGlowShader2,glowFlameShader,glowNeonShader,glowLinesShader;
 
     public Framebuffer framebuffer;
     public Framebuffer outlineFrameBuffer;
@@ -105,6 +107,10 @@ public class GlowESP extends Module
             if(kawaseGlowShader==null)kawaseGlowShader=new ShaderUtil("kawaseDownBloom");
             if(kawaseGlowShader2==null)kawaseGlowShader2=new ShaderUtil("kawaseUpGlow");
         }else if(glowShader==null)glowShader=new ShaderUtil("glow");
+        String gm=glowMode.getValue();
+        if(gm.equals("Flame")&&glowFlameShader==null)glowFlameShader=new ShaderUtil("pulsar/esp/flame.frag");
+        else if(gm.equals("Neon")&&glowNeonShader==null)glowNeonShader=new ShaderUtil("pulsar/esp/neon.frag");
+        else if(gm.equals("Lines")&&glowLinesShader==null)glowLinesShader=new ShaderUtil("pulsar/esp/lines.frag");
     }
     private float fade(){return me.youngjibbit.utils.render.UiEffects.motion()&&fadeIn!=null?fadeIn.getOutput().floatValue():1;}
 
@@ -126,8 +132,8 @@ public class GlowESP extends Module
             releaseGlowFramebuffers();
             if(framebuffer!=null)owned.add(framebuffer);if(outlineFrameBuffer!=null)owned.add(outlineFrameBuffer);
             for(Framebuffer buffer:owned)buffer.deleteFramebuffer();framebufferList.clear();framebuffer=outlineFrameBuffer=glowFrameBuffer=null;entities.clear();
-            for(ShaderUtil shader:new ShaderUtil[]{chamsShader,outlineShader,glowShader,kawaseGlowShader,kawaseGlowShader2})if(shader!=null)shader.close();
-            chamsShader=outlineShader=glowShader=kawaseGlowShader=kawaseGlowShader2=null;entityColorMap.clear();liveObjects.clear();
+            for(ShaderUtil shader:new ShaderUtil[]{chamsShader,outlineShader,glowShader,kawaseGlowShader,kawaseGlowShader2,glowFlameShader,glowNeonShader,glowLinesShader})if(shader!=null)shader.close();
+            chamsShader=outlineShader=glowShader=kawaseGlowShader=kawaseGlowShader2=glowFlameShader=glowNeonShader=glowLinesShader=null;entityColorMap.clear();liveObjects.clear();
         }
         super.onDisable();
     }
@@ -234,7 +240,36 @@ public class GlowESP extends Module
             outlineFrameBuffer.unbindFramebuffer();
 
 
-            if (kawaseGlow.getValue()) {
+            String gm = glowMode.getValue();
+            if (gm.equals("Flame") || gm.equals("Neon") || gm.equals("Lines")) {
+                ShaderUtil shader = getGlowShader(gm);
+                if (shader != null) {
+                    mc.getFramebuffer().bindFramebuffer(false);
+                    GL11.glClearColor(0, 0, 0, 0);
+                    framebuffer.framebufferClear();
+                    framebuffer.bindFramebuffer(false);
+                    shader.init();
+                    UiEffects.upload(shader, currentTheme);
+                    UiEffects.Gradient g = UiEffects.gradient(currentTheme, UiEffects.Channel.GLOW);
+                    shader.setUniformf("phase", g.phase);
+                    shader.setUniformf("speed", g.speed);
+                    shader.setUniformf("param2", g.param2);
+                    shader.setUniformf("radius", radius.getValue().floatValue());
+                    shader.setUniformf("texelSize", 1.0f / mc.displayWidth, 1.0f / mc.displayHeight);
+                    shader.setUniformi("textureIn", 0);
+                    RenderUtil.bindTexture(outlineFrameBuffer.framebufferTexture);
+                    GL11.glBlendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+                    ShaderUtil.drawQuads();
+                    shader.unload();
+
+                    mc.getFramebuffer().bindFramebuffer(false);
+                    GL11.glClearColor(0, 0, 0, 0);
+                    RenderUtil.bindTexture(framebuffer.framebufferTexture);
+                    ShaderUtil.drawQuads();
+                    RenderUtil.setAlphaLimit(0);
+                    GlStateManager.bindTexture(0);
+                }
+            } else if (kawaseGlow.getValue()) {
                 int offset = offsetSetting.getValue().intValue();
                 int iterations = Math.max(2,Math.min(6,iterationsSetting.getValue().intValue()));
 
@@ -395,6 +430,20 @@ public class GlowESP extends Module
         outlineShader.setUniformf("direction", dir1, dir2);
     }
 
+
+    private ShaderUtil getGlowShader(String mode) {
+        if (mode.equals("Flame")) {
+            if (glowFlameShader == null) glowFlameShader = new ShaderUtil("pulsar/esp/flame.frag");
+            return glowFlameShader;
+        } else if (mode.equals("Neon")) {
+            if (glowNeonShader == null) glowNeonShader = new ShaderUtil("pulsar/esp/neon.frag");
+            return glowNeonShader;
+        } else if (mode.equals("Lines")) {
+            if (glowLinesShader == null) glowLinesShader = new ShaderUtil("pulsar/esp/lines.frag");
+            return glowLinesShader;
+        }
+        return null;
+    }
 
     private Color getColor(Object entity) {
         Color color = Color.WHITE;

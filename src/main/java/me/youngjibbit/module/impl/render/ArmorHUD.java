@@ -1,9 +1,9 @@
 package me.youngjibbit.module.impl.render;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.gui.HudSpring;
 import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.theme.ThemeCatalog;
-import me.youngjibbit.gui.HudSpring;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.event.render.Event2D;
 import me.youngjibbit.module.*;
@@ -25,6 +25,7 @@ import static org.lwjgl.opengl.GL11.*;
 @ModuleInfo(name="ArmorHUD", category=Category.Render)
 public class ArmorHUD extends Module {
     private final ComboValue layout=new ComboValue("Layout",this,new String[]{"Vertical","Horizontal"},0);
+    private final ComboValue mode=new ComboValue("Mode",this,new String[]{"Basic","Modern","Creative"},0);
     private final ComboValue durability=new ComboValue("Durability",this,new String[]{"Percent","Value","Both","None"},0);
     private final CheckBoxValue bar=new CheckBoxValue("Durability Bar",this,true);
     private final CheckBoxValue held=new CheckBoxValue("Held Item",this,true);
@@ -35,11 +36,14 @@ public class ArmorHUD extends Module {
     private final SliderValue scale=new SliderValue("Scale",this,1.0,0.65,1.6);
     private final ArrayListSurface surface=new ArrayListSurface(this);
     private final HudSpring[] durabilitySprings=new HudSpring[5];
+    private final HudSpring[] contourSprings=new HudSpring[5];
     private long durabilityFrame;
     private Object durabilityWorld;
     { for(int i=0;i<durabilitySprings.length;i++)durabilitySprings[i]=new HudSpring(); }
+    { for(int i=0;i<contourSprings.length;i++)contourSprings[i]=new HudSpring(); }
     private void clearDurabilityMotion(){
         for(HudSpring spring:durabilitySprings)spring.reset();
+        for(HudSpring spring:contourSprings)spring.reset();
         durabilityFrame=0;
     }
     private final SliderValue positionX=new SliderValue("Position X",this,100.0,-16384,16384);
@@ -76,7 +80,10 @@ public class ArmorHUD extends Module {
         TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Bold 16");
         Frame f=new Frame(font);
         boolean horizontal=layout.getValue().equals("Horizontal");
-        f.modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
+        String design=mode.getValue();
+        f.design=design;
+        f.modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())||"Modern".equals(design)||"Creative".equals(design);
+        f.dt=dt;
         String[] names={"Head","Body","Legs","Feet","Hand"};
         for(int i=0;i<5;i++){
             if(i==4&&!held.getValue())continue;
@@ -120,7 +127,9 @@ public class ArmorHUD extends Module {
         clamp(sw,sh);f.x=x;f.y=y;f.horizontal=horizontal;
         f.theme=Theme.resolve(f.modern?ThemeCatalog.global().current():Theme.getDefaultTheme());
         f.background=background.getValue();f.blur=blur.getValue();
-        f.glow=!f.modern&&glow.getValue();f.bar=bar.getValue();return f;
+        if("Basic".equals(design))f.glow=!f.modern&&glow.getValue();
+        else f.glow=glow.getValue();
+        f.bar=bar.getValue();return f;
     }
     private String formatDurability(ItemStack item){
         int max=item.getMaxDamage();
@@ -141,22 +150,57 @@ public class ArmorHUD extends Module {
     private void clamp(int sw,int sh){if(!me.youngjibbit.module.impl.client.HUD.bounded())return;x=Math.max(4,Math.min(x,sw-width-4));y=Math.max(4,Math.min(y,sh-height-4));}
     void paint(Frame f){
         if(f.cells.isEmpty())return;
+        final boolean modern="Modern".equals(f.design)||f.modern;
+        final boolean creative="Creative".equals(f.design);
         GuiShaderBloom.afterBatch(()->surface.panel(f.x,f.y,f.width*f.scale,f.height*f.scale,
-                (f.modern?9:5)*f.scale,f.theme,f.background,f.blur,f.glow,
-                f.modern?3:4,f.modern?.82f:.7f,
-                f.background?(f.modern?.14f:.7f):0,()->{
+                creative?12:(f.modern?9:5)*f.scale,f.theme,f.background,f.blur,f.glow,
+                creative?4:(f.modern?3:4),creative?.9f:(f.modern?.82f:.7f),
+                f.background?(creative?.20f:f.modern?.14f:.7f):0,()->{
             try(RenderState state=new RenderState()){
                 state.screenSpace();glTranslatef(f.x,f.y,0);glScalef(f.scale,f.scale,1);
                 float oldZ=mc.getRenderItem().zLevel;
                 try{
-                    if(f.modern&&f.background)UIUtils.drawRound(2,2,Math.max(1,f.width-4),
-                            Math.max(1,f.height-4),8,new Color(19,21,31,198));
+                    if(f.background&&modern){
+                        UIUtils.drawRound(2,2,Math.max(1,f.width-4),Math.max(1,f.height-4),
+                                creative?10:8,
+                                creative?new Color(24,26,38,168):new Color(19,21,31,196));
+                    }
+                    if(f.background&&modern&&!creative){
+                        UIUtils.drawRoundOutline(2,2,Math.max(1,f.width-4),Math.max(1,f.height-4),
+                                8,.5f,new Color(0,0,0,0),
+                                UiEffects.color(f.theme.getPrimaryGradientRGB(),.14f));
+                    }
+                    if(creative&&f.background){
+                        UIUtils.drawRound(4,4,Math.max(1,f.width-8),Math.max(1,f.height-8),
+                                6,new Color(28,30,44,130));
+                    }
+                    int cellIndex=0;
                     for(Cell cell:f.cells){
                         float ix=cell.x+(f.horizontal||cell.mini?(cell.w-16)/2:2),iy=cell.y;
-                        if(f.modern){
+                        if(modern){
                             float blockH=f.horizontal?38:cell.mini?23:26;
-                            UIUtils.drawRound(cell.x+1,cell.y+1,Math.max(1,cell.w-3),blockH,
-                                    6,new Color(33,34,47,225));
+                            if(creative){
+                                // Creative: segmented armor part with animated contour glow.
+                                float pulse=contourSprings[cellIndex].step(
+                                        cell.item!=null?1:.35f,f.dt,true,false,"Balanced");
+                                float glowA=.28f+.22f*pulse;
+                                UIUtils.drawRound(cell.x+1,cell.y+1,Math.max(1,cell.w-3),blockH,
+                                        6,new Color(38,34,48,218));
+                                UIUtils.drawRoundOutline(cell.x+1,cell.y+1,
+                                        Math.max(1,cell.w-3),blockH,6,.6f,
+                                        new Color(0,0,0,0),
+                                        new Color(f.theme.getPrimaryGradientColor().getRed(),
+                                                f.theme.getPrimaryGradientColor().getGreen(),
+                                                f.theme.getPrimaryGradientColor().getBlue(),
+                                                Math.round(255*glowA)));
+                            }else{
+                                // Modern: dark glass card, fine border highlight, minimal geometry.
+                                UIUtils.drawRound(cell.x+1,cell.y+1,Math.max(1,cell.w-3),blockH,
+                                        6,new Color(33,34,47,225));
+                                UIUtils.drawRoundOutline(cell.x+1,cell.y+1,
+                                        Math.max(1,cell.w-3),blockH,6,.4f,new Color(0,0,0,0),
+                                        UiEffects.color(f.theme.getPrimaryGradientRGB(),.14f));
+                            }
                             UIUtils.drawRound(cell.x+5,cell.y+blockH-2,
                                     Math.max(0,cell.w-12),1,.5f,
                                     new Color(f.theme.getPrimaryGradientColor().getRed(),
@@ -187,6 +231,7 @@ public class ArmorHUD extends Module {
                                     Math.min(1,bw*ratio/2),
                                     new Color(durabilityColor(f.theme,ratio),true));
                         }
+                        cellIndex++;
                     }
                 }finally{mc.getRenderItem().zLevel=oldZ;}
             }
@@ -211,5 +256,8 @@ public class ArmorHUD extends Module {
             this.item=item;this.label=label;this.durabilityRatio=durabilityRatio;
         }
     }
-    static final class Frame {float x,y,width,height,scale;boolean horizontal,background,blur,glow,bar,modern;Theme theme;final TTFFontRenderer font;final TTFFontRenderer emptyFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 12");final java.util.List<Cell> cells=new ArrayList<>();Frame(TTFFontRenderer font){this.font=font;}}
+    static final class Frame {
+        float x,y,width,height,scale;boolean horizontal,background,blur,glow,bar,modern;String design;float dt;
+        Theme theme;final TTFFontRenderer font;final TTFFontRenderer emptyFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 12");final java.util.List<Cell> cells=new ArrayList<>();Frame(TTFFontRenderer font){this.font=font;}
+    }
 }

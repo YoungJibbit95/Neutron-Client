@@ -15,6 +15,7 @@ import me.youngjibbit.utils.render.Blur;
 import me.youngjibbit.utils.render.RenderUiUtils;
 import me.youngjibbit.utils.render.Roundedutil;
 import me.youngjibbit.utils.render.UIUtils;
+import me.youngjibbit.utils.render.UiEffects;
 import me.youngjibbit.utils.render.shader.KawaseBloom;
 import me.youngjibbit.utils.render.shader.ShaderUtil;
 import me.youngjibbit.value.impl.CheckBoxValue;
@@ -59,7 +60,8 @@ public class ESP extends Module
     private final FloatBuffer vector = GLAllocation.createDirectFloatBuffer(4);
     private static final Frustum frustrum = new Frustum();
     private final ComboValue theme = new ComboValue("Theme", this, Theme.themes, 1);
-    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Static", "Morden", "None"}, 1);
+    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Static", "Morden", "None", "Flame", "Neon", "Lines"}, 1);
+    private ShaderUtil flameShader, neonShader, linesShader;
     private final CheckBoxValue blur = new CheckBoxValue("Blur", this, false);
     public CheckBoxValue healthBar = new CheckBoxValue("Health Bar", this, true);
     private final me.youngjibbit.utils.render.ArrayListSurface surfaces=new me.youngjibbit.utils.render.ArrayListSurface(this);
@@ -91,7 +93,12 @@ public class ESP extends Module
         return Theme.resolve(Pulsar.INSTANCE.getDefaultTheme());
     }
 
-    @Override public void onDisable(){surfaces.close();super.onDisable();}
+    @Override public void onDisable(){
+        try(me.youngjibbit.utils.render.RenderState ignored = new me.youngjibbit.utils.render.RenderState()){
+            for(ShaderUtil s:new ShaderUtil[]{flameShader,neonShader,linesShader})if(s!=null)s.close();
+        }
+        surfaces.close();super.onDisable();
+    }
 
     @Subscribe
     private final Listener<Event3D> on3D = new Listener<>(e ->
@@ -242,6 +249,13 @@ public class ESP extends Module
                         GlStateManager.popMatrix();
                         break;
                     }
+                    case "Flame":
+                    case "Neon":
+                    case "Lines":
+                    {
+                        renderShaderBox(ent, x, y, w, h, currentTheme);
+                        break;
+                    }
                 }
             }
             GlStateManager.enableDepth();
@@ -283,6 +297,98 @@ public class ESP extends Module
 
         // Clean up the temporary framebuffer
         entityFramebuffer.deleteFramebuffer();
+    }
+
+    private ShaderUtil getEspShader(String mode) {
+        if (mode.equals("Flame")) {
+            if (flameShader == null) flameShader = new ShaderUtil("pulsar/esp/flame.frag");
+            return flameShader;
+        } else if (mode.equals("Neon")) {
+            if (neonShader == null) neonShader = new ShaderUtil("pulsar/esp/neon.frag");
+            return neonShader;
+        } else if (mode.equals("Lines")) {
+            if (linesShader == null) linesShader = new ShaderUtil("pulsar/esp/lines.frag");
+            return linesShader;
+        }
+        return null;
+    }
+
+    private void renderShaderBox(EntityLivingBase ent, float x, float y, float w, float h, Theme theme) {
+        String mode = this.mode.getValue();
+        ShaderUtil shader = getEspShader(mode);
+        if (shader == null) return;
+
+        int fw = Math.max(1, (int) Math.ceil(w));
+        int fh = Math.max(1, (int) Math.ceil(h));
+        Framebuffer fb = new Framebuffer(fw, fh, true);
+
+        // Save current matrices
+        GL11.glMatrixMode(GL11.GL_PROJECTION);
+        GL11.glPushMatrix();
+        GL11.glMatrixMode(GL11.GL_MODELVIEW);
+        GL11.glPushMatrix();
+
+        // Draw box outline into the temporary framebuffer (pixel space, Y-down)
+        fb.bindFramebuffer(false);
+        GL11.glClear(GL11.GL_COLOR_BUFFER_BIT | GL11.GL_DEPTH_BUFFER_BIT);
+        GL11.glMatrixMode(GL11.GL_PROJECTION);
+        GL11.glLoadIdentity();
+        GL11.glOrtho(0, fw, fh, 0, -1, 1);
+        GL11.glMatrixMode(GL11.GL_MODELVIEW);
+        GL11.glLoadIdentity();
+
+        GlStateManager.disableTexture2D();
+        GlStateManager.enableBlend();
+        GlStateManager.blendFunc(GL11.GL_SRC_ALPHA, GL11.GL_ONE_MINUS_SRC_ALPHA);
+        GlStateManager.color(1, 1, 1, 1);
+        float lw = 1.5f;
+        GL11.glBegin(GL11.GL_QUADS);
+        // Top edge
+        GL11.glVertex2f(0, 0);
+        GL11.glVertex2f(fw, 0);
+        GL11.glVertex2f(fw, lw);
+        GL11.glVertex2f(0, lw);
+        // Bottom edge
+        GL11.glVertex2f(0, fh - lw);
+        GL11.glVertex2f(fw, fh - lw);
+        GL11.glVertex2f(fw, fh);
+        GL11.glVertex2f(0, fh);
+        // Left edge
+        GL11.glVertex2f(0, 0);
+        GL11.glVertex2f(lw, 0);
+        GL11.glVertex2f(lw, fh);
+        GL11.glVertex2f(0, fh);
+        // Right edge
+        GL11.glVertex2f(fw - lw, 0);
+        GL11.glVertex2f(fw, 0);
+        GL11.glVertex2f(fw, fh);
+        GL11.glVertex2f(fw - lw, fh);
+        GL11.glEnd();
+        GlStateManager.enableTexture2D();
+
+        // Restore matrices for main framebuffer
+        GL11.glMatrixMode(GL11.GL_PROJECTION);
+        GL11.glPopMatrix();
+        GL11.glMatrixMode(GL11.GL_MODELVIEW);
+        GL11.glPopMatrix();
+
+        mc.getFramebuffer().bindFramebuffer(false);
+
+        // Apply the shader effect
+        shader.init();
+        UiEffects.Gradient g = UiEffects.gradient(theme, UiEffects.Channel.BORDER);
+        UiEffects.upload(shader, theme, g);
+        shader.setUniformf("phase", g.phase);
+        shader.setUniformf("speed", g.speed);
+        shader.setUniformf("param2", g.param2);
+        shader.setUniformf("radius", 2.0f);
+        shader.setUniformf("texelSize", 1.0f / fw, 1.0f / fh);
+        shader.setUniformi("textureIn", 0);
+        RenderUtil.bindTexture(fb.framebufferTexture);
+        ShaderUtil.drawQuads(x, y, w, h);
+        shader.unload();
+
+        fb.deleteFramebuffer();
     }
 
     private static int interpolateTwoColorsSmoothly(int color1, int color2, long currentTime, float cycleDuration) {
