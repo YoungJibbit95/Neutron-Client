@@ -3,6 +3,35 @@ uniform bool uiEnabled;
 uniform vec2 uiResolution;
 uniform vec4 uiGradientBounds; // screen-space origin and extent; shared by every channel
 uniform vec3 uiText, uiBorder, uiGlow; // signed axis, mode, phase
+uniform float uiGradientRadius;
+uniform float uiShaderSpeed;
+uniform float uiShaderParam2;
+// Original Neutron arc-length implementation, matching PerimeterOrbit.contour.
+float uiContour(vec2 point, vec2 size, float radius) {
+ vec2 wh=max(size,vec2(1.0));
+ vec2 p=clamp(point,vec2(0.0),wh);
+ float r=clamp(radius,0.0,min(wh.x,wh.y)*.5);
+ float top=wh.x-2.0*r, right=wh.y-2.0*r, arc=1.57079632679*r;
+ float perimeter=2.0*top+2.0*right+4.0*arc;
+ float distance;
+ if(r>0.0&&p.x>=wh.x-r&&p.y<=r){
+  distance=top+r*(atan(p.y-r,p.x-(wh.x-r))+1.57079632679);
+ }else if(r>0.0&&p.x>=wh.x-r&&p.y>=wh.y-r){
+  distance=top+arc+right+r*atan(p.y-(wh.y-r),p.x-(wh.x-r));
+ }else if(r>0.0&&p.x<=r&&p.y>=wh.y-r){
+  distance=2.0*top+right+2.0*arc+r*(atan(p.y-(wh.y-r),p.x-r)-1.57079632679);
+ }else if(r>0.0&&p.x<=r&&p.y<=r){
+  float angle=atan(p.y-r,p.x-r);if(angle<0.0)angle+=6.28318530718;
+  distance=2.0*top+2.0*right+3.0*arc+r*(angle-3.14159265359);
+ }else{
+  float nearest=min(min(p.y,wh.x-p.x),min(wh.y-p.y,p.x));
+  if(nearest==p.y)distance=clamp(p.x-r,0.0,top);
+  else if(nearest==wh.x-p.x)distance=top+arc+clamp(p.y-r,0.0,right);
+  else if(nearest==wh.y-p.y)distance=top+right+2.0*arc+clamp(wh.x-r-p.x,0.0,top);
+  else distance=2.0*top+right+3.0*arc+clamp(wh.y-r-p.y,0.0,right);
+ }
+ return fract(distance/max(1.0,perimeter));
+}
 float uiPosition(vec3 channel){
  vec2 p=(vec2(gl_FragCoord.x,uiResolution.y-gl_FragCoord.y)-uiGradientBounds.xy)/max(uiGradientBounds.zw,vec2(1.0));
  float t=abs(channel.x)>1.5?p.y:p.x;
@@ -12,7 +41,27 @@ float uiPosition(vec3 channel){
  if(channel.y<1.5)return clamp(t,0.0,1.0);
  if(channel.y<2.5)return .5-.5*cos(6.28318530718*(t-channel.z));
  if(channel.y<3.5){float travel=.5-.5*cos(6.28318530718*channel.z);return .5-.5*cos(6.28318530718*(t-travel));}
- return .5+(clamp(t,0.0,1.0)-.5)*cos(6.28318530718*channel.z);
+ if(channel.y<4.5)return .5+(clamp(t,0.0,1.0)-.5)*cos(6.28318530718*channel.z);
+ if(channel.y<5.5){
+  float contour=uiContour(p*uiGradientBounds.zw,uiGradientBounds.zw,uiGradientRadius);
+  float travel=channel.x<0.0?-channel.z:channel.z;
+  float sample=.5+.5*cos(6.28318530718*(contour-travel));
+  return pow(clamp(sample,0.0,1.0),1.0+6.0*(1.0-clamp(uiShaderParam2,0.0,1.0)));
+ }
+ if(channel.y<6.5){
+  float flicker=sin(6.28318530718*(t+channel.z)*uiShaderSpeed*3.0)*.5+.5;
+  float flutter=sin(6.28318530718*(t+channel.z)*uiShaderSpeed*7.0+1.3)*.25+.75;
+  return clamp(t*flicker*flutter*uiShaderParam2,0.0,1.0);
+ }
+ if(channel.y<7.5){
+  float core=.5-.5*cos(6.28318530718*(t-channel.z));
+  float glow=1.0-abs(t-.5)*2.0;
+  return clamp(core*glow*(uiShaderParam2+.4*sin(6.28318530718*channel.z)),0.0,1.0);
+ }
+ float segments=uiShaderSpeed*12.0+2.0;
+ float pos=fract(t*segments+channel.z),phase=fract(channel.z);
+ float inBand=pos>=phase&&pos<phase+(1.0/segments)*uiShaderParam2?1.0:.2;
+ return clamp(pos*inBand,0.0,1.0);
 }
 
 // Explicit border source; palette stops remain intact when the Accent option is used.
