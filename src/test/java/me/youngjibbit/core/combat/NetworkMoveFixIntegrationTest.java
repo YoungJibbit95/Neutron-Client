@@ -22,7 +22,7 @@ public class NetworkMoveFixIntegrationTest {
         final RotationManager rotation=RuntimeServices.rotation();
         final NetworkManager network=new NetworkManager(EnumPacketDirection.CLIENTBOUND);
         final EmbeddedChannel channel=new EmbeddedChannel(network);
-        final PacketFlowTest.MainThread thread=new PacketFlowTest.MainThread();
+        final NetworkTestSupport.MainThread thread=new NetworkTestSupport.MainThread();
         final INetHandlerPlayClient handler=(INetHandlerPlayClient)Proxy.newProxyInstance(getClass().getClassLoader(),new Class<?>[]{INetHandlerPlayClient.class},(p,m,a)->null);
         Fixture(){network.configureClientPackets(thread);network.setNetHandler(handler);}
         PacketPipeline pipe(){return network.getClientPackets();}

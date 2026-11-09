@@ -19,7 +19,7 @@ import java.util.*;
 import java.util.concurrent.atomic.AtomicLong;
 
 /** Shared test-only fakes. Production sources must never depend on this test fixture. */
-final class NetworkTestSupport {
+public final class NetworkTestSupport {
     private NetworkTestSupport() { }
 
     static <T> T bare(Class<T> type) throws Exception {
