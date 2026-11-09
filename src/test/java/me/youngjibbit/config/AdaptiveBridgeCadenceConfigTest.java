@@ -130,7 +130,9 @@ public class AdaptiveBridgeCadenceConfigTest {
         Files.write(file, saved.getBytes(StandardCharsets.UTF_8));
         assertTrue(configs.getLastError(), configs.loadConfig("A2"));
         assertEquals("Godbridge", scaffold.getModeSetting("Bridge Rotation Profile").getValue());
-        assertEquals("Fast", scaffold.getModeSetting("Bridge Rotation Speed").getValue());
+        // The retired W08 speed combo migrates into Aim Speed: Fast keeps its pace as Swift.
+        assertEquals("Swift", scaffold.getModeSetting("Aim Speed").getValue());
+        assertEquals("Balanced", scaffold.getModeSetting("Aim Speed").getDefaultValue());
         assertEquals(.73, scaffold.getNumberSetting("Bridge Rotation Variation").getValue(), 0);
         assertEquals(7.5, scaffold.getNumberSetting("Interpolation").getValue(), 0);
         assertTrue(scaffold.getBooleanSetting("Auto Jump").getValue());

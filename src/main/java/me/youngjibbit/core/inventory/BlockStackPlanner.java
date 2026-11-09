@@ -1,6 +1,7 @@
 package me.youngjibbit.core.inventory;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -59,10 +60,10 @@ public final class BlockStackPlanner {
         Plan(int maxBlockStacks, List<Snapshot> usableBlocks, Snapshot bestBuildStack,
              List<Snapshot> keptBlockStacks, List<Snapshot> trashBlockStacks) {
             this.maxBlockStacks = maxBlockStacks;
-            this.usableBlocks = usableBlocks;
+            this.usableBlocks = Collections.unmodifiableList(new ArrayList<>(usableBlocks));
             this.bestBuildStack = bestBuildStack;
-            this.keptBlockStacks = keptBlockStacks;
-            this.trashBlockStacks = trashBlockStacks;
+            this.keptBlockStacks = Collections.unmodifiableList(new ArrayList<>(keptBlockStacks));
+            this.trashBlockStacks = Collections.unmodifiableList(new ArrayList<>(trashBlockStacks));
         }
     }
 
@@ -84,7 +85,7 @@ public final class BlockStackPlanner {
             throw new IllegalArgumentException("maxBlockStacks must not be negative");
         List<Snapshot> usable = new ArrayList<>();
         for (Snapshot s : stacks)
-            if (s.kind != Kind.OTHER) usable.add(s);
+            if (s.count > 0 && s.kind != Kind.OTHER) usable.add(s);
         usable.sort(BlockStackPlanner::bestFirst);
         // The limit counts every kept stack including the build slot; the reported
         // build candidate stays available even when the limit is 0.
@@ -97,3 +98,4 @@ public final class BlockStackPlanner {
 
     private BlockStackPlanner() { }
 }
+
