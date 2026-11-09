@@ -90,4 +90,63 @@ public class MoveFixConfigTest {
             String before=configs.serialize();write(root.toString());assertFalse(configs.loadConfig("Synthetic"));assertEquals(before,configs.serialize());
         }
     }
+
+    /** W09-T1b: layman presets map 1:1 onto the reviewed legacy Movefix values. */
+    @Test public void friendlyMovementCorrectionPresetsMapOntoVerifiedLegacyValues() {
+        assertEquals(MoveFixController.Mode.OFF,scaffold.moveFixMode());
+        assertEquals("Off",scaffold.getModeSetting("movement_correction").getValue());
+        scaffold.getModeSetting("movement_correction").setValue("Balanced");
+        assertEquals(MoveFixController.Mode.SIMPLE,scaffold.moveFixMode());
+        scaffold.getModeSetting("movement_correction").setValue("Precise");
+        assertEquals(MoveFixController.Mode.PRECISE,scaffold.moveFixMode());
+        scaffold.getModeSetting("movement_correction").setValue("Off");
+        assertEquals(MoveFixController.Mode.OFF,scaffold.moveFixMode());
+    }
+
+    /** Custom exposes all legacy options and never rewrites a chosen legacy value. */
+    @Test public void customPresetKeepsEveryLegacyMovefixValueWithoutRewritingIt() {
+        for(MoveFixController.Mode legacy:Arrays.asList(MoveFixController.Mode.ROTATION_BOUND,
+                MoveFixController.Mode.LEGACY_STRICT,MoveFixController.Mode.LEGACY_ROUNDED)) {
+            scaffold.getModeSetting("movefix").setValue(legacy.label);
+            assertEquals("Custom",scaffold.getModeSetting("movement_correction").getValue());
+            assertEquals(legacy,scaffold.moveFixMode());
+        }
+        // A preset choice rebinds the legacy combo from the Custom state.
+        scaffold.getModeSetting("movement_correction").setValue("Balanced");
+        assertEquals(MoveFixController.Mode.SIMPLE,scaffold.moveFixMode());
+        assertEquals("Balanced",scaffold.getModeSetting("movement_correction").getValue());
+    }
+
+    /** Real saves/loads: legacy writes land on Custom, presets rebind the combo, nothing is lost. */
+    @Test public void configRoundTripPreservesFriendlyAndLegacyMovefixTogether() throws Exception {
+        scaffold.getModeSetting("movefix").setValue(MoveFixController.Mode.LEGACY_ROUNDED.label);
+        assertTrue(configs.saveConfig("Synthetic"));
+        scaffold.getModeSetting("movefix").setValue("Aus");
+        assertTrue(configs.getLastError(),configs.loadConfig("Synthetic"));
+        assertEquals(MoveFixController.Mode.LEGACY_ROUNDED,scaffold.moveFixMode());
+        assertEquals("Custom",scaffold.getModeSetting("movement_correction").getValue());
+        JsonObject saved=root();
+        assertEquals("Legacy Rounded",settings(saved,"scaffold").get("movefix").getAsString());
+        assertEquals("Custom",settings(saved,"scaffold").get("movement_correction").getAsString());
+        // A legacy config without the friendly key still lands on Custom, never on Off.
+        JsonObject legacy=root();settings(legacy,"scaffold").remove("movement_correction");
+        write(legacy.toString());
+        assertTrue(configs.getLastError(),configs.loadConfig("Synthetic"));
+        assertEquals(MoveFixController.Mode.LEGACY_ROUNDED,scaffold.moveFixMode());
+        assertEquals("Custom",scaffold.getModeSetting("movement_correction").getValue());
+    }
+
+    /** A preset flips the underlying combo in the saved truth and rebinds on load. */
+    @Test public void friendlyPresetFlipsTheLegacyComboThroughTheRoundTrip() throws Exception {
+        scaffold.getModeSetting("movement_correction").setValue("Precise");
+        JsonObject saved=root();
+        assertEquals("Präzise",settings(saved,"scaffold").get("movefix").getAsString());
+        assertEquals("Precise",settings(saved,"scaffold").get("movement_correction").getAsString());
+        assertTrue(configs.saveConfig("Synthetic"));
+        scaffold.getModeSetting("movement_correction").setValue("Off");
+        assertEquals(MoveFixController.Mode.OFF,scaffold.moveFixMode());
+        assertTrue(configs.getLastError(),configs.loadConfig("Synthetic"));
+        assertEquals(MoveFixController.Mode.PRECISE,scaffold.moveFixMode());
+        assertEquals("Precise",scaffold.getModeSetting("movement_correction").getValue());
+    }
 }

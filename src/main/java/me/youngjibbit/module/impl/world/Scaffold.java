@@ -113,6 +113,9 @@ public class Scaffold extends Module {
 
     private final ComboValue placeTiming = new ComboValue("Place Timing", this, new String[]{"Pre", "Post"}, 0);
     private final CheckBoxValue rotations = new CheckBoxValue("Rotations", this, true);
+    /** Layman preset for the Movefix combo; "Custom" keeps every legacy value reachable. */
+    private final ComboValue bridgeMovementCorrection=new ComboValue("Movement Correction",this,
+            new String[]{"Off","Balanced","Precise","Custom"},0);
     private final MoveFixValue movefix = new MoveFixValue(this, false);
     private final ComboValue bodyRotation = new ComboValue("Body Rotation", this, new String[]{"Vanilla", "Direkt", "Natürlich"}, 0);
     private final RotationReturnSettings rotationReturn = new RotationReturnSettings(this);
@@ -197,6 +200,12 @@ public class Scaffold extends Module {
                     || value==bridgeKeepingYawSpeed || value==bridgeKeepingPitchSpeed) {
                 value.setVisibility(m->adaptiveBridge() && "Custom".equals(bridgeAimSpeed.getValue()));continue;
             }
+            if(value==movefix) {
+                value.setVisibility(m->!arsenic() && "Custom".equals(bridgeMovementCorrection.getValue()));continue;
+            }
+            if(value==bridgeMovementCorrection) {
+                value.setVisibility(m->!arsenic());continue;
+            }
             if(value==yawSpeed || value==pitchSpeed) {
                 java.util.function.Predicate<Module> previous=value.getVisibility();
                 value.setVisibility(m->adaptiveBridge() || !arsenic() && (previous==null || previous.test(m)));
@@ -221,7 +230,12 @@ public class Scaffold extends Module {
         bridgeKeepingYawSpeed.reset();bridgeKeepingPitchSpeed.reset();bridgeRotationVariation.reset();
         bridgePlaceMinCps.reset();bridgePlaceMaxCps.reset();bridgeClickProfile.reset();
         bridgeClickInterpolation.reset();bridgeClickVariation.reset();bridgePlaceDebug.reset();
-        bridgeAutoJump.reset();bridgeJumpAfter.reset();
+        bridgeAutoJump.reset();bridgeJumpAfter.reset();bridgeMovementCorrection.reset();
+    }
+    @Override public void endConfigUpdate() {
+        super.endConfigUpdate();
+        // Legacy configs only carry the Movefix combo: mirror its truth as the preset display.
+        syncMovementCorrection();
     }
     @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String name) {
         if(name!=null) {
@@ -231,6 +245,12 @@ public class Scaffold extends Module {
             if(normalized.equalsIgnoreCase("BridgeRotationSpeed"))return (me.youngjibbit.value.Value<T>) bridgeRotationSpeedAlias;
         }
         return super.getValueByName(name);
+    }
+    @Override public void valueChanged(me.youngjibbit.value.Value<?> value) {
+        super.valueChanged(value);
+        // The layman preset drives the legacy combo; any legacy write mirrors into the preset.
+        if(value==bridgeMovementCorrection)applyMovementCorrection(bridgeMovementCorrection.getValue());
+        else if(value==movefix)syncMovementCorrection();
     }
     @Override public void onValueChange() {
         long generation = ++lifecycleGeneration;
@@ -1257,6 +1277,23 @@ public class Scaffold extends Module {
     public boolean correctionEnabled() { return isToggled() && validContext() && usesRotations()
             && (contextPlayer == null || sameScene()); }
     public MoveFixController.Mode moveFixMode() { return arsenic()?MoveFixController.Mode.SIMPLE:MoveFixController.Mode.fromSetting(movefix.getValue()); }
+
+    /** Verified mapping: each layman preset binds exactly one reviewed Movefix value; Custom writes nothing. */
+    private void applyMovementCorrection(String preset) {
+        if(preset==null||"Custom".equals(preset))return;
+        String mapped="Off".equals(preset)?"Aus":"Balanced".equals(preset)?"Einfach"
+                :"Precise".equals(preset)?"Präzise":"Aus";
+        if(!mapped.equals(movefix.getValue()))movefix.setValue(mapped);
+    }
+
+    /** Mirror a rewritten Movefix combo as the preset display; Custom stays chosen by its user. */
+    private void syncMovementCorrection() {
+        if("Custom".equals(bridgeMovementCorrection.getValue()))return;
+        String current=movefix.getValue();
+        String display="Aus".equals(current)?"Off":"Einfach".equals(current)?"Balanced"
+                :"Präzise".equals(current)?"Precise":"Custom";
+        if(!display.equals(bridgeMovementCorrection.getValue()))bridgeMovementCorrection.setValue(display);
+    }
     public BodyRotationController.Mode bodyRotationMode() { return BodyRotationController.Mode.fromSetting(bodyRotation.getValue()); }
 
     private boolean isMoving() {
