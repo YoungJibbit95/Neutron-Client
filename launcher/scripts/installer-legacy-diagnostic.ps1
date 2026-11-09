@@ -16,13 +16,14 @@ $env:TEMP=$temp; $env:TMP=$temp
 if([IO.Path]::GetPathRoot($install) -eq [IO.Path]::GetPathRoot($temp)){throw 'The diagnostic must exercise different installation and TEMP volumes.'}
 $events=[Collections.Generic.List[object]]::new()
 $processes=[Collections.Generic.List[object]]::new()
+$completed=$false; $oldInstallationComplete=$false; $acceptedCandidateHash=''; $newVersion=''
 function Save-Evidence {
     $logs=@{}
     foreach($name in @('installer-error.json','installer-result.json','headless-startup.jsonl','build.log')) {
         $file=Join-Path $control ('logs/'+$name)
         if(Test-Path -LiteralPath $file){$logs[$name]=@(Get-Content -LiteralPath $file -Tail 80)}
     }
-    @{install=$install;temp=$temp;ordinaryAccount=$true;uiEvents=$events.ToArray();processes=$processes.ToArray();logs=$logs} | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $root 'legacy-diagnostic.json') -Encoding utf8
+    @{schemaVersion=2;revision=$env:GITHUB_SHA;launcherVersion=$newVersion;installerSha256=$acceptedCandidateHash;completed=$completed;oldInstallationComplete=$oldInstallationComplete;upgradeMode=$(if($oldInstallationComplete){'complete-old-install'}else{'repair-incomplete-old-install'});install=$install;temp=$temp;ordinaryAccount=$true;uiEvents=$events.ToArray();processes=$processes.ToArray();logs=$logs} | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $root 'legacy-diagnostic.json') -Encoding utf8
 }
 function Invoke-ObservedInstaller([string]$File,[string]$Arguments,[string]$Label,[bool]$Assisted) {
     $started=[datetime]::UtcNow
@@ -134,6 +135,7 @@ try {
     } else {
         Get-PinnedInstaller @{path=$new;version='0.2.2';assetId=722300068;hash='acfc43e605fc0af9d591068bd12b08d1e05a1a6b5936cdc3af312aaddd6a27bc'}
     }
+    $acceptedCandidateHash=(Get-FileHash -LiteralPath $new -Algorithm SHA256).Hash.ToLowerInvariant()
     $reference=Join-Path $root 'reference'; [IO.Directory]::CreateDirectory($reference) | Out-Null
     $seven=Join-Path $env:ProgramFiles '7-Zip/7z.exe'
     & $seven x $new ('-o'+$reference) '-y' '$PLUGINSDIR\app-64.7z' | Out-Null
@@ -141,7 +143,7 @@ try {
     & $seven x (Join-Path $reference '$PLUGINSDIR/app-64.7z') ('-o'+$reference) '-y' 'resources/app.asar' | Out-Null
     if($LASTEXITCODE){throw 'Could not read the expected application ASAR.'}
     $expectedAsar=(Get-FileHash -LiteralPath (Join-Path $reference 'resources/app.asar')).Hash
-    try { Invoke-ObservedInstaller $old ("/S /currentuser /D="+$install) 'old-0.2.0-install' $false }
+    try { Invoke-ObservedInstaller $old ("/S /currentuser /D="+$install) 'old-0.2.0-install' $false; $oldInstallationComplete=$true }
     catch {
         # Diagnostics can still observe repair of a registered but incomplete
         # old install. This is explicitly NOT evidence of a complete old setup.
@@ -157,15 +159,25 @@ try {
     $events.Add(@{label='assisted-install-location';requested=$install;registered=$registeredInstall})
     if(-not $registeredInstall.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Registered install escaped the owned fixture.'}
     $installedExe=Join-Path $registeredInstall 'Neutron Launcher.exe'
-    if((Get-Item -LiteralPath $installedExe).VersionInfo.ProductVersion -ne $newVersion){throw 'Assisted upgrade did not install version 0.2.2.'}
+    if((Get-Item -LiteralPath $installedExe).VersionInfo.ProductVersion -ne $newVersion){throw ('Assisted upgrade did not install version '+$newVersion+'.')}
     $metadata=Get-Content -LiteralPath (Join-Path $registeredInstall 'resources/release.json') -Raw | ConvertFrom-Json
     if($metadata.launcherVersion -ne $newVersion){throw 'Installed release metadata differs from the candidate.'}
     if((Get-FileHash -LiteralPath (Join-Path $registeredInstall 'resources/app.asar')).Hash -ne $expectedAsar){throw 'Assisted upgrade application bytes differ from the expected pinned candidate.'}
+    if($candidate -and $metadata.schemaVersion -eq 2) {
+        $pointer=Join-Path $control 'data-directory.txt'
+        $data=[IO.File]::ReadAllText($pointer,[Text.Encoding]::Unicode).TrimStart([char]0xfeff).TrimEnd("`r","`n")
+        $prepared=Get-Content -LiteralPath (Join-Path $data 'logs/installer-result.json') -Raw | ConvertFrom-Json
+        $state=Get-Content -LiteralPath (Join-Path $data 'state.json') -Raw | ConvertFrom-Json
+        if($prepared.schemaVersion -ne 2 -or $prepared.phase -cne 'verified-before-activation' -or $prepared.selectedBuildId -cne $state.selected -or
+            $prepared.launcherVersion -cne $newVersion -or $prepared.clientJarSha256 -notmatch '^[a-f0-9]{64}$' -or $prepared.versionJsonSha256 -notmatch '^[a-f0-9]{64}$') { throw 'Assisted upgrade did not commit a verified release client.' }
+        $events.Add(@{label='verified-release-upgrade';releaseTag=$prepared.releaseTag;clientJarSha256=$prepared.clientJarSha256;versionJsonSha256=$prepared.versionJsonSha256})
+    }
     Invoke-ObservedInstaller $new ("/S /currentuser /D="+$registeredInstall) ('silent-'+$newVersion+'-reinstall') $false
     $uninstaller=Join-Path $registeredInstall 'Uninstall Neutron Launcher.exe'
     Invoke-ObservedInstaller $uninstaller '/currentuser /KEEP_APP_DATA' ('assisted-uninstall-'+$newVersion) $true
     if((Test-Path -LiteralPath (Join-Path $registeredInstall 'Neutron Launcher.exe')) -or (Test-Path -LiteralPath 'HKCU:\Software\17d12e18-c0d2-5a05-b898-3c34ccfad7ff')){throw 'Assisted uninstaller did not remove application files and registration.'}
     if((Get-FileHash -LiteralPath $marker).Hash -ne $markerHash){throw 'Uninstall changed synthetic personal data.'}
+    $completed=$true
     $events.Add(@{label='completed';result='all observed operations succeeded; user failure not reproduced'})
 } finally {
     foreach($entry in $processes){$entry | ConvertTo-Json -Compress | Write-Host}

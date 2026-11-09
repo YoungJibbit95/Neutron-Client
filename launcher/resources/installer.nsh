@@ -24,12 +24,12 @@
 !macroend
 
 !macro customInstall
-  DetailPrint "Preparing the pinned Neutron client. First setup needs internet and may take several minutes."
+  DetailPrint "Downloading the latest published Neutron client. First setup needs internet."
   DetailPrint "Java, game files and the client remain in your launcher data folder. Personal profiles are retained."
   SetDetailsView show
   System::Call 'kernel32::SetEnvironmentVariableW(w "NEUTRON_DATA_ROOT", w "$neutronDataRoot")'
   ClearErrors
-  ExecWait '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" --prepare-alpha' $0
+  ExecWait '"$INSTDIR\${APP_EXECUTABLE_FILENAME}" --prepare-release' $0
   ${If} ${Errors}
     Call NeutronStorageRestoreEnvironment
     SetErrorLevel 1
@@ -51,5 +51,5 @@
       MessageBox MB_OK|MB_ICONEXCLAMATION "$neutronStorageResponse"
     Abort "The data selection could not be committed. Previous data remains preserved. Rerun setup."
   ${EndIf}
-  DetailPrint "Neutron installed and verified. Playing uses the local client without Maven."
+  DetailPrint "Neutron installed and verified. Open the launcher to select and play published client versions."
 !macroend

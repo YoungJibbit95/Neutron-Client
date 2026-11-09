@@ -2,16 +2,10 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 
-export function childEnvironment(javaHome: string, temporary: string, mavenHome?: string) {
+export function childEnvironment(javaHome: string, temporary: string) {
   const env = { ...process.env };
   for (const key of Object.keys(env)) if (['JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS', 'MAVEN_OPTS', 'MAVEN_ARGS', 'CLASSPATH'].includes(key.toUpperCase())) delete env[key];
-  return { ...env, JAVA_HOME: javaHome, TEMP: temporary, TMP: temporary, MAVEN_SKIP_RC: '1', MAVEN_USER_HOME: mavenHome ?? temporary };
-}
-export function buildEnvironment(javaHome: string, temporary: string, mavenHome: string) {
-  // Tests start additional JVMs without heap flags. Bound those descendants as
-  // well as Surefire; Maven's explicit heap flags take precedence. Never reuse
-  // caller-supplied JVM options or apply these build limits to the game.
-  return { ...childEnvironment(javaHome, temporary, mavenHome), JAVA_TOOL_OPTIONS: '-Xms32M -Xmx512M' };
+  return { ...env, JAVA_HOME: javaHome, TEMP: temporary, TMP: temporary };
 }
 export async function killTree(child: Pick<ChildProcess, 'pid' | 'exitCode'>) {
   if (!child.pid || child.exitCode !== null) return;

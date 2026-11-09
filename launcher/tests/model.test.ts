@@ -1,11 +1,36 @@
 import { describe, expect, test } from 'vitest';
-import { canBuild, canLaunch, consoleBounds, fixtureBuilds, initialState, isBusy, logAnchor, MAX_LOG_LINES, nextFixture, recommendedRam, redact, reducer, resolveLogAnchor, selectedBuild, validateOptions, visibleRange } from '../src/model';
+import { canInstall, canLaunch, consoleBounds, fixtureBuilds, initialState, isBusy, liveInitialState, logAnchor, MAX_LOG_LINES, nextFixture, recommendedRam, redact, reducer, resolveLogAnchor, selectedBuild, selectedRelease, validateOptions, visibleRange } from '../src/model';
 
 describe('prototype invariants', () => {
-  test('offline installed builds launch without permitting a network build', () => {
+  test('the default follows the latest stable release and an explicit pre-release is selectable', () => {
+    const state = initialState();
+    expect(state.releases[0].prerelease).toBe(true);
+    expect(selectedRelease(state)?.tag).toBe('v0.2.2');
+    let installing = reducer(state, { type: 'install', tag: 'v0.3.0-beta.1', play: false });
+    expect(installing.installingTag).toBe('v0.3.0-beta.1');
+    for (let i = 0; i < 3; i++) installing = reducer(installing, { type: 'next-phase' });
+    expect(selectedBuild(installing)?.releaseTag).toBe('v0.3.0-beta.1');
+    expect(installing.builds.some(build => build.id === state.selected)).toBe(true);
+  });
+  test('missing or unknown release choices cannot initiate installation or replace a playable version', () => {
+    const state = initialState();
+    expect(canInstall(state, 'v99.0.0')).toBe(false);
+    expect(reducer(state, { type: 'install', tag: 'v99.0.0', play: true })).toEqual(state);
+    const noCatalog = { ...state, releases: [], latestRelease: null };
+    expect(canInstall(noCatalog)).toBe(false);
+    expect(canLaunch(noCatalog)).toBe(true);
+  });
+  test('desktop initialization contains no illustrative release catalog or installed versions', () => {
+    const state = liveInitialState();
+    expect(state.releases).toEqual([]);
+    expect(state.latestRelease).toBeNull();
+    expect(state.builds).toEqual([]);
+    expect(canInstall(state)).toBe(false);
+  });
+  test('offline installed versions launch without permitting an installation', () => {
     const offline = initialState('offline');
     expect(canLaunch(offline)).toBe(true);
-    expect(canBuild(offline)).toBe(false);
+    expect(canInstall(offline)).toBe(false);
     expect(reducer(offline, { type: 'launch' }).online).toBe(false);
   });
   test('first-run cannot be bypassed by the update view', () => {
@@ -13,14 +38,19 @@ describe('prototype invariants', () => {
     state = reducer(state, { type: 'view', view: 'update' });
     state = reducer(state, { type: 'check' });
     expect(state.status).toBe('first-run');
-    expect(canBuild(state)).toBe(false);
+    expect(canInstall(state)).toBe(false);
     state = reducer(state, { type: 'setup' });
     expect(state.builds).toHaveLength(0);
-    expect(canBuild(state)).toBe(true);
+    expect(state.setupComplete).toBe(false);
+    expect(canInstall(state)).toBe(false);
+    for (let i = 0; i < 3; i++) state = reducer(state, { type: 'next-phase' });
+    expect(state.setupComplete).toBe(true);
+    expect(state.builds).toHaveLength(1);
+    expect(canInstall(state)).toBe(true);
   });
   test.each(['cancel', 'fail'] as const)('%s keeps the previous playable build and cancels auto-launch', type => {
     const before = initialState();
-    const building = reducer(before, { type: 'build', play: true });
+    const building = reducer(before, { type: 'install', play: true });
     const failed = reducer(building, { type });
     expect(failed.selected).toBe(before.selected);
     expect(failed.builds).toEqual(before.builds);
@@ -28,8 +58,8 @@ describe('prototype invariants', () => {
     expect(canLaunch(failed)).toBe(true);
   });
   test('activation and optional play happen only after verification', () => {
-    let state = reducer(initialState(), { type: 'build', play: true });
-    for (const status of ['prepare', 'download', 'build', 'verify']) {
+    let state = reducer(initialState(), { type: 'install', play: true });
+    for (const status of ['prepare', 'download', 'verify']) {
       expect(state.status).toBe(status);
       expect(state.selected).toBe(fixtureBuilds[0].id);
       expect(state.runningBuild).toBeNull();
@@ -39,21 +69,21 @@ describe('prototype invariants', () => {
     expect(state.runningBuild).toBe(nextFixture.id);
     expect(state.builds.some(build => build.id === fixtureBuilds[0].id)).toBe(true);
   });
-  test('invalid options prevent launch and build-and-play, including mid-build edits', () => {
+  test('invalid options prevent launch and download-and-play, including mid-installation edits', () => {
     const invalid = reducer(initialState(), { type: 'options', patch: { jvmArgs: '-Xmx99G' } });
     expect(canLaunch(invalid)).toBe(false);
-    expect(reducer(invalid, { type: 'build', play: true })).toEqual(invalid);
-    let building = reducer(initialState(), { type: 'build', play: true });
+    expect(reducer(invalid, { type: 'install', play: true })).toEqual(invalid);
+    let building = reducer(initialState(), { type: 'install', play: true });
     building = reducer(building, { type: 'options', patch: { ramMiB: 0 } });
-    for (let i = 0; i < 4; i++) building = reducer(building, { type: 'next-phase' });
+    for (let i = 0; i < 3; i++) building = reducer(building, { type: 'next-phase' });
     expect(building.status).toBe('ready');
     expect(building.runningBuild).toBeNull();
   });
-  test('a running build cannot be switched, removed or rebuilt', () => {
+  test('a running build cannot be switched, removed or reinstalled', () => {
     const running = reducer(initialState(), { type: 'launch' });
     expect(reducer(running, { type: 'remove', id: running.runningBuild! })).toEqual(running);
     expect(reducer(running, { type: 'select', id: fixtureBuilds[1].id })).toEqual(running);
-    expect(reducer(running, { type: 'build', play: false })).toEqual(running);
+    expect(reducer(running, { type: 'install', play: false })).toEqual(running);
   });
   test('a non-selected older build can be removed without changing the current version', () => {
     const state = reducer(initialState(), { type: 'remove', id: fixtureBuilds[1].id });
