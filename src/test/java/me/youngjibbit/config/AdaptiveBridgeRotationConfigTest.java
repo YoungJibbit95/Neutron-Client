@@ -32,59 +32,107 @@ public class AdaptiveBridgeRotationConfigTest {
         assertEquals(35, scaffold.getNumberSetting("Pitch Speed").getValue(), 0);
         assertArrayEquals(new String[]{"Adaptive", "Godbridge"},
                 scaffold.getModeSetting("Bridge Rotation Profile").getOptions());
-        assertArrayEquals(new String[]{"Calm", "Balanced", "Fast"},
-                scaffold.getModeSetting("Bridge Rotation Speed").getOptions());
+        assertArrayEquals(new String[]{"Calm", "Balanced", "Swift", "Custom"},
+                scaffold.getModeSetting("Aim Speed").getOptions());
         assertEquals("Adaptive", scaffold.getModeSetting("Bridge Rotation Profile").getValue());
-        assertEquals("Balanced", scaffold.getModeSetting("Bridge Rotation Speed").getValue());
+        assertEquals("Balanced", scaffold.getModeSetting("Aim Speed").getValue());
         assertEquals(.25, scaffold.getNumberSetting("Bridge Rotation Variation").getValue(), 0);
         assertEquals(0, scaffold.getNumberSetting("Bridge Rotation Variation").getMin(), 0);
         assertEquals(1, scaffold.getNumberSetting("Bridge Rotation Variation").getMax(), 0);
+        // The W08 combo id stays retired: no registered value carries it anymore.
+        boolean retiredRegistered = false;
+        for (me.youngjibbit.value.Value<?> value : scaffold.getValues())
+            if ("bridge_rotation_speed".equals(value.getId())) retiredRegistered = true;
+        assertFalse(retiredRegistered);
         for (String approach : new String[]{"Neutron", "Arsenic", "Adaptive Bridge"}) {
             scaffold.getModeSetting("Scaffold Approach").setValue(approach);
             boolean bridge = "Adaptive Bridge".equals(approach);
             assertEquals(bridge, scaffold.getModeSetting("Bridge Rotation Profile").isVisible());
-            assertEquals(bridge, scaffold.getModeSetting("Bridge Rotation Speed").isVisible());
+            assertEquals(bridge, scaffold.getModeSetting("Aim Speed").isVisible());
             assertEquals(bridge, scaffold.getNumberSetting("Bridge Rotation Variation").isVisible());
+            boolean custom = bridge && "Custom".equals(scaffold.getModeSetting("Aim Speed").getValue());
+            for (String slider : new String[]{"Initial Yaw Speed", "Initial Pitch Speed",
+                    "Keeping Yaw Speed", "Keeping Pitch Speed"}) {
+                assertEquals(slider, custom, scaffold.getNumberSetting(slider).isVisible());
+            }
             if (bridge) {
                 assertTrue(scaffold.getNumberSetting("Yaw Speed").isVisible());
                 assertTrue(scaffold.getNumberSetting("Pitch Speed").isVisible());
             }
         }
+        assertEquals(55, scaffold.getNumberSetting("Initial Yaw Speed").getValue(), 0);
+        assertEquals(55, scaffold.getNumberSetting("Initial Pitch Speed").getValue(), 0);
+        assertEquals(30, scaffold.getNumberSetting("Keeping Yaw Speed").getValue(), 0);
+        assertEquals(30, scaffold.getNumberSetting("Keeping Pitch Speed").getValue(), 0);
+        assertEquals(1, scaffold.getNumberSetting("Initial Yaw Speed").getMin(), 0);
+        assertEquals(90, scaffold.getNumberSetting("Keeping Yaw Speed").getMax(), 0);
         assertFalse(scaffold.getBooleanSetting("Arsenic Soft Motion").getValue());
         assertEquals("Back", scaffold.getModeSetting("Rotation Mode").getValue());
         assertEquals(35, scaffold.getNumberSetting("Yaw Speed").getValue(), 0);
         assertEquals(35, scaffold.getNumberSetting("Pitch Speed").getValue(), 0);
     }
 
-    @Test public void bothProfilesAndEverySpeedRoundTripWithTheirIndependentSavedValues() throws Exception {
+    @Test public void bothProfilesAndEveryAimPresetRoundTripWithTheirIndependentSavedValues() throws Exception {
         for (String profile : new String[]{"Adaptive", "Godbridge"}) {
-            for (String speed : new String[]{"Calm", "Balanced", "Fast"}) {
+            for (String aim : new String[]{"Calm", "Balanced", "Swift", "Custom"}) {
                 Scaffold scaffold = new Scaffold();
                 Path directory = temp.newFolder().toPath();
                 ConfigManager configs = configs(directory, scaffold);
                 scaffold.getModeSetting("Scaffold Approach").setValue("Adaptive Bridge");
                 scaffold.getModeSetting("Bridge Rotation Profile").setValue(profile);
-                scaffold.getModeSetting("Bridge Rotation Speed").setValue(speed);
+                scaffold.getModeSetting("Aim Speed").setValue(aim);
                 scaffold.getNumberSetting("Bridge Rotation Variation").setValue(.73);
                 scaffold.getNumberSetting("Yaw Speed").setValue(11D);
                 scaffold.getNumberSetting("Pitch Speed").setValue(17D);
                 scaffold.getModeSetting("Rotation Mode").setValue("NCP");
+                if ("Custom".equals(aim)) {
+                    scaffold.getNumberSetting("Initial Yaw Speed").setValue(21D);
+                    scaffold.getNumberSetting("Initial Pitch Speed").setValue(23D);
+                    scaffold.getNumberSetting("Keeping Yaw Speed").setValue(27D);
+                    scaffold.getNumberSetting("Keeping Pitch Speed").setValue(29D);
+                }
                 String saved = configs.serialize();
                 JsonObject settings = new JsonParser().parse(saved).getAsJsonObject()
                         .getAsJsonObject("modules").getAsJsonObject("scaffold").getAsJsonObject("settings");
                 assertEquals(profile, settings.get("bridge_rotation_profile").getAsString());
-                assertEquals(speed, settings.get("bridge_rotation_speed").getAsString());
+                assertEquals(aim, settings.get("aim_speed").getAsString());
                 assertEquals(.73, settings.get("bridge_rotation_variation").getAsDouble(), 0);
+                assertTrue(settings.get("bridge_rotation_speed") == null);
+                if ("Custom".equals(aim)) {
+                    assertEquals(21D, settings.get("initial_yaw_speed").getAsDouble(), 0);
+                    assertEquals(23D, settings.get("initial_pitch_speed").getAsDouble(), 0);
+                    assertEquals(27D, settings.get("keeping_yaw_speed").getAsDouble(), 0);
+                    assertEquals(29D, settings.get("keeping_pitch_speed").getAsDouble(), 0);
+                }
                 assertTrue(configs.getLastError(), configs.saveConfig("BridgeMotion"));
                 scaffold.getModeSetting("Scaffold Approach").setValue("Neutron");
                 scaffold.getModeSetting("Bridge Rotation Profile").setValue("Adaptive".equals(profile) ? "Godbridge" : "Adaptive");
+                scaffold.getModeSetting("Aim Speed").setValue("Calm".equals(aim) ? "Swift" : "Calm");
                 scaffold.getNumberSetting("Bridge Rotation Variation").setValue(0D);
                 assertTrue(configs.getLastError(), configs.loadConfig("BridgeMotion"));
                 assertEquals(saved, configs.serialize());
                 assertEquals("NCP", scaffold.getModeSetting("Rotation Mode").getValue());
+                assertEquals(aim, scaffold.getModeSetting("Aim Speed").getValue());
                 assertEquals(11, scaffold.getNumberSetting("Yaw Speed").getValue(), 0);
                 assertEquals(17, scaffold.getNumberSetting("Pitch Speed").getValue(), 0);
             }
+        }
+    }
+
+    /** W08 configs keep loading without a rewrite; the retired combo maps onto Aim Speed. */
+    @Test public void legacyBridgeRotationSpeedLabelsMigrateIntoAimSpeed() throws Exception {
+        for (String[] pair : new String[][]{{"Calm", "Calm"}, {"Balanced", "Balanced"}, {"Fast", "Swift"}}) {
+            Scaffold scaffold = new Scaffold();
+            Path directory = temp.newFolder().toPath();
+            ConfigManager configs = configs(directory, scaffold);
+            String saved = "{\"version\":2,\"modules\":{\"scaffold\":{\"settings\":{"
+                    + "\"scaffold_approach\":\"Adaptive Bridge\",\"bridge_rotation_speed\":\"" + pair[0] + "\"}}}}";
+            Files.write(directory.resolve("LegacySpeed.json"), saved.getBytes(StandardCharsets.UTF_8));
+            assertTrue(configs.getLastError(), configs.loadConfig("LegacySpeed"));
+            assertEquals("Adaptive Bridge", scaffold.getModeSetting("Scaffold Approach").getValue());
+            assertEquals(pair[1], scaffold.getModeSetting("Aim Speed").getValue());
+            assertEquals(saved, new String(Files.readAllBytes(directory.resolve("LegacySpeed.json")),
+                    StandardCharsets.UTF_8));
         }
     }
 

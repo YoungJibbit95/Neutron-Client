@@ -41,14 +41,33 @@ public final class AdaptiveMotionController {
     public static final class Limits {
         public final double maxYawSpeed, maxPitchSpeed, maxAcceleration, maxJerk;
         public final double variation, curvature;
+        /** Optional calmer keeping phase. NaN keeps the uniform legacy limits byte for byte. */
+        public final double keepYawSpeed, keepPitchSpeed, keepEnterProgress;
 
         public Limits(double maxYawSpeed, double maxPitchSpeed, double maxAcceleration,
                       double maxJerk, double variation, double curvature) {
+            this(maxYawSpeed, maxPitchSpeed, maxAcceleration, maxJerk, variation, curvature,
+                    Double.NaN, Double.NaN, Double.NaN);
+        }
+
+        public Limits(double maxYawSpeed, double maxPitchSpeed, double maxAcceleration,
+                      double maxJerk, double variation, double curvature,
+                      double keepYawSpeed, double keepPitchSpeed, double keepEnterProgress) {
             if (!positive(maxYawSpeed) || !positive(maxPitchSpeed)
                     || !positive(maxAcceleration) || !positive(maxJerk)
                     || !Double.isFinite(variation) || variation < 0 || variation > 0.3
                     || !Double.isFinite(curvature) || curvature < 0 || curvature > 0.25) {
                 throw new IllegalArgumentException("invalid Adaptive physical limits");
+            }
+            boolean yawPhased = !Double.isNaN(keepYawSpeed);
+            boolean pitchPhased = !Double.isNaN(keepPitchSpeed);
+            if (yawPhased || pitchPhased) {
+                if ((yawPhased && !positive(keepYawSpeed)) || (pitchPhased && !positive(keepPitchSpeed))
+                        || !Double.isFinite(keepEnterProgress)
+                        || keepEnterProgress < 0 || keepEnterProgress >= 1)
+                    throw new IllegalArgumentException("invalid Adaptive keeping-phase limits");
+            } else if (!Double.isNaN(keepEnterProgress)) {
+                throw new IllegalArgumentException("keeping progress without keeping caps");
             }
             this.maxYawSpeed = maxYawSpeed;
             this.maxPitchSpeed = maxPitchSpeed;
@@ -56,6 +75,21 @@ public final class AdaptiveMotionController {
             this.maxJerk = maxJerk;
             this.variation = variation;
             this.curvature = curvature;
+            this.keepYawSpeed = keepYawSpeed;
+            this.keepPitchSpeed = keepPitchSpeed;
+            this.keepEnterProgress = keepEnterProgress;
+        }
+
+        double yawSpeedCap(double progress) {
+            if (Double.isNaN(keepYawSpeed) || Double.isNaN(keepEnterProgress)
+                    || progress < keepEnterProgress) return maxYawSpeed;
+            return Math.min(maxYawSpeed, keepYawSpeed);
+        }
+
+        double pitchSpeedCap(double progress) {
+            if (Double.isNaN(keepPitchSpeed) || Double.isNaN(keepEnterProgress)
+                    || progress < keepEnterProgress) return maxPitchSpeed;
+            return Math.min(maxPitchSpeed, keepPitchSpeed);
         }
 
         public static Limits balanced() {
@@ -188,8 +222,7 @@ public final class AdaptiveMotionController {
         // Moving target: broaden the progress reference, but never redraw the profile.
         state.initialDistance = Math.max(state.initialDistance, distance);
         double progress = clamp(1 - distance / state.initialDistance, 0, 1);
-        double sideways = state.profile.lateralBias * 4 * progress * (1 - progress);
-        double x = yawError / distance - sideways * pitchError / distance;
+        double sideways = state.profile.lateralBias * 4 * progress * (1 - progress);        double x = yawError / distance - sideways * pitchError / distance;
         double y = pitchError / distance + sideways * yawError / distance;
         double norm = Math.hypot(x, y);
         x /= norm;
@@ -198,8 +231,8 @@ public final class AdaptiveMotionController {
         // Stable, bounded first-order correlated noise; a draw occurs only per motion ID.
         double alpha = Math.exp(-dt / 0.22);
         state.noise = alpha * state.noise + (1 - alpha) * (state.random.nextDouble() * 2 - 1);
-        double yawCap = limits.maxYawSpeed;
-        double pitchCap = limits.maxPitchSpeed;
+        double yawCap = limits.yawSpeedCap(progress);
+        double pitchCap = limits.pitchSpeedCap(progress);
         double directionalCap = Math.min(yawCap / Math.max(Math.abs(x), 1e-9),
                 pitchCap / Math.max(Math.abs(y), 1e-9));
         double accelCap = limits.maxAcceleration * state.profile.accelerationScale;
