@@ -1,6 +1,8 @@
 package me.youngjibbit.module.impl.render;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.clickgui.utils.ClipRect;
+import me.youngjibbit.clickgui.utils.GuiClip;
 import me.youngjibbit.gui.HudSpring;
 import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.theme.ThemeCatalog;
@@ -35,14 +37,11 @@ public class ArmorHUD extends Module {
     private final SliderValue scale=new SliderValue("Scale",this,1.0,0.65,1.6);
     private final ArrayListSurface surface=new ArrayListSurface(this);
     private final HudSpring[] durabilitySprings=new HudSpring[5];
-    private final HudSpring[] contourSprings=new HudSpring[5];
     private long durabilityFrame;
     private Object durabilityWorld;
     { for(int i=0;i<durabilitySprings.length;i++)durabilitySprings[i]=new HudSpring(); }
-    { for(int i=0;i<contourSprings.length;i++)contourSprings[i]=new HudSpring(); }
     private void clearDurabilityMotion(){
         for(HudSpring spring:durabilitySprings)spring.reset();
-        for(HudSpring spring:contourSprings)spring.reset();
         durabilityFrame=0;
     }
     private final SliderValue positionX=new SliderValue("Position X",this,100.0,-16384,16384);
@@ -84,7 +83,6 @@ public class ArmorHUD extends Module {
         String design=mode.getValue();
         f.design=design;
         f.modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())||"Modern".equals(design)||"Creative".equals(design);
-        f.dt=dt;f.animations=animations;f.reducedMotion=reduced;f.motionIntensity=intensity;
         String[] names={"Head","Body","Legs","Feet","Hand"};
         for(int i=0;i<5;i++){
             if(i==4&&!held.getValue())continue;
@@ -101,6 +99,7 @@ public class ArmorHUD extends Module {
             String label=copy==null?names[i]:formatDurability(copy,displayRatio);
             f.cells.add(new Cell(copy,label,displayRatio));
         }
+        if("Creative".equals(design))return creativeLayout(f,horizontal,sw,sh);
         // Occupied vertical rows keep the equipment order. Empty slots share one compact strip.
         float cursor=6,max=0,emptyWidth=0;
         boolean hasLabels=false,hasBars=false;
@@ -132,6 +131,82 @@ public class ArmorHUD extends Module {
         else f.glow=glow.getValue();
         f.bar=bar.getValue();return f;
     }
+    private Frame creativeLayout(Frame f,boolean horizontal,int sw,int sh){
+        boolean[] occupied=new boolean[f.cells.size()];float[] labels=new float[occupied.length];
+        for(int i=0;i<occupied.length;i++){
+            Cell c=f.cells.get(i);occupied[i]=c.item!=null;
+            labels[i]=(occupied[i]?f.font:f.emptyFont).getWidth(c.label);
+        }
+        CreativeHudLayout.Armor geometry=new CreativeHudLayout.Armor(horizontal,occupied,labels);
+        for(int i=0;i<occupied.length;i++){
+            CreativeHudLayout.Rect r=geometry.cells[i];Cell c=f.cells.get(i);
+            c.x=r.x;c.y=r.y;c.w=r.width;c.h=r.height;c.mini=!occupied[i];
+        }
+        f.width=geometry.width;f.height=geometry.height;f.horizontal=horizontal;
+        f.scale=Math.min(scale.getValue().floatValue(),Math.min(Math.max(1,sw-8)/Math.max(1,f.width),
+                Math.max(1,sh-8)/Math.max(1,f.height)));
+        width=f.width*f.scale;height=f.height*f.scale;
+        clamp(sw,sh);f.x=x;f.y=y;
+        f.theme=Theme.resolve(ThemeCatalog.global().current());
+        f.background=background.getValue();f.blur=blur.getValue();f.glow=false;f.bar=bar.getValue();
+        return f;
+    }
+
+    /** Individual compact equipment tabs; no enclosing card or separate per-cell framebuffer. */
+    private void paintCreative(Frame f){
+        GuiShaderBloom.afterBatch(()->surface.withScene(f.theme,f.background,f.blur,3,policy->{
+            try(RenderState state=new RenderState()){
+                state.screenSpace();
+                try(GuiClip clip=GuiClip.push(new ClipRect(f.x,f.y,f.width*f.scale,f.height*f.scale))){
+                    glTranslatef(f.x,f.y,0);glScalef(f.scale,f.scale,1);
+                    float oldZ=mc.getRenderItem().zLevel;
+                    try{
+                        for(Cell cell:f.cells){
+                            try(UiEffects.GradientSpace contour=UiEffects.perimeterSpace(
+                                    f.x+cell.x*f.scale,f.y+cell.y*f.scale,cell.w*f.scale,cell.h*f.scale,
+                                    UiEffects.radius(4,cell.w,cell.h)*f.scale)){
+                            if(policy.blur)UiEffects.drawBlurredRect(cell.x,cell.y,cell.w,cell.h,4,
+                                    Color.WHITE,3,1);
+                            if(policy.background)UIUtils.drawRound(cell.x,cell.y,cell.w,cell.h,4,
+                                    new Color(20,23,32,210));
+                            if(cell.item==null){
+                                String label=fitLabel(cell.label,f.emptyFont,cell.w-6);
+                                f.emptyFont.drawString(label,cell.x+(cell.w-f.emptyFont.getWidth(label))/2,
+                                        cell.y+4,0xffaeb9ca);
+                                continue;
+                            }
+                            float ix=cell.x+(f.horizontal?(cell.w-16)/2:3),iy=cell.y+2;
+                            GlStateManager.enableDepth();GlStateManager.depthFunc(GL_LEQUAL);
+                            GlStateManager.depthMask(true);GlStateManager.enableAlpha();
+                            RenderHelper.enableGUIStandardItemLighting();mc.getRenderItem().zLevel=100;
+                            mc.getRenderItem().renderItemAndEffectIntoGUI(cell.item,Math.round(ix),Math.round(iy));
+                            RenderHelper.disableStandardItemLighting();GlStateManager.disableDepth();GlStateManager.disableAlpha();
+                            float available=cell.w-(f.horizontal?6:30);
+                            String label=fitLabel(cell.label,f.font,available);
+                            float tx=f.horizontal?cell.x+(cell.w-f.font.getWidth(label))/2:cell.x+26;
+                            f.font.drawString(label,tx,cell.y+(f.horizontal?20:3),0xffeef2f7);
+                            if(f.bar&&cell.item.getMaxDamage()>0){
+                                float bx=cell.x+(f.horizontal?4:26),by=cell.y+(f.horizontal?31:17);
+                                float bw=cell.w-(f.horizontal?8:32);
+                                UIUtils.drawRound(bx,by,bw,2,1,new Color(255,255,255,27));
+                                if(cell.durabilityRatio>0)UIUtils.drawRound(bx,by,bw*cell.durabilityRatio,2,
+                                        Math.min(1,bw*cell.durabilityRatio/2),
+                                        new Color(durabilityColor(f.theme,cell.durabilityRatio),true));
+                            }
+                        }
+                        }
+                    }finally{mc.getRenderItem().zLevel=oldZ;}
+                }
+            }
+        }));
+    }
+    private static String fitLabel(String text,TTFFontRenderer font,float available){
+        if(font.getWidth(text)<=available)return text;
+        int end=text.length();while(end>0&&font.getWidth(text.substring(0,end)+"...")>available)
+            end=text.offsetByCodePoints(end,-1);
+        return end==0?"":text.substring(0,end)+"...";
+    }
+
     private String formatDurability(ItemStack item){
         int max=item.getMaxDamage();
         float ratio=max<=0?1:Math.max(0,Math.min(1,(max-item.getItemDamage())/(float)max));
@@ -148,60 +223,42 @@ public class ArmorHUD extends Module {
         if(dragging&&!was){grabX=mx-x;grabY=my-y;}
         if(dragging){x=me.youngjibbit.module.impl.client.HUD.snap(mx-grabX);y=me.youngjibbit.module.impl.client.HUD.snap(my-grabY);clamp(sw,sh);positionX.setValue((double)x);positionY.setValue((double)y);}previousButton=down;
     }
-    private void clamp(int sw,int sh){if(!me.youngjibbit.module.impl.client.HUD.bounded())return;x=Math.max(4,Math.min(x,sw-width-4));y=Math.max(4,Math.min(y,sh-height-4));}
+    private void clamp(int sw,int sh){
+        if(!me.youngjibbit.module.impl.client.HUD.bounded())return;
+        float insetX="Creative".equals(mode.getValue())?Math.min(4,Math.max(0,(sw-width)/2)):4;
+        float insetY="Creative".equals(mode.getValue())?Math.min(4,Math.max(0,(sh-height)/2)):4;
+        x=Math.max(insetX,Math.min(x,sw-width-insetX));y=Math.max(insetY,Math.min(y,sh-height-insetY));
+    }
     void paint(Frame f){
         if(f.cells.isEmpty())return;
         final boolean modern="Modern".equals(f.design)||f.modern;
-        final boolean creative="Creative".equals(f.design);
+        if("Creative".equals(f.design)){paintCreative(f);return;}
         GuiShaderBloom.afterBatch(()->surface.panel(f.x,f.y,f.width*f.scale,f.height*f.scale,
-                creative?12:(f.modern?9:5)*f.scale,f.theme,f.background,f.blur,f.glow,
-                creative?4:(f.modern?3:4),creative?.9f:(f.modern?.82f:.7f),
-                f.background?(creative?.20f:f.modern?.14f:.7f):0,()->{
+                (f.modern?9:5)*f.scale,f.theme,f.background,f.blur,f.glow,
+                f.modern?3:4,f.modern?.82f:.7f,
+                f.background?(f.modern?.14f:.7f):0,()->{
             try(RenderState state=new RenderState()){
                 state.screenSpace();glTranslatef(f.x,f.y,0);glScalef(f.scale,f.scale,1);
                 float oldZ=mc.getRenderItem().zLevel;
                 try{
                     if(f.background&&modern){
                         UIUtils.drawRound(2,2,Math.max(1,f.width-4),Math.max(1,f.height-4),
-                                creative?10:8,
-                                creative?new Color(24,26,38,168):new Color(19,21,31,196));
+                                8,new Color(19,21,31,196));
                     }
-                    if(f.background&&modern&&!creative){
+                    if(f.background&&modern){
                         UIUtils.drawRoundOutline(2,2,Math.max(1,f.width-4),Math.max(1,f.height-4),
                                 8,.5f,new Color(0,0,0,0),
                                 UiEffects.color(f.theme.getPrimaryGradientRGB(),.14f));
                     }
-                    if(creative&&f.background){
-                        UIUtils.drawRound(4,4,Math.max(1,f.width-8),Math.max(1,f.height-8),
-                                6,new Color(28,30,44,130));
-                    }
-                    int cellIndex=0;
                     for(Cell cell:f.cells){
                         float ix=cell.x+(f.horizontal||cell.mini?(cell.w-16)/2:2),iy=cell.y;
                         if(modern){
                             float blockH=f.horizontal?38:cell.mini?23:26;
-                            if(creative){
-                                // Creative: segmented armor part with animated contour glow.
-                                float pulse=contourSprings[cellIndex].step(
-                                        cell.item!=null?1:.35f,f.dt,f.animations,f.reducedMotion,f.motionIntensity);
-                                float glowA=.28f+.22f*pulse;
-                                UIUtils.drawRound(cell.x+1,cell.y+1,Math.max(1,cell.w-3),blockH,
-                                        6,new Color(38,34,48,218));
-                                UIUtils.drawRoundOutline(cell.x+1,cell.y+1,
-                                        Math.max(1,cell.w-3),blockH,6,.6f,
-                                        new Color(0,0,0,0),
-                                        new Color(f.theme.getPrimaryGradientColor().getRed(),
-                                                f.theme.getPrimaryGradientColor().getGreen(),
-                                                f.theme.getPrimaryGradientColor().getBlue(),
-                                                Math.round(255*glowA)));
-                            }else{
-                                // Modern: dark glass card, fine border highlight, minimal geometry.
-                                UIUtils.drawRound(cell.x+1,cell.y+1,Math.max(1,cell.w-3),blockH,
-                                        6,new Color(33,34,47,225));
-                                UIUtils.drawRoundOutline(cell.x+1,cell.y+1,
-                                        Math.max(1,cell.w-3),blockH,6,.4f,new Color(0,0,0,0),
-                                        UiEffects.color(f.theme.getPrimaryGradientRGB(),.14f));
-                            }
+                            UIUtils.drawRound(cell.x+1,cell.y+1,Math.max(1,cell.w-3),blockH,
+                                    6,new Color(33,34,47,225));
+                            UIUtils.drawRoundOutline(cell.x+1,cell.y+1,
+                                    Math.max(1,cell.w-3),blockH,6,.4f,new Color(0,0,0,0),
+                                    UiEffects.color(f.theme.getPrimaryGradientRGB(),.14f));
                             UIUtils.drawRound(cell.x+5,cell.y+blockH-2,
                                     Math.max(0,cell.w-12),1,.5f,
                                     new Color(f.theme.getPrimaryGradientColor().getRed(),
@@ -232,7 +289,6 @@ public class ArmorHUD extends Module {
                                     Math.min(1,bw*ratio/2),
                                     new Color(durabilityColor(f.theme,ratio),true));
                         }
-                        cellIndex++;
                     }
                 }finally{mc.getRenderItem().zLevel=oldZ;}
             }
@@ -252,14 +308,13 @@ public class ArmorHUD extends Module {
     }
     static final class Cell {
         final ItemStack item;final String label;final float durabilityRatio;
-        float x,y,w;boolean mini;
+        float x,y,w,h;boolean mini;
         Cell(ItemStack item,String label,float durabilityRatio){
             this.item=item;this.label=label;this.durabilityRatio=durabilityRatio;
         }
     }
     static final class Frame {
-        float x,y,width,height,scale;boolean horizontal,background,blur,glow,bar,modern;String design;float dt;
-        boolean animations,reducedMotion;String motionIntensity;
+        float x,y,width,height,scale;boolean horizontal,background,blur,glow,bar,modern;String design;
         Theme theme;final TTFFontRenderer font;final TTFFontRenderer emptyFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 12");final java.util.List<Cell> cells=new ArrayList<>();Frame(TTFFontRenderer font){this.font=font;}
     }
 }
