@@ -1,0 +1,78 @@
+{
+  "version": "0.1.0-playtest.4",
+  "clientCommit": "d5a277de779f6cf69768a2900e299c9af5810e1a",
+  "installer": {
+    "path": "F:\\Neutron Launcher Playtest 20261028\\Installer Candidate R4\\Neutron-Launcher-0.1.0-playtest.4-Windows-x64.exe",
+    "sha256": "9830487166da91ec87af1eae444c79980616a28e775b5fa2d55169f269a950bf",
+    "bytes": 112466655,
+    "signature": "NotSigned"
+  },
+  "tests": {
+    "numTotalTests": 120,
+    "numPassedTests": 120,
+    "numFailedTests": 0,
+    "success": true
+  },
+  "changedSourceFilesSinceR3": [
+    "launcher/electron/distribution.cts",
+    "launcher/electron/processes.cts",
+    "launcher/electron/service.cts",
+    "launcher/package-lock.json",
+    "launcher/package.json",
+    "launcher/tests/backend.test.ts"
+  ],
+  "fullProductionBuild": {
+    "capturedAt": "2026-10-28T20:10:18.199Z",
+    "record": {
+      "id": "d5a277de779f6cf69768a2900e299c9af5810e1a-49863922-a4a9-4fe6-a0d8-a49b7ee46f5c",
+      "commit": "d5a277de779f6cf69768a2900e299c9af5810e1a",
+      "date": "2026-10-28T20:10:11.203Z",
+      "sizeMiB": 131,
+      "manifestSha256": "305a76bcc442193c07430571fa8a4d9014c5b2426bad12d36e7e152d8c308008"
+    },
+    "adapterSha256": "ce8898df1b0e6ac4d54a2a8fb6b0b93c98d0918ae58b06e69d0663daa0c7234c",
+    "archiveSha256": "7d82395b34b6786a682873f6bdd36f7f9df06b2c45f1ef07eb2c1d9898c778e4",
+    "classpathFiles": 61,
+    "assets": 722,
+    "bootstrap": {
+      "exitCode": 0,
+      "output": [
+        "NEUTRON_BOOTSTRAP_VALIDATED"
+      ]
+    },
+    "previousSelectionUnchanged": true,
+    "testSummary": [
+      "[INFO] Tests run: 400, Failures: 0, Errors: 0, Skipped: 3"
+    ],
+    "noElectronOrGameWindow": true,
+    "freshSourceWorkspace": true
+  },
+  "technicalReleaseGo": false,
+  "uiAcceptanceIncomplete": true,
+  "computerUseStoppedAgainByUser": true,
+  "signingProviderUnknown": true,
+  "committed": false,
+  "pushed": false,
+  "released": false,
+  "publication": {
+    "base": "d5a277de779f6cf69768a2900e299c9af5810e1a",
+    "tree": "6f1704838e93f21d4d12eb4ccd0135610169a747",
+    "files": 53,
+    "checkout": "F:\\Neutron Launcher Playtest 20261028\\Publish Checkout R4",
+    "branch": "codex/launcher-playtest-r4",
+    "commits": []
+  },
+  "technicalCorrectionAccepted": true,
+  "independentReview": {
+    "threadId": "01a18300-7319-71e1-8854-79ed424e2be8",
+    "result": "R4 heap correction technically accepted; no new concrete finding; no Release-Go",
+    "independentlyRepeated": [
+      "both typechecks",
+      "120 launcher tests",
+      "managed Java heap probes using compiled buildEnvironment",
+      "25 compiled and 3 adapter file comparisons",
+      "installer SHA256"
+    ],
+    "fullMavenRerunByReviewer": false
+  }
+}

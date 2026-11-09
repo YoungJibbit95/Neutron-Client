@@ -1,0 +1,694 @@
+2026-10-28T19:38:13.160Z [build/INFO] Neutron Launcher ready.
+2026-10-28T19:41:34.562Z [build/INFO] Java 8, Maven, assets and Windows x64 natives verified.
+2026-10-28T19:43:03.073Z [build/INFO] [INFO] Scanning for projects...
+2026-10-28T19:43:03.250Z [build/INFO] [INFO] 
+2026-10-28T19:43:03.251Z [build/INFO] [INFO] -------------------------< me.pulsar:Neutron >--------------------------
+2026-10-28T19:43:03.251Z [build/INFO] [INFO] Building Neutron dev
+2026-10-28T19:43:03.251Z [build/INFO] [INFO]   from pom.xml
+2026-10-28T19:43:03.251Z [build/INFO] [INFO] --------------------------------[ jar ]---------------------------------
+2026-10-28T19:43:34.841Z [build/INFO] [INFO] 
+2026-10-28T19:43:34.841Z [build/INFO] [INFO] --- clean:3.2.0:clean (default-clean) @ Neutron ---
+2026-10-28T19:43:35.539Z [build/INFO] [INFO] 
+2026-10-28T19:43:35.539Z [build/INFO] [INFO] --- resources:3.4.0:resources (default-resources) @ Neutron ---
+2026-10-28T19:43:40.576Z [build/INFO] [INFO] Copying 4149 resources from src\main\resources to target\classes
+2026-10-28T19:43:52.238Z [build/INFO] [INFO] 
+2026-10-28T19:43:52.239Z [build/INFO] [INFO] --- compiler:3.8.1:compile (default-compile) @ Neutron ---
+2026-10-28T19:44:07.994Z [build/INFO] [INFO] Changes detected - recompiling the module!
+2026-10-28T19:44:09.344Z [build/INFO] [INFO] Compiling 2246 source files to F:\Neutron Launcher Playtest 20261028\Windows UI R3\work\d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c\source\target\classes
+2026-10-28T19:45:08.714Z [build/INFO] [INFO] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/main/java/net/minecraft/stats/StatisticsFile.java: Some input files use or override a deprecated API.
+2026-10-28T19:45:08.714Z [build/INFO] [INFO] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/main/java/net/minecraft/stats/StatisticsFile.java: Recompile with -Xlint:deprecation for details.
+2026-10-28T19:45:08.714Z [build/INFO] [INFO] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/main/java/net/minecraft/network/PacketBuffer.java: Some input files use unchecked or unsafe operations.
+2026-10-28T19:45:08.714Z [build/INFO] [INFO] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/main/java/net/minecraft/network/PacketBuffer.java: Recompile with -Xlint:unchecked for details.
+2026-10-28T19:45:08.714Z [build/INFO] [INFO] 
+2026-10-28T19:45:08.715Z [build/INFO] [INFO] --- resources:3.4.0:testResources (default-testResources) @ Neutron ---
+2026-10-28T19:45:08.983Z [build/INFO] [INFO] Copying 37 resources from src\test\resources to target\test-classes
+2026-10-28T19:45:09.194Z [build/INFO] [INFO] 
+2026-10-28T19:45:09.195Z [build/INFO] [INFO] --- compiler:3.8.1:testCompile (default-testCompile) @ Neutron ---
+2026-10-28T19:45:10.928Z [build/INFO] [INFO] Changes detected - recompiling the module!
+2026-10-28T19:45:10.948Z [build/INFO] [INFO] Compiling 126 source files to F:\Neutron Launcher Playtest 20261028\Windows UI R3\work\d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c\source\target\test-classes
+2026-10-28T19:45:26.488Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/StartupServicesTest.java:[14,16] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.488Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/StartupServicesTest.java:[14,16] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.488Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/StartupServicesTest.java:[14,16] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/StartupServicesTest.java:[14,16] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/StartupServicesTest.java:[14,16] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/utils/render/UiEffectsTest.java:[12,161] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/utils/render/UiEffectsTest.java:[12,274] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/combat/RotationBehaviorHookTest.java:[49,25] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/combat/RotationBehaviorHookTest.java:[50,36] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/combat/RotationBehaviorHookTest.java:[54,23] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/combat/RotationBehaviorHookTest.java:[68,29] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/combat/RotationBehaviorHookTest.java:[68,51] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/network/AttackHookTest.java:[23,25] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/network/AttackHookTest.java:[24,36] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/combat/TargetingServicePerformanceTest.java:[16,34] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/combat/TargetingServicePerformanceTest.java:[19,31] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/combat/TargetingServicePerformanceTest.java:[20,31] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/module/impl/render/IngameHudRenderCheck.java:[114,84] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/module/impl/render/IngameHudRenderCheck.java:[114,199] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/theme/ThemeUiConsumerTest.java:[32,30] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/theme/ThemeUiConsumerTest.java:[33,34] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/network/ExploitHookFixture.java:[65,37] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/network/ExploitHookFixture.java:[66,17] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/network/ExploitHookFixture.java:[66,43] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/combat/SpeedMovementBasisChecks.java:[20,21] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/combat/SpeedMovementBasisChecks.java:[25,31] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/combat/SpeedMovementBasisChecks.java:[26,54] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/module/impl/render/IosOpeningTest.java:[20,17] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/module/impl/render/IosOpeningTest.java:[20,41] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/module/impl/render/IosOpeningTest.java:[20,63] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/combat/AcceptedPositionRaycastTest.java:[22,25] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/combat/AcceptedPositionRaycastTest.java:[23,36] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/utils/MovementHelperContractTest.java:[18,27] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/utils/MovementHelperContractTest.java:[20,60] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/utils/MovementHelperContractTest.java:[86,37] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/utils/MovementHelperContractTest.java:[88,50] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/utils/render/WorldOverlayNativeCheck.java:[34,33] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/utils/render/WorldOverlayNativeCheck.java:[35,75] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/net/minecraft/client/renderer/ThreadDownloadImageDataTest.java:[35,37] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/net/minecraft/client/renderer/ThreadDownloadImageDataTest.java:[36,39] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/net/minecraft/client/gui/WorldUnloadNativeCheck.java:[30,20] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/net/minecraft/client/gui/WorldUnloadNativeCheck.java:[67,26] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/net/minecraft/client/gui/WorldUnloadNativeCheck.java:[67,109] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.489Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/net/minecraft/client/gui/GuiChatInputNativeCheck.java:[128,36] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.490Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/net/minecraft/client/gui/GuiChatInputNativeCheck.java:[129,68] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.490Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/module/impl/render/IosSettingsVisibilityTest.java:[20,17] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.490Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/module/impl/render/IosSettingsVisibilityTest.java:[20,41] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.490Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/module/impl/render/IosSettingsVisibilityTest.java:[20,63] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.490Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/StartupServicesTest.java:[27,27] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.490Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/StartupServicesTest.java:[29,42] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.490Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/module/impl/render/ArmorHudCheck.java:[32,30] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.490Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/module/impl/render/ArmorHudCheck.java:[32,105] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.490Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/module/impl/render/ArmorHudCheck.java:[32,129] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.490Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/net/minecraft/client/gui/MinecraftWorldLifecycleTest.java:[24,29] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.490Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/net/minecraft/client/gui/MinecraftWorldLifecycleTest.java:[25,36] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.490Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/module/impl/render/ThemeSyncRenderCheck.java:[98,34] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.490Z [build/WARN] [WARNING] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/module/impl/render/ThemeSyncRenderCheck.java:[99,48] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+2026-10-28T19:45:26.490Z [build/INFO] [INFO] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/account/MicrosoftBrowserAuthTest.java: Some input files use or override a deprecated API.
+2026-10-28T19:45:26.491Z [build/INFO] [INFO] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/account/MicrosoftBrowserAuthTest.java: Recompile with -Xlint:deprecation for details.
+2026-10-28T19:45:26.491Z [build/INFO] [INFO] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/network/NetworkShutdownTest.java: Some input files use unchecked or unsafe operations.
+2026-10-28T19:45:26.491Z [build/INFO] [INFO] /F:/Neutron Launcher Playtest 20261028/Windows UI R3/work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c/source/src/test/java/me/youngjibbit/core/network/NetworkShutdownTest.java: Recompile with -Xlint:unchecked for details.
+2026-10-28T19:45:26.491Z [build/INFO] [INFO] 
+2026-10-28T19:45:26.491Z [build/INFO] [INFO] --- surefire:3.5.5:test (default-test) @ Neutron ---
+2026-10-28T19:45:30.002Z [build/INFO] [INFO] Using auto detected provider org.apache.maven.surefire.junit4.JUnit4Provider
+2026-10-28T19:45:31.226Z [build/INFO] [INFO] 
+2026-10-28T19:45:31.226Z [build/INFO] [INFO] -------------------------------------------------------
+2026-10-28T19:45:31.226Z [build/INFO] [INFO]  T E S T S
+2026-10-28T19:45:31.226Z [build/INFO] [INFO] -------------------------------------------------------
+2026-10-28T19:45:32.718Z [build/INFO] [INFO] Running me.neutron.launcher.ClientBootstrapTest
+2026-10-28T19:45:33.266Z [build/INFO] [INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.524 s -- in me.neutron.launcher.ClientBootstrapTest
+2026-10-28T19:45:33.267Z [build/INFO] [INFO] Running me.youngjibbit.account.AccountManagerTest
+2026-10-28T19:45:35.644Z [build/INFO] [INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.358 s -- in me.youngjibbit.account.AccountManagerTest
+2026-10-28T19:45:35.644Z [build/INFO] [INFO] Running me.youngjibbit.account.AccountUiTest
+2026-10-28T19:45:35.659Z [build/INFO] [INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in me.youngjibbit.account.AccountUiTest
+2026-10-28T19:45:35.660Z [build/INFO] [INFO] Running me.youngjibbit.account.LoginCoordinatorTest
+2026-10-28T19:45:39.539Z [build/INFO] [INFO] Tests run: 16, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.870 s -- in me.youngjibbit.account.LoginCoordinatorTest
+2026-10-28T19:45:39.540Z [build/INFO] [INFO] Running me.youngjibbit.account.MicrosoftBrowserAuthTest
+2026-10-28T19:46:00.972Z [build/INFO] [INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 21.41 s -- in me.youngjibbit.account.MicrosoftBrowserAuthTest
+2026-10-28T19:46:00.972Z [build/INFO] [INFO] Running me.youngjibbit.account.MicrosoftBrowserUiBindingTest
+2026-10-28T19:46:01.616Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:01.616Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:01.630Z [build/ERROR] [ERROR] Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.645 s <<< FAILURE! -- in me.youngjibbit.account.MicrosoftBrowserUiBindingTest
+2026-10-28T19:46:01.630Z [build/ERROR] [ERROR] me.youngjibbit.account.MicrosoftBrowserUiBindingTest.browserActionsUseTheActualLoginWorkflowInIsolation -- Time elapsed: 0.645 s <<< FAILURE!
+2026-10-28T19:46:01.630Z [build/INFO] java.lang.AssertionError: 
+2026-10-28T19:46:01.630Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:01.630Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:01.630Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.Assert.fail(Assert.java:89)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.Assert.failNotEquals(Assert.java:835)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.Assert.assertEquals(Assert.java:647)
+2026-10-28T19:46:01.630Z [build/INFO] 	at me.youngjibbit.account.MicrosoftBrowserUiBindingTest.browserActionsUseTheActualLoginWorkflowInIsolation(MicrosoftBrowserUiBindingTest.java:19)
+2026-10-28T19:46:01.630Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+2026-10-28T19:46:01.630Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+2026-10-28T19:46:01.630Z [build/INFO] 	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+2026-10-28T19:46:01.630Z [build/INFO] 	at java.lang.reflect.Method.invoke(Method.java:498)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.execute(JUnit4Provider.java:316)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeWithRerun(JUnit4Provider.java:240)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeTestSet(JUnit4Provider.java:214)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.invoke(JUnit4Provider.java:155)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+2026-10-28T19:46:01.630Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+2026-10-28T19:46:01.631Z [build/INFO] 
+2026-10-28T19:46:01.631Z [build/INFO] [INFO] Running me.youngjibbit.config.BacktrackConfigTest
+2026-10-28T19:46:02.537Z [build/INFO] [INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.853 s -- in me.youngjibbit.config.BacktrackConfigTest
+2026-10-28T19:46:02.537Z [build/INFO] [INFO] Running me.youngjibbit.config.ClientSettingsConfigTest
+2026-10-28T19:46:03.104Z [build/INFO] [INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.554 s -- in me.youngjibbit.config.ClientSettingsConfigTest
+2026-10-28T19:46:03.104Z [build/INFO] [INFO] Running me.youngjibbit.config.ConfigManagerTest
+2026-10-28T19:46:07.476Z [build/INFO] Java File resolution check: old child /pulsar/configs resolves within parent = true
+2026-10-28T19:46:08.640Z [build/INFO] [INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 5.523 s -- in me.youngjibbit.config.ConfigManagerTest
+2026-10-28T19:46:08.640Z [build/INFO] [INFO] Running me.youngjibbit.config.HudPositionConfigTest
+2026-10-28T19:46:09.122Z [build/INFO] [INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.397 s -- in me.youngjibbit.config.HudPositionConfigTest
+2026-10-28T19:46:09.123Z [build/INFO] [INFO] Running me.youngjibbit.config.LegacyModuleConfigTest
+2026-10-28T19:46:09.818Z [build/INFO] [INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.684 s -- in me.youngjibbit.config.LegacyModuleConfigTest
+2026-10-28T19:46:09.818Z [build/INFO] [INFO] Running me.youngjibbit.config.MoveFixConfigTest
+2026-10-28T19:46:13.265Z [build/INFO] [INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.396 s -- in me.youngjibbit.config.MoveFixConfigTest
+2026-10-28T19:46:13.266Z [build/INFO] [INFO] Running me.youngjibbit.config.NetworkPolicyIntegrationTest
+2026-10-28T19:46:13.577Z [build/INFO] [INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.224 s -- in me.youngjibbit.config.NetworkPolicyIntegrationTest
+2026-10-28T19:46:13.577Z [build/INFO] [INFO] Running me.youngjibbit.config.RotationProfileConfigTest
+2026-10-28T19:46:14.908Z [build/INFO] [INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.246 s -- in me.youngjibbit.config.RotationProfileConfigTest
+2026-10-28T19:46:14.908Z [build/INFO] [INFO] Running me.youngjibbit.config.ThemeConfigIntegrationTest
+2026-10-28T19:46:15.675Z [build/WARN] Theme library is read-only: Unsupported theme file version; file preserved
+2026-10-28T19:46:20.486Z [build/INFO] [INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 5.309 s -- in me.youngjibbit.config.ThemeConfigIntegrationTest
+2026-10-28T19:46:20.486Z [build/INFO] [INFO] Running me.youngjibbit.config.TickbaseConfigTest
+2026-10-28T19:46:21.870Z [build/INFO] [INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.809 s -- in me.youngjibbit.config.TickbaseConfigTest
+2026-10-28T19:46:21.870Z [build/INFO] [INFO] Running me.youngjibbit.core.combat.AcceptedPositionRaycastTest
+2026-10-28T19:46:22.064Z [build/INFO] [INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.182 s -- in me.youngjibbit.core.combat.AcceptedPositionRaycastTest
+2026-10-28T19:46:22.064Z [build/INFO] [INFO] Running me.youngjibbit.core.combat.AutoToolTest
+2026-10-28T19:46:22.502Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:22.502Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:22.510Z [build/ERROR] [ERROR] Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.438 s <<< FAILURE! -- in me.youngjibbit.core.combat.AutoToolTest
+2026-10-28T19:46:22.510Z [build/ERROR] [ERROR] me.youngjibbit.core.combat.AutoToolTest.productiveMiningAndLifecycleChecks -- Time elapsed: 0.438 s <<< FAILURE!
+2026-10-28T19:46:22.510Z [build/INFO] java.lang.AssertionError: 
+2026-10-28T19:46:22.510Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:22.510Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:22.510Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:22.510Z [build/INFO] 	at org.junit.Assert.fail(Assert.java:89)
+2026-10-28T19:46:22.510Z [build/INFO] 	at org.junit.Assert.failNotEquals(Assert.java:835)
+2026-10-28T19:46:22.510Z [build/INFO] 	at org.junit.Assert.assertEquals(Assert.java:647)
+2026-10-28T19:46:22.510Z [build/INFO] 	at me.youngjibbit.core.combat.AutoToolTest.productiveMiningAndLifecycleChecks(AutoToolTest.java:31)
+2026-10-28T19:46:22.510Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+2026-10-28T19:46:22.511Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+2026-10-28T19:46:22.511Z [build/INFO] 	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+2026-10-28T19:46:22.511Z [build/INFO] 	at java.lang.reflect.Method.invoke(Method.java:498)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.execute(JUnit4Provider.java:316)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeWithRerun(JUnit4Provider.java:240)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeTestSet(JUnit4Provider.java:214)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.invoke(JUnit4Provider.java:155)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+2026-10-28T19:46:22.511Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+2026-10-28T19:46:22.511Z [build/INFO] 
+2026-10-28T19:46:22.511Z [build/INFO] [INFO] Running me.youngjibbit.core.combat.BodyRotationControllerTest
+2026-10-28T19:46:22.745Z [build/INFO] [INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in me.youngjibbit.core.combat.BodyRotationControllerTest
+2026-10-28T19:46:22.745Z [build/INFO] [INFO] Running me.youngjibbit.core.combat.CombatFlowTest
+2026-10-28T19:46:22.817Z [build/INFO] [INFO] Tests run: 25, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in me.youngjibbit.core.combat.CombatFlowTest
+2026-10-28T19:46:22.817Z [build/INFO] [INFO] Running me.youngjibbit.core.combat.MoveFixControllerTest
+2026-10-28T19:46:22.841Z [build/INFO] [INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.combat.MoveFixControllerTest
+2026-10-28T19:46:22.841Z [build/INFO] [INFO] Running me.youngjibbit.core.combat.MoveFixProductionTest
+2026-10-28T19:46:23.220Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:23.220Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:23.263Z [build/ERROR] [ERROR] Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.379 s <<< FAILURE! -- in me.youngjibbit.core.combat.MoveFixProductionTest
+2026-10-28T19:46:23.263Z [build/ERROR] [ERROR] me.youngjibbit.core.combat.MoveFixProductionTest.executeRealMovementMatrixInAnIsolatedJvm -- Time elapsed: 0.379 s <<< FAILURE!
+2026-10-28T19:46:23.263Z [build/INFO] java.lang.AssertionError: 
+2026-10-28T19:46:23.263Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:23.263Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:23.263Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:23.263Z [build/INFO] 	at org.junit.Assert.fail(Assert.java:89)
+2026-10-28T19:46:23.263Z [build/INFO] 	at org.junit.Assert.failNotEquals(Assert.java:835)
+2026-10-28T19:46:23.263Z [build/INFO] 	at org.junit.Assert.assertEquals(Assert.java:647)
+2026-10-28T19:46:23.263Z [build/INFO] 	at me.youngjibbit.core.combat.MoveFixProductionTest.executeRealMovementMatrixInAnIsolatedJvm(MoveFixProductionTest.java:25)
+2026-10-28T19:46:23.263Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+2026-10-28T19:46:23.263Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+2026-10-28T19:46:23.263Z [build/INFO] 	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+2026-10-28T19:46:23.263Z [build/INFO] 	at java.lang.reflect.Method.invoke(Method.java:498)
+2026-10-28T19:46:23.263Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+2026-10-28T19:46:23.263Z [build/INFO] 	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+2026-10-28T19:46:23.263Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+2026-10-28T19:46:23.263Z [build/INFO] 	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.execute(JUnit4Provider.java:316)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeWithRerun(JUnit4Provider.java:240)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeTestSet(JUnit4Provider.java:214)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.invoke(JUnit4Provider.java:155)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+2026-10-28T19:46:23.264Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+2026-10-28T19:46:23.264Z [build/INFO] 
+2026-10-28T19:46:23.264Z [build/INFO] [INFO] Running me.youngjibbit.core.combat.NetworkMoveFixIntegrationTest
+2026-10-28T19:46:23.311Z [build/INFO] [INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.combat.NetworkMoveFixIntegrationTest
+2026-10-28T19:46:23.311Z [build/INFO] [INFO] Running me.youngjibbit.core.combat.NoSlowSprintTest
+2026-10-28T19:46:23.683Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:23.683Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:23.882Z [build/ERROR] [ERROR] Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.373 s <<< FAILURE! -- in me.youngjibbit.core.combat.NoSlowSprintTest
+2026-10-28T19:46:23.882Z [build/ERROR] [ERROR] me.youngjibbit.core.combat.NoSlowSprintTest.runActualSlowdownAndSprintConsumers -- Time elapsed: 0.372 s <<< FAILURE!
+2026-10-28T19:46:23.882Z [build/INFO] java.lang.AssertionError: 
+2026-10-28T19:46:23.882Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:23.882Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:23.882Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.Assert.fail(Assert.java:89)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.Assert.failNotEquals(Assert.java:835)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.Assert.assertEquals(Assert.java:647)
+2026-10-28T19:46:23.882Z [build/INFO] 	at me.youngjibbit.core.combat.NoSlowSprintTest.runActualSlowdownAndSprintConsumers(NoSlowSprintTest.java:19)
+2026-10-28T19:46:23.882Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+2026-10-28T19:46:23.882Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+2026-10-28T19:46:23.882Z [build/INFO] 	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+2026-10-28T19:46:23.882Z [build/INFO] 	at java.lang.reflect.Method.invoke(Method.java:498)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.execute(JUnit4Provider.java:316)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeWithRerun(JUnit4Provider.java:240)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeTestSet(JUnit4Provider.java:214)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.invoke(JUnit4Provider.java:155)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+2026-10-28T19:46:23.882Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+2026-10-28T19:46:23.882Z [build/INFO] 
+2026-10-28T19:46:23.882Z [build/INFO] [INFO] Running me.youngjibbit.core.combat.RotationBehaviorHookTest
+2026-10-28T19:46:23.975Z [build/INFO] [INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.combat.RotationBehaviorHookTest
+2026-10-28T19:46:23.975Z [build/INFO] [INFO] Running me.youngjibbit.core.combat.RotationCorrectionsTest
+2026-10-28T19:46:24.125Z [build/INFO] [INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.combat.RotationCorrectionsTest
+2026-10-28T19:46:24.125Z [build/INFO] [INFO] Running me.youngjibbit.core.combat.RotationModuleBindingTest
+2026-10-28T19:46:24.241Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:24.241Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:24.273Z [build/ERROR] [ERROR] Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.117 s <<< FAILURE! -- in me.youngjibbit.core.combat.RotationModuleBindingTest
+2026-10-28T19:46:24.273Z [build/ERROR] [ERROR] me.youngjibbit.core.combat.RotationModuleBindingTest.executeAllProductiveBindingChecksWithAStableClient -- Time elapsed: 0.116 s <<< FAILURE!
+2026-10-28T19:46:24.273Z [build/INFO] java.lang.AssertionError: 
+2026-10-28T19:46:24.273Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:24.273Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:24.273Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:24.273Z [build/INFO] 	at org.junit.Assert.fail(Assert.java:89)
+2026-10-28T19:46:24.273Z [build/INFO] 	at org.junit.Assert.failNotEquals(Assert.java:835)
+2026-10-28T19:46:24.273Z [build/INFO] 	at org.junit.Assert.assertEquals(Assert.java:647)
+2026-10-28T19:46:24.274Z [build/INFO] 	at me.youngjibbit.core.combat.RotationModuleBindingTest.executeAllProductiveBindingChecksWithAStableClient(RotationModuleBindingTest.java:22)
+2026-10-28T19:46:24.274Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+2026-10-28T19:46:24.274Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+2026-10-28T19:46:24.274Z [build/INFO] 	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+2026-10-28T19:46:24.274Z [build/INFO] 	at java.lang.reflect.Method.invoke(Method.java:498)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.execute(JUnit4Provider.java:316)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeWithRerun(JUnit4Provider.java:240)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeTestSet(JUnit4Provider.java:214)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.invoke(JUnit4Provider.java:155)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+2026-10-28T19:46:24.274Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+2026-10-28T19:46:24.274Z [build/INFO] 
+2026-10-28T19:46:24.274Z [build/INFO] [INFO] Running me.youngjibbit.core.combat.RotationTrajectoryTest
+2026-10-28T19:46:24.281Z [build/INFO] [INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in me.youngjibbit.core.combat.RotationTrajectoryTest
+2026-10-28T19:46:24.281Z [build/INFO] [INFO] Running me.youngjibbit.core.combat.SpeedMovementBasisTest
+2026-10-28T19:46:24.674Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:24.674Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:24.684Z [build/ERROR] [ERROR] Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.395 s <<< FAILURE! -- in me.youngjibbit.core.combat.SpeedMovementBasisTest
+2026-10-28T19:46:24.684Z [build/ERROR] [ERROR] me.youngjibbit.core.combat.SpeedMovementBasisTest.executeAllSpeedConsumersInAnIsolatedJvm -- Time elapsed: 0.394 s <<< FAILURE!
+2026-10-28T19:46:24.684Z [build/INFO] java.lang.AssertionError: 
+2026-10-28T19:46:24.684Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:24.684Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:24.684Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.Assert.fail(Assert.java:89)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.Assert.failNotEquals(Assert.java:835)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.Assert.assertEquals(Assert.java:647)
+2026-10-28T19:46:24.684Z [build/INFO] 	at me.youngjibbit.core.combat.SpeedMovementBasisTest.executeAllSpeedConsumersInAnIsolatedJvm(SpeedMovementBasisTest.java:25)
+2026-10-28T19:46:24.684Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+2026-10-28T19:46:24.684Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+2026-10-28T19:46:24.684Z [build/INFO] 	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+2026-10-28T19:46:24.684Z [build/INFO] 	at java.lang.reflect.Method.invoke(Method.java:498)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.execute(JUnit4Provider.java:316)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeWithRerun(JUnit4Provider.java:240)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeTestSet(JUnit4Provider.java:214)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.invoke(JUnit4Provider.java:155)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+2026-10-28T19:46:24.684Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+2026-10-28T19:46:24.684Z [build/INFO] 
+2026-10-28T19:46:24.685Z [build/INFO] [INFO] Running me.youngjibbit.core.combat.SprintOrderingTest
+2026-10-28T19:46:25.112Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:25.113Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:25.167Z [build/ERROR] [ERROR] Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.429 s <<< FAILURE! -- in me.youngjibbit.core.combat.SprintOrderingTest
+2026-10-28T19:46:25.167Z [build/ERROR] [ERROR] me.youngjibbit.core.combat.SprintOrderingTest.runRealSprintConsumersInChildJvm -- Time elapsed: 0.429 s <<< FAILURE!
+2026-10-28T19:46:25.167Z [build/INFO] java.lang.AssertionError: 
+2026-10-28T19:46:25.167Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:25.167Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:25.168Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.Assert.fail(Assert.java:89)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.Assert.failNotEquals(Assert.java:835)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.Assert.assertEquals(Assert.java:647)
+2026-10-28T19:46:25.168Z [build/INFO] 	at me.youngjibbit.core.combat.SprintOrderingTest.runRealSprintConsumersInChildJvm(SprintOrderingTest.java:19)
+2026-10-28T19:46:25.168Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+2026-10-28T19:46:25.168Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+2026-10-28T19:46:25.168Z [build/INFO] 	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+2026-10-28T19:46:25.168Z [build/INFO] 	at java.lang.reflect.Method.invoke(Method.java:498)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.execute(JUnit4Provider.java:316)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeWithRerun(JUnit4Provider.java:240)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeTestSet(JUnit4Provider.java:214)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.invoke(JUnit4Provider.java:155)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+2026-10-28T19:46:25.168Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+2026-10-28T19:46:25.168Z [build/INFO] 
+2026-10-28T19:46:25.168Z [build/INFO] [INFO] Running me.youngjibbit.core.combat.TargetingServicePerformanceTest
+2026-10-28T19:46:25.171Z [build/INFO] Targeting 1024 candidates: sort comparator calls=8974, minimum scan=1023
+2026-10-28T19:46:25.184Z [build/INFO] [INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s -- in me.youngjibbit.core.combat.TargetingServicePerformanceTest
+2026-10-28T19:46:25.185Z [build/INFO] [INFO] Running me.youngjibbit.core.NativeDependencyTest
+2026-10-28T19:46:25.696Z [build/INFO] [INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.356 s -- in me.youngjibbit.core.NativeDependencyTest
+2026-10-28T19:46:25.696Z [build/INFO] [INFO] Running me.youngjibbit.core.network.AttackHookTest
+2026-10-28T19:46:25.702Z [build/INFO] [INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.network.AttackHookTest
+2026-10-28T19:46:25.703Z [build/INFO] [INFO] Running me.youngjibbit.core.network.BacktrackBehaviorHookTest
+2026-10-28T19:46:25.717Z [build/INFO] [INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.network.BacktrackBehaviorHookTest
+2026-10-28T19:46:25.717Z [build/INFO] [INFO] Running me.youngjibbit.core.network.ExploitDelayTest
+2026-10-28T19:46:25.734Z [build/INFO] [INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.network.ExploitDelayTest
+2026-10-28T19:46:25.734Z [build/INFO] [INFO] Running me.youngjibbit.core.network.LagRangeLifecycleTest
+2026-10-28T19:46:25.745Z [build/INFO] [INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.network.LagRangeLifecycleTest
+2026-10-28T19:46:25.745Z [build/INFO] [INFO] Running me.youngjibbit.core.network.LegacyNetworkModuleBindingTest
+2026-10-28T19:46:26.056Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:26.056Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:26.075Z [build/ERROR] [ERROR] Tests run: 1, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.311 s <<< FAILURE! -- in me.youngjibbit.core.network.LegacyNetworkModuleBindingTest
+2026-10-28T19:46:26.075Z [build/ERROR] [ERROR] me.youngjibbit.core.network.LegacyNetworkModuleBindingTest.executeAllLegacyNetworkModuleBindings -- Time elapsed: 0.311 s <<< FAILURE!
+2026-10-28T19:46:26.075Z [build/INFO] java.lang.AssertionError: 
+2026-10-28T19:46:26.075Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:26.075Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:26.075Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.Assert.fail(Assert.java:89)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.Assert.failNotEquals(Assert.java:835)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.Assert.assertEquals(Assert.java:647)
+2026-10-28T19:46:26.075Z [build/INFO] 	at me.youngjibbit.core.network.LegacyNetworkModuleBindingTest.executeAllLegacyNetworkModuleBindings(LegacyNetworkModuleBindingTest.java:16)
+2026-10-28T19:46:26.075Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+2026-10-28T19:46:26.075Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+2026-10-28T19:46:26.075Z [build/INFO] 	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+2026-10-28T19:46:26.075Z [build/INFO] 	at java.lang.reflect.Method.invoke(Method.java:498)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.execute(JUnit4Provider.java:316)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeWithRerun(JUnit4Provider.java:240)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeTestSet(JUnit4Provider.java:214)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.invoke(JUnit4Provider.java:155)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+2026-10-28T19:46:26.075Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+2026-10-28T19:46:26.075Z [build/INFO] 
+2026-10-28T19:46:26.075Z [build/INFO] [INFO] Running me.youngjibbit.core.network.MinibloxHookTest
+2026-10-28T19:46:26.087Z [build/INFO] [INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in me.youngjibbit.core.network.MinibloxHookTest
+2026-10-28T19:46:26.087Z [build/INFO] [INFO] Running me.youngjibbit.core.network.NetworkShutdownTest
+2026-10-28T19:46:26.109Z [build/INFO] [INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s -- in me.youngjibbit.core.network.NetworkShutdownTest
+2026-10-28T19:46:26.109Z [build/INFO] [INFO] Running me.youngjibbit.core.network.PacketDelayTest
+2026-10-28T19:46:26.185Z [build/INFO] [INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.059 s -- in me.youngjibbit.core.network.PacketDelayTest
+2026-10-28T19:46:26.186Z [build/INFO] [INFO] Running me.youngjibbit.core.network.PacketFlowTest
+2026-10-28T19:46:26.204Z [build/INFO] [INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.network.PacketFlowTest
+2026-10-28T19:46:26.204Z [build/INFO] [INFO] Running me.youngjibbit.core.network.PacketLifecycleTest
+2026-10-28T19:46:26.282Z [build/INFO] [INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.039 s -- in me.youngjibbit.core.network.PacketLifecycleTest
+2026-10-28T19:46:26.282Z [build/INFO] [INFO] Running me.youngjibbit.core.network.Pass6NetworkIntegrationTest
+2026-10-28T19:46:26.320Z [build/INFO] [INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.network.Pass6NetworkIntegrationTest
+2026-10-28T19:46:26.320Z [build/INFO] [INFO] Running me.youngjibbit.core.network.PlayerStepHookTest
+2026-10-28T19:46:26.352Z [build/INFO] [INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.network.PlayerStepHookTest
+2026-10-28T19:46:26.352Z [build/INFO] [INFO] Running me.youngjibbit.core.network.ReceivedPositionHookTest
+2026-10-28T19:46:26.386Z [build/INFO] [INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.network.ReceivedPositionHookTest
+2026-10-28T19:46:26.386Z [build/INFO] [INFO] Running me.youngjibbit.core.network.ReconnectionExploitHookTest
+2026-10-28T19:46:26.423Z [build/INFO] [INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in me.youngjibbit.core.network.ReconnectionExploitHookTest
+2026-10-28T19:46:26.423Z [build/INFO] [INFO] Running me.youngjibbit.core.network.ScaffoldPipelineIntegrationTest
+2026-10-28T19:46:26.460Z [build/INFO] [INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.network.ScaffoldPipelineIntegrationTest
+2026-10-28T19:46:26.460Z [build/INFO] [INFO] Running me.youngjibbit.core.network.SessionConsumerIntegrationTest
+2026-10-28T19:46:26.532Z [build/INFO] [INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.060 s -- in me.youngjibbit.core.network.SessionConsumerIntegrationTest
+2026-10-28T19:46:26.532Z [build/INFO] [INFO] Running me.youngjibbit.core.network.SilentContextHookTest
+2026-10-28T19:46:26.570Z [build/INFO] [INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.021 s -- in me.youngjibbit.core.network.SilentContextHookTest
+2026-10-28T19:46:26.571Z [build/INFO] [INFO] Running me.youngjibbit.core.network.TickbaseBehaviorHookTest
+2026-10-28T19:46:26.623Z [build/INFO] [INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.030 s -- in me.youngjibbit.core.network.TickbaseBehaviorHookTest
+2026-10-28T19:46:26.623Z [build/INFO] [INFO] Running me.youngjibbit.core.network.TickbaseBudgetTest
+2026-10-28T19:46:26.643Z [build/INFO] [INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.network.TickbaseBudgetTest
+2026-10-28T19:46:26.643Z [build/INFO] [INFO] Running me.youngjibbit.core.StartupServicesTest
+2026-10-28T19:46:26.694Z [build/INFO] [INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in me.youngjibbit.core.StartupServicesTest
+2026-10-28T19:46:26.694Z [build/INFO] [INFO] Running me.youngjibbit.core.world.LegacyScaffoldTest
+2026-10-28T19:46:27.345Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:27.345Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:27.378Z [build/ERROR] [ERROR] Tests run: 3, Failures: 1, Errors: 0, Skipped: 0, Time elapsed: 0.652 s <<< FAILURE! -- in me.youngjibbit.core.world.LegacyScaffoldTest
+2026-10-28T19:46:27.378Z [build/ERROR] [ERROR] me.youngjibbit.core.world.LegacyScaffoldTest.nativeBindingsUseOneStableClientUnderTheNormalJit -- Time elapsed: 0.651 s <<< FAILURE!
+2026-10-28T19:46:27.378Z [build/INFO] java.lang.AssertionError: 
+2026-10-28T19:46:27.378Z [build/INFO] Error occurred during initialization of VM
+2026-10-28T19:46:27.378Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:27.378Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.Assert.fail(Assert.java:89)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.Assert.failNotEquals(Assert.java:835)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.Assert.assertEquals(Assert.java:647)
+2026-10-28T19:46:27.378Z [build/INFO] 	at me.youngjibbit.core.world.LegacyScaffoldTest.nativeBindingsUseOneStableClientUnderTheNormalJit(LegacyScaffoldTest.java:40)
+2026-10-28T19:46:27.378Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+2026-10-28T19:46:27.378Z [build/INFO] 	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+2026-10-28T19:46:27.378Z [build/INFO] 	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+2026-10-28T19:46:27.378Z [build/INFO] 	at java.lang.reflect.Method.invoke(Method.java:498)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.junit.runners.ParentRunner.run(ParentRunner.java:413)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.execute(JUnit4Provider.java:316)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeWithRerun(JUnit4Provider.java:240)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.executeTestSet(JUnit4Provider.java:214)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.apache.maven.surefire.junit4.JUnit4Provider.invoke(JUnit4Provider.java:155)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507)
+2026-10-28T19:46:27.378Z [build/INFO] 	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495)
+2026-10-28T19:46:27.378Z [build/INFO] 
+2026-10-28T19:46:27.378Z [build/INFO] [INFO] Running me.youngjibbit.core.world.ScaffoldClientFlowTest
+2026-10-28T19:46:29.301Z [build/INFO] [INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.918 s -- in me.youngjibbit.core.world.ScaffoldClientFlowTest
+2026-10-28T19:46:29.301Z [build/INFO] [INFO] Running me.youngjibbit.core.world.ScaffoldNetworkIntegrationTest
+2026-10-28T19:46:29.311Z [build/INFO] [INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.005 s -- in me.youngjibbit.core.world.ScaffoldNetworkIntegrationTest
+2026-10-28T19:46:29.311Z [build/INFO] [INFO] Running me.youngjibbit.core.world.ScaffoldPlacementTest
+2026-10-28T19:46:29.339Z [build/INFO] [INFO] Tests run: 31, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.023 s -- in me.youngjibbit.core.world.ScaffoldPlacementTest
+2026-10-28T19:46:29.340Z [build/INFO] [INFO] Running me.youngjibbit.module.impl.player.AutoHealInventoryTransferTest
+2026-10-28T19:46:29.474Z [build/INFO] [INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.122 s -- in me.youngjibbit.module.impl.player.AutoHealInventoryTransferTest
+2026-10-28T19:46:29.474Z [build/INFO] [INFO] Running me.youngjibbit.module.impl.player.AutoHealSafetyTest
+2026-10-28T19:46:29.488Z [build/INFO] [INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s -- in me.youngjibbit.module.impl.player.AutoHealSafetyTest
+2026-10-28T19:46:29.488Z [build/INFO] [INFO] Running me.youngjibbit.module.impl.player.GuardedInventoryClickTest
+2026-10-28T19:46:29.507Z [build/INFO] [INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s -- in me.youngjibbit.module.impl.player.GuardedInventoryClickTest
+2026-10-28T19:46:29.507Z [build/INFO] [INFO] Running me.youngjibbit.module.impl.player.InventoryManagerSafetyTest
+2026-10-28T19:46:29.545Z [build/INFO] [INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.032 s -- in me.youngjibbit.module.impl.player.InventoryManagerSafetyTest
+2026-10-28T19:46:29.546Z [build/INFO] [INFO] Running me.youngjibbit.module.impl.render.IosOpeningTest
+2026-10-28T19:46:29.575Z [build/INFO] [INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.024 s -- in me.youngjibbit.module.impl.render.IosOpeningTest
+2026-10-28T19:46:29.575Z [build/INFO] [INFO] Running me.youngjibbit.module.impl.render.IosSettingsVisibilityTest
+2026-10-28T19:46:29.595Z [build/INFO] [INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.014 s -- in me.youngjibbit.module.impl.render.IosSettingsVisibilityTest
+2026-10-28T19:46:29.595Z [build/INFO] [INFO] Running me.youngjibbit.module.impl.render.SessionInfoLifecycleTest
+2026-10-28T19:46:29.626Z [build/INFO] [INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.021 s -- in me.youngjibbit.module.impl.render.SessionInfoLifecycleTest
+2026-10-28T19:46:29.626Z [build/INFO] [INFO] Running me.youngjibbit.module.impl.render.SessionStatisticsEventIntegrationTest
+2026-10-28T19:46:29.634Z [build/INFO] [INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.module.impl.render.SessionStatisticsEventIntegrationTest
+2026-10-28T19:46:29.634Z [build/INFO] [INFO] Running me.youngjibbit.module.ModuleManagerTest
+2026-10-28T19:46:29.641Z [build/INFO] [INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.module.ModuleManagerTest
+2026-10-28T19:46:29.642Z [build/INFO] [INFO] Running me.youngjibbit.notifications.NotificationTimelineTest
+2026-10-28T19:46:30.087Z [build/INFO] [INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.437 s -- in me.youngjibbit.notifications.NotificationTimelineTest
+2026-10-28T19:46:30.087Z [build/INFO] [INFO] Running me.youngjibbit.rendercheck.RenderCheckDiagnosticsTest
+2026-10-28T19:46:30.208Z [build/INFO] [INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.rendercheck.RenderCheckDiagnosticsTest
+2026-10-28T19:46:30.208Z [build/INFO] [INFO] Running me.youngjibbit.theme.ThemeModelTest
+2026-10-28T19:46:31.507Z [build/INFO] [INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.231 s -- in me.youngjibbit.theme.ThemeModelTest
+2026-10-28T19:46:31.507Z [build/INFO] [INFO] Running me.youngjibbit.theme.ThemeUiConsumerTest
+2026-10-28T19:46:31.979Z [build/INFO] [INFO] 
+2026-10-28T19:46:31.979Z [build/INFO] [INFO] Results:
+2026-10-28T19:46:31.979Z [build/INFO] [INFO] 
+2026-10-28T19:46:31.980Z [build/ERROR] [ERROR] Failures: 
+2026-10-28T19:46:31.981Z [build/ERROR] [ERROR]   MicrosoftBrowserUiBindingTest.browserActionsUseTheActualLoginWorkflowInIsolation:19 Error occurred during initialization of VM
+2026-10-28T19:46:31.981Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:31.981Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:31.981Z [build/ERROR] [ERROR]   AutoToolTest.productiveMiningAndLifecycleChecks:31 Error occurred during initialization of VM
+2026-10-28T19:46:31.981Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:31.981Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:31.981Z [build/ERROR] [ERROR]   MoveFixProductionTest.executeRealMovementMatrixInAnIsolatedJvm:25 Error occurred during initialization of VM
+2026-10-28T19:46:31.981Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:31.981Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:31.981Z [build/ERROR] [ERROR]   NoSlowSprintTest.runActualSlowdownAndSprintConsumers:19 Error occurred during initialization of VM
+2026-10-28T19:46:31.981Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:31.981Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:31.981Z [build/ERROR] [ERROR]   RotationModuleBindingTest.executeAllProductiveBindingChecksWithAStableClient:22 Error occurred during initialization of VM
+2026-10-28T19:46:31.981Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:31.981Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:31.981Z [build/ERROR] [ERROR]   SpeedMovementBasisTest.executeAllSpeedConsumersInAnIsolatedJvm:25 Error occurred during initialization of VM
+2026-10-28T19:46:31.981Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:31.981Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:31.981Z [build/ERROR] [ERROR]   SprintOrderingTest.runRealSprintConsumersInChildJvm:19 Error occurred during initialization of VM
+2026-10-28T19:46:31.981Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:31.981Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:31.981Z [build/ERROR] [ERROR]   LegacyNetworkModuleBindingTest.executeAllLegacyNetworkModuleBindings:16 Error occurred during initialization of VM
+2026-10-28T19:46:31.981Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:31.981Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:31.981Z [build/ERROR] [ERROR]   LegacyScaffoldTest.nativeBindingsUseOneStableClientUnderTheNormalJit:40 Error occurred during initialization of VM
+2026-10-28T19:46:31.981Z [build/INFO] Could not reserve enough space for object heap
+2026-10-28T19:46:31.981Z [build/INFO]  expected:<0> but was:<1>
+2026-10-28T19:46:31.981Z [build/INFO] [INFO] 
+2026-10-28T19:46:31.981Z [build/ERROR] [ERROR] Tests run: 362, Failures: 9, Errors: 0, Skipped: 0
+2026-10-28T19:46:31.981Z [build/INFO] [INFO] 
+2026-10-28T19:46:31.981Z [build/WARN] [WARNING] Corrupted channel by directly writing to native stream in forked JVM 1. See FAQ web page and the dump file F:\Neutron Launcher Playtest 20261028\Windows UI R3\work\d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c\source\target\surefire-reports\2026-10-28T20-45-29_907-jvmRun1.dumpstream
+2026-10-28T19:46:31.992Z [build/INFO] [INFO] ------------------------------------------------------------------------
+2026-10-28T19:46:31.992Z [build/INFO] [INFO] BUILD FAILURE
+2026-10-28T19:46:31.992Z [build/INFO] [INFO] ------------------------------------------------------------------------
+2026-10-28T19:46:31.996Z [build/INFO] [INFO] Total time:  03:28 min
+2026-10-28T19:46:31.996Z [build/INFO] [INFO] Finished at: 2026-10-28T20:46:31+01:00
+2026-10-28T19:46:31.996Z [build/INFO] [INFO] ------------------------------------------------------------------------
+2026-10-28T19:46:31.997Z [build/ERROR] [ERROR] Failed to execute goal org.apache.maven.plugins:maven-surefire-plugin:3.5.5:test (default-test) on project Neutron: 
+2026-10-28T19:46:31.997Z [build/ERROR] [ERROR] 
+2026-10-28T19:46:31.997Z [build/ERROR] [ERROR] See F:\Neutron Launcher Playtest 20261028\Windows UI R3\work\d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c\source\target\surefire-reports for the individual test results.
+2026-10-28T19:46:31.997Z [build/ERROR] [ERROR] See dump files (if any exist) [date].dump, [date]-jvmRun[N].dump and [date].dumpstream.
+2026-10-28T19:46:31.997Z [build/ERROR] [ERROR] The forked VM terminated without properly saying goodbye. VM crash or System.exit called?
+2026-10-28T19:46:31.997Z [build/ERROR] [ERROR] Command was cmd.exe /X /C ""F:\Neutron Launcher Playtest 20261028\Windows UI R3\tools\jdk8u504-maven3.9.16-1793216328252\jdk\jdk8u504-b01\jre\bin\java" -jar "F:\Neutron Launcher Playtest 20261028\Windows UI R3\work\d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c\temp\surefire4212525322747114602\surefirebooter-20261028204531262_3.jar" "F:\Neutron Launcher Playtest 20261028\Windows UI R3\work\d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c\temp\surefire4212525322747114602" 2026-10-28T20-45-29_907-jvmRun1 surefire-20261028204531262_1tmp surefire_0-20261028204531262_2tmp"
+2026-10-28T19:46:31.997Z [build/ERROR] [ERROR] Error occurred in starting fork, check output in log
+2026-10-28T19:46:31.997Z [build/ERROR] [ERROR] Process Exit Code: 1
+2026-10-28T19:46:31.997Z [build/ERROR] [ERROR] Crashed tests:
+2026-10-28T19:46:31.997Z [build/ERROR] [ERROR] me.youngjibbit.theme.ThemeUiConsumerTest
+2026-10-28T19:46:31.997Z [build/ERROR] [ERROR] org.apache.maven.surefire.booter.SurefireBooterForkException: The forked VM terminated without properly saying goodbye. VM crash or System.exit called?
+2026-10-28T19:46:31.997Z [build/ERROR] [ERROR] Command was cmd.exe /X /C ""F:\Neutron Launcher Playtest 20261028\Windows UI R3\tools\jdk8u504-maven3.9.16-1793216328252\jdk\jdk8u504-b01\jre\bin\java" -jar "F:\Neutron Launcher Playtest 20261028\Windows UI R3\work\d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c\temp\surefire4212525322747114602\surefirebooter-20261028204531262_3.jar" "F:\Neutron Launcher Playtest 20261028\Windows UI R3\work\d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c\temp\surefire4212525322747114602" 2026-10-28T20-45-29_907-jvmRun1 surefire-20261028204531262_1tmp surefire_0-20261028204531262_2tmp"
+2026-10-28T19:46:31.997Z [build/ERROR] [ERROR] Error occurred in starting fork, check output in log
+2026-10-28T19:46:31.997Z [build/ERROR] [ERROR] Process Exit Code: 1
+2026-10-28T19:46:31.997Z [build/ERROR] [ERROR] Crashed tests:
+2026-10-28T19:46:31.997Z [build/ERROR] [ERROR] me.youngjibbit.theme.ThemeUiConsumerTest
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.plugin.surefire.booterclient.ForkStarter.fork(ForkStarter.java:643)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.plugin.surefire.booterclient.ForkStarter.run(ForkStarter.java:285)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.plugin.surefire.booterclient.ForkStarter.run(ForkStarter.java:250)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.plugin.surefire.AbstractSurefireMojo.executeProvider(AbstractSurefireMojo.java:1347)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.plugin.surefire.AbstractSurefireMojo.executeAfterPreconditionsChecked(AbstractSurefireMojo.java:1145)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.plugin.surefire.AbstractSurefireMojo.execute(AbstractSurefireMojo.java:979)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.plugin.DefaultBuildPluginManager.executeMojo(DefaultBuildPluginManager.java:126)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.lifecycle.internal.MojoExecutor.doExecute2(MojoExecutor.java:328)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.lifecycle.internal.MojoExecutor.doExecute(MojoExecutor.java:316)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:212)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:174)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.lifecycle.internal.MojoExecutor.access$000(MojoExecutor.java:75)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.lifecycle.internal.MojoExecutor$1.run(MojoExecutor.java:162)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.plugin.DefaultMojosExecutionStrategy.execute(DefaultMojosExecutionStrategy.java:39)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.lifecycle.internal.MojoExecutor.execute(MojoExecutor.java:159)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject(LifecycleModuleBuilder.java:105)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.lifecycle.internal.LifecycleModuleBuilder.buildProject(LifecycleModuleBuilder.java:73)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.lifecycle.internal.builder.singlethreaded.SingleThreadedBuilder.build(SingleThreadedBuilder.java:53)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.lifecycle.internal.LifecycleStarter.execute(LifecycleStarter.java:118)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.DefaultMaven.doExecute(DefaultMaven.java:261)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.DefaultMaven.doExecute(DefaultMaven.java:173)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.DefaultMaven.execute(DefaultMaven.java:101)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.cli.MavenCli.execute(MavenCli.java:919)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.cli.MavenCli.doMain(MavenCli.java:285)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.apache.maven.cli.MavenCli.main(MavenCli.java:207)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at java.lang.reflect.Method.invoke(Method.java:498)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.codehaus.plexus.classworlds.launcher.Launcher.launchEnhanced(Launcher.java:255)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.codehaus.plexus.classworlds.launcher.Launcher.launch(Launcher.java:201)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.codehaus.plexus.classworlds.launcher.Launcher.mainWithExitCode(Launcher.java:362)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 	at org.codehaus.plexus.classworlds.launcher.Launcher.main(Launcher.java:314)
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] -> [Help 1]
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] To see the full stack trace of the errors, re-run Maven with the -e switch.
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] Re-run Maven using the -X switch to enable full debug logging.
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] 
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] For more information about the errors and possible solutions, please read the following articles:
+2026-10-28T19:46:31.998Z [build/ERROR] [ERROR] [Help 1] http://cwiki.apache.org/confluence/display/MAVEN/MojoExecutionException
+2026-10-28T19:46:32.136Z [build/ERROR] Error: Maven build failed (exit 1). See Build logs.

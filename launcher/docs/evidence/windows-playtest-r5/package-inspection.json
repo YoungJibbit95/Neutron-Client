@@ -1,0 +1,132 @@
+{
+  "capturedAt": "2026-10-28T20:28:03.397Z",
+  "archive": "F:\\Neutron Launcher Playtest 20261028\\Installer Candidate R5\\win-unpacked\\resources\\app.asar",
+  "packageVersion": "0.1.0-playtest.5",
+  "packagedFileEntries": 4627,
+  "topLevelEntries": [
+    "node_modules",
+    "dist",
+    "out-electron",
+    "package.json"
+  ],
+  "compiledFilesMatch": [
+    {
+      "path": "out-electron/archives.cjs",
+      "sha256": "ada7130460b07e969117696486d307432fcbad5f34b7e79d37dfcc534550aaad"
+    },
+    {
+      "path": "out-electron/contracts.cjs",
+      "sha256": "0077fea0901f1f0a5ec4c7b4cbedc90eec30f4c56f54ec1e4c510e626b93f43b"
+    },
+    {
+      "path": "out-electron/distribution.cjs",
+      "sha256": "7e97339640bfa2501fa36e1704f89d9feb48f53c93ea057304cfa0c189a43338"
+    },
+    {
+      "path": "out-electron/files.cjs",
+      "sha256": "7fb204c32a6842b400552490d3d09b8c8f22fcd3b3709ac041d1654ba9aa3c32"
+    },
+    {
+      "path": "out-electron/lease.cjs",
+      "sha256": "63ebf87168f6d16dc72dcab8eb3537450b9e6b46e9cd4f158f62fb18b99d0351"
+    },
+    {
+      "path": "out-electron/legacy-dependencies.cjs",
+      "sha256": "a560fdf1b52ff7e53ef9312147004e601e0d2217b88e8ff8829a2604efbac592"
+    },
+    {
+      "path": "out-electron/logs.cjs",
+      "sha256": "050381471a8d092dc317c9ad426a68457b7ad01f06bd6969fdb6e318a9b20edc"
+    },
+    {
+      "path": "out-electron/main.cjs",
+      "sha256": "f42aa68c211ea022eb0d87c3fa23fd3397f8b01b4f420200fe609d6b11a0dec1"
+    },
+    {
+      "path": "out-electron/minecraft.cjs",
+      "sha256": "a6c0c56d5029b2dc9219d8706ce13c04b5bc813c20f034902a09a208b19e828a"
+    },
+    {
+      "path": "out-electron/network.cjs",
+      "sha256": "3070bc758e66e8d95a61b46f9de229a2993747e0a0ad6cc331620c1f778d7287"
+    },
+    {
+      "path": "out-electron/preload.cjs",
+      "sha256": "de31f451e20b389db485837ed0c972485f22ce058afdc9cb958ecb89b974fc03"
+    },
+    {
+      "path": "out-electron/processes.cjs",
+      "sha256": "78405bad5b56af1fe63cd1170ff8c2f10c69c21e4ecf8629ce27e96ffdc8db7c"
+    },
+    {
+      "path": "out-electron/service.cjs",
+      "sha256": "789d24538480beb21ee28b0381fc4741574c231298c530b4ffa594b3df35e2f1"
+    },
+    {
+      "path": "out-electron/toolchain.cjs",
+      "sha256": "8c04c628cfab3acd50866b45afa87a5b14c6f4a2dee6fbfd71237b597f531044"
+    },
+    {
+      "path": "out-electron/window-contract.cjs",
+      "sha256": "b162dd20c332e800dfa39c0311cc92188e3a758942f082eb88e76dad703eb56f"
+    },
+    {
+      "path": "dist/assets/geist-latin-wght-normal-BgDaEnEv.woff2",
+      "sha256": "19f9c92546aa300c312235e3125af1b81394d8db9a4bc4a425cd5b641d2d54e1"
+    },
+    {
+      "path": "dist/assets/geist-mono-latin-wght-normal-XN7g48iV.woff2",
+      "sha256": "684ad5b531f81d43c1e8c7038262d5db7cdc1f68006e04d6c7769efa8d33c8cc"
+    },
+    {
+      "path": "dist/assets/index-Ce8i0nbe.js",
+      "sha256": "54ce24e5150a303afc75344030a5d338bd40aece29bb21bd216c37afd4e825c9"
+    },
+    {
+      "path": "dist/assets/index-mu-kKC9W.css",
+      "sha256": "d74b01657f8e2e4ff4b010d3029d694ea6acf8212c99b20a2b0ebeb352882995"
+    },
+    {
+      "path": "dist/index.html",
+      "sha256": "f7b935c762c54bfa8f8898eb02e8a9f23d83d7b6585f91bf74273e9c38563bb0"
+    },
+    {
+      "path": "dist/licenses/Geist-Mono-OFL.txt",
+      "sha256": "cc815ed4fc045f0e991abb10395b7932bd028c6a067deb13316d6002105074e6"
+    },
+    {
+      "path": "dist/licenses/Geist-OFL.txt",
+      "sha256": "71609cbb5c78b5870d712eab73a31d76622635c6ed034ab5cee3b9ecbda8685f"
+    },
+    {
+      "path": "dist/licenses/Lucide-ISC.txt",
+      "sha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57"
+    },
+    {
+      "path": "dist/licenses/React-MIT.txt",
+      "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+    },
+    {
+      "path": "dist/licenses/ReactDOM-MIT.txt",
+      "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+    }
+  ],
+  "adapterFilesMatch": [
+    {
+      "path": "ClientBootstrap.java",
+      "sha256": "cdbea5225256318dc970275760556c8d31e9c8d7b4260d7c120dbfeb45ef9bd1"
+    },
+    {
+      "path": "ClientBootstrapTest.java",
+      "sha256": "45ff7861788349ed00f6677a804e37f01e72eaa04be0c8e39a675076138a7831"
+    },
+    {
+      "path": "pom.xml",
+      "sha256": "76a40e898d3248d6bb39706dda680fd23a66c467175ed7ee1bfa3bc72f3c8204"
+    }
+  ],
+  "appPeMachine": "AMD64",
+  "forbiddenPackagedPaths": [],
+  "appOrInstallerUiStarted": false,
+  "nsisSilentWriteUninstallerBuildHelper": true
+}

@@ -1,0 +1,22 @@
+const fs = require('node:fs'); const path = require('node:path'); const crypto = require('node:crypto');
+const asar = require('F:/Puslar Backup - Copy/launcher/node_modules/@electron/asar');
+const project = 'F:/Puslar Backup - Copy/launcher'; const base = 'F:/Neutron Launcher Playtest 20261028';
+const output = path.join(base, 'Installer Candidate R4'); const archive = path.join(output, 'win-unpacked/resources/app.asar');
+const sha = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
+const files = asar.listPackage(archive).map(name => name.replace(/\\/g, '/').replace(/^\/+/, ''));
+const own = [];
+for (const folder of ['out-electron','dist']) {
+  const walk = dir => { for (const entry of fs.readdirSync(dir, {withFileTypes:true})) { const file = path.join(dir, entry.name); if(entry.isDirectory()) walk(file); else own.push(path.relative(project,file).replace(/\\/g,'/')); } }; walk(path.join(project,folder));
+}
+const compared = own.map(relative => { const source = fs.readFileSync(path.join(project,relative)); const packed = asar.extractFile(archive,path.normalize(relative)); if (sha(source)!==sha(packed)) throw new Error('Packaged source mismatch: '+relative); return {path:relative,sha256:sha(packed)}; });
+const packaged = JSON.parse(asar.extractFile(archive,'package.json').toString()); if(packaged.version!=='0.1.0-playtest.4'||packaged.main!=='out-electron/main.cjs') throw new Error('Wrong packaged identity.');
+for(const module of ['yauzl','yazl']) if(!files.includes('node_modules/'+module+'/index.js')) throw new Error('Missing runtime module: '+module);
+const forbidden = files.filter(name=>/(?:^|\/)(?:test_run|design|\.git|evidence|__pycache__)(?:\/|$)/.test(name)); if(forbidden.length) throw new Error('Forbidden private/developer data packaged.');
+const adapter = [];
+for(const name of fs.readdirSync(path.join(project,'resources/source-adapter'))) {
+ const source=fs.readFileSync(path.join(project,'resources/source-adapter',name)); const packed=fs.readFileSync(path.join(output,'win-unpacked/resources/source-adapter',name));
+ if(sha(source)!==sha(packed)) throw new Error('Adapter mismatch.'); adapter.push({path:name,sha256:sha(packed)});
+}
+const executable = fs.readFileSync(path.join(output,'win-unpacked/Neutron Launcher.exe')); const pe=executable.readUInt32LE(0x3c); if(executable.readUInt16LE(pe+4)!==0x8664) throw new Error('Not a Windows x64 app.');
+const result={capturedAt:new Date().toISOString(),archive,packageVersion:packaged.version,packagedFileEntries:files.length,topLevelEntries:[...new Set(files.map(name=>name.split('/')[0]))],compiledFilesMatch:compared,adapterFilesMatch:adapter,appPeMachine:'AMD64',forbiddenPackagedPaths:forbidden,appOrInstallerUiStarted:false,nsisSilentWriteUninstallerBuildHelper:true};
+fs.writeFileSync(path.join(base,'package-inspection-r4.json'),JSON.stringify(result,null,2)); console.log(JSON.stringify({matchedFiles:compared.length,adapterFiles:adapter.length,version:packaged.version,appPeMachine:result.appPeMachine,forbiddenPaths:forbidden.length}));

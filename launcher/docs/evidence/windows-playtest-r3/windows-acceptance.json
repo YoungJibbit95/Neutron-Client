@@ -1,0 +1,393 @@
+{
+  "candidate": "0.1.0-playtest.3",
+  "time": "2026-10-28T19:38:03.272032+00:00",
+  "installMode": "NSIS /S /currentuser, own F: target, TEMP/TMP on F:",
+  "installedDirectory": "F:\\Neutron Launcher Playtest 20261028\\Installed R3",
+  "allPackagedFilesEqual": true,
+  "files": [
+    {
+      "file": "chrome_100_percent.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "chrome_200_percent.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "d3dcompiler_47.dll",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "dxcompiler.dll",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "electron_wer.dll",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "ffmpeg.dll",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "icudtl.dat",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "LICENSE.electron.txt",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "LICENSES.chromium.html",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "Neutron Launcher.exe",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "resources.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "snapshot_blob.bin",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "v8_context_snapshot.bin",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "vk_swiftshader.dll",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "vk_swiftshader_icd.json",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "vulkan-1.dll",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/af.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/am.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/ar.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/bg.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/bn.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/ca.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/cs.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/da.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/de.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/el.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/en-GB.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/en-US.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/es-419.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/es.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/et.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/fa.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/fi.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/fil.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/fr.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/gu.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/he.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/hi.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/hr.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/hu.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/id.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/it.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/ja.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/kn.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/ko.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/lt.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/lv.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/ml.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/mr.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/ms.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/nb.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/nl.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/pl.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/pt-BR.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/pt-PT.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/ro.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/ru.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/sk.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/sl.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/sr.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/sv.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/sw.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/ta.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/te.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/th.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/tr.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/uk.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/ur.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/vi.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/zh-CN.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "locales/zh-TW.pak",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "resources/app.asar",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "resources/elevate.exe",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "resources/source-adapter/ClientBootstrap.java",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "resources/source-adapter/ClientBootstrapTest.java",
+      "exists": true,
+      "equal": true
+    },
+    {
+      "file": "resources/source-adapter/pom.xml",
+      "exists": true,
+      "equal": true
+    }
+  ],
+  "uninstallerExists": true,
+  "interactiveAttempt": "Sky activation/click timed out; no interactive pass",
+  "originalOverwriteErrorCause": "not established; original target missing before tests, uninstall registry remained",
+  "signing": "No code-signing cert found in CurrentUser/My or LocalMachine/My; signing service unknown; user declines no gate and has not authorized unsigned release"
+}

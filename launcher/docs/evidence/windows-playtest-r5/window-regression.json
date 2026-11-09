@@ -1,0 +1,35 @@
+{
+  "version": "0.1.0-playtest.5",
+  "changedSourceFilesSinceR4": [
+    "launcher/electron/processes.cts",
+    "launcher/electron/service.cts",
+    "launcher/package-lock.json",
+    "launcher/package.json",
+    "launcher/tests/lifecycle.test.ts"
+  ],
+  "before": {
+    "pid": 183088,
+    "executable": "java.exe",
+    "windowsHide": true,
+    "clientMenuInitialized": true,
+    "targetableGameWindow": false,
+    "terminatedOwnedProcessTree": true
+  },
+  "after": {
+    "pid": 193628,
+    "executable": "javaw.exe",
+    "windowsHide": false,
+    "clientMenuInitialized": true,
+    "targetableGameWindow": {
+      "id": 19270830,
+      "title": "Neutron | Dev 2.2 by youngjibbit for NeutronPlayer"
+    },
+    "humanConfirmation": "Es ist ein fenster da",
+    "stoppedAndDeveloperStateRestored": true
+  },
+  "clientCommit": "1bc6c364b58a4eb86faf4cc9aab6e15153837cd9",
+  "tests": 121,
+  "noClientSourceOrAdapterChange": true,
+  "technicalReleaseGo": false,
+  "signingStillOpen": true
+}

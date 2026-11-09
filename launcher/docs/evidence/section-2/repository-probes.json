@@ -1,0 +1,18 @@
+[
+  {
+    "url": "https://repo.marcloud.net/org/lwjgl/lwjgl/2.9.4-nightly/lwjgl-2.9.4-nightly.pom",
+    "status": 200
+  },
+  {
+    "url": "https://jitpack.io/com/github/zeromemes/alpine/3.1.0/alpine-3.1.0.pom",
+    "status": 200
+  },
+  {
+    "url": "https://repo.maven.apache.org/maven2/Javax/vecmath/vecmath/1.5.2/vecmath-1.5.2.pom",
+    "error": "HTTP Error 404: Not Found"
+  },
+  {
+    "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/lwjgl/2.9.4-nightly-20150209/lwjgl-2.9.4-nightly-20150209.pom",
+    "status": 200
+  }
+]

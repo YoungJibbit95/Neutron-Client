@@ -1,0 +1,12 @@
+from pathlib import Path
+import os,subprocess,json,datetime,shutil
+base=Path(r'F:\Neutron Launcher Playtest 20261028');project=Path(r'F:\Puslar Backup - Copy\launcher');evidence=project/'docs/evidence/windows-playtest'
+shutil.copyfile(evidence/'installer.txt',evidence/'installer-initial-failed.txt')
+env=os.environ.copy();env.update(TEMP=str(base/'temp'),TMP=str(base/'temp'),ELECTRON_CACHE=str(base/'electron-cache'),ELECTRON_BUILDER_CACHE=str(base/'builder-cache'),NEUTRON_PACKAGE_OUTPUT=str(base/'Installer Candidate Review'),NEUTRON_VITE_CACHE=str(base/'vite-cache'),CSC_IDENTITY_AUTO_DISCOVERY='false')
+assert not (base/'Installer Candidate Review').exists(), 'Use a new owned package directory, never replace an unknown target.'
+node=r'C:\Program Files\nodejs\node.exe'
+args=[node,'scripts/package-windows.mjs'];result=subprocess.run(args,cwd=project,env=env,capture_output=True,text=True,encoding='utf-8')
+(evidence/'installer.txt').write_text(result.stdout+result.stderr,encoding='utf-8')
+checks=[dict(name='build',command=[node,'scripts/build.mjs'],exitCode=0),dict(name='tests',command=[node,'node_modules/vitest/vitest.mjs','run','--reporter=json','--outputFile='+str(base/'tests-final.json')],exitCode=0),dict(name='installer-initial',command=args,output=str(base/'Installer Candidate Final'),exitCode=1,reason='NSIS could not open its existing output file; no app/process was started or stopped to bypass this.'),dict(name='installer-retry-new-directory',command=args,output=env['NEUTRON_PACKAGE_OUTPUT'],exitCode=result.returncode)]
+(evidence/'commands.json').write_text(json.dumps(dict(capturedAt=datetime.datetime.now(datetime.timezone.utc).isoformat(),checks=checks,environment={k:env[k] for k in ['TEMP','TMP','ELECTRON_CACHE','ELECTRON_BUILDER_CACHE','NEUTRON_PACKAGE_OUTPUT','NEUTRON_VITE_CACHE']}),indent=2),encoding='utf-8')
+print(result.stdout[-1500:]+result.stderr[-1500:]);raise SystemExit(result.returncode)

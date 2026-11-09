@@ -1,0 +1,109 @@
+  • electron-builder  version=26.18.0 os=10.0.26100
+  • loaded configuration  file=F:\Puslar Backup - Copy\launcher\electron-builder.cjs
+  • skipped dependencies rebuild  reason=npmRebuild is set to false
+  • packaging       platform=win32 arch=x64 electron=45.1.0 appOutDir=F:\Neutron Launcher Playtest 20261028\Installer Candidate Final\win-unpacked
+  • downloaded      label=electron progress=100%
+  • downloaded electron zip extracted successfully  output=F:\Neutron Launcher Playtest 20261028\Installer Candidate Final\win-unpacked
+  • searching for node modules  pm=npm searchDir=F:\Puslar Backup - Copy\launcher
+  • updating asar integrity executable resource  executablePath=F:\Neutron Launcher Playtest 20261028\Installer Candidate Final\win-unpacked\Neutron Launcher.exe
+  • no code signing certificate configured, signing is skipped  path=F:\Neutron Launcher Playtest 20261028\Installer Candidate Final\win-unpacked\Neutron Launcher.exe
+  • building        target=nsis file=F:\Neutron Launcher Playtest 20261028\Installer Candidate Final\Neutron-Launcher-0.1.0-playtest.1-Windows-x64.exe archs=x64 oneClick=false perMachine=false
+  • no code signing certificate configured, signing is skipped  path=F:\Neutron Launcher Playtest 20261028\temp\t-HCpVDn\elevate-staging-1\resources\elevate.exe
+  • output file is locked for writing (maybe by virus scanner) => waiting for unlock...  
+  ⨯ F:\Neutron Launcher Playtest 20261028\builder-cache\nsis-3.0.4.1\nsis-3.0.4.1-1mx3n\Bin\makensis.exe process failed ERR_ELECTRON_BUILDER_CANNOT_EXECUTE
+Exit code:
+1
+Output:
+Command line defined: "APP_ID=dev.neutron.launcher"
+Command line defined: "APP_GUID=17d12e18-c0d2-5a05-b898-3c34ccfad7ff"
+Command line defined: "UNINSTALL_APP_KEY=17d12e18-c0d2-5a05-b898-3c34ccfad7ff"
+Command line defined: "PRODUCT_NAME=Neutron Launcher"
+Command line defined: "PRODUCT_FILENAME=Neutron Launcher"
+Command line defined: "APP_FILENAME=Neutron Launcher"
+Command line defined: "APP_DESCRIPTION=Neutron Windows x64 playtest launcher"
+Command line defined: "VERSION=0.1.0-playtest.1"
+Command line defined: "PROJECT_DIR=F:\Puslar Backup - Copy\launcher"
+Command line defined: "BUILD_RESOURCES_DIR=F:\Puslar Backup - Copy\launcher\resources"
+Command line defined: "APP_PACKAGE_NAME=neutron-launcher"
+Command line defined: "MUI_ICON=F:\Puslar Backup - Copy\launcher\resources\icon.ico"
+Command line defined: "MUI_UNICON=F:\Puslar Backup - Copy\launcher\resources\icon.ico"
+Command line defined: "APP_64=F:\Neutron Launcher Playtest 20261028\Installer Candidate Final\neutron-launcher-0.1.0-playtest.1-x64.nsis.7z"
+Command line defined: "APP_64_NAME=neutron-launcher-0.1.0-playtest.1-x64.nsis.7z"
+Command line defined: "APP_64_HASH=6F553AE1786AC78FCCA3440CAB6ED7157D8F41922E531CB6CE0306458B8FC948413136664C1F8151FFA6EB55D3246D717A9385CAC72C60FD81A96669B7F339A7"
+Command line defined: "APP_64_UNPACKED_SIZE=399451"
+Command line defined: "COMPANY_NAME=Neutron Client"
+Command line defined: "APP_INSTALLER_STORE_FILE=neutron-launcher-updater\installer.exe"
+Command line defined: "COMPRESSION_METHOD=7z"
+Command line defined: "HIDE_RUN_AFTER_FINISH"
+Command line defined: "MULTIUSER_INSTALLMODE_ALLOW_ELEVATION"
+Command line defined: "INSTALL_MODE_PER_ALL_USERS_REQUIRED"
+Command line defined: "allowToChangeInstallationDirectory"
+Command line defined: "SHORTCUT_NAME=Neutron Launcher"
+Command line defined: "UNINSTALL_DISPLAY_NAME=Neutron Launcher 0.1.0-playtest.1"
+Command line defined: "DO_NOT_CREATE_DESKTOP_SHORTCUT"
+Command line defined: "MUI_WELCOMEFINISHPAGE_BITMAP=${NSISDIR}\Contrib\Graphics\Wizard\nsis3-metro.bmp"
+Command line defined: "MUI_UNWELCOMEFINISHPAGE_BITMAP=${NSISDIR}\Contrib\Graphics\Wizard\nsis3-metro.bmp"
+Command line defined: "ESTIMATED_SIZE=399450"
+Command line defined: "COMPRESS=auto"
+Command line defined: "BUILD_UNINSTALLER"
+Command line defined: "UNINSTALLER_OUT_FILE=F:\Neutron Launcher Playtest 20261028\Installer Candidate Final\Neutron-Launcher-0.1.0-playtest.1-Windows-x64.__uninstaller.exe"
+Processing config: F:\Neutron Launcher Playtest 20261028\builder-cache\nsis-3.0.4.1\nsis-3.0.4.1-1mx3n\nsisconf.nsh
+Processing script file: "<stdin>" (UTF8)
+
+Processed 1 file, 10 command line commands, writing output (x86-unicode):
+
+Output: "F:\Neutron Launcher Playtest 20261028\Installer Candidate Final\Neutron-Launcher-0.1.0-playtest.1-Windows-x64.exe"
+
+Error output:
+Can't open output file
+Error - aborting creation process
+  failedTask=build stackTrace=Error: F:\Neutron Launcher Playtest 20261028\builder-cache\nsis-3.0.4.1\nsis-3.0.4.1-1mx3n\Bin\makensis.exe process failed ERR_ELECTRON_BUILDER_CANNOT_EXECUTE
+Exit code:
+1
+Output:
+Command line defined: "APP_ID=dev.neutron.launcher"
+Command line defined: "APP_GUID=17d12e18-c0d2-5a05-b898-3c34ccfad7ff"
+Command line defined: "UNINSTALL_APP_KEY=17d12e18-c0d2-5a05-b898-3c34ccfad7ff"
+Command line defined: "PRODUCT_NAME=Neutron Launcher"
+Command line defined: "PRODUCT_FILENAME=Neutron Launcher"
+Command line defined: "APP_FILENAME=Neutron Launcher"
+Command line defined: "APP_DESCRIPTION=Neutron Windows x64 playtest launcher"
+Command line defined: "VERSION=0.1.0-playtest.1"
+Command line defined: "PROJECT_DIR=F:\Puslar Backup - Copy\launcher"
+Command line defined: "BUILD_RESOURCES_DIR=F:\Puslar Backup - Copy\launcher\resources"
+Command line defined: "APP_PACKAGE_NAME=neutron-launcher"
+Command line defined: "MUI_ICON=F:\Puslar Backup - Copy\launcher\resources\icon.ico"
+Command line defined: "MUI_UNICON=F:\Puslar Backup - Copy\launcher\resources\icon.ico"
+Command line defined: "APP_64=F:\Neutron Launcher Playtest 20261028\Installer Candidate Final\neutron-launcher-0.1.0-playtest.1-x64.nsis.7z"
+Command line defined: "APP_64_NAME=neutron-launcher-0.1.0-playtest.1-x64.nsis.7z"
+Command line defined: "APP_64_HASH=6F553AE1786AC78FCCA3440CAB6ED7157D8F41922E531CB6CE0306458B8FC948413136664C1F8151FFA6EB55D3246D717A9385CAC72C60FD81A96669B7F339A7"
+Command line defined: "APP_64_UNPACKED_SIZE=399451"
+Command line defined: "COMPANY_NAME=Neutron Client"
+Command line defined: "APP_INSTALLER_STORE_FILE=neutron-launcher-updater\installer.exe"
+Command line defined: "COMPRESSION_METHOD=7z"
+Command line defined: "HIDE_RUN_AFTER_FINISH"
+Command line defined: "MULTIUSER_INSTALLMODE_ALLOW_ELEVATION"
+Command line defined: "INSTALL_MODE_PER_ALL_USERS_REQUIRED"
+Command line defined: "allowToChangeInstallationDirectory"
+Command line defined: "SHORTCUT_NAME=Neutron Launcher"
+Command line defined: "UNINSTALL_DISPLAY_NAME=Neutron Launcher 0.1.0-playtest.1"
+Command line defined: "DO_NOT_CREATE_DESKTOP_SHORTCUT"
+Command line defined: "MUI_WELCOMEFINISHPAGE_BITMAP=${NSISDIR}\Contrib\Graphics\Wizard\nsis3-metro.bmp"
+Command line defined: "MUI_UNWELCOMEFINISHPAGE_BITMAP=${NSISDIR}\Contrib\Graphics\Wizard\nsis3-metro.bmp"
+Command line defined: "ESTIMATED_SIZE=399450"
+Command line defined: "COMPRESS=auto"
+Command line defined: "BUILD_UNINSTALLER"
+Command line defined: "UNINSTALLER_OUT_FILE=F:\Neutron Launcher Playtest 20261028\Installer Candidate Final\Neutron-Launcher-0.1.0-playtest.1-Windows-x64.__uninstaller.exe"
+Processing config: F:\Neutron Launcher Playtest 20261028\builder-cache\nsis-3.0.4.1\nsis-3.0.4.1-1mx3n\nsisconf.nsh
+Processing script file: "<stdin>" (UTF8)
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            Processed 1 file, 10 command line commands, writing output (x86-unicode):
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            Output: "F:\Neutron Launcher Playtest 20261028\Installer Candidate Final\Neutron-Launcher-0.1.0-playtest.1-Windows-x64.exe"
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            Error output:
+Can't open output file
+Error - aborting creation process
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                at ChildProcess.<anonymous> (F:\Puslar Backup - Copy\launcher\node_modules\builder-util\src\util.ts:313:16)
+    at Object.onceWrapper (node:events:631:12)
+    at ChildProcess.emit (node:events:509:20)
+    at ChildProcess.cp.emit (F:\Puslar Backup - Copy\launcher\node_modules\cross-spawn\lib\enoent.js:34:29)
+    at maybeClose (node:internal/child_process:1108:16)
+    at Process.ChildProcess._handle.onexit (node:internal/child_process:305:5)

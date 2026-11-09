@@ -1,0 +1,309 @@
+{
+  "schemaVersion": 1,
+  "entryPoint": "me.neutron.launcher.ClientBootstrap",
+  "minecraftVersion": "1.8.9",
+  "assetIndex": "1.8",
+  "java": {
+    "major": 8,
+    "architecture": "x64"
+  },
+  "version": "Development-eeddb7d-local",
+  "builtAtUtc": "2026-10-28T15:49:57.083084+00:00",
+  "source": {
+    "kind": "local-snapshot",
+    "gitHead": "eeddb7da58978f04fad95ad8042175b7ad848d6a",
+    "dirty": true,
+    "snapshotSha256": "266eb684ed33b3607ac484e1dd0dc31868612bc10bcae1448e97a06dbef13fd9"
+  },
+  "packaging": {
+    "toolSha256": "ade8594b1736ddf52cde69a3d314cc5c0089d6d1c0b3058f925e1863918ab243",
+    "resourceAliases": {
+      "assets/minecraft/Tenacity/shaders/vertex.vsh": "assets/minecraft/Tenacity/Shaders/vertex.vsh"
+    }
+  },
+  "classpath": [
+    {
+      "path": "neutron-client.jar",
+      "sha256": "3696f2c7c41c5db7de6e99f342210861a55a4f4df4901a179de3546494fbe3d8"
+    },
+    {
+      "path": "libraries/com/github/oshi/oshi-core/6.4.5/oshi-core-6.4.5.jar",
+      "sha256": "7e634fb57b8763b7803d5f9caaed46d19c3bdbe81ddd8a93e61528c700cdc09e"
+    },
+    {
+      "path": "libraries/com/github/zeromemes/alpine/3.1.0/alpine-3.1.0.jar",
+      "sha256": "b70daebd604ab28b7256559e3f6a44d440859890a18aaf6f542c96d734f57526"
+    },
+    {
+      "path": "libraries/com/google/code/findbugs/jsr305/3.0.2/jsr305-3.0.2.jar",
+      "sha256": "766ad2a0783f2687962c8ad74ceecc38a28b9f72a2d085ee438b7813e928d0c7"
+    },
+    {
+      "path": "libraries/com/google/code/gson/gson/2.10.1/gson-2.10.1.jar",
+      "sha256": "4241c14a7727c34feea6507ec801318a3d4a90f070e4525681079fb94ee4c593"
+    },
+    {
+      "path": "libraries/com/google/guava/guava/17.0/guava-17.0.jar",
+      "sha256": "8c36a80ea613d0b6b8040a17cf837c5bbe3677bc1b06a058a6c174fdb787ebbc"
+    },
+    {
+      "path": "libraries/com/mashape/unirest/unirest-java/1.4.9/unirest-java-1.4.9.jar",
+      "sha256": "88d9d28faa03d05deab9b4813597aee231c4ea5279edbb13d2ef35db118127f9"
+    },
+    {
+      "path": "libraries/com/mojang/authlib/1.5.21/authlib-1.5.21.jar",
+      "sha256": "ce7a9c86ebebf30b89929026f4a0a3c58ce0f4d47937d6dc086ae4fd0c77544a"
+    },
+    {
+      "path": "libraries/com/mojang/icu4j-core-mojang/51.2/icu4j-core-mojang-51.2.jar",
+      "sha256": "147592c5eb8e11fc8394125954f877acf25918bae13aa210c2825aefc3030ed8"
+    },
+    {
+      "path": "libraries/com/mojang/patchy/1.7.7/patchy-1.7.7.jar",
+      "sha256": "8922278caf146e6cb6bf956c6bff102496e0d72d89afb1a994818ca119cae97a"
+    },
+    {
+      "path": "libraries/com/mojang/realms/1.8.19/realms-1.8.19.jar",
+      "sha256": "c5bbcbcfba1c7444af30b94f7c3eb2ff215ec3cc17c57a9be6b2c815f9a93a0f"
+    },
+    {
+      "path": "libraries/com/paulscode/librarylwjglopenal/20100824/librarylwjglopenal-20100824.jar",
+      "sha256": "107d11509f6af59b8c2ba23df828bc5d3c4e067b58f3d858c7deb90ca5308f84"
+    },
+    {
+      "path": "libraries/com/paulscode/sound/codecjorbis/20101023/codecjorbis-20101023.jar",
+      "sha256": "6c4b4e50e608763564afa1bde2d25ece9dd715e7c9129540faa1faded4896506"
+    },
+    {
+      "path": "libraries/com/paulscode/sound/codecwav/20101023/codecwav-20101023.jar",
+      "sha256": "bb7d17b340afe6abdfbfdaa03683bce4aef39a64887dbab0636eaff3cf2d59ba"
+    },
+    {
+      "path": "libraries/com/paulscode/sound/libraryjavasound/20101123/libraryjavasound-20101123.jar",
+      "sha256": "333bbefeff5eb1722dc9b8d2e26c38bc69c1efa07d0ca870480f29d8858aa336"
+    },
+    {
+      "path": "libraries/com/paulscode/sound/soundsystem/20120107/soundsystem-20120107.jar",
+      "sha256": "2882d64550240dd0c026724da664d9f97ef205c91d6a85273d10790d88608f34"
+    },
+    {
+      "path": "libraries/com/paulscode/soundsystem/20120107/soundsystem-20120107.jar",
+      "sha256": "2882d64550240dd0c026724da664d9f97ef205c91d6a85273d10790d88608f34"
+    },
+    {
+      "path": "libraries/com/squareup/okhttp3/okhttp/4.10.0/okhttp-4.10.0.jar",
+      "sha256": "7580f14fa1691206e37081ad3f92063b1603b328da0bb316f2fef02e0562e7ec"
+    },
+    {
+      "path": "libraries/com/squareup/okio/okio-jvm/3.0.0/okio-jvm-3.0.0.jar",
+      "sha256": "be64a0cc1f28ea9cd5c970dd7e7557af72c808d738c495b397bf897c9921e907"
+    },
+    {
+      "path": "libraries/commons-codec/commons-codec/1.9/commons-codec-1.9.jar",
+      "sha256": "ad19d2601c3abf0b946b5c3a4113e226a8c1e3305e395b90013b78dd94a723ce"
+    },
+    {
+      "path": "libraries/commons-io/commons-io/2.4/commons-io-2.4.jar",
+      "sha256": "cc6a41dc3eaacc9e440a6bd0d2890b20d36b4ee408fe2d67122f328bb6e01581"
+    },
+    {
+      "path": "libraries/commons-logging/commons-logging/1.1.3/commons-logging-1.1.3.jar",
+      "sha256": "70903f6fc82e9908c8da9f20443f61d90f0870a312642991fe8462a0b9391784"
+    },
+    {
+      "path": "libraries/fr/litarvan/openauth/1.1.6/openauth-1.1.6.jar",
+      "sha256": "444915d2c88b053a7c51a6e4451e22d0a21811321c15872f105febe2ab9e4b50"
+    },
+    {
+      "path": "libraries/io/netty/netty-all/4.0.25.Final/netty-all-4.0.25.Final.jar",
+      "sha256": "974789d86cece0b8ffbf6a2d7d782c1239db518ec5158919b159d88cd48138a5"
+    },
+    {
+      "path": "libraries/it/unimi/dsi/fastutil/8.5.12/fastutil-8.5.12.jar",
+      "sha256": "b5543ee08d062d551cf0a5c9bc0fb70588b0382079029ba48941fa9c9be8a5d4"
+    },
+    {
+      "path": "libraries/java3d/vecmath/1.3.1/vecmath-1.3.1.jar",
+      "sha256": "dbaa088690a23a954eff669a99d2452a24dd9f10d866725ff5d29ff4740a897e"
+    },
+    {
+      "path": "libraries/javax/vecmath/vecmath/1.5.2/vecmath-1.5.2.jar",
+      "sha256": "3558e81ca74c60dc01baca7ef05f48594bbaed43af45d4f1b9196e479734e675"
+    },
+    {
+      "path": "libraries/net/java/dev/jna/jna/5.13.0/jna-5.13.0.jar",
+      "sha256": "66d4f819a062a51a1d5627bffc23fac55d1677f0e0a1feba144aabdd670a64bb"
+    },
+    {
+      "path": "libraries/net/java/dev/jna/jna-platform/5.13.0/jna-platform-5.13.0.jar",
+      "sha256": "474d7b88f6e97009b6ec1d98c3024dd95c23187c65dabfbc35331bcac3d173dd"
+    },
+    {
+      "path": "libraries/net/java/jinput/jinput/2.0.5/jinput-2.0.5.jar",
+      "sha256": "79b5a4f5829e1a49a415711f7fb8eb5b9ad22defa72929fda2da96ec30d3f018"
+    },
+    {
+      "path": "libraries/net/java/jinput/jinput-platform/2.0.5/jinput-platform-2.0.5-natives-linux.jar",
+      "sha256": "1ab4d194277816b6105253d224c8c69f1b6d720690efe7c85f3ce884f0ea273d"
+    },
+    {
+      "path": "libraries/net/java/jinput/jinput-platform/2.0.5/jinput-platform-2.0.5-natives-osx.jar",
+      "sha256": "171024b00f9a743b92388b48733dc30fd3f6d3a7da4f66f9821531fbcf1aa074"
+    },
+    {
+      "path": "libraries/net/java/jinput/jinput-platform/2.0.5/jinput-platform-2.0.5-natives-windows.jar",
+      "sha256": "24afbd5e1fab17da57d16a4d3f19d53f36155ef46a9976484201a4bb9722287f"
+    },
+    {
+      "path": "libraries/net/java/jutils/jutils/1.0.0/jutils-1.0.0.jar",
+      "sha256": "c3334ff39cf0ab3b54925619101054c90098b7c733b1e7834c7b75e4c41e84a5"
+    },
+    {
+      "path": "libraries/net/jodah/typetools/0.6.3/typetools-0.6.3.jar",
+      "sha256": "408300867804be05d1083cc0287dd3a21295a9e76090e288013ba5a4182dc96d"
+    },
+    {
+      "path": "libraries/net/sf/jopt-simple/jopt-simple/4.6/jopt-simple-4.6.jar",
+      "sha256": "3fcfbe3203c2ea521bf7640484fd35d6303186ea2e08e72f032d640ca067ffda"
+    },
+    {
+      "path": "libraries/org/apache/commons/commons-compress/1.21/commons-compress-1.21.jar",
+      "sha256": "6aecfd5459728a595601cfa07258d131972ffc39b492eb48bdd596577a2f244a"
+    },
+    {
+      "path": "libraries/org/apache/commons/commons-lang3/3.3.2/commons-lang3-3.3.2.jar",
+      "sha256": "6b81d10754dadf184d386011486e6509c2cc0c3d33565ced4fb4402b9413d47d"
+    },
+    {
+      "path": "libraries/org/apache/httpcomponents/httpasyncclient/4.1.1/httpasyncclient-4.1.1.jar",
+      "sha256": "27cb2c5eba8e85799f38b7cb0341406ef967e061f91018c68733ec6856ff7633"
+    },
+    {
+      "path": "libraries/org/apache/httpcomponents/httpclient/4.5.13/httpclient-4.5.13.jar",
+      "sha256": "6fe9026a566c6a5001608cf3fc32196641f6c1e5e1986d1037ccdbd5f31ef743"
+    },
+    {
+      "path": "libraries/org/apache/httpcomponents/httpcore/4.3.2/httpcore-4.3.2.jar",
+      "sha256": "abd02320e2356f89d054dae4cf02306bef20a9cf7865b3ac94ec7552b4f1528b"
+    },
+    {
+      "path": "libraries/org/apache/httpcomponents/httpcore-nio/4.4.4/httpcore-nio-4.4.4.jar",
+      "sha256": "f21be11ed00a7c655204c03d3ff38c2e8ac88db0913da3598ce5f9ffd686ae1f"
+    },
+    {
+      "path": "libraries/org/apache/httpcomponents/httpmime/4.5.2/httpmime-4.5.2.jar",
+      "sha256": "231a3f7e4962053db2be8461d5422e68fc458a3a7dd7d8ada803a348e21f8f07"
+    },
+    {
+      "path": "libraries/org/apache/logging/log4j/log4j-api/2.17.1/log4j-api-2.17.1.jar",
+      "sha256": "b0d8a4c8ab4fb8b1888d0095822703b0e6d4793c419550203da9e69196161de4"
+    },
+    {
+      "path": "libraries/org/apache/logging/log4j/log4j-core/2.17.1/log4j-core-2.17.1.jar",
+      "sha256": "c967f223487980b9364e94a7c7f9a8a01fd3ee7c19bdbf0b0f9f8cb8511f3d41"
+    },
+    {
+      "path": "libraries/org/apache/logging/log4j/log4j-slf4j-impl/2.17.1/log4j-slf4j-impl-2.17.1.jar",
+      "sha256": "e9a03720e5d5076009c2530635da9d08485e28a0b0ec20708dadc51afb78e41e"
+    },
+    {
+      "path": "libraries/org/javassist/javassist/3.28.0-GA/javassist-3.28.0-GA.jar",
+      "sha256": "57d0a9e9286f82f4eaa851125186997f811befce0e2060ff0a15a77f5a9dd9a7"
+    },
+    {
+      "path": "libraries/org/jetbrains/annotations/24.1.0/annotations-24.1.0.jar",
+      "sha256": "27a770dc7ce50500918bb8c3c0660c98290630ec796b5e3cf6b90f403b3033c6"
+    },
+    {
+      "path": "libraries/org/jetbrains/kotlin/kotlin-stdlib/1.6.20/kotlin-stdlib-1.6.20.jar",
+      "sha256": "eeb51c2b67b26233fd81d0bc4f8044ec849718890905763ceffd84a31e2cb799"
+    },
+    {
+      "path": "libraries/org/jetbrains/kotlin/kotlin-stdlib-common/1.5.31/kotlin-stdlib-common-1.5.31.jar",
+      "sha256": "dfa2a18e26b028388ee1968d199bf6f166f737ab7049c25a5e2da614404e22ad"
+    },
+    {
+      "path": "libraries/org/jetbrains/kotlin/kotlin-stdlib-jdk7/1.9.0-RC/kotlin-stdlib-jdk7-1.9.0-RC.jar",
+      "sha256": "d4e173f6d13a2658d3cebcbd5dcb1d81836a0ef9d6e0dd8c23b2fd8d6eb8fe18"
+    },
+    {
+      "path": "libraries/org/jetbrains/kotlin/kotlin-stdlib-jdk8/1.9.0-RC/kotlin-stdlib-jdk8-1.9.0-RC.jar",
+      "sha256": "572e14a5970f3b297ade8a09bd4789a8eaa1006f513b197733e8d5a093d5493a"
+    },
+    {
+      "path": "libraries/org/json/json/20230618/json-20230618.jar",
+      "sha256": "7004007a9fd87fe1d86f673b472c0372e5bc50bacb724c029a6112d7c4b4a640"
+    },
+    {
+      "path": "libraries/org/l33tlabs/twl/pngdecoder/1.0/pngdecoder-1.0.jar",
+      "sha256": "0fb460812aecef0ba734f7cb4e6f91c221f467c71b2e94c41a0d56115a667989"
+    },
+    {
+      "path": "libraries/org/projectlombok/lombok/1.18.26/lombok-1.18.26.jar",
+      "sha256": "1ea5ad6c6afcff902d75072b2aaa6695585aebee9f12127e15c0036ba95d2918"
+    },
+    {
+      "path": "libraries/org/reflections/reflections/0.10.2/reflections-0.10.2.jar",
+      "sha256": "938a2d08fe54050d7610b944d8ddc3a09355710d9e6be0aac838dbc04e9a2825"
+    },
+    {
+      "path": "libraries/org/slf4j/slf4j-api/1.7.32/slf4j-api-1.7.32.jar",
+      "sha256": "3624f8474c1af46d75f98bc097d7864a323c81b3808aa43689a6e1c601c027be"
+    },
+    {
+      "path": "libraries/tv/twitch/twitch/6.5/twitch-6.5.jar",
+      "sha256": "3b90f9f7ad968b9588482e3a09b6e7d0d81c6cf7c214c5cecd8120e3ee509ae9"
+    },
+    {
+      "path": "libraries/tv/twitch/twitch-external-platform/4.5/twitch-external-platform-4.5-natives-windows-32.jar",
+      "sha256": "0825d6081eef7e57434cd15525d6c1e7bc5d590e08eaea5b7516820031978af9"
+    },
+    {
+      "path": "libraries/tv/twitch/twitch-external-platform/4.5/twitch-external-platform-4.5-natives-windows-64.jar",
+      "sha256": "6428eb438f53afc563d58c7f2a563ca9fcaae80db3520af744de5e5db1c9df6a"
+    },
+    {
+      "path": "libraries/tv/twitch/twitch-platform/6.5/twitch-platform-6.5-natives-osx.jar",
+      "sha256": "4005b7d20bc7e8c37cb0fd94bb7c44b5a6373846f3cb59e7a0095f6ebdf3e4f3"
+    },
+    {
+      "path": "libraries/tv/twitch/twitch-platform/6.5/twitch-platform-6.5-natives-windows-32.jar",
+      "sha256": "8315b4943f4e1356c34b213d4f309784d5e36cbded1fb37c49efcc7d22c909cb"
+    },
+    {
+      "path": "libraries/tv/twitch/twitch-platform/6.5/twitch-platform-6.5-natives-windows-64.jar",
+      "sha256": "75337e7362e489a6f8c9712aeced9e131e82a3ce851cafbd4d03fda284cc7116"
+    }
+  ],
+  "requiredPaths": [
+    "gameDir",
+    "assetsDir",
+    "nativesDir"
+  ],
+  "jvmArgumentTemplates": [
+    "-Djava.library.path={nativesDir}",
+    "-Djava.io.tmpdir={gameDir}/launcher-tmp"
+  ],
+  "gameArgumentTemplates": [
+    "--gameDir",
+    "{gameDir}",
+    "--assetsDir",
+    "{assetsDir}",
+    "--nativesDir",
+    "{nativesDir}",
+    "--assetIndex",
+    "1.8",
+    "--version",
+    "{version}"
+  ],
+  "jvmArgumentsByPlatform": {
+    "macos-x64": [
+      "-XstartOnFirstThread"
+    ]
+  },
+  "platformSupport": {
+    "windows-x64": "requires-real-client-start",
+    "linux-x64": "requires-real-client-start",
+    "macos-x64": "requires-real-client-start"
+  }
+}

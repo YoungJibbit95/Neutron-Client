@@ -1,0 +1,17 @@
+{
+  "before": {
+    "DataRoot": "C:\\Users\\Administrator\\AppData\\Roaming\\Neutron Launcher",
+    "StateSHA256": "1a9899f2dd2ce90e9d176f0d20159df6c9195295280a3930a4402b266bf8e239",
+    "InstallDirectory": "F:\\Neutron Launcher Playtest 20261028\\Installed R3",
+    "PreviousInstalledVersion": "0.1.0-playtest.3"
+  },
+  "after": {
+    "InstallerExitCode": 0,
+    "InstalledFileVersion": "0.1.0-playtest.5",
+    "InstalledDirectory": "F:\\Neutron Launcher Playtest 20261028\\Installed R3",
+    "StateSHA256": "1a9899f2dd2ce90e9d176f0d20159df6c9195295280a3930a4402b266bf8e239"
+  },
+  "userStateByteUnchanged": true,
+  "installedFilesEqual": 76,
+  "uninstallerExists": true
+}

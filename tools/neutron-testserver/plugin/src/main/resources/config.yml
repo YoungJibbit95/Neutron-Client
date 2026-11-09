@@ -1,0 +1,141 @@
+# Neutron Testserver bot configuration.
+#
+# All positions are in the arena world.  y is the feet position, so a bot on
+# the default floor (y=64) stands at y=65.
+#
+# Combat bots are static and immortal.  Velocity bots are static too, but they
+# send swing + hurt + entity-velocity packets to the nearest player in range.
+# The same velocity bot therefore also works as a JumpReset target when both
+# swing and hurt are enabled.
+arena:
+  world: neutron_test
+  build-on-start: true
+  teleport-on-join: true
+  center-x: 0.5
+  center-y: 65.0
+  center-z: 0.5
+  floor-y: 64
+  size: 48
+  clear-height: 8
+  wall-block: STAINED_CLAY
+  wall-data: 14
+  floor-block: STONE
+  floor-data: 0
+  center-block: QUARTZ_BLOCK
+  center-data: 0
+  combat-marker-data: 5
+  velocity-marker-data: 14
+  time: 6000
+
+bots:
+  auto-spawn: true
+  save-on-stop: true
+  max: 32
+  definitions:
+    # ---------------------------------------------------------------------
+    # Static immortal combat bots.  Use these for Aura, AimAssist, Tickbase,
+    # Backtrack, LagRange, reach and rotation tests.
+    # ---------------------------------------------------------------------
+    - type: COMBAT
+      name: combat_static
+      x: 5.5
+      y: 65.0
+      z: -4.5
+      yaw: 90.0
+      pitch: 0.0
+      equipment: SWORD
+    - type: COMBAT
+      name: combat_armor
+      x: 5.5
+      y: 65.0
+      z: 0.5
+      yaw: 90.0
+      pitch: 0.0
+      equipment: FULL
+    - type: COMBAT
+      name: combat_light
+      x: 5.5
+      y: 65.0
+      z: 5.5
+      yaw: 90.0
+      pitch: 0.0
+      equipment: ARMOR
+
+    # ---------------------------------------------------------------------
+    # Static attacking velocity / jump-reset bots.
+    #
+    # horizontal-percent / vertical-percent are relative to a vanilla 1.8
+    # knockback impulse of 0.4 blocks/tick.  interval-ms is the hit interval.
+    # range is the maximum distance to the target; keep it small so only the
+    # lane you stand in attacks you.
+    # ---------------------------------------------------------------------
+    - type: VELOCITY
+      name: kb_25_1000
+      x: -5.5
+      y: 65.0
+      z: -8.5
+      yaw: 270.0
+      pitch: 0.0
+      horizontal-percent: 25.0
+      vertical-percent: 25.0
+      interval-ms: 1000
+      range: 3.0
+      swing: true
+      hurt: true
+      target: ""
+    - type: VELOCITY
+      name: kb_50_500
+      x: -5.5
+      y: 65.0
+      z: -4.5
+      yaw: 270.0
+      pitch: 0.0
+      horizontal-percent: 50.0
+      vertical-percent: 50.0
+      interval-ms: 500
+      range: 3.0
+      swing: true
+      hurt: true
+      target: ""
+    - type: VELOCITY
+      name: kb_100_250
+      x: -5.5
+      y: 65.0
+      z: -0.5
+      yaw: 270.0
+      pitch: 0.0
+      horizontal-percent: 100.0
+      vertical-percent: 100.0
+      interval-ms: 250
+      range: 3.0
+      swing: true
+      hurt: true
+      target: ""
+    - type: VELOCITY
+      name: kb_150_200
+      x: -5.5
+      y: 65.0
+      z: 3.5
+      yaw: 270.0
+      pitch: 0.0
+      horizontal-percent: 150.0
+      vertical-percent: 150.0
+      interval-ms: 200
+      range: 3.0
+      swing: true
+      hurt: true
+      target: ""
+    - type: VELOCITY
+      name: kb_200_100
+      x: -5.5
+      y: 65.0
+      z: 7.5
+      yaw: 270.0
+      pitch: 0.0
+      horizontal-percent: 200.0
+      vertical-percent: 200.0
+      interval-ms: 100
+      range: 3.0
+      swing: true
+      hurt: true
+      target: ""

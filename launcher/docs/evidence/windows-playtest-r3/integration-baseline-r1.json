@@ -1,0 +1,44 @@
+{
+  "capturedAt": "2026-10-28T17:45:51.744Z",
+  "root": "F:\\Neutron Launcher Playtest 20261028\\Managed Integration",
+  "checks": [
+    {
+      "name": "managed-setup",
+      "success": true
+    },
+    {
+      "name": "github-commit-archive-maven-build",
+      "success": true,
+      "commit": "1bc6c364b58a4eb86faf4cc9aab6e15153837cd9",
+      "archiveSha256": "426aaaad120660f3b622543381c03e184ef40e36ebc64b9b251fe3b31cdc6524",
+      "adapterSha256": "ce8898df1b0e6ac4d54a2a8fb6b0b93c98d0918ae58b06e69d0663daa0c7234c",
+      "classpathFiles": 61,
+      "assetObjects": 722
+    },
+    {
+      "name": "bootstrap-validate-only-no-game-window",
+      "exitCode": 0,
+      "output": [
+        "NEUTRON_BOOTSTRAP_VALIDATED"
+      ]
+    },
+    {
+      "name": "verified-version-rollback-and-reselection",
+      "success": true,
+      "previous": "1bc6c364b58a4eb86faf4cc9aab6e15153837cd9-8598e0ef-ef72-4004-b29f-9c9ae6348b7e"
+    },
+    {
+      "name": "offline-registry-integrity-restoration-without-network",
+      "success": true
+    }
+  ],
+  "build": {
+    "id": "1bc6c364b58a4eb86faf4cc9aab6e15153837cd9-874ad257-dad8-450e-8778-4c3cfa9aa3f7",
+    "commit": "1bc6c364b58a4eb86faf4cc9aab6e15153837cd9",
+    "date": "2026-10-28T17:45:42.758Z",
+    "sizeMiB": 131,
+    "manifestSha256": "39d3b0dd69eae504f3ff39707fdb32d653353808b3da197a6f3e1b79873cbf0b"
+  },
+  "noElectronOrMinecraftStarted": true,
+  "installerNotExecuted": true
+}

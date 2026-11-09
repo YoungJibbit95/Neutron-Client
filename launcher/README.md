@@ -40,8 +40,10 @@ No personal game directories, accounts or full client copies belong in the packa
 
 Launcher Windows release builds and tests the actual NSIS candidate on PRs and
 relevant main pushes. Independent artifact review checks the exact EXE, source
-revision and standard-user cold/offline/upgrade receipts. Publication runs only
-on main after a normal protected-branch merge and successful required checks.
+revision and standard-user cold/offline/upgrade receipts. Main pushes retain the
+reviewed artifacts for playtesting. Publication requires an explicit manual
+dispatch with publish enabled on main after the user's playtest approval, a
+normal protected-branch merge and successful required checks.
 The unchanged accepted EXE is uploaded, draft asset hashes are verified, and the
 public download is rehashed after publication. Existing releases are retained.
 Manual dispatch defaults to build-only; publish is accepted only on main.

@@ -57,8 +57,10 @@ reports whether that old installation completed or merely registered incompletel
 release notes distinguish upgrade from repair.
 
 Independent artifact review checks exact bytes, source revision and receipts.
-Publication runs only from main after a normal merge and successful required PR
-checks. It uploads unchanged accepted files under a new launcher-v tag, verifies
+Main pushes build and review artifacts for playtesting. After the user's playtest
+approval, publication requires an explicit manual dispatch with publish enabled
+on main, a normal merge and successful required PR checks. It uploads unchanged
+accepted files under a new launcher-v tag, verifies
 draft asset digests and checks the public EXE after publication. Existing published
 releases and client v tags remain unchanged. Checksums, metadata and receipts are
 attached. Unsigned installer acceptance does not establish full GUI/DPI/GPU-loss

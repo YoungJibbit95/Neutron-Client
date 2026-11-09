@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "platform": "macos-x64",
+  "releaseStatus": "candidate-until-real-client-start",
+  "minecraftVersion": "1.8.9",
+  "metadataUrl": "https://piston-meta.mojang.com/v1/packages/d546f1707a3f2b7d034eece5ea2e311eda875787/1.8.9.json",
+  "metadataSha1": "d546f1707a3f2b7d034eece5ea2e311eda875787",
+  "assetsComplete": false,
+  "uniqueAssetObjects": 722,
+  "assetIndexFile": {
+    "path": "assets/indexes/1.8.json",
+    "sha256": "14e3aa58cf578fd8573985ca96bf075d8be05477be988664a09446c7a76f4142"
+  },
+  "javaLibraries": [
+    {
+      "path": "java-libraries/lwjgl-2.9.2-nightly-20140822.jar",
+      "sha256": "c8662ca9dd1a97ec7fbdce3381f2480f6c3b7e2a9006018aef221e81aa1a3588",
+      "coordinate": "org.lwjgl.lwjgl:lwjgl:2.9.2-nightly-20140822",
+      "upstreamSha1": "7707204c9ffa5d91662de95f0a224e2f721b22af"
+    },
+    {
+      "path": "java-libraries/lwjgl_util-2.9.2-nightly-20140822.jar",
+      "sha256": "5a17b5f834c7c46c4f5b071bf6fcdfbf6e452ef9bf6c903bacffea82d48a54fc",
+      "coordinate": "org.lwjgl.lwjgl:lwjgl_util:2.9.2-nightly-20140822",
+      "upstreamSha1": "f0e612c840a7639c1f77f68d72a28dae2f0c8490"
+    }
+  ],
+  "nativeArchives": [
+    {
+      "coordinate": "org.lwjgl.lwjgl:lwjgl-platform:2.9.2-nightly-20140822",
+      "classifier": "natives-osx",
+      "path": "org/lwjgl/lwjgl/lwjgl-platform/2.9.2-nightly-20140822/lwjgl-platform-2.9.2-nightly-20140822-natives-osx.jar",
+      "sha1": "79f5ce2fea02e77fe47a3c745219167a542121d7",
+      "size": 468116,
+      "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/lwjgl-platform/2.9.2-nightly-20140822/lwjgl-platform-2.9.2-nightly-20140822-natives-osx.jar"
+    },
+    {
+      "coordinate": "net.java.jinput:jinput-platform:2.0.5",
+      "classifier": "natives-osx",
+      "path": "net/java/jinput/jinput-platform/2.0.5/jinput-platform-2.0.5-natives-osx.jar",
+      "sha1": "53f9c919f34d2ca9de8c51fc4e1e8282029a9232",
+      "size": 12186,
+      "url": "https://libraries.minecraft.net/net/java/jinput/jinput-platform/2.0.5/jinput-platform-2.0.5-natives-osx.jar"
+    },
+    {
+      "coordinate": "tv.twitch:twitch-platform:6.5",
+      "classifier": "natives-osx",
+      "path": "tv/twitch/twitch-platform/6.5/twitch-platform-6.5-natives-osx.jar",
+      "sha1": "5f9d1ee26257b3a33f0ca06fed335ef462af659f",
+      "size": 455359,
+      "url": "https://libraries.minecraft.net/tv/twitch/twitch-platform/6.5/twitch-platform-6.5-natives-osx.jar"
+    }
+  ],
+  "nativeFiles": [
+    {
+      "path": "natives/libjinput-osx.jnilib",
+      "sha256": "d155c29cfa7d7b49cab0821d5ba00a8fdc8b386c8bf5669f0313a62e44ba70d6"
+    },
+    {
+      "path": "natives/liblwjgl.dylib",
+      "sha256": "0779bcc14f6bb8a78806650a7cfe20776364c7cc00738bc06e1094e353eb14dd"
+    },
+    {
+      "path": "natives/libtwitchsdk.dylib",
+      "sha256": "a69cd07a16bdff24b688f47013fd08d2af95e8e29f948ba8c870f06f9939ba68"
+    },
+    {
+      "path": "natives/openal.dylib",
+      "sha256": "d845fab22fd58425deafbcb1a552633b4a62bd5dfa27b9263c050d91a3fad8c0"
+    }
+  ]
+}

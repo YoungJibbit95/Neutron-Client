@@ -1,0 +1,16 @@
+// Noninteractive cancellation against our own real Maven build only.
+const fs = require('node:fs/promises');
+const { LauncherService } = require('F:/Puslar Backup - Copy/launcher/out-electron/service.cjs');
+const { verifyDistribution } = require('F:/Puslar Backup - Copy/launcher/out-electron/distribution.cjs');
+const base = 'F:/Neutron Launcher Playtest 20261028'; const root = base + '/Managed Integration';
+const service = new LauncherService(root, 'F:/Puslar Backup - Copy/launcher/resources/source-adapter');
+(async () => {
+  const initial = await service.initialize(); const record = initial.builds.find(build => build.id === initial.selected); if (!record) throw new Error('Verified initial build required.');
+  let cancelled = false;
+  const cancel = state => { if (state.status === 'build' && !cancelled) { cancelled = true; console.log('Cancelling our active Maven process tree.'); void service.execute({ type: 'cancel' }); } };
+  service.on('snapshot', cancel); await service.execute({ type: 'build', play: false }); const final = await service.idle(); service.off('snapshot', cancel);
+  if (!cancelled || final.status !== 'cancelled' || final.selected !== initial.selected || final.builds.length !== initial.builds.length) throw new Error('Cancellation changed the active registry.');
+  await verifyDistribution(root, record); await service.shutdown();
+  const result = { capturedAt: new Date().toISOString(), realMavenTaskCancelled: true, status: final.status, selectionUnchanged: true, buildCountUnchanged: true, selected: final.selected, clientStarted: false };
+  await fs.writeFile(base + '/cancellation-result.json', JSON.stringify(result, null, 2)); console.log(JSON.stringify(result));
+})().catch(async error => { console.error(error); await service.shutdown().catch(() => {}); process.exitCode = 1; });

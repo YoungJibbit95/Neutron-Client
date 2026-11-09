@@ -1,0 +1,101 @@
+--- R3/launcher/electron/distribution.cts
++++ R4/launcher/electron/distribution.cts
+@@ -7,7 +7,7 @@
+ import { atomicJson, files, hash, owned } from './files.cjs';
+ import { extractZip, zipDirectory } from './archives.cjs';
+ import { json, response } from './network.cjs';
+-import { childEnvironment, runProcess, type ProcessGroup } from './processes.cjs';
++import { buildEnvironment, runProcess, type ProcessGroup } from './processes.cjs';
+ import type { Tools } from './toolchain.cjs';
+ import type { Runtime } from './minecraft.cjs';
+ import type { BuildRecord, LaunchOptions } from './contracts.cjs';
+@@ -59,7 +59,7 @@
+   const boots = (await fs.readdir(path.join(tools.mavenHome, 'boot'))).filter(name => /^plexus-classworlds-.*\.jar$/.test(name));
+   if (boots.length !== 1) throw new Error('Maven bootstrap is incomplete.');
+   phase('build');
+-  const code = await runProcess(path.join(tools.javaHome, 'bin/java.exe'), ['-Xmx1536M', '-Djava.io.tmpdir=' + temporary, '-Dclassworlds.conf=' + path.join(tools.mavenHome, 'bin/m2.conf'), '-Dmaven.home=' + tools.mavenHome, '-Dmaven.multiModuleProjectDirectory=' + prepared.source, '-cp', path.join(tools.mavenHome, 'boot', boots[0]), 'org.codehaus.plexus.classworlds.launcher.Launcher', '-B', '-ntp', '-C', '-s', settings, '-gs', settings, '-Dmaven.repo.local=' + await owned(root, 'maven-repository'), '-Plauncher-dist', 'clean', 'package'], { cwd: prepared.source, env: childEnvironment(tools.javaHome, temporary, await owned(root, 'maven-user')), signal, group, line: log });
++  const code = await runProcess(path.join(tools.javaHome, 'bin/java.exe'), ['-Xms64M', '-Xmx1536M', '-Djava.io.tmpdir=' + temporary, '-Dclassworlds.conf=' + path.join(tools.mavenHome, 'bin/m2.conf'), '-Dmaven.home=' + tools.mavenHome, '-Dmaven.multiModuleProjectDirectory=' + prepared.source, '-cp', path.join(tools.mavenHome, 'boot', boots[0]), 'org.codehaus.plexus.classworlds.launcher.Launcher', '-B', '-ntp', '-C', '-s', settings, '-gs', settings, '-Dmaven.repo.local=' + await owned(root, 'maven-repository'), '-Plauncher-dist', 'clean', 'package'], { cwd: prepared.source, env: buildEnvironment(tools.javaHome, temporary, await owned(root, 'maven-user')), signal, group, line: log });
+   if (code !== 0) throw new Error('Maven build failed (exit ' + code + '). See Build logs.');
+   phase('verify'); const id = commit + '-' + randomUUID(); const stage = await owned(root, 'candidates', id); await fs.mkdir(stage, { recursive: true });
+   const unpacked = path.join(prepared.work, 'jar'); await extractZip(path.join(prepared.source, 'target/neutron-client.jar'), unpacked, signal);
+--- R3/launcher/electron/processes.cts
++++ R4/launcher/electron/processes.cts
+@@ -6,6 +6,12 @@
+   const env = { ...process.env };
+   for (const key of Object.keys(env)) if (['JAVA_TOOL_OPTIONS', '_JAVA_OPTIONS', 'JDK_JAVA_OPTIONS', 'MAVEN_OPTS', 'MAVEN_ARGS', 'CLASSPATH'].includes(key.toUpperCase())) delete env[key];
+   return { ...env, JAVA_HOME: javaHome, TEMP: temporary, TMP: temporary, MAVEN_SKIP_RC: '1', MAVEN_USER_HOME: mavenHome ?? temporary };
++}
++export function buildEnvironment(javaHome: string, temporary: string, mavenHome: string) {
++  // Tests start additional JVMs without heap flags. Bound those descendants as
++  // well as Surefire; Maven's explicit heap flags take precedence. Never reuse
++  // caller-supplied JVM options or apply these build limits to the game.
++  return { ...childEnvironment(javaHome, temporary, mavenHome), JAVA_TOOL_OPTIONS: '-Xms32M -Xmx512M' };
+ }
+ export async function killTree(child: Pick<ChildProcess, 'pid' | 'exitCode'>) {
+   if (!child.pid || child.exitCode !== null) return;
+--- R3/launcher/electron/service.cts
++++ R4/launcher/electron/service.cts
+@@ -245,6 +245,6 @@
+       if (this.timer) clearTimeout(this.timer); if (this.recoveryTimer) clearInterval(this.recoveryTimer);
+     } catch (error) { this.closing = false; throw error; }
+   }
+-  report() { return redact(JSON.stringify({ product: 'Neutron Launcher 0.1.0-playtest.3', platform: 'windows-x64', selected: this.state.builds.find(build => build.id === this.state.selected)?.commit ?? null, exitCode: this.state.exitCode, error: this.state.error, logs: this.logs.lines.slice(-80) }, null, 2)); }
++  report() { return redact(JSON.stringify({ product: 'Neutron Launcher 0.1.0-playtest.4', platform: 'windows-x64', selected: this.state.builds.find(build => build.id === this.state.selected)?.commit ?? null, exitCode: this.state.exitCode, error: this.state.error, logs: this.logs.lines.slice(-80) }, null, 2)); }
+   setError(error: unknown) { this.state.error = redact(String(error)); this.logs.add('build', this.state.error, 'error'); this.changed(); }
+ }
+--- R3/launcher/package-lock.json
++++ R4/launcher/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "neutron-launcher",
+-  "version": "0.1.0-playtest.3",
++  "version": "0.1.0-playtest.4",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "neutron-launcher",
+-      "version": "0.1.0-playtest.3",
++      "version": "0.1.0-playtest.4",
+       "license": "UNLICENSED",
+       "dependencies": {
+         "@fontsource-variable/geist": "5.3.0",
+--- R3/launcher/package.json
++++ R4/launcher/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "neutron-launcher",
+-  "version": "0.1.0-playtest.3",
++  "version": "0.1.0-playtest.4",
+   "description": "Neutron Windows x64 playtest launcher",
+   "author": "Neutron Client",
+   "license": "UNLICENSED",
+--- R3/launcher/tests/backend.test.ts
++++ R4/launcher/tests/backend.test.ts
+@@ -11,7 +11,7 @@
+ import { download, response } from '../electron/network.cts';
+ import { parseCommand } from '../electron/contracts.cts';
+ import { LauncherService } from '../electron/service.cts';
+-import { childEnvironment, runProcess } from '../electron/processes.cts';
++import { buildEnvironment, childEnvironment, runProcess } from '../electron/processes.cts';
+ import { launchArguments, verifyDistribution } from '../electron/distribution.cts';
+ import { Logs } from '../electron/logs.cts';
+ import { commandHash, inspectProcess, processMatches } from '../electron/lease.cts';
+@@ -101,6 +101,17 @@
+     const code = await runProcess(process.execPath, ['-e', 'console.log("child fixture"); console.error("stderr fixture"); process.exitCode=7'], { cwd: root, env, line: line => lines.push(line) });
+     expect(code).toBe(7); expect(lines).toContain('child fixture'); expect(lines).toContain('stderr fixture');
+   });
++  test('build heap bounds reach nested processes without leaking into game environments', async () => {
++    vi.stubEnv('JAVA_TOOL_OPTIONS', '-javaagent:untrusted.jar'); vi.stubEnv('_JAVA_OPTIONS', '-Xmx99G');
++    try {
++      const env = buildEnvironment(root, root, root); const lines: string[] = [];
++      const nested = 'console.log(JSON.stringify({heap:process.env.JAVA_TOOL_OPTIONS,legacy:process.env._JAVA_OPTIONS}))';
++      const script = 'const r=require("node:child_process").spawnSync(process.execPath,["-e",' + JSON.stringify(nested) + '],{windowsHide:true,encoding:"utf8"});process.stdout.write(r.stdout);process.exitCode=r.status';
++      expect(await runProcess(process.execPath, ['-e', script], { cwd: root, env, line: line => lines.push(line) })).toBe(0);
++      expect(JSON.parse(lines[0])).toEqual({ heap: '-Xms32M -Xmx512M' });
++      const game = childEnvironment(root, root); expect(game).not.toHaveProperty('JAVA_TOOL_OPTIONS'); expect(game).not.toHaveProperty('_JAVA_OPTIONS');
++    } finally { vi.unstubAllEnvs(); }
++  });
+   test('rotating file logs export redacted retained output while UI buffer stays bounded', async () => {
+     const logs = new Logs(root, () => {}); for (let index = 0; index < 2100; index++) logs.add('build', `row ${index} accessToken=secret-value C:\\Users\\Alice\\Game` + 'x'.repeat(1100));
+     await logs.flush(); expect(logs.lines).toHaveLength(2000); expect(await fs.stat(path.join(root, 'logs/build.log.1'))).toBeTruthy();

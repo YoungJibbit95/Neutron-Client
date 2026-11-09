@@ -1,0 +1,84 @@
+{
+  "design_system": {
+    "project_name": "Neutron Launcher",
+    "category": "General",
+    "pattern": {
+      "name": "Hero + Features + CTA",
+      "sections": "Hero with headline/image > Value prop > Key features (3-5) > CTA section > Footer",
+      "cta_placement": "Hero (sticky) + Bottom",
+      "color_strategy": "Hero: Brand primary or vibrant. Features: Card bg #FAFAFA. CTA: Contrasting accent color",
+      "conversion": "Deep CTA placement. For CTA label text, verify at least 4.5:1 against the button fill; use 7:1 only when the product explicitly targets AAA normal-text contrast. Keep focus and component boundaries independently visible. Disable hero parallax under reduced motion and render its static final state."
+    },
+    "style": {
+      "id": "minimalism-and-swiss-style",
+      "name": "Minimalism & Swiss Style",
+      "type": "General",
+      "effects": "Subtle hover (200-250ms), smooth transitions, sharp shadows if any, clear type hierarchy, fast loading",
+      "keywords": "Clean, simple, spacious, functional, white space, high contrast, geometric, sans-serif, grid-based, essential",
+      "best_for": "Enterprise apps, dashboards, documentation sites, SaaS platforms, professional tools",
+      "performance": "cost:low|drivers:none",
+      "accessibility": "risk:low|requires:contrast-text-4.5,keyboard,visible-focus,reduced-motion",
+      "light_mode": "supported",
+      "dark_mode": "supported"
+    },
+    "colors": {
+      "primary": "#15803D",
+      "on_primary": "#FFFFFF",
+      "secondary": "#166534",
+      "on_secondary": "#FFFFFF",
+      "accent": "#D97706",
+      "on_accent": "#000000",
+      "background": "#0F172A",
+      "foreground": "#FFFFFF",
+      "card": "#192134",
+      "card_foreground": "#FFFFFF",
+      "muted": "#0F1F2B",
+      "muted_foreground": "#94A3B8",
+      "border": "rgba(255,255,255,0.08)",
+      "destructive": "#DC2626",
+      "on_destructive": "#FFFFFF",
+      "ring": "#15803D",
+      "notes": "Felt green + gold on dark",
+      "cta": "#D97706",
+      "text": "#FFFFFF",
+      "on_cta": "#000000"
+    },
+    "typography": {
+      "heading": "Outfit",
+      "body": "Work Sans",
+      "mood": "geometric, modern, clean, balanced, contemporary, versatile",
+      "best_for": "General purpose, portfolios, agencies, modern brands, landing pages",
+      "google_fonts_url": "https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap",
+      "css_import": "@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Work+Sans:wght@300;400;500;600;700&display=swap');"
+    },
+    "key_effects": "Subtle hover (200-250ms), smooth transitions, sharp shadows if any, clear type hierarchy, fast loading",
+    "anti_patterns": "",
+    "decision_rules": {},
+    "activated_rules": [],
+    "constraints": [],
+    "reasoning_default": true,
+    "source_identities": {
+      "product": null,
+      "reasoning": null,
+      "style": "minimalism-and-swiss-style",
+      "color": "Card & Board Game",
+      "typography": "Geometric Modern",
+      "landing": "Hero + Features + CTA"
+    },
+    "source_derivations": {
+      "color_mode": null
+    },
+    "severity": "MEDIUM",
+    "dials": {
+      "variance": null,
+      "variance_label": null,
+      "motion": null,
+      "motion_label": null,
+      "density": null,
+      "density_label": null
+    },
+    "motion_snippet": {},
+    "spacing_scale": null
+  },
+  "persistence": null
+}

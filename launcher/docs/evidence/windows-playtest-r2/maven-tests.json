@@ -1,0 +1,16 @@
+[
+  {
+    "workspace": "F:\\Neutron Launcher Playtest 20261028\\Managed Integration\\work\\1bc6c364b58a4eb86faf4cc9aab6e15153837cd9-3012fc47-e5e1-4a11-aa4d-f872566d73ea",
+    "tests": 400,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 3
+  },
+  {
+    "workspace": "F:\\Neutron Launcher Playtest 20261028\\Managed Integration\\work\\1bc6c364b58a4eb86faf4cc9aab6e15153837cd9-90e7a4e5-5122-4fbe-b0f3-a46295532a92",
+    "tests": 400,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 3
+  }
+]

@@ -1,0 +1,38 @@
+{
+  "evidenceType": "Transcribed excerpts from actual tool results; commands were not rerun",
+  "attempts": [
+    {
+      "workspace": "C:/Users/Administrator/AppData/Local/Temp/neutron-launcher-section2-20261028/Cold Cache Build",
+      "stage": "source snapshot before Maven",
+      "exception": "MemoryError",
+      "operation": "digest(path), stream.read(1024 * 1024)",
+      "passed": false
+    },
+    {
+      "workspace": "C:/Users/Administrator/AppData/Local/Temp/neutron-launcher-section2-20261028/Cold Cache Build Retry",
+      "stage": "source snapshot before Maven",
+      "exception": "OSError: [Errno 28] No space left on device",
+      "operation": "copying source/src/main/java/net/minecraft/item/crafting/ShapedRecipes.java",
+      "passed": false
+    }
+  ],
+  "cleanup": {
+    "rejectedBy": "automatic approval review",
+    "operation": "one proposed recursive cleanup of both owned incomplete workspaces",
+    "targets": [
+      "C:/Users/Administrator/AppData/Local/Temp/neutron-launcher-section2-20261028/Cold Cache Build",
+      "C:/Users/Administrator/AppData/Local/Temp/neutron-launcher-section2-20261028/Cold Cache Build Retry"
+    ],
+    "reason": "blocked by policy",
+    "executed": false,
+    "bypassAttempted": false,
+    "targetsPreserved": true
+  },
+  "laterAction": "Successful isolated cold-cache build on F:; no more large copies/downloads on C:",
+  "documentationRejection": {
+    "operation": "Combined shell invocation to write and run a documentation finalizer containing a textual cleanup transcript",
+    "reason": "blocked by policy; no more specific reason was supplied",
+    "executed": false,
+    "safeAlternative": "Write this inert JSON and the non-destructive checker as explicit files, then run only the checker"
+  }
+}

@@ -1,0 +1,85 @@
+---- Minecraft Crash Report ----
+// I bet Cylons wouldn't have this problem.
+
+Time: 28.10.26 16:43
+Description: Rendering screen
+
+java.lang.IllegalStateException: Shader resource: Tenacity/shaders/vertex.vsh
+	at me.youngjibbit.utils.render.ShaderUtil.resource(ShaderUtil.java:51)
+	at me.youngjibbit.utils.render.ShaderUtil.<init>(ShaderUtil.java:18)
+	at me.youngjibbit.gui.MenuShader.shader(MenuShader.java:23)
+	at me.youngjibbit.gui.MenuShader.mm5(MenuShader.java:148)
+	at net.minecraft.client.gui.GuiScreen.drawDefaultBackground(GuiScreen.java:432)
+	at me.youngjibbit.gui.clientsettings.SettingsMenu.drawScreen(SettingsMenu.java:66)
+	at net.minecraft.client.renderer.EntityRenderer.func_181560_a(EntityRenderer.java:1400)
+	at net.minecraft.client.Minecraft.runGameLoop(Minecraft.java:1132)
+	at net.minecraft.client.Minecraft.run(Minecraft.java:415)
+	at net.minecraft.client.main.Main.main(Main.java:113)
+	at me.neutron.launcher.ClientBootstrap.main(ClientBootstrap.java:27)
+Caused by: java.io.FileNotFoundException: minecraft:Tenacity/shaders/vertex.vsh
+	at net.minecraft.client.resources.FallbackResourceManager.getResource(FallbackResourceManager.java:64)
+	at net.minecraft.client.resources.SimpleReloadableResourceManager.getResource(SimpleReloadableResourceManager.java:61)
+	... 11 more
+
+
+A detailed walkthrough of the error, its code path and all known details is as follows:
+---------------------------------------------------------------------------------------
+
+-- Head --
+Stacktrace:
+	at me.youngjibbit.utils.render.ShaderUtil.resource(ShaderUtil.java:51)
+	at me.youngjibbit.utils.render.ShaderUtil.<init>(ShaderUtil.java:18)
+	at me.youngjibbit.gui.MenuShader.shader(MenuShader.java:23)
+	at me.youngjibbit.gui.MenuShader.mm5(MenuShader.java:148)
+	at net.minecraft.client.gui.GuiScreen.drawDefaultBackground(GuiScreen.java:432)
+	at me.youngjibbit.gui.clientsettings.SettingsMenu.drawScreen(SettingsMenu.java:66)
+
+-- Screen render details --
+Details:
+	Screen name: me.youngjibbit.gui.clientsettings.SettingsMenu
+	Mouse location: Scaled: (299, 220). Absolute: (599, 198)
+	Screen size: Scaled: (480, 320). Absolute: (960, 640). Scale factor of 2
+Stacktrace:
+	at net.minecraft.client.renderer.EntityRenderer.func_181560_a(EntityRenderer.java:1400)
+	at net.minecraft.client.Minecraft.runGameLoop(Minecraft.java:1132)
+	at net.minecraft.client.Minecraft.run(Minecraft.java:415)
+	at net.minecraft.client.main.Main.main(Main.java:113)
+	at me.neutron.launcher.ClientBootstrap.main(ClientBootstrap.java:27)
+
+-- System Details --
+Details:
+	Minecraft Version: 1.8.9
+	Operating System: Windows 11 (amd64) version 10.0
+	Java Version: 1.8.0_482, Temurin
+	Java VM Version: OpenJDK 64-Bit Server VM (mixed mode), Temurin
+	Memory: 270680952 bytes (258 MB) / 492306432 bytes (469 MB) up to 954728448 bytes (910 MB)
+	JVM Flags: 2 total; -Xms256M -Xmx1024M
+	IntCache: cache: 0, tcache: 0, allocated: 0, tallocated: 0
+	Launched Version: Development-eeddb7d-local
+	LWJGL: 2.9.4
+	OpenGL: NVIDIA GeForce RTX 3070 Ti/PCIe/SSE2 GL version 4.6.0 NVIDIA 616.92, NVIDIA Corporation
+	GL Caps: Using GL 1.3 multitexturing.
+Using GL 1.3 texture combiners.
+Using framebuffer objects because OpenGL 3.0 is supported and separate blending is supported.
+Shaders are available because OpenGL 2.1 is supported.
+VBOs are available because OpenGL 1.5 is supported.
+
+	Using VBOs: No
+	Is Modded: Very likely; Jar signature invalidated
+	Type: Client (map_client.txt)
+	Resource Packs: 
+	Current Language: English (US)
+	Profiler Position: N/A (disabled)
+	CPU: 1x AMD Ryzen 5 5500 1 physical CPU package(s) 6 physical CPU core(s) 12 logical CPU(s) Identifier: AuthenticAMD Family 25 Model 80 Stepping 0 ProcessorID: 178BFBFF00A50F00 Microarchitecture: Zen 3
+	OptiFine Version: OptiFine_1.8.9_HD_U_L5
+	OptiFine Build: ~~NULL~~
+	Render Distance Chunks: 8
+	Mipmaps: 4
+	Anisotropic Filtering: 1
+	Antialiasing: 0
+	Multitexture: false
+	Shaders: null
+	OpenGlVersion: 4.6.0 NVIDIA 616.92
+	OpenGlRenderer: NVIDIA GeForce RTX 3070 Ti/PCIe/SSE2
+	OpenGlVendor: NVIDIA Corporation
+	CpuCount: 12

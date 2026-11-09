@@ -1,0 +1,17 @@
+from pathlib import Path
+import json,shutil,hashlib,re
+base=Path(r'F:\Neutron Launcher Playtest 20261028');root=Path(r'F:\Puslar Backup - Copy');project=root/'launcher';ev=project/'docs/evidence/windows-playtest-r3'
+shutil.copyfile(project/'docs/evidence/windows-playtest/integration.json',ev/'integration-baseline-r1.json')
+shutil.copyfile(base/'maven-stop-failure-r3.json',ev/'maven-stop-failure-r3.json')
+for name in ['final_verify_r3.py','inspect_package_r3.cjs','collect_evidence_r3.py','finish_r3_evidence.py','maven-stop-failure-r3.cjs']:
+    shutil.copyfile(base/name,ev/(name+'.txt'))
+read=lambda p:json.loads(p.read_text(encoding='utf-8-sig'))
+candidate=read(ev/'candidate.json')
+candidate.update(dict(correctionRound='R3',fixedReviewFinding='P1 failed termination is not an exited process; retain client/task ownership and allow retry',newTargetedRegressionTests=4,realMavenDeniedTermination=read(ev/'maven-stop-failure-r3.json'),integrationSmokeReusesPreviouslyBuiltDistribution=True,fullMavenBuildsFromUnchangedClientAdapterBaseline=True,technicalReleaseGo=False))
+(ev/'candidate.json').write_text(json.dumps(candidate,indent=2,ensure_ascii=False),encoding='utf-8')
+rows=read(ev/'source-inventory.json');changed=[row['relativePath'] for row in rows if hashlib.sha256(Path(row['path']).read_bytes()).hexdigest()!=row['sha256']];assert not changed,changed
+for name in ['README.md','docs/INTEGRATION.md','docs/PLAYTEST.md','docs/GATES.md','docs/RELEASE-NOTES.md','docs/REVIEW-WINDOWS-R3.md']:
+    p=project/name
+    for link in re.findall(r'\]\(([^)]+)\)',p.read_text(encoding='utf-8')):
+        if '://' not in link and not link.startswith('#'):assert (p.parent/link.split('#')[0]).exists(),(name,link)
+print(json.dumps(dict(tests=candidate['tests'],installer=candidate['installer'],publication=candidate['publication'],sourceChanges=changed,realMavenDeniedTermination=candidate['realMavenDeniedTermination']),indent=2))

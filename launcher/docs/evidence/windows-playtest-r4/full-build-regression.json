@@ -1,0 +1,26 @@
+{
+  "capturedAt": "2026-10-28T20:10:18.199Z",
+  "record": {
+    "id": "d5a277de779f6cf69768a2900e299c9af5810e1a-49863922-a4a9-4fe6-a0d8-a49b7ee46f5c",
+    "commit": "d5a277de779f6cf69768a2900e299c9af5810e1a",
+    "date": "2026-10-28T20:10:11.203Z",
+    "sizeMiB": 131,
+    "manifestSha256": "305a76bcc442193c07430571fa8a4d9014c5b2426bad12d36e7e152d8c308008"
+  },
+  "adapterSha256": "ce8898df1b0e6ac4d54a2a8fb6b0b93c98d0918ae58b06e69d0663daa0c7234c",
+  "archiveSha256": "7d82395b34b6786a682873f6bdd36f7f9df06b2c45f1ef07eb2c1d9898c778e4",
+  "classpathFiles": 61,
+  "assets": 722,
+  "bootstrap": {
+    "exitCode": 0,
+    "output": [
+      "NEUTRON_BOOTSTRAP_VALIDATED"
+    ]
+  },
+  "previousSelectionUnchanged": true,
+  "testSummary": [
+    "[INFO] Tests run: 400, Failures: 0, Errors: 0, Skipped: 3"
+  ],
+  "noElectronOrGameWindow": true,
+  "freshSourceWorkspace": true
+}
