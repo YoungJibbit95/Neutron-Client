@@ -58,4 +58,73 @@ public class ConfigLibraryTest {
         assertFalse(absent.available());assertFalse(absent.save("One"));
         assertTrue(absent.entries().isEmpty());assertFalse(absent.status().isEmpty());
     }
+
+    @Test public void renamePreservesSavedSourceInsteadOfCurrentClient() throws Exception {
+        sample.amount.setValue(7.25);assertTrue(library.save("Saved"));
+        byte[] original=Files.readAllBytes(folder.resolve("Saved.json"));
+        sample.amount.setValue(1.0);assertFalse(library.rename("Renamed"));
+        assertEquals(ConfigLibrary.Pending.RENAME,library.pending());
+        assertTrue(library.confirm());assertEquals("Renamed",library.selected());
+        assertFalse(Files.exists(folder.resolve("Saved.json")));
+        assertArrayEquals(original,Files.readAllBytes(folder.resolve("Renamed.json")));
+        assertTrue(library.load());assertEquals(7.25,sample.amount.getValue(),0);
+    }
+    @Test public void unchangedRenameNeverDeletesSavedConfig() throws Exception {
+        library.save("Saved");byte[] bytes=Files.readAllBytes(folder.resolve("Saved.json"));
+        assertTrue(library.rename("Saved"));assertFalse(library.confirm());
+        assertArrayEquals(bytes,Files.readAllBytes(folder.resolve("Saved.json")));
+    }
+    @Test public void renameCollisionRefusesToReplaceAnotherConfig() throws Exception {
+        library.save("One");library.save("Two");library.select("One");
+        byte[] one=Files.readAllBytes(folder.resolve("One.json"));
+        byte[] two=Files.readAllBytes(folder.resolve("Two.json"));
+        assertFalse(library.rename("two"));assertEquals(ConfigLibrary.Pending.NONE,library.pending());
+        assertFalse(library.confirm());assertArrayEquals(one,Files.readAllBytes(folder.resolve("One.json")));
+        assertArrayEquals(two,Files.readAllBytes(folder.resolve("Two.json")));
+    }
+    @Test public void caseOnlyRenameRetainsBytesAndUsesNewSpelling() throws Exception {
+        library.save("Saved");byte[] bytes=Files.readAllBytes(folder.resolve("Saved.json"));
+        assertFalse(library.rename("saved"));assertTrue(library.confirm());
+        assertEquals("saved",library.selected());assertEquals(1,library.entries().size());
+        assertArrayEquals(bytes,Files.readAllBytes(folder.resolve("saved.json")));
+    }
+    @Test public void cancelAndSelectionChangeDisarmCapturedRenameSource() throws Exception {
+        library.save("One");library.save("Two");library.select("One");
+        library.rename("Renamed");library.cancel();assertFalse(library.confirm());
+        library.rename("Renamed");library.select("Two");assertFalse(library.confirm());
+        assertTrue(Files.exists(folder.resolve("One.json")));assertTrue(Files.exists(folder.resolve("Two.json")));
+        assertFalse(Files.exists(folder.resolve("Renamed.json")));
+    }
+    @Test public void collisionCreatedAfterDialogDoesNotOverwriteAndPreservesSource() throws Exception {
+        library.save("One");assertFalse(library.rename("New"));
+        Files.write(folder.resolve("New.json"),new byte[]{12,34});
+        assertFalse(library.confirm());assertFalse(library.status().isEmpty());
+        assertTrue(Files.exists(folder.resolve("One.json")));
+        assertArrayEquals(new byte[]{12,34},Files.readAllBytes(folder.resolve("New.json")));
+    }
+    @Test public void missingSourceDuringConfirmationReportsIoFailure() throws Exception {
+        library.save("One");library.rename("New");Files.delete(folder.resolve("One.json"));
+        assertFalse(library.confirm());assertFalse(library.status().isEmpty());
+        assertFalse(Files.exists(folder.resolve("New.json")));
+    }
+
+    @Test public void newlyDiscoveredSavedFileNeedsExplicitOverwriteConfirmation() throws Exception {
+        byte[] other="independent saved bytes".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        Files.write(folder.resolve("External.json"),other);
+        assertFalse(library.save("external"));assertEquals(ConfigLibrary.Pending.OVERWRITE,library.pending());
+        assertArrayEquals(other,Files.readAllBytes(folder.resolve("External.json")));
+        library.cancel();assertArrayEquals(other,Files.readAllBytes(folder.resolve("External.json")));
+    }
+    @Test public void concurrentNewFileAtFinalInstallIsNeverReplaced() throws Exception {
+        ConfigManager manager=new ConfigManager(folder,Collections.singletonList(sample),()->false,message->{}) {
+            @Override protected void installNewFile(Path temporary,Path target) throws java.io.IOException {
+                Files.write(target,new byte[]{11,22});super.installNewFile(temporary,target);
+            }
+        };
+        ConfigLibrary racing=new ConfigLibrary(manager);
+        assertFalse(racing.save("Concurrent"));assertFalse(racing.status().isEmpty());
+        assertArrayEquals(new byte[]{11,22},Files.readAllBytes(folder.resolve("Concurrent.json")));
+        try(java.util.stream.Stream<Path> files=Files.list(folder)) { assertEquals(1L,files.count()); }
+    }
+
 }

@@ -5,6 +5,7 @@ import me.youngjibbit.clickgui.utils.ClipRect;
 import me.youngjibbit.module.ModuleManager;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.utils.render.UiEffects;
+import me.youngjibbit.theme.ThemeMode;
 import org.junit.*;
 import org.lwjgl.input.Keyboard;
 import java.lang.reflect.Field;
@@ -17,6 +18,7 @@ public class MainMenuInteractionTest {
     private ModuleManager previous;
     private ClientSettings settings;
     private Screen screen;
+    private String previousThemeMode;
 
     static class Screen extends MainMenu {
         int calls, last = -1;
@@ -39,6 +41,7 @@ public class MainMenuInteractionTest {
     }
 
     @Before public void setup() throws Exception {
+        previousThemeMode=ThemeMode.selected();
         managerField = Pulsar.class.getDeclaredField("mm"); managerField.setAccessible(true);
         previous = Pulsar.INSTANCE.getMm();
         Field unsafe = sun.misc.Unsafe.class.getDeclaredField("theUnsafe"); unsafe.setAccessible(true);
@@ -49,7 +52,7 @@ public class MainMenuInteractionTest {
         index.set(manager, modules); managerField.set(Pulsar.INSTANCE, manager); UiEffects.invalidate();
         screen = new Screen(); screen.resize(480, 320);
     }
-    @After public void restore() throws Exception { managerField.set(Pulsar.INSTANCE, previous); UiEffects.invalidate(); }
+    @After public void restore() throws Exception { managerField.set(Pulsar.INSTANCE, previous); ThemeMode.select(previousThemeMode); UiEffects.invalidate(); }
 
     @Test public void leftPressReleaseRoutesAllNineIdsOnce() throws Exception {
         for (int id = 0; id < 9; id++) {
@@ -93,6 +96,8 @@ public class MainMenuInteractionTest {
         assertEquals(0, screen.calls);
     }
     @Test public void boundsStayVisibleAndDisjointAtSmallOddSizesAndGuiScales() throws Exception {
+        for(String mode:new String[]{ThemeMode.LEGACY,ThemeMode.APPROACH_TWO}) {
+        ThemeMode.select(mode);
         for(int[] size : new int[][]{{480,320},{320,240},{367,245},{320,180},{1920,1080}}) {
             screen.resize(size[0], size[1]);
             for(int id=0; id<9; id++) {
@@ -102,6 +107,7 @@ public class MainMenuInteractionTest {
                 for(int other=0; other<id; other++) assertTrue(r.intersect(screen.actionBounds(other)).isEmpty());
                 screen.down(id,0); screen.up(id,0); assertEquals(id,screen.last);
             }
+        }
         }
     }
     @Test public void utilityTogglesChangeOnlyTheirExistingValue() throws Exception {

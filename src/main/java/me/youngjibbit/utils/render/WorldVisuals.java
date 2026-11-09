@@ -17,7 +17,7 @@ public final class WorldVisuals {
         boolean enabled=UiEffects.options().gradients;
         // Sample the shared phase once in normalized ring coordinates, never project GUI
         // coordinates through the world camera for every vertex. Mirror around the seam.
-        for(int i=0;i<=SEGMENTS;i++){float t=2*Math.min(i,SEGMENTS-i)/(float)SEGMENTS;palette[i]=Theme.interpolateRGB(theme.getPrimaryGradientRGB(),theme.getSecondaryGradientRGB(),enabled?gradient.position(t,t,1,1):0);}
+        for(int i=0;i<=SEGMENTS;i++){float t=2*Math.min(i,SEGMENTS-i)/(float)SEGMENTS;palette[i]=Theme.interpolateRGB(theme.getPrimaryGradientRGB(),theme.getSecondaryGradientRGB(),enabled?gradient.position(t,t,1,1,.5f):0);}
         for(int unit=2;unit>=0;unit--){org.lwjgl.opengl.GL13.glActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0+unit);glDisable(GL_TEXTURE_2D);}
         org.lwjgl.opengl.GL20.glUseProgram(0);glDisable(GL_LIGHTING);glDisable(GL_ALPHA_TEST);glDisable(GL_CULL_FACE);glEnable(GL_DEPTH_TEST);glEnable(GL_BLEND);
         org.lwjgl.opengl.GL14.glBlendEquation(org.lwjgl.opengl.GL14.GL_FUNC_ADD);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glDepthMask(false);glShadeModel(GL_SMOOTH);return state;

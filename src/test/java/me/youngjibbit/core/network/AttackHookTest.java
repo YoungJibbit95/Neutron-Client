@@ -33,7 +33,8 @@ public class AttackHookTest {
     }
     public static final class Attacks implements Subscriber {
         boolean cancel;int results;
-        @Subscribe final Listener<AttackEvent> pre=new Listener<>(e->{if(cancel)e.cancel();});
+        Runnable before=()->{};
+        @Subscribe final Listener<AttackEvent> pre=new Listener<>(e->{before.run();if(cancel)e.cancel();});
         @Subscribe final Listener<AttackResultEvent> post=new Listener<>(e->results++);
     }
     @Test public void resultRequiresSuccessfulControllerGuardAndAcceptedAttackPacket() throws Exception {
@@ -43,6 +44,7 @@ public class AttackHookTest {
         NetworkManager network=new NetworkManager(EnumPacketDirection.CLIENTBOUND);EmbeddedChannel channel=new EmbeddedChannel(network);
         NetHandlerPlayClient play=new NetHandlerPlayClient(null,null,network,null);network.configureClientPackets(new PacketFlowTest.MainThread());
         PlayerControllerMP controller=new PlayerControllerMP(mc,play);
+        mc.playerController=controller;
         Field mode=PlayerControllerMP.class.getDeclaredField("currentGameType");mode.setAccessible(true);mode.set(controller,WorldSettings.GameType.SPECTATOR);
         Attacks attacks=new Attacks();PacketFlowTest.Observer packets=new PacketFlowTest.Observer();Pulsar.BUS.subscribe(attacks);Pulsar.BUS.subscribe(packets);
         try {
@@ -68,6 +70,7 @@ public class AttackHookTest {
         NetworkManager network=new NetworkManager(EnumPacketDirection.CLIENTBOUND);EmbeddedChannel channel=new EmbeddedChannel(network);
         NetHandlerPlayClient play=new NetHandlerPlayClient(null,null,network,null);network.configureClientPackets(new PacketFlowTest.MainThread());
         PlayerControllerMP controller=new PlayerControllerMP(mc,play);Field mode=PlayerControllerMP.class.getDeclaredField("currentGameType");mode.setAccessible(true);mode.set(controller,WorldSettings.GameType.SPECTATOR);
+        mc.playerController=controller;
         Attacks attacks=new Attacks();PacketFlowTest.Observer packets=new PacketFlowTest.Observer();Pulsar.BUS.subscribe(attacks);Pulsar.BUS.subscribe(packets);
         try {
             for(int i=0;i<6;i++) {
@@ -93,4 +96,45 @@ public class AttackHookTest {
         } finally {Pulsar.BUS.unsubscribe(attacks);Pulsar.BUS.unsubscribe(packets);channel.finish();}
     }
 
+    @Test public void replacedControllerCannotKeepAttackAuthorityAcrossCallbacks() throws Exception {
+        Minecraft mc=bare(Minecraft.class);WorldStub world=bare(WorldStub.class);
+        EntityPlayerSP player=bare(EntityPlayerSP.class);player.worldObj=world;player.inventory=new InventoryPlayer(player);
+        mc.thePlayer=player;mc.theWorld=world;
+        world.target=bare(EntityOtherPlayerMP.class);world.target.setEntityId(9);world.target.worldObj=world;
+        NetworkManager network=new NetworkManager(EnumPacketDirection.CLIENTBOUND);
+        EmbeddedChannel channel=new EmbeddedChannel(network);
+        NetHandlerPlayClient play=new NetHandlerPlayClient(null,null,network,null);
+        network.configureClientPackets(new PacketFlowTest.MainThread());
+        PlayerControllerMP controller=new PlayerControllerMP(mc,play),replacement=new PlayerControllerMP(mc,play);
+        Field mode=PlayerControllerMP.class.getDeclaredField("currentGameType");mode.setAccessible(true);
+        mode.set(controller,WorldSettings.GameType.SPECTATOR);
+        Attacks attacks=new Attacks();PacketFlowTest.Observer packets=new PacketFlowTest.Observer();
+        Pulsar.BUS.subscribe(attacks);Pulsar.BUS.subscribe(packets);
+        try {
+            for(int scenario=0;scenario<4;scenario++) {
+                final int change=scenario;
+                mc.playerController=controller;
+                player.inventory.currentItem=scenario%2; // Reach the real held-slot sync callback too.
+                attacks.before=()->{if(change==0)mc.playerController=replacement;};
+                final boolean[] callback={false};
+                packets.action=e->{
+                    if(!e.isOutbound())return;
+                    if(change==1&&e.isPre()&&e.getPacket() instanceof net.minecraft.network.play.client.C09PacketHeldItemChange
+                            ||change==2&&e.isPre()&&e.getPacket() instanceof C02PacketUseEntity
+                            ||change==3&&e.isPost()&&e.getPacket() instanceof C02PacketUseEntity) {
+                        callback[0]=true;mc.playerController=replacement;
+                    }
+                };
+                assertFalse("a replaced controller cannot report an accepted action",controller.tryAttackEntity(player,world.target,()->true));
+                if(change!=0)assertTrue("the selected production callback must run",callback[0]);
+                int attacksOnWire=0;Object packet;
+                while((packet=channel.readOutbound())!=null)if(packet instanceof C02PacketUseEntity)attacksOnWire++;
+                assertEquals("only an already transported POST packet remains factual",change==3?1:0,attacksOnWire);
+                assertEquals("obsolete callbacks must not publish AttackResult",0,attacks.results);
+            }
+            mc.playerController=controller;attacks.before=()->{};packets.action=e->{};
+            assertTrue("a fresh valid call remains available",controller.tryAttackEntity(player,world.target,()->true));
+            assertEquals(1,attacks.results);
+        } finally {Pulsar.BUS.unsubscribe(attacks);Pulsar.BUS.unsubscribe(packets);channel.finish();}
+    }
 }
