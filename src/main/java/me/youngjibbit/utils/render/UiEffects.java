@@ -76,7 +76,11 @@ public final class UiEffects {
     public static boolean effectsSupported(){return net.minecraft.client.renderer.OpenGlHelper.shadersSupported&&net.minecraft.client.renderer.OpenGlHelper.isFramebufferEnabled();}
     public static boolean blurEnabled(){return options().blur;}
     public static boolean glowEnabled(){return options().glow;}
-    public static float glowAlpha(float local){return local*options().glowIntensity;}
+    public static float glowAlpha(float local){
+        float alpha=local*options().glowIntensity;
+        ClientSettings owner=ClientSettings.current();
+        return owner!=null&&"Perimeter Orbit".equals(owner.gradientMethod.getValue())?alpha*owner.orbitGlow.getValue().floatValue():alpha;
+    }
     public static float glowRadius(float local){return options().configured?options().glowRadius:local;}
     public static float blurRadius(float local){return options().configured?options().blurStrength:local;}
     public static boolean glass(){return options().glass;}
@@ -90,13 +94,13 @@ public final class UiEffects {
         int mode=motion.equals("Solid")?0:motion.equals("Animated")||motion.equals("Theme")&&theme.isAnimated()?2:1;
         if(mode==2&&c!=null)mode+=c.gradientMethod.getSelectedIndex();
         // Perimeter Orbit: override axis for CW/CCW direction, phase is orbit phase.
-        if(c!=null&&c.gradientMethod.getValue().equals("Perimeter Orbit")){
+        if(mode>=2&&c!=null&&c.gradientMethod.getValue().equals("Perimeter Orbit")){
             mode=5;
             axis=c.orbitDirection.getValue().equals("Clockwise")?0:-1;
             speed=c.orbitSpeed.getValue().floatValue();
         }
         // Flame / Neon / Lines: override mode, axis is unused (0), speed and param2 are mode-specific.
-        if(c!=null){
+        if(mode>=2&&c!=null){
             if(c.gradientMethod.getValue().equals("Flame")){mode=6; axis=0; speed=c.flameSpeed.getValue().floatValue();}
             else if(c.gradientMethod.getValue().equals("Neon")){mode=7; axis=0; speed=c.neonGlow.getValue().floatValue();}
             else if(c.gradientMethod.getValue().equals("Lines")){mode=8; axis=0; speed=c.lineSegments.getValue().floatValue();}
@@ -107,7 +111,8 @@ public final class UiEffects {
         // Set param2 for Flame/Neon/Lines modes.
         float param2=0;
         if(c!=null){
-            if(c.gradientMethod.getValue().equals("Flame"))param2=c.flameHeight.getValue().floatValue();
+            if(c.gradientMethod.getValue().equals("Perimeter Orbit"))param2=c.orbitTrail.getValue().floatValue();
+            else if(c.gradientMethod.getValue().equals("Flame"))param2=c.flameHeight.getValue().floatValue();
             else if(c.gradientMethod.getValue().equals("Neon"))param2=c.neonCore.getValue().floatValue();
             else if(c.gradientMethod.getValue().equals("Lines"))param2=c.lineTrail.getValue().floatValue();
         }
@@ -134,6 +139,8 @@ public final class UiEffects {
         // Extra shader parameter for Flame/Neon/Lines modes (passed via TEXT channel).
         Gradient tg=override==null?gradient(theme,Channel.TEXT):override;
         shader.setUniformf("uiShaderParam2",tg.param2);
+        shader.setUniformf("uiShaderSpeed",tg.speed);
+        shader.setUniformf("uiGradientRadius",options().roundness*scale);
     }
     public static int gradientColor(Theme theme,Channel channel,float x,float y){
         theme=theme(theme);
@@ -155,10 +162,9 @@ public final class UiEffects {
             if(mode==3){float travel=.5f-.5f*(float)Math.cos(2*Math.PI*phase);return .5f-.5f*(float)Math.cos(2*Math.PI*(t-travel));}
             if(mode==4)return .5f+(Math.max(0,Math.min(1,t))-.5f)*(float)Math.cos(2*Math.PI*phase);
             if(mode==5){
-                // Perimeter Orbit: phase is the position along the contour (0-1),
-                // speed is the relative corner radius (0-1 of min(w,h)/2).
-                float r=speed*Math.min(w,h)/2f;
-                return PerimeterOrbit.position(w,h,r,phase,axis>=0?PerimeterOrbit.Direction.CLOCKWISE:PerimeterOrbit.Direction.COUNTERCLOCKWISE);
+                float sample=PerimeterOrbit.sample(x,y,w,h,radius,phase,
+                        axis>=0?PerimeterOrbit.Direction.CLOCKWISE:PerimeterOrbit.Direction.COUNTERCLOCKWISE);
+                return (float)Math.pow(sample,1+6*(1-Math.max(0,Math.min(1,param2))));
             }
             if(mode==6){
                 // Flame: animated flicker within the theme gradient range.

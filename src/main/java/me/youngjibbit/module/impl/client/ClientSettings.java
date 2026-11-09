@@ -64,13 +64,13 @@ public class ClientSettings extends Module {
     // Perimeter Orbit gradient motion (Gradient Method = Perimeter Orbit).
     // Registered last to keep existing config ids and legacy Value indices stable.
     public final ComboValue orbitDirection=new ComboValue("Orbit Direction",this,new String[]{"Clockwise","Counterclockwise"},0);
-    public final SliderValue orbitSpeed=new SliderValue("Orbit Speed",this,.18,.02,2,true);
+    public final SliderValue orbitSpeed=new SliderValue("Orbit Speed",this,.18,.02,2);
     public final SliderValue orbitGlow=new SliderValue("Orbit Glow",this,1.0,0,2);
     public final SliderValue orbitTrail=new SliderValue("Orbit Trail",this,.5,0,1);
 
     // New shader modes for ESP/GlowESP: Flame, Neon, Lines.
     // Registered last to keep existing config ids and legacy Value indices stable.
-    public final SliderValue flameSpeed=new SliderValue("Flame Speed",this,.18,.02,2,true);
+    public final SliderValue flameSpeed=new SliderValue("Flame Speed",this,.18,.02,2);
     public final SliderValue flameHeight=new SliderValue("Flame Height",this,.5,0,1);
     public final SliderValue neonCore=new SliderValue("Neon Core",this,.5,0,1);
     public final SliderValue neonGlow=new SliderValue("Neon Glow",this,1.0,0,2);
@@ -87,6 +87,7 @@ public class ClientSettings extends Module {
         groups.put("Blur / Liquid Glass",Arrays.asList(blur,blurMethod,blurStrength,blurQuality,glassAppearance,glassRefraction,glassTint,glassLight));
         groups.put("Glow",Arrays.asList(glow,glowIntensity,glowRadius));
         groups.put("Gradients / Motion",Arrays.asList(gradients,synchronize,direction,gradientMotion,gradientMethod,gradientSpeed,textDirection,textMotion,textSpeed,borderDirection,borderMotion,borderSpeed,glowDirection,glowMotion,glowSpeed,animations,reducedMotion,motionIntensity,ambientMotion,semanticColorPriority,orbitDirection,orbitSpeed,orbitGlow,orbitTrail));
+        groups.put("World effects",Arrays.asList(flameSpeed,flameHeight,neonCore,neonGlow,lineSegments,lineTrail));
         groups.put("Notifications",Arrays.asList(notifications,notificationDesign,notificationTheme,notificationPosition,notificationDuration,notificationWidth,notificationVisible,notificationQueue,info,success,warnings,errors));
         groups.put("Typography",Arrays.asList(fontFamily,textGlow,textGlowStrength,textGlowRadius,textGlowColor));
         return groups;
@@ -103,12 +104,7 @@ public class ClientSettings extends Module {
         // Perimeter Orbit options only visible when Gradient Method = Perimeter Orbit
         for(Value<?> v:Arrays.asList(orbitDirection,orbitSpeed,orbitGlow,orbitTrail))
             v.setVisibility(m->gradientMethod.getValue().equals("Perimeter Orbit"));
-        // Flame / Neon / Lines options only visible when Gradient Method matches
-        for(Value<?> v:Arrays.asList(flameSpeed,flameHeight,neonCore,neonGlow,lineSegments,lineTrail))
-            v.setVisibility(m->{
-                String method=gradientMethod.getValue();
-                return method.equals("Flame")||method.equals("Neon")||method.equals("Lines");
-            });
+        // World effect controls also serve per-module ESP modes independently of Gradient Method.
     }
     @Override public void beginConfigUpdate(){
         super.beginConfigUpdate();

@@ -22,7 +22,6 @@ import me.youngjibbit.utils.render.*;
 import me.youngjibbit.value.impl.*;
 import me.zero.alpine.listener.*;
 import net.minecraft.client.gui.ScaledResolution;
-import net.minecraft.client.gui.Gui;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.util.ResourceLocation;
@@ -60,7 +59,7 @@ public class WatermarkHUDModule extends Module {
     // Logo1-N resource: geschwungenes, leuchtendes N als echte Form (keine Glyphe).
     private static final ResourceLocation LOGO1 = new ResourceLocation("pulsar/Logo1.png");
     // Clock Reminder: lokale 10-Minuten-Marken, dedupliziert pro Slot.
-    private String islandClockLastSlot = "";
+    private final me.youngjibbit.module.impl.client.island.ClockReminderSchedule clockSchedule = new me.youngjibbit.module.impl.client.island.ClockReminderSchedule();
     // Inventory Activity: synthetische Headless-Fixture bis TECH InventoryActivitySnapshot freigegeben.
     private IslandStateMachine.InventoryActivity inventoryFixture = null;
     private long inventoryFixtureUntil = 0;
@@ -68,7 +67,7 @@ public class WatermarkHUDModule extends Module {
     public WatermarkHUDModule(){radius.setVisibility(m->localRadius.getValue());animated.setVisibility(m->!textStyle.getValue().equals("Theme"));speed.setVisibility(m->!textStyle.getValue().equals("Theme")&&animated.getValue());
         islandTarget.setVisibility(m->islandSelected());
         islandClock.setVisibility(m->islandSelected());
-        islandInventory.setVisibility(m->islandSelected());}
+        islandInventory.setVisibility(m->false);}
     /** Global opt-in upgraded the historical Glass default without rewriting stored Mode. */
     boolean islandSelected(){
         String m=mode.getValue();
@@ -131,14 +130,7 @@ public class WatermarkHUDModule extends Module {
     /** Prüft lokale 10-Minuten-Marken (:00, :10, ...) als Clock-Reminder-Kandidat. */
     private boolean isClockReminderTime(){
         if(!islandClock.getValue())return false;
-        long now=System.currentTimeMillis();
-        long minute=now/60_000L;
-        int minOfHour=(int)(minute%60);
-        if(minOfHour%10!=0)return false;
-        String slot=new SimpleDateFormat("HH:mm",Locale.ROOT).format(new Date(now));
-        if(slot.equals(islandClockLastSlot))return false;
-        islandClockLastSlot=slot;
-        return true;
+        return clockSchedule.poll(System.currentTimeMillis(),java.time.ZoneId.systemDefault());
     }
 
     /** Synthetische Inventory-Aktivitäts-Fixture (opt-in, nur für Entwicklung/Tests). */
@@ -174,13 +166,13 @@ public class WatermarkHUDModule extends Module {
         if(islandClock.getValue()&&isClockReminderTime()){
             long wall=System.currentTimeMillis();
             String t=new SimpleDateFormat("HH:mm",Locale.ROOT).format(new Date(wall));
-            islandState.offer(IslandStateMachine.State.CLOCK_REMINDER,"clock:"+t,t,islandEpoch,now);
+            islandState.offer(IslandStateMachine.State.CLOCK_REMINDER,"clock:"+(wall/60_000L),t,islandEpoch,now);
             clockRem=new IslandStateMachine.ClockReminder(t,false);
         }
 
         IslandStateMachine.Selection selected=islandState.resolve(islandEpoch,now,
-                islandTargetSnapshot(),null,clockRem,inventoryFixture(),
-                islandTarget.getValue(),false,islandClock.getValue(),islandInventory.getValue());
+                islandTargetSnapshot(),null,clockRem,null,
+                islandTarget.getValue(),false,islandClock.getValue(),false);
         String key=selected.state.name()+(selected.target==null?"":"#"+selected.target.entityId+":"+selected.target.name)
                 +(selected.clock==null?"":"@"+selected.clock.time)
                 +(selected.inventory==null?"":"#"+selected.inventory.action);
@@ -306,69 +298,54 @@ public class WatermarkHUDModule extends Module {
             font.drawString(fitIsland(view.title,font,w-(start-x)-53),start,y+7,primary);
             font.drawString(fitIsland(view.detail,font,w-(start-x)-53),start,y+20,secondary);
         }else{
-            float sx=startX(design);
-            font.drawString(fitIsland(view.title,font,w-sx-53),sx,y+(h-11)/2,
+            float sx=start;
+            font.drawString(fitIsland(view.title,font,w-(sx-x)-14),sx,y+(h-11)/2,
                     view.state==IslandStateMachine.State.POSSIBLE_SETBACK
                             ?ink(UiEffects.semanticColor(UiEffects.SemanticRole.WARNING,accent,true),alpha):primary);
         }
     }
 
-    private float startX(String design){return "Modern".equals(design)||"Creative".equals(design)?21:9;}
-
     private float clockWidthFor(String text,TTFFontRenderer font){return font==null?0:font.getWidth(text);}
 
-    /** Rendert Logo1-N als alpha-geclippte Form mit animiertem Theme-Gradient innerhalb der N. */
+    /** The original N texture supplies both its stroke alpha and its restrained existing halo. */
     private void renderLogo1N(float bx,float by,float size,Theme theme,float alpha,
                               boolean modern,boolean creative,float morph){
-        if(alpha<=0)return;
-        // Animated gradient phase: cycle between primary and secondary theme colors.
-        // Modern runs the cycle slower for a subtle, restrained feel.
-        double phase=(UiEffects.time()/1e9)%1.0;
-        if(modern)phase*=0.5f;
-        int c1=theme.getPrimaryGradientRGB();
-        int c2=theme.getSecondaryGradientRGB();
-        int r=(int)(((c1>>16)&255)*(1-phase)+((c2>>16)&255)*phase);
-        int g=(int)(((c1>>8)&255)*(1-phase)+((c2>>8)&255)*phase);
-        int b=(int)((c1&255)*(1-phase)+(c2&255)*phase);
-
-        // Hintergrund-Platte der N-Form (solid, leicht abgedunkelt).
+        if(alpha<=0||size<=0)return;
+        // UiEffects.time() is already seconds and freezes with reduced/disabled motion.
+        double phase=UiEffects.time()*(creative?.14:modern?.08:.12);
+        float blend=.5f-.5f*(float)Math.cos(2*Math.PI*phase);
+        int first=theme.getPrimaryGradientRGB(),second=theme.getSecondaryGradientRGB();
+        int left=Theme.interpolateRGB(first,second,blend);
+        int right=Theme.interpolateRGB(first,second,1-blend);
+        float opacity=Math.max(0,Math.min(1,alpha));
         float plateRadius=modern||creative?7:11;
-        Color plateColor;
-        if(creative){
-            plateColor=new Color(38,34,50,Math.round(alpha*205));
-        } else if(modern){
-            plateColor=NeutronVisualTokens.alpha(NeutronVisualTokens.CARD.getRGB(),
-                    Math.round(alpha*200));
-        } else {
-            plateColor=new Color(26,47,60,Math.round(alpha*200));
+        Color plate=creative?new Color(38,34,50,Math.round(opacity*205))
+                :modern?NeutronVisualTokens.alpha(NeutronVisualTokens.CARD.getRGB(),Math.round(opacity*200))
+                :new Color(26,47,60,Math.round(opacity*200));
+        UIUtils.drawDecorationRound(bx,by,size,size,plateRadius,plate);
+        try(RenderState state=new RenderState()){
+            org.lwjgl.opengl.GL20.glUseProgram(0);
+            GlStateManager.setActiveTexture(OpenGlHelper.defaultTexUnit);
+            org.lwjgl.opengl.GL13.glActiveTexture(OpenGlHelper.defaultTexUnit);
+            GlStateManager.enableTexture2D();glEnable(GL_TEXTURE_2D);
+            GlStateManager.enableBlend();glEnable(GL_BLEND);
+            GlStateManager.disableAlpha();glDisable(GL_ALPHA_TEST);
+            GlStateManager.disableLighting();glDisable(GL_LIGHTING);
+            GlStateManager.shadeModel(GL_SMOOTH);glShadeModel(GL_SMOOTH);
+            GlStateManager.tryBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ZERO);
+            glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_MODULATE);
+            mc.getTextureManager().bindTexture(LOGO1);
+            // Padded UV region around the unchanged original stroke, not a replacement glyph.
+            float u0=.30f,u1=.70f,v0=.33f,v1=.73f;
+            glBegin(GL_QUADS);
+            glColor4f(((left>>16)&255)/255f,((left>>8)&255)/255f,(left&255)/255f,opacity);
+            glTexCoord2f(u0,v0);glVertex2f(bx,by);
+            glTexCoord2f(u0,v1);glVertex2f(bx,by+size);
+            glColor4f(((right>>16)&255)/255f,((right>>8)&255)/255f,(right&255)/255f,opacity);
+            glTexCoord2f(u1,v1);glVertex2f(bx+size,by+size);
+            glTexCoord2f(u1,v0);glVertex2f(bx+size,by);
+            glEnd();
         }
-        UIUtils.drawRound(bx,by,size,size,plateRadius,plateColor);
-
-        // Logo1 als Alpha-Mask: zeichne die N mit dem animierten Gradient-Farbwert getönt.
-        // Das Bild selbst trägt die geschwungene N-Form; der Gradient-Farbton animiert sich über die Zeit.
-        GlStateManager.pushMatrix();
-        glEnable(GL_BLEND);
-        glDisable(GL_TEXTURE_2D);
-        glEnable(GL_TEXTURE_2D);
-        OpenGlHelper.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, 1, 0);
-        glColor4f(((r&255)/255f),((g&255)/255f),((b&255)/255f),alpha);
-        mc.getTextureManager().bindTexture(LOGO1);
-        Gui.drawModalRectWithCustomSizedTexture((int)bx,(int)by,0.0f,0.0f,(int)size,(int)size,size,size);
-        glColor4f(1,1,1,1);
-        GlStateManager.popMatrix();
-
-        // Kontur-Glow entlang der N-Form (weicher, außerhalb).
-        float glow;
-        if(creative){
-            // Ausdrücklicher Glow, verstärkt durch den Morph-Effekt.
-            glow=2.2f+1.6f*morph;
-        } else if(modern){
-            glow=1.0f; // zurückhaltend
-        } else {
-            glow=2.0f;
-        }
-        UIUtils.drawRound(bx-glow,by-glow,size+glow*2,size+glow*2,plateRadius,
-                new Color(r,g,b,Math.round(Math.min(1,.35f*glow)*alpha*255)));
     }
 
     private static Color tint(Color color,float alpha){

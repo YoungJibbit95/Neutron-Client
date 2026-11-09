@@ -50,12 +50,12 @@ public final class IslandPresentation {
         }
         if (state == IslandStateMachine.State.CLOCK_REMINDER) {
             IslandStateMachine.ClockReminder c = selection.clock;
-            String t = c != null ? c.time : clock;
+            String t = c != null ? c.time : clean(selection.label);
             return new IslandPresentation(state, t, "", "", 0, 0, false, true);
         }
         if (state == IslandStateMachine.State.INVENTORY_ACTIVITY) {
             IslandStateMachine.InventoryActivity inv = selection.inventory;
-            String act = inv != null ? inv.action : "";
+            String act = inv != null ? inv.action : clean(selection.label);
             return new IslandPresentation(state, "Inventory", act, "", 0, 0, false, true);
         }
         if (state == IslandStateMachine.State.MODULE_TOAST)

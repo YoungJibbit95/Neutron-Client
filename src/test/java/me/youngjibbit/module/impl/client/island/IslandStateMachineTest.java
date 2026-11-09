@@ -221,4 +221,30 @@ public class IslandStateMachineTest {
                 model.resolve(1, 0, null, null, null, emptyInv, true, true, true, true).state);
     }
 
+    @Test public void lowerPriorityClockAndInventoryCannotReplacePossibleSetback() {
+        IslandStateMachine model=new IslandStateMachine();
+        assertTrue(model.offer(IslandStateMachine.State.POSSIBLE_SETBACK,"warning:1","",1,10));
+        assertFalse(model.offer(IslandStateMachine.State.CLOCK_REMINDER,"clock:1","12:10",1,11));
+        assertFalse(model.offer(IslandStateMachine.State.INVENTORY_ACTIVITY,"inv:1","Sorting",1,12));
+        assertEquals(IslandStateMachine.State.POSSIBLE_SETBACK,model.resolve(1,13,null,null,true,true).state);
+    }
+    @Test public void activeReminderHonorsVisibilityAndRetainsItsActualLabel() {
+        IslandStateMachine model=new IslandStateMachine();
+        model.offer(IslandStateMachine.State.CLOCK_REMINDER,"clock:1","12:10",1,10);
+        assertEquals(IslandStateMachine.State.IDLE,model.resolve(1,11,null,null,null,null,true,true,false,false).state);
+        IslandStateMachine.Selection shown=model.resolve(1,12,null,null,null,null,true,true,true,false);
+        assertEquals("12:10",shown.clock.time);
+        IslandPresentation presentation=IslandPresentation.from(shown,"Neutron","2.0","wrong",true,true,true);
+        assertEquals("12:10",presentation.title);
+    }
+    @Test public void invalidAndAcknowledgedSnapshotsDoNotCreateActivity() {
+        IslandStateMachine model=new IslandStateMachine();
+        IslandStateMachine.ClockReminder invalid=new IslandStateMachine.ClockReminder("29:99",false);
+        IslandStateMachine.ClockReminder done=new IslandStateMachine.ClockReminder("12:10",true);
+        IslandStateMachine.InventoryActivity over=new IslandStateMachine.InventoryActivity("Sorting",7,4,false);
+        assertFalse(invalid.valid());assertFalse(done.valid());assertFalse(over.valid());
+        assertFalse(model.offer(IslandStateMachine.State.CLOCK_REMINDER,"clock:x","29:99",1,0));
+        assertEquals(IslandStateMachine.State.IDLE,model.resolve(1,0,null,null,done,over,true,true,true,true).state);
+    }
+
 }

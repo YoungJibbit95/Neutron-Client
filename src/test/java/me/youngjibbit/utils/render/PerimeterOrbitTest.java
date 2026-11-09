@@ -76,4 +76,29 @@ public class PerimeterOrbitTest {
         float t2=PerimeterOrbit.position(w,h,r,0.9f,PerimeterOrbit.Direction.CLOCKWISE);
         assertEquals(t2,t1,0.001f);
     }
+    @Test public void actualContourSamplesDistinguishEdgesAndRoundCorners() {
+        float w=100,h=50,r=10,p=PerimeterOrbit.perimeter(w,h,r),a=(float)Math.PI*r/2;
+        assertEquals(40/p,PerimeterOrbit.contour(50,0,w,h,r),.00001f);
+        assertEquals((80+a+15)/p,PerimeterOrbit.contour(100,25,w,h,r),.00001f);
+        assertEquals((80+30+2*a+40)/p,PerimeterOrbit.contour(50,50,w,h,r),.00001f);
+        float c=(float)(r/Math.sqrt(2));
+        assertEquals((80+a/2)/p,PerimeterOrbit.contour(90+c,10-c,w,h,r),.00001f);
+        assertEquals(0,PerimeterOrbit.contour(10,0,w,h,r),.00001f);
+    }
+    @Test public void travelFollowsSpatialSamplesAndKeepsScaleAndDirection() {
+        float phase=PerimeterOrbit.contour(100,25,100,50,10);
+        assertEquals(1,PerimeterOrbit.sample(100,25,100,50,10,phase,PerimeterOrbit.Direction.CLOCKWISE),.00001f);
+        assertEquals(1,PerimeterOrbit.sample(100,25,100,50,10,-phase,PerimeterOrbit.Direction.COUNTERCLOCKWISE),.00001f);
+        assertNotEquals(PerimeterOrbit.sample(50,0,100,50,10,.17f,PerimeterOrbit.Direction.CLOCKWISE),
+                PerimeterOrbit.sample(50,50,100,50,10,.17f,PerimeterOrbit.Direction.CLOCKWISE),.001f);
+        assertEquals(PerimeterOrbit.sample(50,0,100,50,10,.17f,PerimeterOrbit.Direction.CLOCKWISE),
+                PerimeterOrbit.sample(100,0,200,100,20,.17f,PerimeterOrbit.Direction.CLOCKWISE),.00001f);
+    }
+    @Test public void actualUiGradientConsumerUsesSpatialContourAndThePassedRadius() {
+        UiEffects.Gradient gradient=new UiEffects.Gradient(0,5,.17f,.2f,1f);
+        assertEquals(PerimeterOrbit.sample(90,0,100,50,10,.17f,PerimeterOrbit.Direction.CLOCKWISE),
+                gradient.position(90,0,100,50,10),.00001f);
+        assertNotEquals(gradient.position(10,0,100,50,10),gradient.position(90,0,100,50,10),.001f);
+    }
+
 }
