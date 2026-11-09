@@ -1,6 +1,8 @@
 package me.youngjibbit.module;
 
 import lombok.Getter;
+import lombok.AccessLevel;
+import me.youngjibbit.core.activity.ModuleToggleJournal;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.value.Value;
 import me.youngjibbit.value.impl.CheckBoxValue;
@@ -29,6 +31,8 @@ public abstract class Module implements Subscriber {
     private final ArrayPriority priority;
     private final List<Value<?>> valueList = new ArrayList<>();
     private boolean toggled;
+    @Getter(AccessLevel.NONE)
+    private final ModuleToggleJournal.Transition toggleObservation = new ModuleToggleJournal.Transition();
 
     private int key;
     private Consumer<Boolean> persistenceListener;
@@ -169,15 +173,22 @@ public abstract class Module implements Subscriber {
             return;
         }
 
-        this.onToggle();
-        this.toggled = toggled;
+        toggleObservation.begin(mc, this, this.toggled, configUpdate);
+        boolean completed = false;
+        try {
+            this.onToggle();
+            this.toggled = toggled;
 
-        if (toggled) {
-            this.onEnable();
-        } else {
-            this.onDisable();
+            if (toggled) {
+                this.onEnable();
+            } else {
+                this.onDisable();
+            }
+            persistentChange(true);
+            completed = true;
+        } finally {
+            toggleObservation.end(mc, this, id, name, this.toggled, completed);
         }
-        persistentChange(true);
     }
 
     public void setKey(int key) {
