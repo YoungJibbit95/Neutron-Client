@@ -21,15 +21,27 @@ public final class RotationCorrections {
         public final float yaw, pitch;
         public final MoveFixController.Mode movement;
         public final BodyRotationController.Mode body;
+        public final boolean preserveHeading;
         private Selection(String owner, float yaw, float pitch, MoveFixController.Mode movement, BodyRotationController.Mode body) {
+            this(owner, yaw, pitch, movement, body, false);
+        }
+        private Selection(String owner, float yaw, float pitch, MoveFixController.Mode movement,
+                          BodyRotationController.Mode body, boolean preserveHeading) {
             this.owner = owner; this.yaw = yaw; this.pitch = pitch; this.movement = movement; this.body = body;
+            this.preserveHeading = preserveHeading && "scaffold".equals(owner);
         }
     }
 
     public static Selection select(RotationManager rotation, String source, boolean enabled,
                                    MoveFixController.Mode movement, BodyRotationController.Mode body) {
+        return select(rotation, source, enabled, movement, body, false);
+    }
+
+    public static Selection select(RotationManager rotation, String source, boolean enabled,
+                                   MoveFixController.Mode movement, BodyRotationController.Mode body,
+                                   boolean preserveHeading) {
         if (!enabled || source == null || !source.equals(rotation.getConfirmedOwner())) return null;
-        return new Selection(source, rotation.getEffectiveYaw(), rotation.getEffectivePitch(), movement, body);
+        return new Selection(source, rotation.getEffectiveYaw(), rotation.getEffectivePitch(), movement, body, preserveHeading);
     }
 
     private static Selection current() {
@@ -53,7 +65,8 @@ public final class RotationCorrections {
         }
         if ("scaffold".equals(owner)) {
             Scaffold scaffold = (Scaffold) modules.getModule(Scaffold.class);
-            return scaffold == null ? null : select(rotation, "scaffold", scaffold.correctionEnabled(), scaffold.moveFixMode(), scaffold.bodyRotationMode());
+            return scaffold == null ? null : select(rotation, "scaffold", scaffold.correctionEnabled(),
+                    scaffold.moveFixMode(), scaffold.bodyRotationMode(), scaffold.preservesBridgeHeading());
         }
         if ("velocity".equals(owner)) {
             Velocity velocity = (Velocity) modules.getModule(Velocity.class);
@@ -95,9 +108,16 @@ public final class RotationCorrections {
         RotationManager.MovementRotation predicted = RuntimeServices.rotation().getPreparedMovement();
         if (predicted != null) {
             return predicted.source == null ? null : new Selection(predicted.source, predicted.yaw, predicted.pitch,
-                    predicted.mode, BodyRotationController.Mode.VANILLA);
+                    predicted.mode, BodyRotationController.Mode.VANILLA, preservesBridgeHeading(predicted.source));
         }
         return current();
+    }
+
+    private static boolean preservesBridgeHeading(String source) {
+        if (!"scaffold".equals(source)) return false;
+        ModuleManager modules = Pulsar.INSTANCE.getMm();
+        Scaffold scaffold = modules == null ? null : (Scaffold) modules.getModule(Scaffold.class);
+        return scaffold != null && scaffold.preservesBridgeHeading();
     }
 
     /**
@@ -114,7 +134,7 @@ public final class RotationCorrections {
 
     static float correctedSprintForward(Selection selected, float cameraYaw,
                                         float rawStrafe, float rawForward) {
-        if (selected == null || selected.movement == MoveFixController.Mode.OFF)
+        if (selected == null || selected.movement == MoveFixController.Mode.OFF || selected.preserveHeading)
             return rawForward;
         return MoveFixController.correct(rawStrafe, rawForward, cameraYaw,
                 selected.yaw, selected.movement).forward;
@@ -126,7 +146,7 @@ public final class RotationCorrections {
      */
     public static float directMotionYaw(float cameraYaw, float cameraDirectionYaw, float strafe, float forward) {
         Selection selected = currentMovement();
-        if (selected == null || selected.movement == MoveFixController.Mode.OFF) return cameraDirectionYaw;
+        if (selected == null || selected.movement == MoveFixController.Mode.OFF || selected.preserveHeading) return cameraDirectionYaw;
         if (selected.movement == MoveFixController.Mode.ROTATION_BOUND
                 || selected.movement == MoveFixController.Mode.LEGACY_STRICT)
             return selected.yaw + (cameraDirectionYaw - cameraYaw);
@@ -137,6 +157,11 @@ public final class RotationCorrections {
 
     static void applyMovement(Selection selected, PlayerMoveUpdateEvent event) {
         if (selected == null || selected.movement == MoveFixController.Mode.OFF || event.isCancelled() || !event.claimRotationCorrection()) return;
+        // Adaptive Bridge keeps local input in its existing camera frame. This is
+        // an exact world-vector correction without rounding to eight aim-relative
+        // keys; vanilla still applies sneak/item strength and its diagonal cap once.
+        // The selected placement yaw and its packet/action authority are untouched.
+        if (selected.preserveHeading) return;
         MoveFixController.Input input = MoveFixController.correct(event.getStrafe(), event.getForward(), event.getYaw(), selected.yaw, selected.movement);
         event.setStrafe(input.strafe); event.setForward(input.forward); event.setYaw(selected.yaw);
     }
@@ -146,7 +171,8 @@ public final class RotationCorrections {
     }
 
     static void applyJump(Selection selected, JumpFixEvent event) {
-        if (selected != null && selected.movement != MoveFixController.Mode.OFF && !event.isCancelled() && event.claimRotationCorrection())
+        if (selected != null && selected.movement != MoveFixController.Mode.OFF && !event.isCancelled()
+                && event.claimRotationCorrection() && !selected.preserveHeading)
             event.setYaw(MoveFixController.jumpYaw(event.getYaw(), selected.yaw, selected.movement));
     }
 

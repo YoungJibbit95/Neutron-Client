@@ -9,6 +9,57 @@ import static org.junit.Assert.*;
 
 /** No Minecraft classes or packets: proposals must be revalidated by the host. */
 public class AdaptiveBridgePlannerTest {
+    @Test public void acceptedAimSelectsTheSmallerTurnWithoutChangingRawInputPrediction() {
+        AdaptiveBridgePlanner.Frame f=frame();
+        AdaptiveBridgePlanner.SupportFace first=face(f);
+        AdaptiveBridgePlanner.SupportFace alternate=new AdaptiveBridgePlanner.SupportFace(
+                1,64,1,AdaptiveBridgePlanner.Face.WEST,1,64.8,1.5,
+                f.selectedSlot,f.scope.world,f.scope.player,f.approvedStack,new Object(),true,true,true);
+        List<AdaptiveBridgePlanner.SupportFace> options=new ArrayList<>();
+        options.add(first);options.add(alternate);
+        assertSame(first,new AdaptiveBridgePlanner().prepare(f,options).intent);
+        double[] before=AdaptiveBridgePlanner.predict(f);
+        f.hasRotation=true;
+        f.rotationYaw=Math.toDegrees(Math.atan2(alternate.hitZ-f.eyeZ,alternate.hitX-f.eyeX))-90;
+        f.rotationPitch=-Math.toDegrees(Math.atan2(alternate.hitY-f.eyeY,
+                Math.hypot(alternate.hitX-f.eyeX,alternate.hitZ-f.eyeZ)));
+        assertSame(alternate,new AdaptiveBridgePlanner().prepare(f,options).intent);
+        assertArrayEquals(before,AdaptiveBridgePlanner.predict(f),0);
+        f.rotationPitch=100;
+        assertFalse(new AdaptiveBridgePlanner().prepare(f,options).hasCandidate);
+    }
+
+    @Test public void fallPredictionIsBoundedAndNeitherGroundedMotionNorRisingJumpIsAClutch() {
+        AdaptiveBridgePlanner.Frame f=frame();
+        f.velocityY=.42;
+        assertFalse(AdaptiveBridgePlanner.falling(f));
+        assertEquals(f.feetY,AdaptiveBridgePlanner.predictFeetY(f),0);
+        f.velocityY=-.1;
+        assertTrue(AdaptiveBridgePlanner.falling(f));
+        assertEquals(f.feetY-.14,AdaptiveBridgePlanner.predictFeetY(f),1e-9);
+        f.velocityY=-3;f.predictionTicks=3;
+        assertEquals(f.feetY-1,AdaptiveBridgePlanner.predictFeetY(f),0);
+        f.grounded=true;
+        assertFalse(AdaptiveBridgePlanner.falling(f));
+        assertEquals(f.feetY,AdaptiveBridgePlanner.predictFeetY(f),0);
+        f.velocityY=Double.NaN;
+        assertFalse(plan(f).hasCandidate);
+    }
+
+    @Test public void changedLaneOrVerticalSampleCannotBuyASecondPlanInOneSequence() {
+        AdaptiveBridgePlanner.Frame f=frame();
+        f.hasLane=true;f.laneX=f.feetX;f.laneZ=f.feetZ;f.laneDirectionZ=1;
+        AdaptiveBridgePlanner planner=new AdaptiveBridgePlanner();
+        assertTrue(planner.prepare(f,one(f)).hasCandidate);
+        f.laneZ+=.1;
+        assertFalse(planner.prepare(f,one(f)).hasCandidate);
+        f=frame();planner=new AdaptiveBridgePlanner();
+        assertTrue(planner.prepare(f,one(f)).hasCandidate);
+        f.velocityY=-.1;
+        assertFalse(planner.prepare(f,one(f)).hasCandidate);
+        f=frame();f.hasLane=true;
+        assertFalse("zero-length lane is invalid",plan(f).hasCandidate);
+    }
     private static AdaptiveBridgePlanner.Frame frame() {
         AdaptiveBridgePlanner.Frame f = new AdaptiveBridgePlanner.Frame();
         f.scope = new AdaptiveBridgePlanner.Scope(new Object(), new Object(),

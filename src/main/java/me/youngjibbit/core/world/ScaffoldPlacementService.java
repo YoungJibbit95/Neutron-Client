@@ -104,6 +104,14 @@ public final class ScaffoldPlacementService {
                 && Math.abs(target.getDestination().getZ() - base.getZ()) <= 2;
     }
 
+    /** Bounded callers may inspect a route cell without invoking the legacy radius search. */
+    public boolean isReplaceableDestination(BlockPos destination) {
+        if(destination==null || !access.ready())return false;
+        Object world=access.world(),player=access.player();
+        boolean replaceable=access.replaceable(destination);
+        return replaceable && access.ready() && access.world()==world && access.player()==player;
+    }
+
     public PlacementTarget findTarget(PlacementContext context) { return findTarget(context, "Back"); }
     public PlacementTarget findTarget(boolean downwards, boolean keepY, double y) {
         return findTarget(new PlacementContext(downwards, keepY, y));
@@ -178,6 +186,22 @@ public final class ScaffoldPlacementService {
                 || !target.getBlockPos().equals(hit.getBlockPos()) || target.getFacing()!=hit.sideHit)return null;
         PlacementTarget aligned=target.withHit(hit.hitVec);
         return isValid(aligned)?aligned:null;
+    }
+
+    /**
+     * Keep an already useful current-eye ray on this exact support face. This is
+     * PRE geometry only; it grants no rotation or placement authority and cannot
+     * replace the accepted-motion ray check in alignAcceptedHit.
+     */
+    public PlacementTarget retainBridgeHit(PlacementTarget target,float yaw,float pitch) {
+        if(!Float.isFinite(yaw) || !Float.isFinite(pitch) || Math.abs(pitch)>90 || !isValid(target))return null;
+        Vec3 eyes=access.eyes();
+        Vec3 direction=Entity.getVectorForRotation(pitch,yaw);
+        MovingObjectPosition hit=access.rayTrace(eyes,eyes.add(scaled(direction,access.reach())));
+        if(hit==null || hit.typeOfHit!=MovingObjectPosition.MovingObjectType.BLOCK || hit.hitVec==null
+                || !target.getBlockPos().equals(hit.getBlockPos()) || target.getFacing()!=hit.sideHit)return null;
+        PlacementTarget held=target.withHit(hit.hitVec);
+        return isValid(held)?held:null;
     }
 
     /** Keep one immutable PRE/POST intent; only accept randomized points that pass the normal face checks. */
