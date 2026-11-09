@@ -25,7 +25,6 @@ import static org.lwjgl.opengl.GL11.*;
 @ModuleInfo(name="ArmorHUD", category=Category.Render)
 public class ArmorHUD extends Module {
     private final ComboValue layout=new ComboValue("Layout",this,new String[]{"Vertical","Horizontal"},0);
-    private final ComboValue mode=new ComboValue("Mode",this,new String[]{"Basic","Modern","Creative"},0);
     private final ComboValue durability=new ComboValue("Durability",this,new String[]{"Percent","Value","Both","None"},0);
     private final CheckBoxValue bar=new CheckBoxValue("Durability Bar",this,true);
     private final CheckBoxValue held=new CheckBoxValue("Held Item",this,true);
@@ -48,6 +47,8 @@ public class ArmorHUD extends Module {
     }
     private final SliderValue positionX=new SliderValue("Position X",this,100.0,-16384,16384);
     private final SliderValue positionY=new SliderValue("Position Y",this,300.0,-16384,16384);
+    // Append the cosmetic choice after every pre-existing Value registration.
+    private final ComboValue mode=new ComboValue("Mode",this,new String[]{"Basic","Modern","Creative"},0);
     private double lastPositionX=100,lastPositionY=300;
     @Override public void onValueChange(){if(positionX!=null&&positionX.getValue()!=lastPositionX){lastPositionX=positionX.getValue();x=(float)lastPositionX;}if(positionY!=null&&positionY.getValue()!=lastPositionY){lastPositionY=positionY.getValue();y=(float)lastPositionY;}}
     public void resetPosition(){positionX.reset();positionY.reset();x=100;y=300;dragging=false;me.youngjibbit.utils.render.HudDrag.cancel(this);}
@@ -83,7 +84,7 @@ public class ArmorHUD extends Module {
         String design=mode.getValue();
         f.design=design;
         f.modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())||"Modern".equals(design)||"Creative".equals(design);
-        f.dt=dt;
+        f.dt=dt;f.animations=animations;f.reducedMotion=reduced;f.motionIntensity=intensity;
         String[] names={"Head","Body","Legs","Feet","Hand"};
         for(int i=0;i<5;i++){
             if(i==4&&!held.getValue())continue;
@@ -182,7 +183,7 @@ public class ArmorHUD extends Module {
                             if(creative){
                                 // Creative: segmented armor part with animated contour glow.
                                 float pulse=contourSprings[cellIndex].step(
-                                        cell.item!=null?1:.35f,f.dt,true,false,"Balanced");
+                                        cell.item!=null?1:.35f,f.dt,f.animations,f.reducedMotion,f.motionIntensity);
                                 float glowA=.28f+.22f*pulse;
                                 UIUtils.drawRound(cell.x+1,cell.y+1,Math.max(1,cell.w-3),blockH,
                                         6,new Color(38,34,48,218));
@@ -258,6 +259,7 @@ public class ArmorHUD extends Module {
     }
     static final class Frame {
         float x,y,width,height,scale;boolean horizontal,background,blur,glow,bar,modern;String design;float dt;
+        boolean animations,reducedMotion;String motionIntensity;
         Theme theme;final TTFFontRenderer font;final TTFFontRenderer emptyFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 12");final java.util.List<Cell> cells=new ArrayList<>();Frame(TTFFontRenderer font){this.font=font;}
     }
 }

@@ -58,7 +58,6 @@ public class GlowESP extends Module
 
     private final CheckBoxValue kawaseGlow = new CheckBoxValue("Kawase Glow", this, false);
     private final ComboValue colorMode = new ComboValue("Color Mode", this, new String[]{"Sync", "Random", "Custom"}, 0);
-    private final ComboValue glowMode = new ComboValue("Glow Mode", this, new String[]{"Standard", "Flame", "Neon", "Lines"}, 0);
 
     private final CheckBoxValue players = new CheckBoxValue("Players", this, true);
     private final CheckBoxValue animals = new CheckBoxValue("Animals", this, true);
@@ -68,6 +67,8 @@ public class GlowESP extends Module
     private final SliderValue iterationsSetting = new SliderValue("Iterations", this, 4.0, 2, 6, true);
     private final SliderValue offsetSetting = new SliderValue("Offset", this, 4.0, 2, 10, true);
     private final SliderValue exposure = new SliderValue("Intensity", this,  3.0, 0.5, 3.5, false);
+    // Preserve the registration indices of the existing filters and controls.
+    private final ComboValue glowMode = new ComboValue("Glow Mode", this, new String[]{"Standard", "Flame", "Neon", "Lines"}, 0);
     private ShaderUtil chamsShader,outlineShader,glowShader,kawaseGlowShader,kawaseGlowShader2,glowFlameShader,glowNeonShader,glowLinesShader;
 
     public Framebuffer framebuffer;
@@ -521,4 +522,3 @@ public class GlowESP extends Module
     }
 
 }
-

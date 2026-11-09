@@ -313,7 +313,7 @@ public class SessionInfo extends Module {
         }
         void draw(Frame frame) {
             if (!gradient) {
-                boolean modern="Neutron 2.0".equals(frame.design);
+                boolean modern="Neutron 2.0".equals(frame.design)||"Modern".equals(frame.design)||"Creative".equals(frame.design);
                 int ink=modern?(y<13?0xfff7f2fa:0xffd7cbdc):
                         frame.theme.isCustom()?frame.theme.getTextColor().getRGB():Color.WHITE.getRGB();
                 font.drawString(text,frame.x+x,frame.y+y,ink);

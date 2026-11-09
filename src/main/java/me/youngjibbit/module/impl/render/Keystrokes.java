@@ -22,9 +22,10 @@ import org.lwjgl.input.Mouse;
 @ModuleInfo(name="Keystrokes",description="Live movement keys with shared Liquid Glass surfaces",category=Category.Render)
 public final class Keystrokes extends Module {
     private final SliderValue positionX=new SliderValue("Position X",this,16.0,0,16384),positionY=new SliderValue("Position Y",this,80.0,0,16384);
-    private final ComboValue mode=new ComboValue("Mode",this,new String[]{"Basic","Modern","Creative"},0);
     private final CheckBoxValue mouse=new CheckBoxValue("Mouse Buttons",this,true);
     private final ArrayListSurface surface=new ArrayListSurface(this);
+    // Append the cosmetic choice after every pre-existing Value registration.
+    private final ComboValue mode=new ComboValue("Mode",this,new String[]{"Basic","Modern","Creative"},0);
     private final float[] presses=new float[7];private long previous;
     private final HudSpring[] modernPresses=new HudSpring[7];
     private final HudSpring[] creativePresses=new HudSpring[7];

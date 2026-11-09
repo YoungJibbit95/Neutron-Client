@@ -14,8 +14,9 @@ import java.awt.Color;
 @ModuleInfo(name="Crosshair",description="A smooth, configurable theme crosshair",category=Category.Render)
 public final class Crosshair extends Module {
     private final SliderValue length=new SliderValue("Length",this,5.0,1,15),gap=new SliderValue("Gap",this,3.0,0,12),thickness=new SliderValue("Thickness",this,1.5,.5,4);
-    private final ComboValue mode=new ComboValue("Mode",this,new String[]{"Basic","Modern","Creative"},0);
     private final CheckBoxValue dynamic=new CheckBoxValue("Dynamic",this,true),dot=new CheckBoxValue("Center Dot",this,false);
+    // Append the cosmetic choice after every pre-existing Value registration.
+    private final ComboValue mode=new ComboValue("Mode",this,new String[]{"Basic","Modern","Creative"},0);
     private float spread;private long last;
     public static boolean replacesVanilla(){Module module=Pulsar.INSTANCE.getMm()==null?null:Pulsar.INSTANCE.getMm().getModule(Crosshair.class);return module!=null&&module.isToggled();}
     @Subscribe private final Listener<Event2D> render=new Listener<>(e->{
@@ -30,7 +31,7 @@ public final class Crosshair extends Module {
         boolean creative="Creative".equals(design);
         boolean twoDotwo=modern||creative;
         Theme theme=twoDotwo?Theme.resolve(ThemeCatalog.global().current()):Theme.getDefaultTheme();
-        float pulse=creative?(.5f+.5f*(float)Math.sin((now/1_000_000_000.0)*3.0)):1f;
+        float pulse=creative?creativePulse(UiEffects.time(),UiEffects.motion()):1f;
         try(RenderState state=new RenderState()){
             state.screenSpace();
             if(twoDotwo){
@@ -76,5 +77,6 @@ public final class Crosshair extends Module {
             }
         }
     });
+    static float creativePulse(float seconds,boolean motion){return motion?.5f+.5f*(float)Math.sin(seconds*3f):1f;}
     @Override public void onDisable(){last=0;spread=0;super.onDisable();}
 }
