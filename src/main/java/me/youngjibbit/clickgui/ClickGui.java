@@ -52,12 +52,16 @@ public class ClickGui extends GuiScreen {
     private long lastFrame = System.nanoTime();
     private ClipRect viewport = new ClipRect(0, 0, 0, 0);
     private final me.youngjibbit.gui.UiSpring[] chromeMotion=new me.youngjibbit.gui.UiSpring[CATEGORIES.length+2];
+    private me.youngjibbit.gui.UiSpring searchSpring;
+    private me.youngjibbit.gui.UiSpring themeSpring;
     private final PanelMotion panelMotion=new PanelMotion();
     private int visualChrome=-1;
     private Component visualControl;
 
     public ClickGui() {
         for(int i=0;i<chromeMotion.length;i++)chromeMotion[i]=new me.youngjibbit.gui.UiSpring();
+        searchSpring=new me.youngjibbit.gui.UiSpring();
+        themeSpring=new me.youngjibbit.gui.UiSpring();
         setupModules();
     }
 
@@ -74,6 +78,7 @@ public class ClickGui extends GuiScreen {
         visualControl=null;visualChrome=-1;
         panelMotion.reset(selectedCategory.ordinal()*categoryStep());
         for(me.youngjibbit.gui.UiSpring state:chromeMotion)state.reset();
+        searchSpring.reset();themeSpring.reset();
         for(List<ClickModule> rows:moduleCache.values())for(ClickModule row:rows){
             row.getPresentation().reset();
             row.resetPanelMotion();
@@ -83,6 +88,8 @@ public class ClickGui extends GuiScreen {
     protected void advanceMotion(float dt,int mx,int my){
         boolean available=!dragging&&!resizing&&binding==null;
         for(int i=0;i<chromeMotion.length;i++)chromeMotion[i].stepForInput(dt,available&&chromeBounds(i).contains(mx,my),i==0&&searchFocus,i==visualChrome,available,me.youngjibbit.module.impl.client.ClientSettings.current());
+        searchSpring.stepForInput(dt,searchFocus||chromeBounds(0).contains(mx,my),searchFocus,visualChrome==0,available,me.youngjibbit.module.impl.client.ClientSettings.current());
+        themeSpring.stepForInput(dt,chromeBounds(1).contains(mx,my),false,visualChrome==1,available,me.youngjibbit.module.impl.client.ClientSettings.current());
         for(List<ClickModule> rows:moduleCache.values())for(ClickModule row:rows){
             boolean present=available&&modules.contains(row);
             boolean visible=present&&!viewport.intersect(row.presentationBounds()).isEmpty();
@@ -213,6 +220,8 @@ public class ClickGui extends GuiScreen {
             }
             ClipRect searchBox=searchBounds();
             if(modern){
+                float sLift = searchSpring.lift();
+                float sGlow = searchSpring.glow();
                 UIUtils.drawRound(searchBox.x,searchBox.y,searchBox.width,searchBox.height,
                         NeutronVisualTokens.RADIUS_CONTROL,NeutronVisualTokens.CONTROL);
                 UIUtils.drawRoundOutline(searchBox.x+.5f,searchBox.y+.5f,
@@ -220,6 +229,12 @@ public class ClickGui extends GuiScreen {
                         NeutronVisualTokens.RADIUS_CONTROL,.5f,new Color(0,0,0,1),
                         searchFocus?NeutronVisualTokens.accent(theme,115):
                                 NeutronVisualTokens.HAIRLINE);
+                if (sGlow > .02f) {
+                    UIUtils.drawDecorationRound(searchBox.x-sLift*2f, searchBox.y-sLift*2f,
+                            searchBox.width+sLift*4f, searchBox.height+sLift*4f,
+                            NeutronVisualTokens.RADIUS_CONTROL+2f,
+                            me.youngjibbit.utils.render.UiEffects.accent(theme.getPrimaryGradientRGB(), .08f*sGlow));
+                }
             }else GuiStyle.panel(searchBox.x,searchBox.y,searchBox.width,searchBox.height,
                     3,searchFocus&&showsKeyboardFocus()?1:0,new Color(22,22,24));
             GuiStyle.feedback(searchBox,chromeMotion[0]);
@@ -229,11 +244,19 @@ public class ClickGui extends GuiScreen {
                 font().drawString(shown,searchBox.x+8,textY(font(),"Search",searchBox),searchFocus?0xffffffff:0xffa4a9b3);
             }
             if(!search.isEmpty()||searchFocus)font().drawString("x",searchBox.x+searchBox.width-14,textY(font(),"x",searchBox),0xffb8bec8);
-            ClipRect themes = GuiStyle.buttonBounds(themeBounds(), chromeMotion[1]);
+            ClipRect themes = GuiStyle.buttonBounds(themeBounds(), themeSpring);
+            float tLift = themeSpring.lift();
+            float tGlow = themeSpring.glow();
             UIUtils.drawRound(themes.x,themes.y,themes.width,themes.height,
                     modern?NeutronVisualTokens.RADIUS_CONTROL:3,
                     modern?NeutronVisualTokens.CONTROL:new Color(22,22,24));
-            GuiStyle.feedback(themes,chromeMotion[1]);
+            if (tGlow > .02f) {
+                UIUtils.drawDecorationRound(themes.x-tLift*2f, themes.y-tLift*2f,
+                        themes.width+tLift*4f, themes.height+tLift*4f,
+                        NeutronVisualTokens.RADIUS_CONTROL+2f,
+                        me.youngjibbit.utils.render.UiEffects.accent(theme.getPrimaryGradientRGB(), .10f*tGlow));
+            }
+            GuiStyle.feedback(themes,themeSpring);
             font().drawString("Library",themes.x+(themes.width-font().getWidth("Library"))/2,textY(font(),"Library",themes),GuiStyle.ink(theme.isCustom()?theme.getTextColor().getRGB():0xffd4d9e3,chromeMotion[1]));
             float selectedY = y + headerHeight() + 4 + selectionOffset;
             if(modern){
@@ -249,16 +272,38 @@ public class ClickGui extends GuiScreen {
                 ClipRect category = GuiStyle.buttonBounds(chromeBounds(i+2), chromeMotion[i+2]);
                 rowY += category.y - chromeBounds(i+2).y;
                 GuiStyle.feedback(category,chromeMotion[i+2]);
+                // Elastischer Hover: leichter Lift, Scale und Glow-Follow über die UiSpring-Menge.
+                float hover = chromeMotion[i+2].amount();
+                float lift = chromeMotion[i+2].lift();
+                float scale = chromeMotion[i+2].scale();
+                float glow = chromeMotion[i+2].glow();
+                if (modern) {
+                    float cardY = selectedY + 2 - lift * 3f;
+                    UIUtils.drawRound(x+9, cardY, sidebarWidth()-18, step-6 - (hover>0 ? 2f*hover : 0),
+                            NeutronVisualTokens.RADIUS_CONTROL, hover>.02f?NeutronVisualTokens.CARD_HOVER:NeutronVisualTokens.CARD);
+                    UIUtils.drawDecorationRound(x+10, cardY+7, 2, Math.max(1, step-16 - 4f*hover), 1,
+                            NeutronVisualTokens.accent(theme, (int)(236*Math.min(1,hover+.4f))));
+                    if (glow > .02f) {
+                        UIUtils.drawDecorationRound(x+9-lift*2f, cardY-lift*2f, sidebarWidth()-18+lift*4f, step-6+lift*4f,
+                                NeutronVisualTokens.RADIUS_CONTROL+2f,
+                                            me.youngjibbit.utils.render.UiEffects.accent(theme.getPrimaryGradientRGB(), .06f*glow));
+                    }
+                } else {
+                    UIUtils.drawDecorationRound(x+5, selectedY, sidebarWidth()-10, step-4, 6,
+                            me.youngjibbit.utils.render.UiEffects.accent(theme.getPrimaryGradientRGB(), .18f));
+                }
                 String font = i == 2 || i == 4 || i == 6 ? "icon1 21" : "icon 21";
+                float textX = x + (modern ? 20 + lift*2f : 10);
+                float textY = rowY + (step-14)/2 - (modern ? lift*1.5f : 0);
                 Pulsar.INSTANCE.getFontManager().getFont(font).drawString(
-                        icons[i],x+(modern?20:10),rowY+(step-14)/2,
-                        modern?i==selectedCategory.ordinal()?NeutronVisualTokens.INK:
-                                NeutronVisualTokens.MUTED:
+                        icons[i], textX, textY,
+                        modern ? i==selectedCategory.ordinal()?NeutronVisualTokens.INK:
+                                me.youngjibbit.utils.render.UiEffects.accent(NeutronVisualTokens.MUTED, .55f + .45f*hover).getRGB() :
                                 i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffc4cad5);
                 Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString(
-                        CATEGORIES[i].name(),x+(modern?43:26),rowY+(step-14)/2,
-                        modern?i==selectedCategory.ordinal()?NeutronVisualTokens.INK:
-                                NeutronVisualTokens.MUTED:
+                        CATEGORIES[i].name(), x + (modern ? 43 + lift*2f : 26), textY,
+                        modern ? i==selectedCategory.ordinal()?NeutronVisualTokens.INK:
+                                me.youngjibbit.utils.render.UiEffects.accent(NeutronVisualTokens.MUTED, .55f + .45f*hover).getRGB() :
                                 i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffc4cad5);
             }
             String title=search.trim().isEmpty()?selectedCategory.name():"Search results";

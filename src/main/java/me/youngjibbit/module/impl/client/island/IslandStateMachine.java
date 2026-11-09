@@ -10,7 +10,7 @@ import java.util.Arrays;
  */
 public final class IslandStateMachine {
     public enum State {
-        IDLE, TARGET, SCAFFOLD, MODULE_TOAST, POSSIBLE_SETBACK;
+        IDLE, TARGET, SCAFFOLD, MODULE_TOAST, POSSIBLE_SETBACK, CLOCK_REMINDER, INVENTORY_ACTIVITY;
         public static State fromName(String value) {
             if (value != null) try { return valueOf(value.toUpperCase(Locale.ROOT)); }
             catch (IllegalArgumentException ignored) { /* unknown saved/fixture state */ }
@@ -46,13 +46,42 @@ public final class IslandStateMachine {
         public boolean valid() { return active && blockCount >= 0; }
     }
 
+    /** Uhr-Erinnerung an lokale 10-Minuten-Marken (:00, :10, ...). Discret, einmal pro Slot. */
+    public static final class ClockReminder {
+        public final String time;   // "HH:mm"
+        public final boolean acknowledged;
+        public ClockReminder(String time, boolean acknowledged) {
+            this.time = time == null ? "" : time.trim();
+            this.acknowledged = acknowledged;
+        }
+        public boolean valid() { return !time.isEmpty(); }
+    }
+
+    /** Inventory-Aktivität (opt-in, nur nach TECH-InventoryActivitySnapshot-Handoff). */
+    public static final class InventoryActivity {
+        public final String action;      // z.B. "Sorting", "Keeping", "Dropping duplicate", "Taking 48x blocks"
+        public final int processedCount; // optional
+        public final int totalCount;     // optional
+        public final boolean complete;
+        public InventoryActivity(String action, int processedCount, int totalCount, boolean complete) {
+            this.action = action == null ? "" : action.trim();
+            this.processedCount = processedCount;
+            this.totalCount = totalCount;
+            this.complete = complete;
+        }
+        public boolean valid() { return !action.isEmpty(); }
+    }
+
     public static final class Selection {
         public final State state;
         public final Target target;
         public final Scaffold scaffold;
+        public final ClockReminder clock;
+        public final InventoryActivity inventory;
         public final String label;
-        private Selection(State state, Target target, Scaffold scaffold, String label) {
-            this.state = state; this.target = target; this.scaffold = scaffold; this.label = label;
+        private Selection(State state, Target target, Scaffold scaffold, ClockReminder clock, InventoryActivity inventory, String label) {
+            this.state = state; this.target = target; this.scaffold = scaffold;
+            this.clock = clock; this.inventory = inventory; this.label = label;
         }
     }
 
@@ -102,13 +131,41 @@ public final class IslandStateMachine {
         return lastNow;
     }
 
+    private static final long CLOCK_NANOS = 4_500_000_000L;
+    private static final long INVENTORY_NANOS = 5_000_000_000L;
+    private static final long CLOCK_DEDUPE_NANOS = 10L * 60_000_000_000L; // 10 Minuten
+    private long lastClockOffer = Long.MIN_VALUE;
+    private long lastInventoryOffer = Long.MIN_VALUE;
+    private String lastClockSlot = "";
+    private String lastInventoryAction = "";
+
     /**
-     * A single visible event, not an unbounded queue. This is intentionally not
-     * connected to ModuleManager or packets until a certified owner is available.
+     * Ein einziges sichtbares Event, kein unbounded Queue. Absichtlich nicht an
+     * ModuleManager/Pakete angebunden bis ein zertifizierter Owner existiert.
+     * CLOCK_REMINDER dedupliziert pro 10-Minuten-Slot, INVENTORY_ACTIVITY pro Aktion.
      */
     public boolean offer(State state, String eventId, String label, long sourceEpoch, long nowNanos) {
         enterEpoch(sourceEpoch);
         long now = time(nowNanos);
+        if (state == State.CLOCK_REMINDER) {
+            if (eventId == null || eventId.trim().isEmpty()) return false;
+            if (eventId.equals(lastClockSlot) && now - lastClockOffer < CLOCK_DEDUPE_NANOS) return false;
+            long ttl = CLOCK_NANOS;
+            active = new Event(state, IslandLayout.limitText(label, 42), now + ttl);
+            lastClockSlot = eventId;
+            lastClockOffer = now;
+            return true;
+        }
+        if (state == State.INVENTORY_ACTIVITY) {
+            if (eventId == null || eventId.trim().isEmpty() || seen(eventId)) return false;
+            if (eventId.equals(lastInventoryAction) && now - lastInventoryOffer < CLOCK_DEDUPE_NANOS) return false;
+            long ttl = INVENTORY_NANOS;
+            active = new Event(state, IslandLayout.limitText(label, 42), now + ttl);
+            lastInventoryAction = eventId;
+            lastInventoryOffer = now;
+            remember(eventId);
+            return true;
+        }
         if (state != State.MODULE_TOAST && state != State.POSSIBLE_SETBACK) return false;
         if (eventId == null || eventId.trim().isEmpty() || seen(eventId)) return false;
         if (state == State.POSSIBLE_SETBACK && warningSeen && now < warningCooldownUntil) return false;
@@ -122,18 +179,24 @@ public final class IslandStateMachine {
         return true;
     }
 
-    /** Priority: correction > toast > fresh target > explicit scaffold fixture > idle. */
+    /** Priority: safety correction > active event > fresh target > scaffold > clock > inventory > idle. */
     public Selection resolve(long sourceEpoch, long nowNanos, Target target, Scaffold scaffold,
-                             boolean showTarget, boolean showScaffold) {
+                             ClockReminder clock, InventoryActivity inventory,
+                             boolean showTarget, boolean showScaffold, boolean showClock, boolean showInventory) {
         enterEpoch(sourceEpoch);
         long now = time(nowNanos);
         if (active != null && now >= active.expires) active = null;
-        if (active != null) return new Selection(active.state, null, null, active.label);
+        if (active != null) return new Selection(active.state, null, null, null, null, active.label);
         if (showTarget && target != null && target.valid())
-            return new Selection(State.TARGET, target, null, target.name);
+            return new Selection(State.TARGET, target, null, null, null, target.name);
         if (showScaffold && scaffold != null && scaffold.valid())
-            return new Selection(State.SCAFFOLD, null, scaffold, scaffold.approach);
-        return new Selection(State.IDLE, null, null, "");
+            return new Selection(State.SCAFFOLD, null, scaffold, null, null, scaffold.approach);
+        if (showClock && clock != null && clock.valid()
+                && (lastClockSlot.isEmpty() || now - lastClockOffer >= CLOCK_DEDUPE_NANOS || !clock.time.equals(lastClockSlot)))
+            return new Selection(State.CLOCK_REMINDER, null, null, clock, null, clock.time);
+        if (showInventory && inventory != null && inventory.valid())
+            return new Selection(State.INVENTORY_ACTIVITY, null, null, null, inventory, inventory.action);
+        return new Selection(State.IDLE, null, null, null, null, "");
     }
 
     public int pendingEventCount() { return active == null ? 0 : 1; }
@@ -142,6 +205,8 @@ public final class IslandStateMachine {
     public void reset() {
         epoch = Long.MIN_VALUE; lastNow = 0; warningCooldownUntil = 0;
         active = null; clearRecent(); clockValid = false; warningSeen = false;
+        lastClockOffer = Long.MIN_VALUE; lastInventoryOffer = Long.MIN_VALUE;
+        lastClockSlot = ""; lastInventoryAction = "";
     }
 
     private static float clamp(float value, float min, float max) {

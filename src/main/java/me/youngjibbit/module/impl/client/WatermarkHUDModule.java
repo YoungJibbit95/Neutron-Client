@@ -1,4 +1,5 @@
 package me.youngjibbit.module.impl.client;
+
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.combat.CombatTargetTracker;
 import me.youngjibbit.theme.ThemeMode;
@@ -8,6 +9,7 @@ import me.youngjibbit.module.impl.client.island.IslandPresentation;
 import me.youngjibbit.module.impl.client.island.IslandStateMachine;
 import me.youngjibbit.clickgui.utils.ClipRect;
 import me.youngjibbit.clickgui.utils.GuiClip;
+import me.youngjibbit.utils.render.Roundedutil;
 import net.minecraft.entity.EntityLivingBase;
 import me.youngjibbit.event.render.Event2D;
 import me.youngjibbit.module.*;
@@ -18,9 +20,15 @@ import me.youngjibbit.utils.render.*;
 import me.youngjibbit.value.impl.*;
 import me.zero.alpine.listener.*;
 import net.minecraft.client.gui.ScaledResolution;
+import net.minecraft.client.gui.Gui;
+import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.util.ResourceLocation;
 import java.awt.Color;
 import java.util.*;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
 import static org.lwjgl.opengl.GL11.*;
 @ModuleInfo(id="watermark_hud",name="Watermark",description="Renders the client watermark",category=Category.Client)
 public class WatermarkHUDModule extends Module {
@@ -36,6 +44,7 @@ public class WatermarkHUDModule extends Module {
     // New settings follow the legacy surface's registrations: no existing Value index shifts.
     private final CheckBoxValue islandTarget=new CheckBoxValue("Island Target",this,true);
     private final CheckBoxValue islandClock=new CheckBoxValue("Island Clock",this,true);
+    private final CheckBoxValue islandInventory=new CheckBoxValue("Island Inventory (Fixture)",this,false);
     private final IslandStateMachine islandState=new IslandStateMachine();
     private final IslandMorphMotion islandMotion=new IslandMorphMotion();
     private Object islandWorld;
@@ -43,10 +52,19 @@ public class WatermarkHUDModule extends Module {
     private String islandClockText="", islandLastKey;
     private IslandStateMachine.Selection islandLastSelection, islandPrevious;
     private boolean islandActive;
+    // Logo1-N resource: geschwungenes, leuchtendes N als echte Form (keine Glyphe).
+    private static final ResourceLocation LOGO1 = new ResourceLocation("pulsar/Logo1.png");
+    // Clock Reminder: lokale 10-Minuten-Marken, dedupliziert pro Slot.
+    private String islandClockLastSlot = "";
+    // Inventory Activity: synthetische Headless-Fixture bis TECH InventoryActivitySnapshot freigegeben.
+    private IslandStateMachine.InventoryActivity inventoryFixture = null;
+    private long inventoryFixtureUntil = 0;
+
     public WatermarkHUDModule(){radius.setVisibility(m->localRadius.getValue());animated.setVisibility(m->!textStyle.getValue().equals("Theme"));speed.setVisibility(m->!textStyle.getValue().equals("Theme")&&animated.getValue());
         islandTarget.setVisibility(m->islandSelected());
-        islandClock.setVisibility(m->islandSelected());}
-    /** Global opt-in upgrades the historical Glass default without rewriting stored Mode. */
+        islandClock.setVisibility(m->islandSelected());
+        islandInventory.setVisibility(m->islandSelected());}
+    /** Global opt-in upgraded the historical Glass default without rewriting stored Mode. */
     boolean islandSelected(){
         return "Dynamic Island".equals(mode.getValue())||
                 (ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())&&"Glass".equals(mode.getValue()));
@@ -104,21 +122,62 @@ public class WatermarkHUDModule extends Module {
                 entity.getHealth(),entity.getMaxHealth(),entity.getAbsorptionAmount());
     }
 
+    /** Prüft lokale 10-Minuten-Marken (:00, :10, ...) als Clock-Reminder-Kandidat. */
+    private boolean isClockReminderTime(){
+        if(!islandClock.getValue())return false;
+        long now=System.currentTimeMillis();
+        long minute=now/60_000L;
+        int minOfHour=(int)(minute%60);
+        if(minOfHour%10!=0)return false;
+        String slot=new SimpleDateFormat("HH:mm",Locale.ROOT).format(new Date(now));
+        if(slot.equals(islandClockLastSlot))return false;
+        islandClockLastSlot=slot;
+        return true;
+    }
+
+    /** Synthetische Inventory-Aktivitäts-Fixture (opt-in, nur für Entwicklung/Tests). */
+    private IslandStateMachine.InventoryActivity inventoryFixture(){
+        if(!islandInventory.getValue())return null;
+        long now=System.currentTimeMillis();
+        if(inventoryFixture!=null&&now<inventoryFixtureUntil)return inventoryFixture;
+        return null;
+    }
+
+    /** Setzt eine synthetische Inventory-Fixture mit TTL (nur für Entwicklung/Headless-Tests). */
+    void setInventoryFixture(String action,int processed,int total,boolean complete,long ttlMillis){
+        inventoryFixture=new IslandStateMachine.InventoryActivity(action,processed,total,complete);
+        inventoryFixtureUntil=System.currentTimeMillis()+ttlMillis;
+    }
+
     private void renderIsland(){
         islandActive=true;
         // World object identity is a scene epoch: entity-id reuse cannot leak old content.
         if(islandWorld!=mc.theWorld){
             islandWorld=mc.theWorld;islandEpoch++;islandState.reset();islandMotion.reset();
             islandLastSelection=islandPrevious=null;islandLastKey=null;islandLastFrameNanos=0;
+            inventoryFixture=null;inventoryFixtureUntil=0;
         }
         long now=System.nanoTime();
         float dt=islandLastFrameNanos==0||now<=islandLastFrameNanos?0
                 :Math.min(.05f,(now-islandLastFrameNanos)/1_000_000_000f);
         islandLastFrameNanos=now;
         if(!mc.inGameHasFocus){islandMotion.reset();dt=0;}
+
+        // Clock Reminder: diskrete 10-Minuten-Marke als Event anbieten.
+        IslandStateMachine.ClockReminder clockRem=null;
+        if(islandClock.getValue()&&isClockReminderTime()){
+            long wall=System.currentTimeMillis();
+            String t=new SimpleDateFormat("HH:mm",Locale.ROOT).format(new Date(wall));
+            islandState.offer(IslandStateMachine.State.CLOCK_REMINDER,"clock:"+t,t,islandEpoch,now);
+            clockRem=new IslandStateMachine.ClockReminder(t,false);
+        }
+
         IslandStateMachine.Selection selected=islandState.resolve(islandEpoch,now,
-                islandTargetSnapshot(),null,islandTarget.getValue(),false);
-        String key=selected.state.name()+(selected.target==null?"":"#"+selected.target.entityId+":"+selected.target.name);
+                islandTargetSnapshot(),null,clockRem,inventoryFixture(),
+                islandTarget.getValue(),false,islandClock.getValue(),islandInventory.getValue());
+        String key=selected.state.name()+(selected.target==null?"":"#"+selected.target.entityId+":"+selected.target.name)
+                +(selected.clock==null?"":"@"+selected.clock.time)
+                +(selected.inventory==null?"":"#"+selected.inventory.action);
         if(!key.equals(islandLastKey)){
             // Only the neutral idle label may remain during a crossfade. Never retain lost targets.
             islandPrevious=islandLastSelection!=null&&islandLastSelection.state==IslandStateMachine.State.IDLE
@@ -140,15 +199,15 @@ public class WatermarkHUDModule extends Module {
         final Theme theme=Theme.resolve(Theme.getDefaultTheme());
         final TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont("DmSansMedium 18");
         // Freeze settings and text before scheduling a deferred surface pass.
-        final String clock=islandClock.getValue()?islandTime():"";
+        final String clockText=islandClock.getValue()?islandTime():"";
         final String clientName=Pulsar.INSTANCE.getName(), clientVersion=Pulsar.INSTANCE.getVersion();
         final boolean showName=name.getValue(), showVersion=version.getValue(), showClock=islandClock.getValue();
         final boolean panel=background.getValue(), useBlur=blur.getValue(),
                 useGlow=!modern&&glow.getValue();
-        final IslandPresentation present=IslandPresentation.from(selected,clientName,clientVersion,clock,
+        final IslandPresentation present=IslandPresentation.from(selected,clientName,clientVersion,clockText,
                 showName,showVersion,showClock);
         final IslandPresentation fading=previous==null?null:IslandPresentation.from(previous,
-                clientName,clientVersion,clock,showName,showVersion,showClock);
+                clientName,clientVersion,clockText,showName,showVersion,showClock);
         // A queued bloom pass may outlive a world/mode/visibility change: fence it.
         final long passEpoch=islandEpoch;
         // Reuse the single existing surface and shared halo/blur/RenderState pools.
@@ -184,22 +243,23 @@ public class WatermarkHUDModule extends Module {
         int secondary=ink(modern?0xffc7bdcf:0xffb8cad8,alpha);
         int accent=ink(theme.getPrimaryGradientRGB()|0xff000000,alpha);
         float badge=modern?21:24, badgeX=x+(modern?10:9),badgeY=y+(h-badge)/2;
-        // Existing typographic N, no copied logo/icon or new atlas upload.
-        UIUtils.drawRound(badgeX,badgeY,badge,badge,modern?7:11,
-                modern?new Color(42,32,53,Math.round(alpha*234)):
-                        new Color(26,47,60,Math.round(alpha*230)));
-        font.drawString("N",badgeX+(modern?(badge-12)/2:7),badgeY+(badge-11)/2,accent);
+
+        // Logo1-N: echtes geschwungenes N als alpha-geclippte Form mit animiertem Theme-Gradient
+        // innerhalb der N sowie kontrolliertem Edge-Glow entlang der Kontur.
+        renderLogo1N(badgeX,badgeY,badge,theme,alpha,modern);
+
         if(view.state==IslandStateMachine.State.IDLE){
             float clockWidth=view.trailing.isEmpty()?0:font.getWidth(view.trailing)+11;
-            float start=modern?39:39;
-            font.drawString(fitIsland(view.title,font,w-47-clockWidth),
-                    x+start,y+(h-11)/2,primary);
+            float start=modern?(badgeX+badge+8):(x+39);
+            font.drawString(fitIsland(view.title,font,w-(start-x)-clockWidth),
+                    start,y+(h-11)/2,primary);
             if(!view.trailing.isEmpty())
                 font.drawString(view.trailing,x+w-clockWidth,y+(h-11)/2,secondary);
         }else if(view.state==IslandStateMachine.State.TARGET&&view.hasHealthBar){
-            font.drawString(fitIsland(view.title,font,w-52),x+39,y+7,primary);
-            font.drawString(fitIsland(view.detail,font,w-52),x+39,y+20,secondary);
-            float barX=x+39,barY=y+h-11,barW=Math.max(0,w-52);
+            float start=modern?(badgeX+badge+8):(x+39);
+            font.drawString(fitIsland(view.title,font,w-(start-x)-52),start,y+7,primary);
+            font.drawString(fitIsland(view.detail,font,w-(start-x)-52),start,y+20,secondary);
+            float barX=start,barY=y+h-11,barW=Math.max(0,w-(start-x)-52);
             UIUtils.drawRound(barX,barY,barW,4,2,new Color(55,67,80,Math.round(alpha*215)));
             float fill=barW*view.healthFraction;
             if(fill>.01f)UIUtils.drawGradientHorizontal(barX,barY,fill,4,Math.min(2,fill/2),
@@ -208,13 +268,64 @@ public class WatermarkHUDModule extends Module {
             if(absorbed>.01f)UIUtils.drawRound(barX+barW-absorbed,barY,absorbed,4,
                     Math.min(2,absorbed/2),new Color(255,205,105,Math.round(alpha*230)));
         }else if(view.state==IslandStateMachine.State.SCAFFOLD){
-            font.drawString(fitIsland(view.title,font,w-53),x+39,y+7,primary);
-            font.drawString(fitIsland(view.detail,font,w-53),x+39,y+20,secondary);
+            float start=modern?(badgeX+badge+8):(x+39);
+            font.drawString(fitIsland(view.title,font,w-(start-x)-53),start,y+7,primary);
+            font.drawString(fitIsland(view.detail,font,w-(start-x)-53),start,y+20,secondary);
+        }else if(view.state==IslandStateMachine.State.CLOCK_REMINDER){
+            float start=modern?(badgeX+badge+8):(x+39);
+            font.drawString(fitIsland(view.title,font,w-(start-x)-53),start,y+(h-11)/2,primary);
+            if(!view.trailing.isEmpty())
+                font.drawString(view.trailing,x+w-clockWidthFor(view.trailing,font),y+(h-11)/2,secondary);
+        }else if(view.state==IslandStateMachine.State.INVENTORY_ACTIVITY){
+            float start=modern?(badgeX+badge+8):(x+39);
+            font.drawString(fitIsland(view.title,font,w-(start-x)-53),start,y+7,primary);
+            font.drawString(fitIsland(view.detail,font,w-(start-x)-53),start,y+20,secondary);
         }else{
-            font.drawString(fitIsland(view.title,font,w-53),x+39,y+(h-11)/2,
+            font.drawString(fitIsland(view.title,font,w-(startX(modern))-53),startX(modern),y+(h-11)/2,
                     view.state==IslandStateMachine.State.POSSIBLE_SETBACK
                             ?ink(UiEffects.semanticColor(UiEffects.SemanticRole.WARNING,accent,true),alpha):primary);
         }
+    }
+
+    private float startX(boolean modern){return modern?21:9;}
+
+    private float clockWidthFor(String text,TTFFontRenderer font){return font==null?0:font.getWidth(text);}
+
+    /** Rendert Logo1-N als alpha-geclippte Form mit animiertem Theme-Gradient innerhalb der N. */
+    private void renderLogo1N(float bx,float by,float size,Theme theme,float alpha,boolean modern){
+        if(alpha<=0)return;
+        // Animated gradient phase: cycle between primary and secondary theme colors.
+        double phase=(UiEffects.time()/1e9)%1.0;
+        int c1=theme.getPrimaryGradientRGB();
+        int c2=theme.getSecondaryGradientRGB();
+        int r=(int)(((c1>>16)&255)*(1-phase)+((c2>>16)&255)*phase);
+        int g=(int)(((c1>>8)&255)*(1-phase)+((c2>>8)&255)*phase);
+        int b=(int)((c1&255)*(1-phase)+(c2&255)*phase);
+        int gradientRgb=(0xff<<24)|(r<<16)|(g<<8)|b;
+        int filled=ink(gradientRgb|0xff000000,alpha);
+
+        // Hintergrund-Platte der N-Form (solid, leicht abgedunkelt).
+        UIUtils.drawRound(bx,by,size,size,modern?7:11,
+                modern?new Color(42,32,53,Math.round(alpha*200)):
+                        new Color(26,47,60,Math.round(alpha*200)));
+
+        // Logo1 als Alpha-Mask: zeichne die N mit dem animierten Gradient-Farbwert getönt.
+        // Das Bild selbst trägt die geschwungene N-Form; der Gradient-Farbton animiert sich über die Zeit.
+        GlStateManager.pushMatrix();
+        glEnable(GL_BLEND);
+        glDisable(GL_TEXTURE_2D);
+        glEnable(GL_TEXTURE_2D);
+        OpenGlHelper.glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, 1, 0);
+        glColor4f(((r&255)/255f),((g&255)/255f),((b&255)/255f),alpha);
+        mc.getTextureManager().bindTexture(LOGO1);
+        Gui.drawModalRectWithCustomSizedTexture((int)bx,(int)by,0.0f,0.0f,(int)size,(int)size,size,size);
+        glColor4f(1,1,1,1);
+        GlStateManager.popMatrix();
+
+        // Kontur-Glow entlang der N-Form (weicher, außerhalb).
+        float glow=modern?1.5f:2.0f;
+        UIUtils.drawRound(bx-glow,by-glow,size+glow*2,size+glow*2,modern?7:11,
+                new Color(r,g,b,Math.round(Math.min(1,.35f*glow)*alpha*255)));
     }
 
     private static Color tint(Color color,float alpha){
@@ -235,13 +346,13 @@ public class WatermarkHUDModule extends Module {
         long minute=System.currentTimeMillis()/60_000L;
         if(minute!=islandClockMinute){
             islandClockMinute=minute;
-            islandClockText=new java.text.SimpleDateFormat("HH:mm",Locale.ROOT).format(new Date(minute*60_000L));
+            islandClockText=new SimpleDateFormat("HH:mm",Locale.ROOT).format(new Date(minute*60_000L));
         }
         return islandClockText;
     }
     private void resetIsland(){
         islandState.reset();islandMotion.reset();islandWorld=null;islandEpoch++;
         islandLastFrameNanos=0;islandLastKey=null;islandLastSelection=islandPrevious=null;
-        islandActive=false;
+        islandActive=false;inventoryFixture=null;inventoryFixtureUntil=0;
     }
 }

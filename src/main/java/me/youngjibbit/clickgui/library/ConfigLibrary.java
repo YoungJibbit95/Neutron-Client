@@ -58,6 +58,23 @@ public final class ConfigLibrary {
         if (!manager.loadConfig(selected)) { status = manager.getLastError(); return false; }
         status = "Loaded " + selected; return true;
     }
+
+    public boolean rename(String newName) {
+        cancel();
+        if (manager == null || selected.isEmpty()) { status = "Select a config to rename."; return false; }
+        try { new LocalConfig(new File("."), newName); }
+        catch (IllegalArgumentException ex) { status = ex.getMessage(); return false; }
+        String existing = existing(newName);
+        if (!existing.isEmpty() && !existing.equalsIgnoreCase(selected)) {
+            target = existing; pending = Pending.OVERWRITE;
+            status = "Replace \"" + target + "\" with the renamed config?";
+            return false;
+        }
+        if (!manager.delete(selected)) { status = manager.getLastError(); return false; }
+        boolean written = write(newName);
+        if (!written) status = manager.getLastError();
+        return written;
+    }
     public void requestDelete() {
         cancel();
         if (manager == null || selected.isEmpty()) { status = "Select a config to delete."; return; }
