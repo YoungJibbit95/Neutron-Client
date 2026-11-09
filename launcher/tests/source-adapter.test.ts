@@ -8,6 +8,7 @@ import { pipeline } from 'node:stream/promises';
 import yazl from 'yazl';
 import { prepareSource } from '../electron/distribution.cts';
 import { atomicJson, hash } from '../electron/files.cts';
+import { normalizedSourceHash } from '../electron/source-adapter.cts';
 
 const project = fileURLToPath(new URL('../../', import.meta.url));
 const adapter = path.join(project, 'launcher/resources/source-adapter');
@@ -41,13 +42,40 @@ test('fresh source preparation preserves reviewed dependencies and JavaFX while 
     expect(original, artifact).toBeTruthy(); expect(pom).toContain(original!);
   }
   expect(pom).toContain('<id>launcher-dist</id>'); expect(pom).toContain('src/build/javafx8.xml');
+  expect(pom.match(/<exclude>Start.class<\/exclude>/g)).toHaveLength(2);
   expect(pom).toContain('<groupId>com.ibm.icu</groupId>'); expect(pom).toContain('<artifactId>lwjgl_util</artifactId>');
   expect(pom).not.toContain('<artifactId>patchy</artifactId>');
   for (const name of inputs.slice(1)) expect(await fs.readFile(path.join(prepared.source, name))).toEqual(await fs.readFile(path.join(project, name)));
   await expect(fs.access(path.join(prepared.source, 'test_run'))).rejects.toThrow();
   const snapshot = JSON.parse(await fs.readFile(path.join(prepared.work, 'source-snapshot.json'), 'utf8'));
   expect(snapshot.commit).toBe(commit); expect(snapshot.upstream.files).toHaveLength(inputs.length);
+  const contract = JSON.parse(await fs.readFile(path.join(adapter, 'contract.json'), 'utf8'));
+  const review = contract.reviewedPoms.find((item: { sha256: string }) => item.sha256 === normalizedSourceHash(upstream));
+  expect(review).toBeTruthy(); expect(snapshot.upstream.reviewedCommit).toBe(review.reviewedCommit);
   expect(snapshot.files.find((item: {path: string}) => item.path === 'pom.xml').sha256).toBe(await hash(path.join(prepared.source, 'pom.xml')));
+});
+
+test('single reviewed input contracts remain supported without POM alternatives', async () => {
+  await cachedSource();
+  const localAdapter = path.join(root, 'single-review-adapter');
+  const contract = JSON.parse(await fs.readFile(path.join(adapter, 'contract.json'), 'utf8'));
+  contract.inputs['pom.xml'] = normalizedSourceHash(await fs.readFile(path.join(project, 'pom.xml'), 'utf8'));
+  delete contract.reviewedPoms;
+  await atomicJson(path.join(localAdapter, 'contract.json'), contract);
+  const prepared = await prepareSource(root, commit, localAdapter, new AbortController().signal);
+  const snapshot = JSON.parse(await fs.readFile(path.join(prepared.work, 'source-snapshot.json'), 'utf8'));
+  expect(snapshot.upstream.reviewedCommit).toBe(contract.reviewedCommit);
+});
+
+test('malformed additional POM reviews fail before the upstream POM is changed', async () => {
+  await cachedSource();
+  const localAdapter = path.join(root, 'invalid-review-adapter');
+  const contract = JSON.parse(await fs.readFile(path.join(adapter, 'contract.json'), 'utf8'));
+  contract.reviewedPoms = [{ reviewedCommit: 'not-a-commit', sha256: normalizedSourceHash(await fs.readFile(path.join(project, 'pom.xml'), 'utf8')) }];
+  await atomicJson(path.join(localAdapter, 'contract.json'), contract);
+  await expect(prepareSource(root, commit, localAdapter, new AbortController().signal)).rejects.toThrow('Invalid reviewed POM contract.');
+  const work = (await fs.readdir(path.join(root, 'work')))[0];
+  expect(await fs.readFile(path.join(root, 'work', work, 'source/pom.xml'))).toEqual(await fs.readFile(path.join(project, 'pom.xml')));
 });
 
 test.each(inputs)('unreviewed build input %s fails before the upstream POM is changed', async changed => {

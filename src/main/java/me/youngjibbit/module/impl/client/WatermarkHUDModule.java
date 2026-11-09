@@ -14,6 +14,8 @@ import me.youngjibbit.module.impl.client.island.IslandNoticeFlow;
 import me.youngjibbit.module.impl.client.island.IslandContentLayout;
 import me.youngjibbit.core.activity.ModuleToggleJournal;
 import me.youngjibbit.module.impl.client.island.IslandPresentation;
+import me.youngjibbit.module.impl.client.island.IslandScaffoldIndicator;
+import me.youngjibbit.module.impl.client.island.IslandTargetComposition;
 import me.youngjibbit.module.impl.client.island.IslandStateMachine;
 import me.youngjibbit.clickgui.utils.ClipRect;
 import me.youngjibbit.clickgui.utils.GuiClip;
@@ -264,6 +266,11 @@ public class WatermarkHUDModule extends Module {
                 showName,showVersion,showClock).withClockFace(liveClock);
         final IslandPresentation fading=previous==null?null:IslandPresentation.from(previous,
                 clientName,clientVersion,clockText,showName,showVersion,showClock).withClockFace(liveClock);
+        final float islandSeconds=UiEffects.time();
+        final boolean glyphMotion=animations&&!reduced&&UiEffects.motion();
+        final IslandScaffoldIndicator scaffoldIndicator=IslandScaffoldIndicator.capture(present.scaffold,
+                islandSeconds,glyphMotion);
+        final IslandTargetComposition targetComposition=IslandTargetComposition.capture(present,islandSeconds,glyphMotion);
         final float clipInset=Math.min(2,Math.min(frame.width,frame.height)*.08f);
         // A queued bloom pass may outlive a world/mode/visibility change: fence it.
         final long passEpoch=islandEpoch;
@@ -293,16 +300,21 @@ public class WatermarkHUDModule extends Module {
                             }
                         }
                         if(fading!=null&&mix<1)paintIsland(fading,frame,font,wordmark,theme,
-                                (1-mix)*frame.opacity,design);
-                        paintIsland(present,frame,font,wordmark,theme,mix*frame.opacity,design);
+                                (1-mix)*frame.opacity,design,null,null);
+                        paintIsland(present,frame,font,wordmark,theme,mix*frame.opacity,design,scaffoldIndicator,targetComposition);
                     }
                 });
         GuiShaderBloom.afterBatch(()->{if(islandActive&&passEpoch==islandEpoch&&mc.theWorld==passWorld&&mc.thePlayer==passPlayer)drawIsland.run();});
     }
 
     private void paintIsland(IslandPresentation view,IslandLayout.Frame frame,
-                             TTFFontRenderer font,TTFFontRenderer wordmark,Theme theme,float alpha,String design){
+                             TTFFontRenderer font,TTFFontRenderer wordmark,Theme theme,float alpha,String design,
+                             IslandScaffoldIndicator scaffoldIndicator,IslandTargetComposition targetComposition){
         if(alpha<=0)return;
+        if(targetComposition!=null){paintIslandTarget(targetComposition,frame,font,theme,alpha);return;}
+        if(scaffoldIndicator!=null&&view.scaffold!=null&&view.scaffold.observed){
+            paintIslandScaffold(view,frame,font,theme,alpha,design,scaffoldIndicator);return;
+        }
         if(view.notice!=null){paintIslandNotice(view,frame,font,alpha);return;}
         if(view.inventory!=null&&view.inventory.observed){paintIslandInventory(view,frame,font,theme,alpha);return;}
         if(view.clockFace!=null){
@@ -342,17 +354,6 @@ public class WatermarkHUDModule extends Module {
             }else font.drawString(fitIsland(view.title,font,available),start,y+(h-11)/2,primary);
             if(!view.trailing.isEmpty())
                 font.drawString(view.trailing,x+w-clockWidth,y+(h-11)/2,secondary);
-        }else if(view.state==IslandStateMachine.State.TARGET&&view.hasHealthBar){
-            font.drawString(fitIsland(view.title,font,w-(start-x)-52),start,y+7,primary);
-            font.drawString(fitIsland(view.detail,font,w-(start-x)-52),start,y+20,secondary);
-            float barX=start,barY=y+h-11,barW=Math.max(0,w-(start-x)-52);
-            UIUtils.drawRound(barX,barY,barW,4,2,new Color(55,67,80,Math.round(alpha*215)));
-            float fill=barW*view.healthFraction;
-            if(fill>.01f)UIUtils.drawGradientHorizontal(barX,barY,fill,4,Math.min(2,fill/2),
-                    tint(theme.getPrimaryGradientColor(),alpha),tint(theme.getSecondaryGradientColor(),alpha));
-            float absorbed=barW*view.absorptionFraction;
-            if(absorbed>.01f)UIUtils.drawRound(barX+barW-absorbed,barY,absorbed,4,
-                    Math.min(2,absorbed/2),new Color(255,205,105,Math.round(alpha*230)));
         }else if(view.state==IslandStateMachine.State.SCAFFOLD){
             font.drawString(fitIsland(view.title,font,w-(start-x)-53),start,y+7,primary);
             font.drawString(fitIsland(view.detail,font,w-(start-x)-53),start,y+20,secondary);
@@ -373,7 +374,111 @@ public class WatermarkHUDModule extends Module {
 
     private float clockWidthFor(String text,TTFFontRenderer font){return font==null?0:font.getWidth(text);}
 
+    /** Frozen target facts get their own reticle, exact health arcs and separate absorption rail. */
+    private void paintIslandTarget(IslandTargetComposition target,IslandLayout.Frame frame,
+                                   TTFFontRenderer font,Theme theme,float alpha){
+        IslandTargetComposition.Layout layout=new IslandTargetComposition.Layout(frame);
+        int health=theme.getPrimaryGradientRGB(),absorption=0xffffcd69;
+        try(RenderState state=new RenderState()){
+            glTranslatef(layout.x,layout.y,0);glScalef(layout.scale,layout.scale,1);
+            try(RenderState glyph=new RenderState()){
+                org.lwjgl.opengl.GL20.glUseProgram(0);
+                GlStateManager.disableTexture2D();glDisable(GL_TEXTURE_2D);
+                GlStateManager.disableDepth();glDisable(GL_DEPTH_TEST);
+                GlStateManager.disableLighting();glDisable(GL_LIGHTING);
+                GlStateManager.disableAlpha();glDisable(GL_ALPHA_TEST);
+                GlStateManager.enableBlend();glEnable(GL_BLEND);
+                GlStateManager.tryBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ZERO);
+                drawIslandTargetArc(IslandTargetComposition.HEALTH_TRACK,0xffa3afc0,alpha*.22f,2);
+                drawIslandTargetArc(target.health,health,alpha,2);
+                if(target.absorptionFraction>0){
+                    drawIslandTargetArc(IslandTargetComposition.ABSORPTION_TRACK,absorption,alpha*.18f,1.5f);
+                    drawIslandTargetArc(target.absorption,absorption,alpha,1.5f);
+                }
+                glLineWidth(1);glColor4f(.88f,.92f,.97f,alpha*target.reticleAlpha);
+                glBegin(GL_LINES);
+                for(int i=0;i<target.reticleSegments();i++){
+                    glVertex2f(target.x1(i),target.y1(i));glVertex2f(target.x2(i),target.y2(i));
+                }
+                glEnd();
+            }
+            drawIslandTargetText(target.name,font,IslandTargetComposition.Layout.NAME_Y,
+                    IslandTargetComposition.Layout.NAME_HEIGHT,ink(0xfff4f6fc,alpha));
+            drawIslandTargetText(target.healthText,font,IslandTargetComposition.Layout.DETAIL_Y,
+                    IslandTargetComposition.Layout.DETAIL_HEIGHT,ink(0xffbdcad8,alpha));
+            float x=IslandTargetComposition.Layout.TEXT_X,width=IslandTargetComposition.Layout.TEXT_WIDTH;
+            float healthY=IslandTargetComposition.Layout.HEALTH_Y,healthHeight=IslandTargetComposition.Layout.HEALTH_HEIGHT;
+            UIUtils.drawDecorationRound(x,healthY,width,healthHeight,healthHeight/2,
+                    new Color(163,175,192,Math.round(alpha*38)));
+            if(target.healthWidth>0)UIUtils.drawGradientHorizontal(x,healthY,target.healthWidth,healthHeight,
+                    Math.min(healthHeight/2,target.healthWidth/2),tint(theme.getPrimaryGradientColor(),alpha),
+                    tint(theme.getSecondaryGradientColor(),alpha));
+            if(target.absorptionWidth>0){
+                float y=IslandTargetComposition.Layout.ABSORPTION_Y,h=IslandTargetComposition.Layout.ABSORPTION_HEIGHT;
+                UIUtils.drawDecorationRound(x,y,width,h,h/2,new Color(255,205,105,Math.round(alpha*30)));
+                UIUtils.drawDecorationRound(x,y,target.absorptionWidth,h,Math.min(h/2,target.absorptionWidth/2),
+                        new Color(255,205,105,Math.round(alpha*230)));
+            }
+        }
+    }
+    private static void drawIslandTargetArc(IslandTargetComposition.Arc arc,int rgb,float alpha,float width){
+        if(arc.segments==0)return;
+        glColor4f((rgb>>16&255)/255f,(rgb>>8&255)/255f,(rgb&255)/255f,alpha);glLineWidth(width);
+        glBegin(GL_LINE_STRIP);
+        for(int i=0;i<=arc.segments;i++)glVertex2f(arc.x(i),arc.y(i));
+        glEnd();
+    }
+    private void drawIslandTargetText(String value,TTFFontRenderer font,float y,float maxHeight,int color){
+        String text=fitIsland(value,font,IslandTargetComposition.Layout.TEXT_WIDTH);
+        float scale=Math.min(1,maxHeight/Math.max(1,font.getHeight(text)));
+        try(RenderState state=new RenderState()){
+            glTranslatef(IslandTargetComposition.Layout.TEXT_X,y,0);glScalef(scale,scale,1);
+            font.drawString(text,0,0,color);
+        }
+    }
+
     /** Status row and measured-correction dashboard have their own geometry, without a decorative N. */
+    private void paintIslandScaffold(IslandPresentation view,IslandLayout.Frame frame,TTFFontRenderer font,
+                                     Theme theme,float alpha,String design,IslandScaffoldIndicator indicator){
+        IslandScaffoldIndicator.Layout layout=new IslandScaffoldIndicator.Layout(frame);
+        try(RenderState state=new RenderState()){
+            glTranslatef(layout.x,layout.y,0);glScalef(layout.scale,layout.scale,1);
+            if(!renderScaffoldItem(IslandScaffoldIndicator.Layout.ITEM_X,IslandScaffoldIndicator.Layout.ITEM_Y,
+                    IslandScaffoldIndicator.Layout.ITEM_SIZE,view.scaffold,alpha))
+                renderLogo1N(IslandScaffoldIndicator.Layout.ITEM_X,IslandScaffoldIndicator.Layout.ITEM_Y,
+                        IslandScaffoldIndicator.Layout.ITEM_SIZE,theme,alpha,
+                        "Modern".equals(design)||"Creative".equals(design),"Creative".equals(design),0);
+            font.drawString(fitIsland(view.title,font,IslandScaffoldIndicator.Layout.TEXT_WIDTH),
+                    IslandScaffoldIndicator.Layout.TEXT_X,7,ink(0xfff4f6fc,alpha));
+            font.drawString(fitIsland(view.detail,font,IslandScaffoldIndicator.Layout.TEXT_WIDTH),
+                    IslandScaffoldIndicator.Layout.TEXT_X,23,ink(0xffbdcad8,alpha));
+            int color=indicator.warning()?UiEffects.semanticColor(UiEffects.SemanticRole.WARNING,
+                    theme.getPrimaryGradientRGB(),true):indicator.status==IslandScaffoldIndicator.Status.READY
+                    ?UiEffects.semanticColor(UiEffects.SemanticRole.SUCCESS,theme.getPrimaryGradientRGB(),true)
+                    :theme.getPrimaryGradientRGB();
+            try(RenderState glyph=new RenderState()){
+                org.lwjgl.opengl.GL20.glUseProgram(0);
+                GlStateManager.disableTexture2D();glDisable(GL_TEXTURE_2D);
+                GlStateManager.disableDepth();glDisable(GL_DEPTH_TEST);
+                GlStateManager.disableLighting();glDisable(GL_LIGHTING);
+                GlStateManager.disableAlpha();glDisable(GL_ALPHA_TEST);
+                GlStateManager.enableBlend();glEnable(GL_BLEND);
+                GlStateManager.tryBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ZERO);
+                glColor4f((color>>16&255)/255f,(color>>8&255)/255f,(color&255)/255f,alpha*indicator.opacity);
+                glLineWidth(1.25f);glTranslatef(IslandScaffoldIndicator.Layout.STATUS_X,IslandScaffoldIndicator.Layout.STATUS_Y,0);
+                glBegin(GL_LINES);
+                for(int i=0;i<indicator.segmentCount();i++){
+                    glVertex2f(indicator.x1(i),indicator.y1(i));glVertex2f(indicator.x2(i),indicator.y2(i));
+                }
+                glEnd();
+            }
+            TTFFontRenderer tiny=Pulsar.INSTANCE.getFontManager().getFont("DmSansMedium 12");
+            String label=fitIsland(indicator.label,tiny,42);
+            tiny.drawString(label,IslandScaffoldIndicator.Layout.STATUS_X+12-tiny.getWidth(label)/2,
+                    IslandScaffoldIndicator.Layout.LABEL_Y,ink(color,alpha));
+        }
+    }
+
     private void paintIslandNotice(IslandPresentation view,IslandLayout.Frame frame,TTFFontRenderer font,float alpha){
         IslandContentLayout canvas=IslandContentLayout.forFrame(frame,view.state);
         IslandNotice notice=view.notice;

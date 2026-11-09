@@ -17,15 +17,23 @@ export const normalizedSourceHash = (text: string) => createHash('sha256').updat
 
 export async function adaptSource(source: string, adapter: string, signal: AbortSignal) {
   signal.throwIfAborted();
-  const contract = JSON.parse(await fs.readFile(path.join(adapter, 'contract.json'), 'utf8')) as { schemaVersion: number; reviewedCommit: string; inputs: Record<string, string> };
+  const contract = JSON.parse(await fs.readFile(path.join(adapter, 'contract.json'), 'utf8')) as { schemaVersion: number; reviewedCommit: string; inputs: Record<string, string>; reviewedPoms?: { reviewedCommit: string; sha256: string }[] };
   if (contract.schemaVersion !== 1 || !/^[a-f0-9]{40}$/.test(contract.reviewedCommit)) throw new Error('Invalid reviewed source contract.');
+  // Keep the durable installer source accepted while recording a separately
+  // reviewed POM update. The other three build inputs retain their single pins.
+  const reviewedPoms = contract.reviewedPoms ?? [];
+  if (!Array.isArray(reviewedPoms) || reviewedPoms.some(review => !review || !/^[a-f0-9]{40}$/.test(review.reviewedCommit) || !/^[a-f0-9]{64}$/.test(review.sha256))) throw new Error('Invalid reviewed POM contract.');
+  let reviewedCommit = contract.reviewedCommit;
   const records = [];
   // Validate every build-critical input before writing anything. Bootstrap and
   // JavaFX are upstream sources, never injected or replaced by this adapter.
   for (const relative of buildInputs) {
     signal.throwIfAborted();
     const target = path.join(source, relative); const value = await fs.readFile(target, 'utf8');
-    if (!/^[a-f0-9]{64}$/.test(contract.inputs[relative] ?? '') || normalizedSourceHash(value) !== contract.inputs[relative]) throw new Error('Upstream build input changed: ' + relative + '. A reviewed launcher adapter update is required.');
+    const actualHash = normalizedSourceHash(value);
+    const pomReview = relative === 'pom.xml' ? reviewedPoms.find(review => review.sha256 === actualHash) : undefined;
+    if (!/^[a-f0-9]{64}$/.test(contract.inputs[relative] ?? '') || (actualHash !== contract.inputs[relative] && !pomReview)) throw new Error('Upstream build input changed: ' + relative + '. A reviewed launcher adapter update is required.');
+    if (pomReview && actualHash !== contract.inputs[relative]) reviewedCommit = pomReview.reviewedCommit;
     records.push({ path: relative, sha256: await hash(target) });
   }
   const pom = path.join(source, 'pom.xml'); let result = await fs.readFile(pom, 'utf8');
@@ -40,5 +48,5 @@ export async function adaptSource(source: string, adapter: string, signal: Abort
     if (count !== 1) throw new Error('Reviewed legacy dependency contract changed: ' + from);
   }
   signal.throwIfAborted(); await fs.writeFile(pom, result);
-  return { reviewedCommit: contract.reviewedCommit, files: records };
+  return { reviewedCommit, files: records };
 }

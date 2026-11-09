@@ -217,7 +217,7 @@ public final class ArrayListSurface implements AutoCloseable {
             shader.unload();
             UiEffects.SceneContext parent=UiEffects.scene();boolean borrow=parent!=null&&parent.clean>0;
             boolean cleanScene=background&&policy.style>=0||glass;
-            float effectiveRadius=local!=null&&local.local()?blurRadius:UiEffects.blurRadius(blurRadius);
+            float effectiveRadius=sceneBlurRadius(blurRadius);
             boolean computeBlur=blur&&!(borrow&&parent.blurred&&Math.abs(parent.radius-effectiveRadius)<.01f);
             ensureBuffers(mc.displayWidth,mc.displayHeight,glow,computeBlur,cleanScene&&!borrow);
             state.bindTarget();prepare();
@@ -299,6 +299,43 @@ public final class ArrayListSurface implements AutoCloseable {
             if(blur)GaussianBlur.renderScene(buffers[1],buffers[3],buffers[4].framebufferTexture,UiEffects.blurRadius(5)*new ScaledResolution(mc).getScaleFactor());
             state.bindTarget();prepare();state.restoreClip();try(UiEffects.SceneContext scope=UiEffects.scene(buffers[4].framebufferTexture,blur?buffers[3].framebufferTexture:buffers[4].framebufferTexture,blur,theme,policy,false,UiEffects.blurRadius(5))){content.run();}
         }
+    }
+
+    /** Segmented HUDs share one scene while retaining their actual local flags and blur strength. */
+    public void withScene(Theme theme,boolean background,boolean blur,float blurRadius,Runnable content){
+        withScene(theme,background,blur,blurRadius,policy->content.run());
+    }
+    /** Content receives the effective policy even when shaders/framebuffers are unavailable. */
+    public void withScene(Theme theme,boolean background,boolean blur,float blurRadius,
+                          java.util.function.Consumer<UiEffects.SurfacePolicy> content){
+        watchShaderResources();theme=theme(theme);
+        UiEffects.SurfacePolicy policy=scenePolicy(theme,background,blur);
+        float radius=sceneBlurRadius(blurRadius);boolean applyBlur=policy.blur;
+        UiEffects.SceneContext parent=UiEffects.scene();
+        if(canBorrowScene(parent,applyBlur,radius)){
+            try(UiEffects.SceneContext scope=UiEffects.scene(parent.clean,applyBlur?parent.soft:parent.clean,
+                    applyBlur,theme,policy,parent.replacing,radius)){content.accept(policy);}
+            return;
+        }
+        if(!OpenGlHelper.shadersSupported||!OpenGlHelper.isFramebufferEnabled()){content.accept(policy);return;}
+        Minecraft mc=Minecraft.getMinecraft();boolean ownClean=parent==null||parent.clean<=0;
+        try(RenderState state=new RenderState()){
+            ensureBuffers(mc.displayWidth,mc.displayHeight,false,applyBlur,ownClean);
+            state.bindTarget();int clean=ownClean?buffers[4].framebufferTexture:parent.clean;
+            if(ownClean){texture(0,clean);glCopyTexSubImage2D(GL_TEXTURE_2D,0,0,0,0,0,mc.displayWidth,mc.displayHeight);}
+            if(applyBlur)GaussianBlur.renderScene(buffers[1],buffers[3],clean,
+                    radius*new ScaledResolution(mc).getScaleFactor());
+            state.bindTarget();prepare();state.restoreClip();
+            try(UiEffects.SceneContext scope=UiEffects.scene(clean,applyBlur?buffers[3].framebufferTexture:clean,
+                    applyBlur,theme,policy,parent!=null&&parent.replacing,radius)){content.accept(policy);}
+        }
+    }
+    UiEffects.SurfacePolicy scenePolicy(Theme theme,boolean background,boolean blur){
+        return UiEffects.surface(local,theme,background,blur,false,0,-1);
+    }
+    float sceneBlurRadius(float requested){return local!=null&&local.local()?requested:UiEffects.blurRadius(requested);}
+    static boolean canBorrowScene(UiEffects.SceneContext parent,boolean blur,float radius){
+        return parent!=null&&parent.clean>0&&(!blur||parent.blurred&&Math.abs(parent.radius-radius)<.01f);
     }
     /** Text-only path also owns/restores the matrices and state used by font rendering. */
     public void text(Runnable text) {

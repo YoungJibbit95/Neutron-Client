@@ -147,7 +147,7 @@ try {
         # old install. This is explicitly NOT evidence of a complete old setup.
         $oldExe=Join-Path $install 'Neutron Launcher.exe'
         $registration=Get-ItemProperty -LiteralPath 'HKCU:\Software\17d12e18-c0d2-5a05-b898-3c34ccfad7ff' -ErrorAction SilentlyContinue
-        if(-not (Test-Path -LiteralPath $oldExe) -or (Get-Item -LiteralPath $oldExe).VersionInfo.ProductVersion -ne '0.2.0' -or $null -eq $registration -or $registration.InstallLocation -ne $install){throw}
+        if(-not (Test-Path -LiteralPath $oldExe) -or (Get-Item -LiteralPath $oldExe).VersionInfo.FileVersion -ne '0.2.0' -or (Get-Item -LiteralPath $oldExe).VersionInfo.ProductVersion -ne '0.2.0.0' -or $null -eq $registration -or $registration.InstallLocation -ne $install){throw}
         $events.Add(@{label='old-fixture-incomplete';error=$_.Exception.Message;fullOldInstallationAccepted=$false})
         Save-Evidence
     }
@@ -157,7 +157,10 @@ try {
     $events.Add(@{label='assisted-install-location';requested=$install;registered=$registeredInstall})
     if(-not $registeredInstall.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Registered install escaped the owned fixture.'}
     $installedExe=Join-Path $registeredInstall 'Neutron Launcher.exe'
-    if((Get-Item -LiteralPath $installedExe).VersionInfo.ProductVersion -ne $newVersion){throw 'Assisted upgrade did not install version 0.2.2.'}
+    # Electron records the release in FileVersion and its four-part Windows form in ProductVersion.
+    $installedVersion=(Get-Item -LiteralPath $installedExe).VersionInfo
+    $events.Add(@{label='assisted-installed-version';expected=$newVersion;fileVersion=$installedVersion.FileVersion;productVersion=$installedVersion.ProductVersion})
+    if($installedVersion.FileVersion -ne $newVersion -or $installedVersion.ProductVersion -ne ($newVersion+'.0')){throw ('Assisted upgrade version mismatch: expected '+$newVersion+'; FileVersion='+$installedVersion.FileVersion+'; ProductVersion='+$installedVersion.ProductVersion+'.')}
     $metadata=Get-Content -LiteralPath (Join-Path $registeredInstall 'resources/release.json') -Raw | ConvertFrom-Json
     if($metadata.launcherVersion -ne $newVersion){throw 'Installed release metadata differs from the candidate.'}
     if((Get-FileHash -LiteralPath (Join-Path $registeredInstall 'resources/app.asar')).Hash -ne $expectedAsar){throw 'Assisted upgrade application bytes differ from the expected pinned candidate.'}
