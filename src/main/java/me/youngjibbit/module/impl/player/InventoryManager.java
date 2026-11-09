@@ -8,6 +8,7 @@ import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.ModuleInfo;
 import me.youngjibbit.module.impl.ghost.AutoBridger;
+import me.youngjibbit.core.inventory.BlockStackPlanner;
 import me.youngjibbit.utils.TimerUtil;
 import me.youngjibbit.value.impl.CheckBoxValue;
 import me.youngjibbit.value.impl.SliderValue;
@@ -313,15 +314,19 @@ public class InventoryManager extends Module
         allSwords.stream().filter(slot -> slot != bestSwordSlot).forEach(trash::add);
         allPickaxes.stream().filter(slot -> slot != bestPickaxeSlot).forEach(trash::add);
 
-        // Throw blocks after the limit is reached.
-        int blockStacks = allBlocks.size();
-
+        // Blocks are ranked by the pure planner: the biggest stack survives the
+        // limit, overflow drops weakest-first, and the limit counts every kept
+        // block stack including the build slot.
+        final List<BlockStackPlanner.Snapshot> blockStacks = new ArrayList<>();
         for (final int slot : allBlocks) {
-            if (blockStacks <= Math.round(maxBlocks.getValue() + 1)) break;
-
-            trash.add(slot);
-            blockStacks -= 1;
+            final ItemStack stack = mc.thePlayer.inventory.getStackInSlot(slot);
+            if (stack != null) blockStacks.add(new BlockStackPlanner.Snapshot(
+                    slot, stack.stackSize, BlockStackPlanner.Kind.BUILDABLE));
         }
+        for (final BlockStackPlanner.Snapshot overflow :
+                BlockStackPlanner.plan(blockStacks, (int) Math.round(maxBlocks.getValue()))
+                        .trashBlockStacks)
+            trash.add(overflow.slot);
 
         //Random Option
         if (random.getValue()) Collections.shuffle(trash);
