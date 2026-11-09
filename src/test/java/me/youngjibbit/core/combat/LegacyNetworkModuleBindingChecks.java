@@ -48,14 +48,14 @@ public class LegacyNetworkModuleBindingChecks {
             RotationBehaviorHookTest.field(net.minecraft.client.Minecraft.class,"mcThread").set(f.mc,Thread.currentThread());
             f.player.sendQueue.clientWorldController=f.mc.theWorld;
             f.network.getClientPackets().close();
-            pipe=new PacketPipeline(new PacketFlowTest.MainThread(),f.network::isChannelOpen,f.player.sendQueue::observeAcceptedOutbound,error->{throw new AssertionError(error);},new PacketDelays(clock::get),applied::add);
+            pipe=new PacketPipeline(new NetworkTestSupport.MainThread(),f.network::isChannelOpen,f.player.sendQueue::observeAcceptedOutbound,error->{throw new AssertionError(error);},new PacketDelays(clock::get),applied::add);
             RotationBehaviorHookTest.field(NetworkManager.class,"clientPackets").set(f.network,pipe);f.runtime.getRotationManager().bindConnection(pipe);
         }
         <T extends Module> T enable(T module){module.setToggled(true);enabled.add(module);return module;}
         void tick(long millis){tickTarget(target,millis);}
         void tickTarget(net.minecraft.entity.EntityLivingBase selected,long millis){clock.set(millis*1000000);CombatTargetTracker.update(selected,"legacy-fixture");Pulsar.BUS.post(new TickEvent());pipe.pump();}
         void receive(Packet<?> packet){pipe.inbound(packet,packet instanceof S14PacketEntity || packet instanceof S18PacketEntityTeleport
-                ? f.player.sendQueue : PacketFlowTest.handler(args->{}),false);}
+                ? f.player.sendQueue : NetworkTestSupport.handler(args->{}),false);}
         void send(Packet<?> packet){pipe.outbound(packet,false,sent::add);}
         void pump(long millis){clock.set(millis*1000000);pipe.pump();}
         public void close(){for(Module module:enabled)module.setToggled(false);pipe.close();CombatTargetTracker.clear();f.mc.objectMouseOver=null;while(f.channel.readOutbound()!=null){}}

@@ -22,7 +22,7 @@ import static org.junit.Assert.*;
 
 public class PacketFlowTest {
     @Test public void actualNetworkManagerHandsOffBeforeEventsAndAppliesReplacementExactlyOnce() throws Exception {
-        MainThread main = new MainThread(); Observer observer = new Observer();
+        MainThread main = new MainThread(); NetworkTestSupport.Observer observer = new NetworkTestSupport.Observer();
         NetworkManager network = new NetworkManager(EnumPacketDirection.CLIENTBOUND);
         EmbeddedChannel channel = new EmbeddedChannel(network); network.configureClientPackets(main);
         AtomicInteger applied = new AtomicInteger(); S00PacketKeepAlive replacement = new S00PacketKeepAlive(2);
@@ -44,7 +44,7 @@ public class PacketFlowTest {
     }
 
     @Test public void directNormalTrackedAndSilentSendsShareAcceptanceAndDoNotRetainIdentityFlags() {
-        MainThread main = new MainThread(); Observer observer = new Observer();
+        MainThread main = new MainThread(); NetworkTestSupport.Observer observer = new NetworkTestSupport.Observer();
         NetworkManager network = new NetworkManager(EnumPacketDirection.CLIENTBOUND);
         EmbeddedChannel channel = new EmbeddedChannel(network);
         NetHandlerPlayClient play = new NetHandlerPlayClient(null,null,network,null);

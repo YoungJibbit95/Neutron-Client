@@ -62,7 +62,7 @@ public class AdaptiveBridgeRotationFlowTest {
             NetHandlerPlayClient play = new NetHandlerPlayClient(null, null, network, null);
             ScaffoldClientFlowTest.set(NetHandlerPlayClient.class, play, "gameController", r.f.mc);
             play.clientWorldController = r.scene;
-            network.configureClientPackets(new PacketFlowTest.MainThread(), play::observeAcceptedOutbound);
+            network.configureClientPackets(new NetworkTestSupport.MainThread(), play::observeAcceptedOutbound);
             network.setNetHandler(play);
             ScaffoldClientFlowTest.set(EntityPlayerSP.class, r.player, "sendQueue", play);
             r.f.mc.playerController = new PlayerControllerMP(r.f.mc, play);

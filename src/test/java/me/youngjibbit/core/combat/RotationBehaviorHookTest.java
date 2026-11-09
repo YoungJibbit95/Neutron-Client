@@ -72,7 +72,7 @@ public class RotationBehaviorHookTest {
             field(Minecraft.class,"renderViewEntity").set(mc,player);
             player.worldObj=world;player.ticksExisted=20;player.inventory=new InventoryPlayer(player);
             NetHandlerPlayClient play=new NetHandlerPlayClient(null,null,network,null);
-            network.configureClientPackets(new PacketFlowTest.MainThread());network.setNetHandler(play);field(EntityPlayerSP.class,"sendQueue").set(player,play);
+            network.configureClientPackets(new NetworkTestSupport.MainThread());network.setNetHandler(play);field(EntityPlayerSP.class,"sendQueue").set(player,play);
             mc.playerController=new PlayerControllerMP(mc,play);
             ModuleManager modules=bare(ModuleManager.class);
             LinkedHashMap<Class<? extends Module>,Module> byClass=new LinkedHashMap<>();

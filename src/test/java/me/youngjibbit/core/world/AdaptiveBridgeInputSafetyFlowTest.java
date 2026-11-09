@@ -362,7 +362,7 @@ public class AdaptiveBridgeInputSafetyFlowTest {
                 NetHandlerPlayClient play = new NetHandlerPlayClient(null, null, next, null);
                 ScaffoldClientFlowTest.set(NetHandlerPlayClient.class, play, "gameController", r.f.mc);
                 play.clientWorldController = r.scene;
-                next.configureClientPackets(new PacketFlowTest.MainThread(), play::observeAcceptedOutbound);
+                next.configureClientPackets(new NetworkTestSupport.MainThread(), play::observeAcceptedOutbound);
                 next.setNetHandler(play);
                 ScaffoldClientFlowTest.set(EntityPlayerSP.class, r.player, "sendQueue", play);
                 r.f.mc.playerController = new PlayerControllerMP(r.f.mc, play);

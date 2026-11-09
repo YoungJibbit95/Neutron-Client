@@ -263,7 +263,7 @@ public class ScaffoldReleaseBoundaryWave2Test {
                         assertNull(run.rotation.getConfirmedOwner());
                         field.set(run.f.runtime, run.rotation);
                     }
-                    if (boundary == 3) run.f.network.configureClientPackets(new PacketFlowTest.MainThread());
+                    if (boundary == 3) run.f.network.configureClientPackets(new NetworkTestSupport.MainThread());
                     if (boundary == 4) {
                         ScaffoldOwnerContinuityTest.field(RuntimeObservation.class, "outerTickId").setLong(observation, Long.MAX_VALUE);
                         observation.beginOuterTick(); observation.endOuterTick();

@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public final class NetworkTestSupport {
     private NetworkTestSupport() { }
 
-    static <T> T bare(Class<T> type) throws Exception {
+    public static <T> T bare(Class<T> type) throws Exception {
         Field f=sun.misc.Unsafe.class.getDeclaredField("theUnsafe");f.setAccessible(true);
         return type.cast(((sun.misc.Unsafe)f.get(null)).allocateInstance(type));
     }
