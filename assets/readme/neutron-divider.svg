@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="48" viewBox="0 0 1200 48" aria-hidden="true">
+  <defs>
+    <linearGradient id="neutron-line" gradientUnits="userSpaceOnUse" x1="24" y1="24" x2="1176" y2="24">
+      <stop stop-color="#FF00EA" stop-opacity="0"/>
+      <stop offset=".28" stop-color="#FF00EA" stop-opacity=".46"/>
+      <stop offset=".72" stop-color="#FF6200" stop-opacity=".46"/>
+      <stop offset="1" stop-color="#FF6200" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="neutron-orbit">
+      <stop stop-color="#FF00EA"/>
+      <stop offset="1" stop-color="#FF6200"/>
+    </linearGradient>
+  </defs>
+  <style>
+    .neutron-orbit { transform-origin: 600px 24px; }
+    @media (prefers-reduced-motion: no-preference) {
+      .neutron-orbit { animation: neutron-orbit 24s linear infinite; }
+      .neutron-glint { animation: neutron-glint 12s ease-in-out infinite; }
+    }
+    @keyframes neutron-orbit { to { transform: rotate(360deg); } }
+    @keyframes neutron-glint {
+      0%, 100% { opacity: .38; }
+      50% { opacity: .9; }
+    }
+  </style>
+  <path d="M24 24H554M646 24H1176" fill="none" stroke="url(#neutron-line)" stroke-width="1.5" stroke-linecap="round"/>
+  <g class="neutron-orbit" fill="none" stroke="url(#neutron-orbit)" stroke-width="1.2" opacity=".62">
+    <ellipse cx="600" cy="24" rx="20" ry="8" transform="rotate(-30 600 24)"/>
+    <ellipse cx="600" cy="24" rx="20" ry="8" transform="rotate(30 600 24)"/>
+  </g>
+  <circle class="neutron-glint" cx="600" cy="24" r="2.8" fill="#FE549F" opacity=".65"/>
+  <circle class="neutron-glint" cx="554" cy="24" r="1.8" fill="#E957CF" opacity=".65"/>
+  <circle class="neutron-glint" cx="646" cy="24" r="1.8" fill="#F98A54" opacity=".65"/>
+</svg>

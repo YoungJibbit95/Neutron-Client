@@ -9,9 +9,19 @@
 <pattern id="grid" width="44" height="44" patternUnits="userSpaceOnUse"><path d="M44 0H0V44" fill="none" stroke="#CDACDE" stroke-opacity=".085" stroke-width="1"/></pattern>
 <filter id="shadow"><feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#000" flood-opacity=".55"/></filter>
 </defs>
+<style>
+@media (prefers-reduced-motion: no-preference) {
+  .neutron-ambient { animation: neutron-breathe 12s ease-in-out infinite; }
+  .neutron-ambient-warm { animation-delay: -6s; }
+}
+@keyframes neutron-breathe {
+  0%, 100% { opacity: .65; }
+  50% { opacity: 1; }
+}
+</style>
 <rect x="1" y="1" width="1358" height="363" rx="22" fill="#080911" stroke="#363047" stroke-width="2"/>
 <rect x="1" y="1" width="1358" height="363" rx="22" fill="url(#grid)"/>
-<ellipse cx="230" cy="130" rx="350" ry="280" fill="url(#glow1)"/><ellipse cx="1150" cy="130" rx="340" ry="300" fill="url(#glow2)"/>
+<ellipse class="neutron-ambient" cx="230" cy="130" rx="350" ry="280" fill="url(#glow1)"/><ellipse class="neutron-ambient neutron-ambient-warm" cx="1150" cy="130" rx="340" ry="300" fill="url(#glow2)"/>
 <path d="M0 323C310 268 412 381 729 293S1110 280 1360 190" stroke="url(#accent)" stroke-opacity=".36" stroke-width="2" fill="none"/>
 <g transform="translate(64 69)">
 <rect x="0" y="0" width="133" height="133" rx="28" fill="#191323" stroke="#AA4C95" stroke-opacity=".5" stroke-width="1.5"/>
