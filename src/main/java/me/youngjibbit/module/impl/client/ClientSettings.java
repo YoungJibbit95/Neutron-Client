@@ -40,7 +40,7 @@ public class ClientSettings extends Module {
     public final CheckBoxValue animations=new CheckBoxValue("UI Animations",this,true);
     public final CheckBoxValue reducedMotion=new CheckBoxValue("Reduced Motion",this,false);
     public final ComboValue motionIntensity=new ComboValue("UI Motion Intensity",this,new String[]{"Calm","Balanced","Expressive"},1);
-    public final ComboValue gradientMethod=new ComboValue("Gradient Method",this,new String[]{"Flow","Ping-Pong","Pulse"},0);
+    public final ComboValue gradientMethod=new ComboValue("Gradient Method",this,new String[]{"Flow","Ping-Pong","Pulse","Perimeter Orbit"},0);
     public final CheckBoxValue ambientMotion=new CheckBoxValue("Ambient Motion",this,true);
     public final CheckBoxValue semanticColorPriority=new CheckBoxValue("Semantic Color Priority",this,true);
     public final CheckBoxValue notifications=new CheckBoxValue("Notifications",this,true);
@@ -61,6 +61,13 @@ public class ClientSettings extends Module {
     public final SliderValue textGlowRadius=new SliderValue("Text Glow Radius",this,1.5,.5,3);
     public final ComboValue textGlowColor=new ComboValue("Text Glow Color",this,new String[]{"Text","Theme"},0);
 
+    // Perimeter Orbit gradient motion (Gradient Method = Perimeter Orbit).
+    // Registered last to keep existing config ids and legacy Value indices stable.
+    public final ComboValue orbitDirection=new ComboValue("Orbit Direction",this,new String[]{"Clockwise","Counterclockwise"},0);
+    public final SliderValue orbitSpeed=new SliderValue("Orbit Speed",this,.18,.02,2,true);
+    public final SliderValue orbitGlow=new SliderValue("Orbit Glow",this,1.0,0,2);
+    public final SliderValue orbitTrail=new SliderValue("Orbit Trail",this,.5,0,1);
+
     private ComboValue direction(String name){return new ComboValue(name,this,new String[]{"Theme","Vertical","Horizontal","Up","Left"},0);}
     private ComboValue motion(String name){return new ComboValue(name,this,new String[]{"Theme","Static","Animated","Solid"},0);}
     private SliderValue speed(String name){return new SliderValue(name,this,.18,.02,1);}
@@ -70,7 +77,7 @@ public class ClientSettings extends Module {
         groups.put("Appearance",Arrays.asList(roundness,surface,surfaceOpacity,gradientFillStrength,border,borderColor,borderOpacity));
         groups.put("Blur / Liquid Glass",Arrays.asList(blur,blurMethod,blurStrength,blurQuality,glassAppearance,glassRefraction,glassTint,glassLight));
         groups.put("Glow",Arrays.asList(glow,glowIntensity,glowRadius));
-        groups.put("Gradients / Motion",Arrays.asList(gradients,synchronize,direction,gradientMotion,gradientMethod,gradientSpeed,textDirection,textMotion,textSpeed,borderDirection,borderMotion,borderSpeed,glowDirection,glowMotion,glowSpeed,animations,reducedMotion,motionIntensity,ambientMotion,semanticColorPriority));
+        groups.put("Gradients / Motion",Arrays.asList(gradients,synchronize,direction,gradientMotion,gradientMethod,gradientSpeed,textDirection,textMotion,textSpeed,borderDirection,borderMotion,borderSpeed,glowDirection,glowMotion,glowSpeed,animations,reducedMotion,motionIntensity,ambientMotion,semanticColorPriority,orbitDirection,orbitSpeed,orbitGlow,orbitTrail));
         groups.put("Notifications",Arrays.asList(notifications,notificationDesign,notificationTheme,notificationPosition,notificationDuration,notificationWidth,notificationVisible,notificationQueue,info,success,warnings,errors));
         groups.put("Typography",Arrays.asList(fontFamily,textGlow,textGlowStrength,textGlowRadius,textGlowColor));
         return groups;
@@ -84,6 +91,9 @@ public class ClientSettings extends Module {
         borderSpeed.setVisibility(m->!synchronize.getValue()&&borderMotion.getValue().equals("Animated"));
         glowSpeed.setVisibility(m->!synchronize.getValue()&&glowMotion.getValue().equals("Animated"));
         blurQuality.setVisibility(m->blurMethod.getValue().equals("Kawase"));
+        // Perimeter Orbit options only visible when Gradient Method = Perimeter Orbit
+        for(Value<?> v:Arrays.asList(orbitDirection,orbitSpeed,orbitGlow,orbitTrail))
+            v.setVisibility(m->gradientMethod.getValue().equals("Perimeter Orbit"));
     }
     @Override public void beginConfigUpdate(){
         super.beginConfigUpdate();

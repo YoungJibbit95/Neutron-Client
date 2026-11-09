@@ -30,9 +30,9 @@ public final class UiEffects {
         return new GradientSpace(x,y,width,height);
     }
     static GradientSpace gradientSpace(){return gradientSpaces.peek();}
-    public static float gradientPosition(Gradient gradient,float x,float y,float width,float height) {
+    public static float gradientPosition(Gradient gradient,float x,float y,float width,float height,float radius){
         GradientSpace space=gradientSpace();
-        return space==null?gradient.position(x,y,width,height):gradient.position(x-space.x,y-space.y,space.width,space.height);
+        return space==null?gradient.position(x,y,width,height,radius):gradient.position(x-space.x,y-space.y,space.width,space.height,radius);
     }
 
     public enum Channel { TEXT, BORDER, GLOW }
@@ -85,6 +85,12 @@ public final class UiEffects {
         int axis=direction.equals("Theme")?(theme.isVertical()?2:1):direction.equals("Vertical")?2:direction.equals("Horizontal")?1:direction.equals("Up")?-2:-1;
         int mode=motion.equals("Solid")?0:motion.equals("Animated")||motion.equals("Theme")&&theme.isAnimated()?2:1;
         if(mode==2&&c!=null)mode+=c.gradientMethod.getSelectedIndex();
+        // Perimeter Orbit: override axis for CW/CCW direction, phase is orbit phase.
+        if(c!=null&&c.gradientMethod.getValue().equals("Perimeter Orbit")){
+            mode=5;
+            axis=c.orbitDirection.getValue().equals("Clockwise")?0:-1;
+            speed=c.orbitSpeed.getValue().floatValue();
+        }
         float phase=(float)phases[i];
         // A Local custom theme can animate even when the selected Global preset is static.
         if(motion.equals("Theme")&&theme!=Theme.getDefaultTheme())phase=(float)((elapsed*speed)%1);
@@ -112,17 +118,25 @@ public final class UiEffects {
     public static int gradientColor(Theme theme,Channel channel,float x,float y){
         theme=theme(theme);
         net.minecraft.client.gui.ScaledResolution sr=new net.minecraft.client.gui.ScaledResolution(net.minecraft.client.Minecraft.getMinecraft());
-        Gradient g=scene()!=null&&scene().policy.gradient!=null?scene().policy.gradient:gradient(theme,channel);return Theme.interpolateRGB(theme.getPrimaryGradientRGB(),theme.getSecondaryGradientRGB(),options().gradients?gradientPosition(g,x,y,sr.getScaledWidth(),sr.getScaledHeight()):0);
+        Gradient g=scene()!=null&&scene().policy.gradient!=null?scene().policy.gradient:gradient(theme,channel);
+        float radius=UiEffects.radius(UiEffects.options().roundness,sr.getScaledWidth(),sr.getScaledHeight());
+        return Theme.interpolateRGB(theme.getPrimaryGradientRGB(),theme.getSecondaryGradientRGB(),options().gradients?gradientPosition(g,x,y,sr.getScaledWidth(),sr.getScaledHeight(),radius):0);
     }
     public static final class Gradient {
         public final int axis,mode;public final float phase,speed;
         Gradient(int axis,int mode,float phase,float speed){this.axis=axis;this.mode=mode;this.phase=phase;this.speed=speed;}
-        public float position(float x,float y,float w,float h){
+        public float position(float x,float y,float w,float h,float radius){
             float t=Math.abs(axis)==2?y/Math.max(1,h):x/Math.max(1,w);if(axis<0)t=1-t;
             if(mode==0)return 0;
             if(mode==2)return .5f-.5f*(float)Math.cos(2*Math.PI*(t-phase));
             if(mode==3){float travel=.5f-.5f*(float)Math.cos(2*Math.PI*phase);return .5f-.5f*(float)Math.cos(2*Math.PI*(t-travel));}
             if(mode==4)return .5f+(Math.max(0,Math.min(1,t))-.5f)*(float)Math.cos(2*Math.PI*phase);
+            if(mode==5){
+                // Perimeter Orbit: phase is the position along the contour (0-1),
+                // speed is the relative corner radius (0-1 of min(w,h)/2).
+                float r=speed*Math.min(w,h)/2f;
+                return PerimeterOrbit.position(w,h,r,phase,axis>=0?PerimeterOrbit.Direction.CLOCKWISE:PerimeterOrbit.Direction.COUNTERCLOCKWISE);
+            }
             return Math.max(0,Math.min(1,t));
         }
     }
