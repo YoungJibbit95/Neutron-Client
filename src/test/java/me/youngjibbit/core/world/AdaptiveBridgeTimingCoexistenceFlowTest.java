@@ -314,7 +314,7 @@ public class AdaptiveBridgeTimingCoexistenceFlowTest {
                 Step step = tick();
                 long placed = count(step.packets, C08PacketPlayerBlockPlacement.class);
                 assertTrue("no physical opportunity may place twice", placed <= 1);
-                attempts += placed;
+                attempts = Math.addExact(attempts, Math.toIntExact(placed));
                 if (placed != 0) orderedMovementAndPlacement(step.packets);
             }
             assertEquals("a genuine local ItemBlock placement is required", Blocks.stone,
