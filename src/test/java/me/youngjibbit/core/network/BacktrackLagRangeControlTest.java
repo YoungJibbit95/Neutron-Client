@@ -1,5 +1,7 @@
 package me.youngjibbit.core.network;
 
+import static me.youngjibbit.core.network.NetworkTestSupport.*;
+
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.event.packet.TickEvent;
 import me.youngjibbit.module.impl.exploit.Backtrack;
@@ -14,10 +16,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import static org.junit.Assert.*;
 
 public class BacktrackLagRangeControlTest {
-    static void clock(ExploitHookFixture f,AtomicLong now) throws Exception {
-        Field delays=PacketPipeline.class.getDeclaredField("delays");delays.setAccessible(true);
-        delays.set(f.pipe(),new PacketDelays(now::get));
-    }
     @Test public void transactionIsAnsweredImmediatelyWithoutFlushingBacktrackMovement() throws Exception {
         try(ExploitHookFixture f=new ExploitHookFixture()) {
             AtomicLong now=new AtomicLong();clock(f,now);

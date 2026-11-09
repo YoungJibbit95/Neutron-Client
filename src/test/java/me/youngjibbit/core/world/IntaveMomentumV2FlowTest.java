@@ -1,5 +1,7 @@
 package me.youngjibbit.core.world;
 
+import me.youngjibbit.core.network.NetworkTestSupport;
+
 import io.netty.channel.embedded.EmbeddedChannel;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.bootstrap.ClientRuntime;
@@ -163,7 +165,7 @@ public class IntaveMomentumV2FlowTest {
             NetHandlerPlayClient play = new NetHandlerPlayClient(null, null, network, null);
             ScaffoldClientFlowTest.set(NetHandlerPlayClient.class, play, "gameController", base.f.mc);
             play.clientWorldController = base.f.mc.theWorld;
-            network.configureClientPackets(new PacketFlowTest.MainThread());
+            network.configureClientPackets(new NetworkTestSupport.MainThread());
             network.setNetHandler(play);
             ScaffoldClientFlowTest.set(PacketPipeline.class, network.getClientPackets(), "delays",
                     new PacketDelays(base.time::get));

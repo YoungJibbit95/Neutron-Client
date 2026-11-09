@@ -30,7 +30,7 @@ public class ScaffoldNetworkIntegrationTest {
         @Subscribe final Listener<EventPacket> event=new Listener<>(e->{if(e.isPre() && e.isOutbound() && e.getPacket() instanceof C03PacketPlayer){if(cancel)e.cancel();else if(replacement!=null)e.setPacket(replacement);}});
     }
     PacketPipeline pipeline(ScaffoldPlacementTest.Fixture f,Access a,AtomicLong clock) {
-        PacketPipeline p=new PacketPipeline(new PacketFlowTest.MainThread(),()->a.ready,packet->{
+        PacketPipeline p=new PacketPipeline(new NetworkTestSupport.MainThread(),()->a.ready,packet->{
             if(packet instanceof C03PacketPlayer){C03PacketPlayer m=(C03PacketPlayer)packet;
                 if(m.isMoving())a.wireEyes=new Vec3(m.getPositionX(),m.getPositionY()+1.62,m.getPositionZ());
                 if(m.getRotating())f.rotations.observeOutboundRotation(m.getYaw(),m.getPitch());}

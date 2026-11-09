@@ -89,7 +89,7 @@ public class KnockbackRecodeTest {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             f.world.entities.put(1, f.player); f.player.sprint = true;
             Velocity velocity = new Velocity(); velocity.setToggled(true);
-            PacketFlowTest.Observer observer = new PacketFlowTest.Observer(); Pulsar.BUS.subscribe(observer);
+            NetworkTestSupport.Observer observer = new NetworkTestSupport.Observer(); Pulsar.BUS.subscribe(observer);
             try {
                 observer.action = e -> { if (e.isPre() && e.getPacket() instanceof S12PacketEntityVelocity) e.cancel(); };
                 velocity(f); assertFalse(input().isJump()); assertEquals(0, f.player.motionY, 0);
