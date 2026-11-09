@@ -77,13 +77,20 @@ public class ClientSettings extends Module {
     public final SliderValue lineSegments=new SliderValue("Line Segments",this,4.0,1.0,16.0,true);
     public final SliderValue lineTrail=new SliderValue("Line Trail",this,.5,0,1);
 
+    // Appended opt-in screen style; historic Value order and local HUD choices stay intact.
+    public final ComboValue neutronScreenStyle=new ComboValue("Neutron 2.0 Style",this,new String[]{"Modern","Creative"},0);
+    public static boolean creativeScreenStyle(){
+        ClientSettings settings=current();
+        return settings!=null&&"Creative".equals(settings.neutronScreenStyle.getValue());
+    }
+
     private ComboValue direction(String name){return new ComboValue(name,this,new String[]{"Theme","Vertical","Horizontal","Up","Left"},0);}
     private ComboValue motion(String name){return new ComboValue(name,this,new String[]{"Theme","Static","Animated","Solid"},0);}
     private SliderValue speed(String name){return new SliderValue(name,this,.18,.02,1);}
     public static ClientSettings current(){return Pulsar.INSTANCE.getMm()==null?null:(ClientSettings)Pulsar.INSTANCE.getMm().getModule(ClientSettings.class);}
     public Map<String,List<Value<?>>> groups(){
         Map<String,List<Value<?>>> groups=new LinkedHashMap<>();
-        groups.put("Appearance",Arrays.asList(roundness,surface,surfaceOpacity,gradientFillStrength,border,borderColor,borderOpacity));
+        groups.put("Appearance",Arrays.asList(roundness,surface,surfaceOpacity,gradientFillStrength,border,borderColor,borderOpacity,neutronScreenStyle));
         groups.put("Blur / Liquid Glass",Arrays.asList(blur,blurMethod,blurStrength,blurQuality,glassAppearance,glassRefraction,glassTint,glassLight));
         groups.put("Glow",Arrays.asList(glow,glowIntensity,glowRadius));
         groups.put("Gradients / Motion",Arrays.asList(gradients,synchronize,direction,gradientMotion,gradientMethod,gradientSpeed,textDirection,textMotion,textSpeed,borderDirection,borderMotion,borderSpeed,glowDirection,glowMotion,glowSpeed,animations,reducedMotion,motionIntensity,ambientMotion,semanticColorPriority,orbitDirection,orbitSpeed,orbitGlow,orbitTrail));
@@ -94,6 +101,7 @@ public class ClientSettings extends Module {
         return groups;
     }
     public ClientSettings(){
+        neutronScreenStyle.setVisibility(m->me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(me.youngjibbit.theme.ThemeMode.selected()));
         for(Value<?> v:Arrays.asList(textDirection,textMotion,textSpeed,borderDirection,borderMotion,borderSpeed,glowDirection,glowMotion,glowSpeed))v.setVisibility(m->!synchronize.getValue());
         direction.setVisibility(m->synchronize.getValue());
         gradientMotion.setVisibility(m->synchronize.getValue());
@@ -112,6 +120,7 @@ public class ClientSettings extends Module {
         // Only the new appearance key has this migration default. Imported keys still win,
         // and callbacks/persistence retain the existing config batch owner.
         notificationTheme.reset();
+        neutronScreenStyle.reset();
         fontFamily.reset();textGlow.reset();textGlowStrength.reset();textGlowRadius.reset();textGlowColor.reset();
     }
     @Override public void onValueChange(){me.youngjibbit.utils.render.UiEffects.invalidate();}

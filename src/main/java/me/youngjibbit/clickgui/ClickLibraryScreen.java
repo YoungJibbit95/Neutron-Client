@@ -44,7 +44,7 @@ public class ClickLibraryScreen extends GuiScreen {
     /** Legacy presentation. */
     protected boolean modernPresentation(){return false;}
     /** Creative 2.0 presentation: spatial, dynamic, expressive. */
-    protected boolean creativePresentation(){return false;}
+    protected boolean creativePresentation(){return ClientSettings.creativeScreenStyle();}
     private boolean two(){return modernPresentation()||ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());}
     private boolean modern(){return two()&&!creativePresentation();}
     private boolean creative(){return two()&&creativePresentation();}
@@ -65,7 +65,7 @@ public class ClickLibraryScreen extends GuiScreen {
         targetScroll = Math.max(0, Math.min(max, targetScroll)); scroll = Math.max(0, Math.min(max, scroll));
     }
     private boolean splitConfigs() { return !themes && w >= 540 && h >= 300; }
-    private float configListWidth() { return splitConfigs() ? (w - 40) * .58f : w - 24; }
+    private float configListWidth() { return splitConfigs() ? (w - 40) * (creative()?.5f:.58f) : w - 24; }
     private float detailsX() { return x + 28 + configListWidth(); }
     private float detailsWidth() { return w - 40 - configListWidth(); }
     protected ClipRect listBounds() {
@@ -99,9 +99,9 @@ public class ClickLibraryScreen extends GuiScreen {
         float bw = Math.max(1,(w - 24 - 6 * (tb - 1)) / tb);
         return new ClipRect(x + 12 + id * (bw + 6), y + h - 50, bw, 24);
     }
-    private int columns() { return themes ? Math.max(1, Math.min(3, (int)((w - 18) / 150))) : 1; }
+    private int columns() { return themes ? Math.max(1, Math.min(creative()?4:3, (int)((w - 18) / 150))) : 1; }
     private boolean compactList() { return h < 300; }
-    private float rowHeight() { return themes ? compactList() ? 36 : 56 : splitConfigs() ? 34 : 28; }
+    private float rowHeight() { return themes ? compactList() ? 36 : creative()?82:56 : splitConfigs() ? creative()?40:34 : 28; }
     private float rowsHeight() { return ((items().size() + columns() - 1) / columns()) * rowHeight(); }
     protected ClipRect itemBounds(int index) {
         ClipRect list = listBounds(); float cell = list.width / columns();
@@ -255,8 +255,10 @@ public class ClickLibraryScreen extends GuiScreen {
                             if (themes) {
                                 Theme tile = catalog.find(ref);
                                 // Literal swatches: the selected global gradient must never recolor another preset.
-                                UIUtils.drawLiteralGradient(r.x+5,r.y+4,r.width-10,compactList()?11:18,2,tile.getPrimaryGradientColor(),tile.getSecondaryGradientColor());
-                                float labelY=r.y+(compactList()?19:31);
+                                if(creative()&&!compactList())
+                                    UIUtils.drawLiteralGradient(r.x+10,r.y+8,r.width-20,32,16,tile.getPrimaryGradientColor(),tile.getSecondaryGradientColor());
+                                else UIUtils.drawLiteralGradient(r.x+5,r.y+4,r.width-10,compactList()?11:18,2,tile.getPrimaryGradientColor(),tile.getSecondaryGradientColor());
+                                float labelY=r.y+(compactList()?19:creative()?55:31);
                                 text(tile.getDisplayName(), r.x+7,labelY,r.width-27,ink);
                                 if (chosen) text("+",r.x+r.width-16,labelY,10,ink);
                             } else {
