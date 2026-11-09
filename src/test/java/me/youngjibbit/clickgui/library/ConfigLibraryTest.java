@@ -58,4 +58,5 @@ public class ConfigLibraryTest {
         assertFalse(absent.available());assertFalse(absent.save("One"));
         assertTrue(absent.entries().isEmpty());assertFalse(absent.status().isEmpty());
     }
+
 }

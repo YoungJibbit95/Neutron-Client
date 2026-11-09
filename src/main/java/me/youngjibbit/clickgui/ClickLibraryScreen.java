@@ -287,7 +287,10 @@ public class ClickLibraryScreen extends GuiScreen {
         UIUtils.drawDecorationRound(x,y,w,h,5,new Color(4,6,10,205));
         float cw=Math.min(340,w-24),left=x+(w-cw)/2,top=y+h/2-48;
         GuiStyle.panel(left,top,cw,105,5,1,new Color(19,22,29));
-        text(configs.pending()==ConfigLibrary.Pending.DELETE?"Delete config?":"Replace config?",left+12,top+12,cw-24,ink);
+        String confirmTitle = configs.pending()==ConfigLibrary.Pending.DELETE ? "Delete config?"
+                : configs.pending()==ConfigLibrary.Pending.RENAME ? "Rename config?"
+                : "Replace config?";
+        text(confirmTitle,left+12,top+12,cw-24,ink);
         text(configs.target(),left+12,top+33,cw-24,ink);
         for(boolean accept:new boolean[]{true,false}) {
             ClipRect r=confirmBounds(accept);GuiStyle.panel(r.x,r.y,r.width,r.height,3,accept?.7f:.1f,new Color(26,29,37));
