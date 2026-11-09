@@ -1,0 +1,171 @@
+{
+  "capturedAtUtc": "2026-10-28T17:08:35.738453+00:00",
+  "status": "IMPLEMENTED_AUTOMATIC_CHECKS_ONLY_VISUAL_REVIEW_PENDING",
+  "checks": [
+    {
+      "name": "build",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "C:\\Program Files\\nodejs\\node_modules\\npm\\bin\\npm-cli.js",
+        "run",
+        "build"
+      ],
+      "workingDirectory": "F:\\Puslar Backup - Copy\\launcher",
+      "exitCode": 0
+    },
+    {
+      "name": "tests",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "--reporter=json",
+        "--outputFile=F:\\Neutron Launcher Section3 20261028\\tests-final.json"
+      ],
+      "workingDirectory": "F:\\Puslar Backup - Copy\\launcher",
+      "exitCode": 0
+    }
+  ],
+  "tests": {
+    "numTotalTests": 94,
+    "numPassedTests": 94,
+    "numFailedTests": 0,
+    "success": true
+  },
+  "clientSourceAndPomPreserved": {
+    "pom.xml": true,
+    "src/main/java/me/neutron/launcher/ClientBootstrap.java": true,
+    "src/test/java/me/neutron/launcher/ClientBootstrapTest.java": true
+  },
+  "artifactChecks": {
+    "productionCspBlocksConnections": true,
+    "externalHtmlAssets": false,
+    "allReferencedFontsLocalAndPresent": true,
+    "fontReferences": [
+      "./geist-latin-wght-normal-BgDaEnEv.woff2",
+      "./geist-mono-latin-wght-normal-XN7g48iV.woff2"
+    ],
+    "licensesBundled": true,
+    "electronCommonJsFilesCompiled": true
+  },
+  "artifacts": [
+    {
+      "path": "F:\\Puslar Backup - Copy\\launcher\\dist\\index.html",
+      "bytes": 701,
+      "sha256": "006e920f875cb22699810d9c74b0c3d67129cefd77aba0303c4ef38b333bf701"
+    },
+    {
+      "path": "F:\\Puslar Backup - Copy\\launcher\\dist\\assets\\geist-latin-wght-normal-BgDaEnEv.woff2",
+      "bytes": 29400,
+      "sha256": "19f9c92546aa300c312235e3125af1b81394d8db9a4bc4a425cd5b641d2d54e1"
+    },
+    {
+      "path": "F:\\Puslar Backup - Copy\\launcher\\dist\\assets\\geist-mono-latin-wght-normal-XN7g48iV.woff2",
+      "bytes": 23128,
+      "sha256": "684ad5b531f81d43c1e8c7038262d5db7cdc1f68006e04d6c7769efa8d33c8cc"
+    },
+    {
+      "path": "F:\\Puslar Backup - Copy\\launcher\\dist\\assets\\index-B2-EOYP4.js",
+      "bytes": 281193,
+      "sha256": "4681846c1d17829f04662fae3fc5e6432cfb3e6c6fe4dcf74a26f66ebcba7a0e"
+    },
+    {
+      "path": "F:\\Puslar Backup - Copy\\launcher\\dist\\assets\\index-mu-kKC9W.css",
+      "bytes": 21842,
+      "sha256": "d74b01657f8e2e4ff4b010d3029d694ea6acf8212c99b20a2b0ebeb352882995"
+    },
+    {
+      "path": "F:\\Puslar Backup - Copy\\launcher\\dist\\licenses\\Geist-Mono-OFL.txt",
+      "bytes": 4498,
+      "sha256": "cc815ed4fc045f0e991abb10395b7932bd028c6a067deb13316d6002105074e6"
+    },
+    {
+      "path": "F:\\Puslar Backup - Copy\\launcher\\dist\\licenses\\Geist-OFL.txt",
+      "bytes": 4486,
+      "sha256": "71609cbb5c78b5870d712eab73a31d76622635c6ed034ab5cee3b9ecbda8685f"
+    },
+    {
+      "path": "F:\\Puslar Backup - Copy\\launcher\\dist\\licenses\\Lucide-ISC.txt",
+      "bytes": 3208,
+      "sha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57"
+    },
+    {
+      "path": "F:\\Puslar Backup - Copy\\launcher\\dist\\licenses\\React-MIT.txt",
+      "bytes": 1088,
+      "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+    },
+    {
+      "path": "F:\\Puslar Backup - Copy\\launcher\\dist\\licenses\\ReactDOM-MIT.txt",
+      "bytes": 1088,
+      "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+    },
+    {
+      "path": "F:\\Puslar Backup - Copy\\launcher\\out-electron\\main.cjs",
+      "bytes": 2411,
+      "sha256": "409be7dc1170d499b06b65eeae2a7fa684320d770ccd7e5fb3303a81a98eedfe"
+    },
+    {
+      "path": "F:\\Puslar Backup - Copy\\launcher\\out-electron\\preload.cjs",
+      "bytes": 246,
+      "sha256": "ee57f399f8741d5d03fd90df8e5f0f7cacfe024d4c34d4250e4bc1381485423e"
+    },
+    {
+      "path": "F:\\Puslar Backup - Copy\\launcher\\out-electron\\window-contract.cjs",
+      "bytes": 647,
+      "sha256": "0ec060a63e218366522365bcce5beca72f704fdc9839bfd7c121db01799f557f"
+    }
+  ],
+  "environment": {
+    "TEMP": "F:\\Neutron Launcher Section3 20261028\\temp",
+    "TMP": "F:\\Neutron Launcher Section3 20261028\\temp",
+    "npm_config_cache": "F:\\Neutron Launcher Section3 20261028\\npm-cache",
+    "npm_config_script_shell": "C:\\Users\\Administrator\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\native\\powershell\\pwsh.exe",
+    "NEUTRON_VITE_CACHE": "F:\\Neutron Launcher Section3 20261028\\vite-cache",
+    "ELECTRON_CACHE": "F:\\Neutron Launcher Section3 20261028\\electron-cache"
+  },
+  "notExecuted": [
+    "Browser or desktop interaction",
+    "Electron launch",
+    "Minecraft client restart",
+    "Visual screenshots or layout review",
+    "Native dialog/focus interaction",
+    "DPI/reduced-motion/log-load interaction on real window",
+    "Background integration or setup"
+  ],
+  "section4Started": false,
+  "documentationCheck": {
+    "linksChecked": 33,
+    "missingTargets": []
+  },
+  "dependencyLock": {
+    "sha256": "d330f29431490a8b83dd37b66bf7f4fc573bda9fe881739a9c1401018233150a",
+    "directVersions": {
+      "@fontsource-variable/geist": "5.3.0",
+      "@fontsource-variable/geist-mono": "5.3.0",
+      "lucide-react": "1.63.0",
+      "react": "19.3.1",
+      "react-dom": "19.3.1",
+      "@types/node": "26.6.5",
+      "@types/react": "19.3.0",
+      "@types/react-dom": "19.3.0",
+      "@vitejs/plugin-react": "6.1.2",
+      "electron": "45.1.0",
+      "typescript": "7.0.2",
+      "vite": "8.3.5",
+      "vitest": "5.0.5"
+    },
+    "exactVersionsMatch": true
+  },
+  "updatedDeliveryPriority": {
+    "nextMilestone": "Stable Windows x64 playtest installer with real integration, then GitHub pre-release",
+    "repository": "YoungJibbit95/Neutron-Client",
+    "mockPrototypeMayBePublished": false,
+    "scopedCommitPushTagReleaseAuthorization": true,
+    "technicalReleaseGoRequired": true,
+    "escapeRestrictionLifted": false,
+    "releaseCurrentlyBlocked": true,
+    "releaseActionsPerformed": false,
+    "linuxMacSupportClaimed": false
+  },
+  "resources": "resources.json"
+}

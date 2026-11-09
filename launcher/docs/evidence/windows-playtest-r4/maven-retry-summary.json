@@ -1,0 +1,8 @@
+{
+  "tests": 400,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 3,
+  "suites": 79,
+  "scope": "Same failed R3 workspace, compiled sources retained, full Maven test goal, offline dependencies, bounded build environment. Not a fresh clean/package run."
+}

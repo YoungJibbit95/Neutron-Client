@@ -1,0 +1,13 @@
+test_archive_traversal_and_symlink_rejected (test_contract.ContractTests.test_archive_traversal_and_symlink_rejected) ... ok
+test_corrupt_jar_prevents_process_start (test_contract.ContractTests.test_corrupt_jar_prevents_process_start) ... ok
+test_explicit_cwd_and_space_unicode_paths (test_contract.ContractTests.test_explicit_cwd_and_space_unicode_paths) ... ok
+test_foreign_or_plaintext_download_host_rejected (test_contract.ContractTests.test_foreign_or_plaintext_download_host_rejected) ... ok
+test_invalid_download_preserves_existing_target (test_contract.ContractTests.test_invalid_download_preserves_existing_target) ... ok
+test_packaged_shader_alias_preserves_original_and_is_idempotent (test_contract.ContractTests.test_packaged_shader_alias_preserves_original_and_is_idempotent) ... ok
+test_platform_mismatch_and_heap_bounds (test_contract.ContractTests.test_platform_mismatch_and_heap_bounds) ... ok
+test_traversal_in_manifest_is_rejected (test_contract.ContractTests.test_traversal_in_manifest_is_rejected) ... ok
+
+----------------------------------------------------------------------
+Ran 8 tests in 0.295s
+
+OK

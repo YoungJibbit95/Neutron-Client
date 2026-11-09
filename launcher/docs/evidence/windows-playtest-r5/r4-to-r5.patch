@@ -1,0 +1,106 @@
+--- R4/launcher/electron/processes.cts
++++ R5/launcher/electron/processes.cts
+@@ -33,7 +33,7 @@
+   async stop() { try { await Promise.all([...this.handles].map(handle => handle.stop())); } catch (error) { this.report(error); throw error; } }
+   async idle() { while (this.handles.size) await Promise.all([...this.handles].map(handle => handle.exited.catch(() => {}))); }
+ }
+-export interface ProcessOptions { cwd: string; env: NodeJS.ProcessEnv; signal?: AbortSignal; group?: ProcessGroup; line: (line: string, error: boolean) => void }
++export interface ProcessOptions { cwd: string; env: NodeJS.ProcessEnv; windowsHide?: boolean; signal?: AbortSignal; group?: ProcessGroup; line: (line: string, error: boolean) => void }
+ export interface ManagedProcess { started: Promise<ChildProcess>; exited: Promise<number>; stop: () => Promise<void> }
+ export class ProcessCancelledError extends Error {
+   constructor(reason: unknown, readonly exitCode: number) { super(reason instanceof Error ? reason.message : String(reason)); this.name = 'ProcessCancelledError'; }
+@@ -56,7 +56,7 @@
+     try {
+       checkStart(); await fs.mkdir(options.cwd, { recursive: true }); checkStart();
+       return await new Promise<number>((resolve, reject) => {
+-        const processChild = spawn(executable, args, { cwd: options.cwd, env: options.env, shell: false, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] }); child = processChild;
++        const processChild = spawn(executable, args, { cwd: options.cwd, env: options.env, shell: false, windowsHide: options.windowsHide ?? true, stdio: ['ignore', 'pipe', 'pipe'] }); child = processChild;
+         processChild.once('spawn', () => { spawned = true; resolveStarted(processChild); });
+         for (const [stream, error] of [[processChild.stdout, false], [processChild.stderr, true]] as const) {
+           if (!stream) continue; let pending = ''; stream.setEncoding('utf8');
+--- R4/launcher/electron/service.cts
++++ R5/launcher/electron/service.cts
+@@ -13,7 +13,7 @@
+ import { commandHash, inspectProcess, processMatches, type ClientLease } from './lease.cjs';
+ 
+ interface Stored { schemaVersion: 1; options: Snapshot['options']; preferences: Snapshot['preferences']; builds: BuildRecord[]; selected: string | null; runtime: Runtime | null }
+-export interface PreparedClient { executable: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; temporary: string }
++export interface PreparedClient { executable: string; args: string[]; cwd: string; env: NodeJS.ProcessEnv; temporary: string; windowsHide?: boolean }
+ const busy = (status: Snapshot['status']) => ['prepare', 'download', 'build', 'verify'].includes(status);
+ export class LauncherService extends EventEmitter {
+   readonly logs: Logs; private state: Snapshot; private runtime: Runtime | null = null;
+@@ -167,7 +167,10 @@
+     const javaHome = await validateJava(java, temporary, signal, group); signal.throwIfAborted();
+     const classpath = [...runtime.manifest.javaLibraries.map(name => path.join(runtime.directory, name)), ...distribution.classpath];
+     const args = launchArguments(options, this.state.maxRamMiB, classpath, runtime.directory, distribution.manifest.version, temporary);
+-    return { executable: java, args, cwd: game, env: childEnvironment(javaHome, temporary), temporary };
++    // javaw avoids a separate console, while allowing the game's first native
++    // window to be shown. SW_HIDE on java.exe also hides LWJGL's game window.
++    const executable = await fs.realpath(path.join(path.dirname(java), 'javaw.exe')).catch(() => { throw new Error('The selected Java 8 runtime is missing javaw.exe. Choose a complete Windows Java 8 runtime.'); });
++    return { executable, args, cwd: game, env: childEnvironment(javaHome, temporary), temporary, windowsHide: false };
+   }
+   protected async claimClient(child: ChildProcess, record: BuildRecord, plan: PreparedClient, group: ProcessGroup, signal: AbortSignal) {
+     signal.throwIfAborted();
+@@ -190,7 +193,7 @@
+     operation = (async () => {
+       try {
+         const plan = await this.prepareClient(record, controller.signal, group); controller.signal.throwIfAborted();
+-        handle = startProcess(plan.executable, plan.args, { cwd: plan.cwd, env: plan.env, signal: controller.signal, group, line: (line, error) => this.logs.add('client', line, error ? 'warn' : 'info') });
++        handle = startProcess(plan.executable, plan.args, { cwd: plan.cwd, env: plan.env, windowsHide: plan.windowsHide, signal: controller.signal, group, line: (line, error) => this.logs.add('client', line, error ? 'warn' : 'info') });
+         this.clientHandle = handle;
+         const active = handle;
+         this.clientPromise = (async () => {
+@@ -245,6 +248,6 @@
+       if (this.timer) clearTimeout(this.timer); if (this.recoveryTimer) clearInterval(this.recoveryTimer);
+     } catch (error) { this.closing = false; throw error; }
+   }
+-  report() { return redact(JSON.stringify({ product: 'Neutron Launcher 0.1.0-playtest.4', platform: 'windows-x64', selected: this.state.builds.find(build => build.id === this.state.selected)?.commit ?? null, exitCode: this.state.exitCode, error: this.state.error, logs: this.logs.lines.slice(-80) }, null, 2)); }
++  report() { return redact(JSON.stringify({ product: 'Neutron Launcher 0.1.0-playtest.5', platform: 'windows-x64', selected: this.state.builds.find(build => build.id === this.state.selected)?.commit ?? null, exitCode: this.state.exitCode, error: this.state.error, logs: this.logs.lines.slice(-80) }, null, 2)); }
+   setError(error: unknown) { this.state.error = redact(String(error)); this.logs.add('build', this.state.error, 'error'); this.changed(); }
+ }
+--- R4/launcher/package-lock.json
++++ R5/launcher/package-lock.json
+@@ -1,12 +1,12 @@
+ {
+   "name": "neutron-launcher",
+-  "version": "0.1.0-playtest.4",
++  "version": "0.1.0-playtest.5",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "neutron-launcher",
+-      "version": "0.1.0-playtest.4",
++      "version": "0.1.0-playtest.5",
+       "license": "UNLICENSED",
+       "dependencies": {
+         "@fontsource-variable/geist": "5.3.0",
+--- R4/launcher/package.json
++++ R5/launcher/package.json
+@@ -1,6 +1,6 @@
+ {
+   "name": "neutron-launcher",
+-  "version": "0.1.0-playtest.4",
++  "version": "0.1.0-playtest.5",
+   "description": "Neutron Windows x64 playtest launcher",
+   "author": "Neutron Client",
+   "license": "UNLICENSED",
+--- R4/launcher/tests/lifecycle.test.ts
++++ R5/launcher/tests/lifecycle.test.ts
+@@ -89,6 +89,16 @@
+     service.plan.executable = process.execPath; await service.execute({ type: 'launch' }); expect(service.snapshot().status).toBe('running');
+     await service.execute({ type: 'stop' }); expect(service.snapshot().runningBuild).toBeNull();
+   }, 15000);
++  test('a visible client launch preserves its window policy through the managed lifecycle', async () => {
++    const { service } = await fixture(); service.plan.windowsHide = false;
++    const actualStart = processes.startProcess;
++    // Observe the real client policy, but keep this CLI-only helper hidden.
++    const spawn = vi.spyOn(processes, 'startProcess').mockImplementation((executable, args, options) => actualStart(executable, args, { ...options, windowsHide: true }));
++    await service.execute({ type: 'launch' });
++    expect(spawn).toHaveBeenCalledWith(service.plan.executable, service.plan.args, expect.objectContaining({ windowsHide: false, cwd: root }));
++    expect(service.snapshot().status).toBe('running');
++    await service.execute({ type: 'stop' }); expect(service.snapshot().runningBuild).toBeNull();
++  }, 15000);
+   test('failed check then local helper start/end permits a successful manual check after connectivity returns', async () => {
+     const { service, id, commit } = await fixture();
+     vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline fixture'); }));

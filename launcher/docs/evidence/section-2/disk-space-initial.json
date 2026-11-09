@@ -1,0 +1,72 @@
+{
+  "capturedAtUtc": "2026-10-28T15:46:51.524345+00:00",
+  "disks": {
+    "C:/": {
+      "total": 394546638848,
+      "used": 394471895040,
+      "free": 74743808
+    },
+    "F:/": {
+      "total": 999592079360,
+      "used": 899472961536,
+      "free": 100119117824
+    }
+  },
+  "ownedTestDirectories": [
+    {
+      "path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Build mit Umlaut Pr\u00fcfung",
+      "files": 14853,
+      "bytes": 442663802
+    },
+    {
+      "path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Cold Cache Build",
+      "files": 4635,
+      "bytes": 19197601
+    },
+    {
+      "path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Cold Cache Build Retry",
+      "files": 1288,
+      "bytes": 8970218
+    },
+    {
+      "path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Runtime Linux Candidate",
+      "files": 13,
+      "bytes": 3575510
+    },
+    {
+      "path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Runtime macOS Candidate",
+      "files": 12,
+      "bytes": 5691389
+    },
+    {
+      "path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Runtime Windows Pr\u00fcfung",
+      "files": 745,
+      "bytes": 150161557
+    },
+    {
+      "path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Spiel ohne pers\u00f6nliche Daten Pr\u00fcfung",
+      "files": 2,
+      "bytes": 34245
+    },
+    {
+      "path": "F:\\Neutron Launcher Section2 20261028\\Cold Cache Build",
+      "files": 14085,
+      "bytes": 191651138
+    },
+    {
+      "path": "F:\\Neutron Launcher Section2 20261028\\Empty Maven Cache",
+      "files": 1088,
+      "bytes": 76362669
+    },
+    {
+      "path": "F:\\Neutron Launcher Section2 20261028\\Spiel Pr\u00fcfung mit Leerzeichen",
+      "files": 5,
+      "bytes": 295024
+    }
+  ],
+  "notes": [
+    "Read-only size scan; cold-cache build may still add files on F:",
+    "No subsequent large copies or downloads on C:",
+    "Cleanup rejection respected; no deletion retry"
+  ]
+}

@@ -1,0 +1,60 @@
+{
+  "capturedAt": "2026-10-28T20:00:22.694Z",
+  "sourceCommit": "d5a277de779f6cf69768a2900e299c9af5810e1a",
+  "probes": [
+    {
+      "name": "original-default",
+      "exitCode": 0,
+      "output": [
+        "    uintx InitialHeapSize                          := 534773760                           {product}",
+        "    uintx MaxHeapSize                              := 8533311488                          {product}"
+      ]
+    },
+    {
+      "name": "bounded-descendant",
+      "exitCode": 0,
+      "output": [
+        "Picked up JAVA_TOOL_OPTIONS: -Xms32M -Xmx512M",
+        "    uintx InitialHeapSize                          := 33554432                            {product}",
+        "    uintx MaxHeapSize                              := 536870912                           {product}"
+      ]
+    },
+    {
+      "name": "explicit-maven-override",
+      "exitCode": 0,
+      "output": [
+        "Picked up JAVA_TOOL_OPTIONS: -Xms32M -Xmx512M",
+        "    uintx InitialHeapSize                          := 67108864                            {product}",
+        "    uintx MaxHeapSize                              := 1610612736                          {product}"
+      ]
+    }
+  ],
+  "noElectronOrGameLaunched": true,
+  "mavenExitCode": 0,
+  "command": {
+    "executable": "F:\\Neutron Launcher Playtest 20261028\\Windows UI R3\\tools\\jdk8u504-maven3.9.16-1793216328252\\jdk\\jdk8u504-b01\\bin\\java.exe",
+    "args": [
+      "-Xms64M",
+      "-Xmx1536M",
+      "-Djava.io.tmpdir=F:\\Neutron Launcher Playtest 20261028\\Windows UI R3\\work\\d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c\\temp",
+      "-Dclassworlds.conf=F:\\Neutron Launcher Playtest 20261028\\Windows UI R3\\tools\\jdk8u504-maven3.9.16-1793216328252\\maven\\apache-maven-3.9.16\\bin\\m2.conf",
+      "-Dmaven.home=F:\\Neutron Launcher Playtest 20261028\\Windows UI R3\\tools\\jdk8u504-maven3.9.16-1793216328252\\maven\\apache-maven-3.9.16",
+      "-Dmaven.multiModuleProjectDirectory=F:\\Neutron Launcher Playtest 20261028\\Windows UI R3\\work\\d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c\\source",
+      "-cp",
+      "F:\\Neutron Launcher Playtest 20261028\\Windows UI R3\\tools\\jdk8u504-maven3.9.16-1793216328252\\maven\\apache-maven-3.9.16\\boot\\plexus-classworlds-2.11.0.jar",
+      "org.codehaus.plexus.classworlds.launcher.Launcher",
+      "-B",
+      "-ntp",
+      "-C",
+      "-o",
+      "-s",
+      "F:\\Neutron Launcher Playtest 20261028\\Windows UI R3\\work\\d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c\\settings.xml",
+      "-gs",
+      "F:\\Neutron Launcher Playtest 20261028\\Windows UI R3\\work\\d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c\\settings.xml",
+      "-Dmaven.repo.local=F:\\Neutron Launcher Playtest 20261028\\Windows UI R3\\maven-repository",
+      "-Plauncher-dist",
+      "test"
+    ],
+    "heapDefaults": "-Xms32M -Xmx512M"
+  }
+}

@@ -1,0 +1,65 @@
+{
+  "capturedAtUtc": "2026-10-28T17:09:00.632742+00:00",
+  "driveSpace": {
+    "C:/": {
+      "total": 394546638848,
+      "used": 389718216704,
+      "free": 4828422144
+    },
+    "F:/": {
+      "total": 999592079360,
+      "used": 901207863296,
+      "free": 98384216064
+    }
+  },
+  "ownedPaths": [
+    {
+      "path": "F:\\Puslar Backup - Copy\\launcher\\node_modules",
+      "files": 6418,
+      "bytes": 135611929
+    },
+    {
+      "path": "F:\\Puslar Backup - Copy\\launcher\\dist",
+      "files": 10,
+      "bytes": 370632
+    },
+    {
+      "path": "F:\\Puslar Backup - Copy\\launcher\\out-electron",
+      "files": 3,
+      "bytes": 3304
+    },
+    {
+      "path": "F:\\Neutron Launcher Section3 20261028\\impeccable",
+      "files": 1,
+      "bytes": 20435344
+    },
+    {
+      "path": "F:\\Neutron Launcher Section3 20261028\\npm-cache",
+      "files": 418,
+      "bytes": 212150695
+    },
+    {
+      "path": "F:\\Neutron Launcher Section3 20261028\\vite-cache",
+      "files": 2,
+      "bytes": 401
+    },
+    {
+      "path": "F:\\Neutron Launcher Section3 20261028\\temp",
+      "files": 776,
+      "bytes": 2953944
+    },
+    {
+      "path": "F:\\Neutron Launcher Section3 20261028\\electron-cache",
+      "files": 0,
+      "bytes": 0
+    }
+  ],
+  "clientSourceAndPomPreserved": {
+    "pom.xml": true,
+    "src/main/java/me/neutron/launcher/ClientBootstrap.java": true,
+    "src/test/java/me/neutron/launcher/ClientBootstrapTest.java": true
+  },
+  "cDriveCleanupPerformed": false,
+  "section2RejectedCleanupTargetsTouched": false,
+  "scope": "Only file metadata/contents and drive capacities read; no process control, browser or desktop interaction"
+}

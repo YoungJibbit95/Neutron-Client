@@ -1,0 +1,14 @@
+name: NeutronTestBots
+version: 1.0.0
+main: me.neutron.testserver.NeutronTestBotsPlugin
+author: Neutron
+description: Local combat, velocity and jump-reset test bots for the Neutron client.
+commands:
+  bots:
+    description: Manage Neutron test bots
+    usage: /bots help
+    aliases: [testbots, nt]
+permissions:
+  neutron.bots.admin:
+    description: Manage Neutron test bots
+    default: op

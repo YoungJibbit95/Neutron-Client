@@ -1,0 +1,72 @@
+{
+  "schemaVersion": 1,
+  "platform": "linux-x64",
+  "releaseStatus": "candidate-until-real-client-start",
+  "minecraftVersion": "1.8.9",
+  "metadataUrl": "https://piston-meta.mojang.com/v1/packages/d546f1707a3f2b7d034eece5ea2e311eda875787/1.8.9.json",
+  "metadataSha1": "d546f1707a3f2b7d034eece5ea2e311eda875787",
+  "assetsComplete": false,
+  "uniqueAssetObjects": 722,
+  "assetIndexFile": {
+    "path": "assets/indexes/1.8.json",
+    "sha256": "14e3aa58cf578fd8573985ca96bf075d8be05477be988664a09446c7a76f4142"
+  },
+  "javaLibraries": [
+    {
+      "path": "java-libraries/lwjgl-2.9.4-nightly-20150209.jar",
+      "sha256": "833e721817f70d1445eec13d8ce5a86e12af70efac5014356302e2bbc68b3fe2",
+      "coordinate": "org.lwjgl.lwjgl:lwjgl:2.9.4-nightly-20150209",
+      "upstreamSha1": "697517568c68e78ae0b4544145af031c81082dfe"
+    },
+    {
+      "path": "java-libraries/lwjgl_util-2.9.4-nightly-20150209.jar",
+      "sha256": "034456b132a336b72757325bb7aaf99e075681ee5650d2bea21717bd485de42f",
+      "coordinate": "org.lwjgl.lwjgl:lwjgl_util:2.9.4-nightly-20150209",
+      "upstreamSha1": "d51a7c040a721d13efdfbd34f8b257b2df882ad0"
+    }
+  ],
+  "nativeArchives": [
+    {
+      "coordinate": "org.lwjgl.lwjgl:lwjgl-platform:2.9.4-nightly-20150209",
+      "classifier": "natives-linux",
+      "path": "org/lwjgl/lwjgl/lwjgl-platform/2.9.4-nightly-20150209/lwjgl-platform-2.9.4-nightly-20150209-natives-linux.jar",
+      "sha1": "931074f46c795d2f7b30ed6395df5715cfd7675b",
+      "size": 578680,
+      "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/lwjgl-platform/2.9.4-nightly-20150209/lwjgl-platform-2.9.4-nightly-20150209-natives-linux.jar"
+    },
+    {
+      "coordinate": "net.java.jinput:jinput-platform:2.0.5",
+      "classifier": "natives-linux",
+      "path": "net/java/jinput/jinput-platform/2.0.5/jinput-platform-2.0.5-natives-linux.jar",
+      "sha1": "7ff832a6eb9ab6a767f1ade2b548092d0fa64795",
+      "size": 10362,
+      "url": "https://libraries.minecraft.net/net/java/jinput/jinput-platform/2.0.5/jinput-platform-2.0.5-natives-linux.jar"
+    }
+  ],
+  "nativeFiles": [
+    {
+      "path": "natives/libjinput-linux.so",
+      "sha256": "0c3887b5670c97f5dec10cbdafa901998502f1985dd6bb4fdb396528b3b33c61"
+    },
+    {
+      "path": "natives/libjinput-linux64.so",
+      "sha256": "288689b7946a12a880d1c161471ca937af4961b9407e6ff3e72d7ce5ff8cfce0"
+    },
+    {
+      "path": "natives/liblwjgl.so",
+      "sha256": "7739ce295bfb88bceb462b3a130ec4c1668689ec3acea4b006422b43e2386b5a"
+    },
+    {
+      "path": "natives/liblwjgl64.so",
+      "sha256": "4622966cceee1c13df9e293fbae8fa402d1be84b3e1ade7256eca57892392f08"
+    },
+    {
+      "path": "natives/libopenal.so",
+      "sha256": "1b8d26bdf799a14005e4c3e20b67c4449c48d4bf6bb51e871522669b351d20ca"
+    },
+    {
+      "path": "natives/libopenal64.so",
+      "sha256": "265310b84e3fbc292354ad9901425a4f6532e8c3f730f36be96edb790174091c"
+    }
+  ]
+}

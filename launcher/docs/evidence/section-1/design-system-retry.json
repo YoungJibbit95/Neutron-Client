@@ -1,0 +1,91 @@
+{
+  "design_system": {
+    "project_name": "Neutron Launcher",
+    "category": "Gaming",
+    "pattern": {
+      "name": "Feature-Rich Showcase",
+      "sections": "Hero (value prop) > Feature grid/cards (4-6) > Use cases or benefits > Social proof or logos > CTA",
+      "cta_placement": "Hero (sticky) + After features + Bottom",
+      "color_strategy": "Brand primary + card bg #FAFAFA. Feature icons accent. CTA contrasting.",
+      "conversion": "Clear feature hierarchy. One key message per card. Strong CTA repetition."
+    },
+    "style": {
+      "id": "3d-and-hyperrealism",
+      "name": "3D & Hyperrealism",
+      "type": "General",
+      "effects": "WebGL/Three.js 3D, realistic shadows (layers), physics lighting, parallax (3-5 layers), smooth 3D (300-400ms)",
+      "keywords": "Depth, realistic textures, 3D models, spatial navigation, tactile, skeuomorphic elements, rich detail, immersive",
+      "best_for": "Gaming, product showcase, immersive experiences, high-end e-commerce, architectural viz, VR/AR",
+      "performance": "cost:high|drivers:animation,large-images",
+      "accessibility": "risk:high|requires:contrast-text-4.5,keyboard,visible-focus,reduced-motion",
+      "light_mode": "conditional",
+      "dark_mode": "conditional"
+    },
+    "colors": {
+      "primary": "#7C3AED",
+      "on_primary": "#FFFFFF",
+      "secondary": "#A78BFA",
+      "on_secondary": "#0F172A",
+      "accent": "#F43F5E",
+      "on_accent": "#000000",
+      "background": "#0F0F23",
+      "foreground": "#E2E8F0",
+      "card": "#1E1C35",
+      "card_foreground": "#E2E8F0",
+      "muted": "#27273B",
+      "muted_foreground": "#94A3B8",
+      "border": "#4C1D95",
+      "destructive": "#EF4444",
+      "on_destructive": "#000000",
+      "ring": "#7C3AED",
+      "notes": "Neon purple + rose action",
+      "cta": "#F43F5E",
+      "text": "#E2E8F0",
+      "on_cta": "#000000"
+    },
+    "typography": {
+      "heading": "Russo One",
+      "body": "Chakra Petch",
+      "mood": "gaming, bold, action, esports, competitive, energetic",
+      "best_for": "Gaming, esports, action games, competitive sports, entertainment",
+      "google_fonts_url": "https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=Russo+One&display=swap",
+      "css_import": "@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@300;400;500;600;700&family=Russo+One&display=swap');"
+    },
+    "key_effects": "WebGL/Three.js 3D, realistic shadows (layers), physics lighting, parallax (3-5 layers), smooth 3D (300-400ms)",
+    "anti_patterns": "Minimalist design + Static assets",
+    "decision_rules": {
+      "if_competitive": [
+        "constraint:add-real-time-stats"
+      ],
+      "if_casual": [
+        "constraint:increase-playfulness"
+      ]
+    },
+    "activated_rules": [],
+    "constraints": [],
+    "reasoning_default": false,
+    "source_identities": {
+      "product": "Gaming",
+      "reasoning": "Gaming",
+      "style": "3d-and-hyperrealism",
+      "color": "Gaming",
+      "typography": "Gaming Bold",
+      "landing": "Feature-Rich Showcase"
+    },
+    "source_derivations": {
+      "color_mode": null
+    },
+    "severity": "HIGH",
+    "dials": {
+      "variance": null,
+      "variance_label": null,
+      "motion": null,
+      "motion_label": null,
+      "density": null,
+      "density_label": null
+    },
+    "motion_snippet": {},
+    "spacing_scale": null
+  },
+  "persistence": null
+}

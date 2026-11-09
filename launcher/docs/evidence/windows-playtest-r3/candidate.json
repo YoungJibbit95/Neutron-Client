@@ -1,0 +1,143 @@
+{
+  "capturedAtUtc": "2026-10-28T19:21:33.786218+00:00",
+  "status": "TECHNICAL_CANDIDATE_REVIEW_PENDING_NOT_RELEASED",
+  "version": "0.1.0-playtest.3",
+  "clientCommit": "1bc6c364b58a4eb86faf4cc9aab6e15153837cd9",
+  "installer": {
+    "path": "F:\\Neutron Launcher Playtest 20261028\\Installer Candidate R3\\Neutron-Launcher-0.1.0-playtest.3-Windows-x64.exe",
+    "sha256": "be884235ea52bf307c25b86db5dd24f38e69301f1951dc730cccca0d27976970",
+    "bytes": 112466909,
+    "signature": "NotSigned"
+  },
+  "app": {
+    "peMachine": "AMD64",
+    "fileVersion": "0.1.0-playtest.3",
+    "productVersion": "0.1.0.0",
+    "signature": "NotSigned"
+  },
+  "tests": {
+    "numTotalTests": 119,
+    "numPassedTests": 119,
+    "numFailedTests": 0,
+    "success": true
+  },
+  "mavenTests": [
+    {
+      "workspace": "F:\\Neutron Launcher Playtest 20261028\\Managed Integration\\work\\1bc6c364b58a4eb86faf4cc9aab6e15153837cd9-3012fc47-e5e1-4a11-aa4d-f872566d73ea",
+      "tests": 400,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 3
+    },
+    {
+      "workspace": "F:\\Neutron Launcher Playtest 20261028\\Managed Integration\\work\\1bc6c364b58a4eb86faf4cc9aab6e15153837cd9-90e7a4e5-5122-4fbe-b0f3-a46295532a92",
+      "tests": 400,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 3
+    }
+  ],
+  "realIntegrationChecks": [
+    {
+      "name": "managed-setup",
+      "success": true
+    },
+    {
+      "name": "github-commit-archive-maven-build",
+      "success": true,
+      "commit": "1bc6c364b58a4eb86faf4cc9aab6e15153837cd9",
+      "archiveSha256": "426aaaad120660f3b622543381c03e184ef40e36ebc64b9b251fe3b31cdc6524",
+      "adapterSha256": "ce8898df1b0e6ac4d54a2a8fb6b0b93c98d0918ae58b06e69d0663daa0c7234c",
+      "classpathFiles": 61,
+      "assetObjects": 722
+    },
+    {
+      "name": "bootstrap-validate-only-no-game-window",
+      "exitCode": 0,
+      "output": [
+        "NEUTRON_BOOTSTRAP_VALIDATED"
+      ]
+    },
+    {
+      "name": "offline-registry-integrity-restoration-without-network",
+      "success": true
+    }
+  ],
+  "realMavenCancellation": {
+    "capturedAt": "2026-10-28T19:15:46.043Z",
+    "realMavenTaskCancelled": true,
+    "status": "cancelled",
+    "selectionUnchanged": true,
+    "buildCountUnchanged": true,
+    "selected": "1bc6c364b58a4eb86faf4cc9aab6e15153837cd9-874ad257-dad8-450e-8778-4c3cfa9aa3f7",
+    "clientStarted": false
+  },
+  "baselineComparison": {
+    "pom.xml": false,
+    "src/main/java/me/neutron/launcher/ClientBootstrap.java": true,
+    "src/test/java/me/neutron/launcher/ClientBootstrapTest.java": true
+  },
+  "sharedPomObservation": {
+    "matchesSection3Baseline": false,
+    "baselineSha256": "5822aeb6d382761ca8242d898461134da43f162c7b7d22ef528bd117fb865876",
+    "currentSha256": "54e838e035e5afed0b57f9eb2f1013e202bf090642d52e3fe9c44fea7088e96a",
+    "excludedFromPublication": true,
+    "launcherDidNotWriteSharedPom": true,
+    "observedChange": "Parallel local assembly mainClass changed from launchwrapper.Launch to net.minecraft.client.main.Main; launcher uses its isolated adapter instead."
+  },
+  "packagedOwnFileMatches": 25,
+  "packagedAdapterFileMatches": 3,
+  "forbiddenPackagedPaths": [],
+  "sourceInventorySha256": "f2afb5f23fadcea089cc9c82feff88e2763bb3a42bdbaef32ac5d85cd19edff5",
+  "publication": {
+    "base": "1bc6c364b58a4eb86faf4cc9aab6e15153837cd9",
+    "tree": "51ea77efe44de4d0007245131d49c1fd20134215",
+    "files": 53,
+    "commits": [],
+    "pushed": false,
+    "released": false
+  },
+  "installerConfiguration": {
+    "deleteAppDataOnUninstall": false,
+    "runAfterFinish": false,
+    "realInstallUninstallTested": false
+  },
+  "notExecuted": [
+    "Electron/launcher window",
+    "Minecraft client window (bootstrap --validateOnly only)",
+    "Installer UI or actual installation/uninstallation",
+    "Real UI/navigation/scroll/DPI/focus/clipboard dialogs",
+    "Real client crash/recovery/close or build-and-play",
+    "GitHub CI run",
+    "Commit/push/tag/pre-release"
+  ],
+  "nsisSilentWriteUninstallerBuildHelper": true,
+  "signingAndSmartScreenGateOpen": true,
+  "escapeRestrictionLifted": false,
+  "driveFreeMiB": {
+    "C:/": 135,
+    "F:/": 77269
+  },
+  "cDriveCleanupPerformed": false,
+  "rejectedSection2CleanupRetried": false,
+  "correctionRound": "R3",
+  "fixedReviewFinding": "P1 failed termination is not an exited process; retain client/task ownership and allow retry",
+  "newTargetedRegressionTests": 4,
+  "realMavenDeniedTermination": {
+    "capturedAt": "2026-10-28T19:17:54.757Z",
+    "realMavenProcess": true,
+    "terminationDeliberatelyDenied": true,
+    "liveAfterDeniedCancel": true,
+    "failedShutdownRejected": true,
+    "newLaunchBlocked": true,
+    "terminationRetrySucceeded": true,
+    "selectedUnchanged": true,
+    "buildCountUnchanged": true,
+    "finalStatus": "cancelled",
+    "attempts": 3,
+    "clientWindowStarted": false
+  },
+  "integrationSmokeReusesPreviouslyBuiltDistribution": true,
+  "fullMavenBuildsFromUnchangedClientAdapterBaseline": true,
+  "technicalReleaseGo": false
+}

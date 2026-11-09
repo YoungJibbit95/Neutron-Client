@@ -1,0 +1,31 @@
+// User-authorized real client window regression, isolated developer profile.
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const { LauncherService } = require('F:/Puslar Backup - Copy/launcher/out-electron/service.cjs');
+const root = 'F:/Neutron Launcher Playtest 20261028/Managed Integration';
+const service = new LauncherService(root, 'F:/Puslar Backup - Copy/launcher/resources/source-adapter');
+let before;
+const variant = process.argv[2] || 'before';
+let ready = false; const runStarted = Date.now();
+service.on('snapshot', state => {
+  if (!ready && state.logs.some(line => Date.parse(line.time) >= runStarted && line.source === 'client' && /ModuleManager initialized/.test(line.message.en))) {
+    ready = true; console.log('CLIENT_MENU_INITIALIZED ' + variant);
+    void fs.readFile(path.join(root, 'client-process.json'), 'utf8').then(text => console.log(text));
+  }
+});
+(async () => {
+  before = await fs.readFile(path.join(root, 'state.json'), 'utf8');
+  await service.initialize();
+  await service.execute({ type: 'save-options', patch: { gameDir: 'F:/Neutron Launcher Playtest 20261028/R5 Window Regression', ramMiB: 1024, fullscreen: false } });
+  await service.execute({ type: 'launch' }); console.log('LAUNCH_STARTED ' + variant);
+  const stopFile = path.join(root, 'temp/r5-stop-client'); await fs.unlink(stopFile).catch(() => {});
+  const started = Date.now();
+  const timer = setInterval(async () => {
+    const requested = await fs.access(stopFile).then(() => true, () => false);
+    if (!requested && Date.now() - started < 60000) return;
+    clearInterval(timer);
+    try { await service.stop(); await service.shutdown(); await fs.writeFile(path.join(root, 'state.json'), before); console.log('OWN_CLIENT_STOPPED_AND_STATE_RESTORED'); }
+    catch (error) { console.error(error); process.exitCode = 1; }
+  }, 500);
+
+})().catch(async error => { console.error(error); await service.shutdown().catch(() => {}); if (before) await fs.writeFile(path.join(root, 'state.json'), before); process.exitCode = 1; });

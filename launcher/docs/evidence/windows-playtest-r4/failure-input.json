@@ -1,0 +1,9 @@
+{
+  "sha256": "872e72284719acd6e8306facdb87141e7bd4bbbd8170aa4e49e559ecf06ec3de",
+  "sourceCommit": "d5a277de779f6cf69768a2900e299c9af5810e1a",
+  "reportedTestsRun": 362,
+  "reportedFailures": 9,
+  "error": "Could not reserve enough space for object heap",
+  "originalWorkRetained": true,
+  "testSkippingEnabled": false
+}

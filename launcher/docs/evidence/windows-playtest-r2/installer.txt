@@ -1,0 +1,13 @@
+  • electron-builder  version=26.18.0 os=10.0.26100
+  • loaded configuration  file=F:\Puslar Backup - Copy\launcher\electron-builder.cjs
+  • skipped dependencies rebuild  reason=npmRebuild is set to false
+  • packaging       platform=win32 arch=x64 electron=45.1.0 appOutDir=F:\Neutron Launcher Playtest 20261028\Installer Candidate R2\win-unpacked
+  • downloaded      label=electron progress=100%
+  • downloaded electron zip extracted successfully  output=F:\Neutron Launcher Playtest 20261028\Installer Candidate R2\win-unpacked
+  • searching for node modules  pm=npm searchDir=F:\Puslar Backup - Copy\launcher
+  • updating asar integrity executable resource  executablePath=F:\Neutron Launcher Playtest 20261028\Installer Candidate R2\win-unpacked\Neutron Launcher.exe
+  • no code signing certificate configured, signing is skipped  path=F:\Neutron Launcher Playtest 20261028\Installer Candidate R2\win-unpacked\Neutron Launcher.exe
+  • building        target=nsis file=F:\Neutron Launcher Playtest 20261028\Installer Candidate R2\Neutron-Launcher-0.1.0-playtest.2-Windows-x64.exe archs=x64 oneClick=false perMachine=false
+  • no code signing certificate configured, signing is skipped  path=F:\Neutron Launcher Playtest 20261028\temp\t-HvovYv\elevate-staging-1\resources\elevate.exe
+  • no code signing certificate configured, signing is skipped  path=F:\Neutron Launcher Playtest 20261028\Installer Candidate R2\Neutron-Launcher-0.1.0-playtest.2-Windows-x64.__uninstaller.exe
+  • no code signing certificate configured, signing is skipped  path=F:\Neutron Launcher Playtest 20261028\Installer Candidate R2\Neutron-Launcher-0.1.0-playtest.2-Windows-x64.exe

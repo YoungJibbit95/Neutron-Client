@@ -1,0 +1,13 @@
+{
+  "window": {
+    "app": "process:C:\\Users\\Administrator\\scoop\\apps\\temurin8-jdk\\8.0.482-8\\bin\\java.exe",
+    "id": 2625734,
+    "title": "Neutron | Dev 2.2 by youngjibbit for LauncherSmoke"
+  },
+  "screenshotId": "screenshot-0",
+  "width": 962,
+  "height": 672,
+  "sha256": "81bafa48d3241ee199c16e276bfd1b64ba222cdd76c90d82421200145afdd9a5",
+  "observation": "Actual Neutron client main menu for synthetic LauncherSmoke profile; production JAR plus official assets/natives, no test classpath",
+  "capturedAtUtc": "2026-10-28T15:43:57.315Z"
+}

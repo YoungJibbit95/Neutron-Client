@@ -1,0 +1,42 @@
+// CLI-only regression. No Electron or game entry point is launched.
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const { buildEnvironment, childEnvironment, runProcess } = require('F:/Puslar Backup - Copy/launcher/out-electron/processes.cjs');
+const root = 'F:/Neutron Launcher Playtest 20261028/Windows UI R3';
+const work = path.join(root, 'work/d5a277de779f6cf69768a2900e299c9af5810e1a-ba494e1a-fd44-46de-add8-6d1f9a690b4c');
+const evidence = 'F:/Neutron Launcher Playtest 20261028/Heap Regression R4';
+(async () => {
+  const manifest = JSON.parse(await fs.readFile(path.join(root, 'tools/manifest.json'), 'utf8'));
+  const javaHome = path.join(root, 'tools', manifest.javaHome);
+  const mavenHome = path.join(root, 'tools', manifest.mavenHome);
+  const temporary = path.join(work, 'temp');
+  const java = path.join(javaHome, 'bin/java.exe');
+  const env = buildEnvironment(javaHome, temporary, path.join(root, 'maven-user'));
+  const proof = { capturedAt: new Date().toISOString(), sourceCommit: 'd5a277de779f6cf69768a2900e299c9af5810e1a', probes: [], noElectronOrGameLaunched: true };
+  for (const [name, options, args] of [
+    ['original-default', childEnvironment(javaHome, temporary), []],
+    ['bounded-descendant', env, []],
+    ['explicit-maven-override', env, ['-Xms64M', '-Xmx1536M']],
+  ]) {
+    const lines = [];
+    const exitCode = await runProcess(java, [...args, '-XX:+PrintFlagsFinal', '-version'], { cwd: work, env: options, line: line => lines.push(line) });
+    const selected = lines.filter(line => /InitialHeapSize|MaxHeapSize|reserve enough|Picked up JAVA_TOOL_OPTIONS/.test(line));
+    proof.probes.push({ name, exitCode, output: selected });
+    console.log(JSON.stringify(proof.probes.at(-1)));
+    if (name !== 'original-default' && exitCode !== 0) throw new Error('Bounded JVM failed to initialize');
+  }
+  const boot = (await fs.readdir(path.join(mavenHome, 'boot'))).filter(n => /^plexus-classworlds-.*\.jar$/.test(n));
+  if (boot.length !== 1) throw new Error('Unexpected Maven boot files');
+  const args = ['-Xms64M', '-Xmx1536M', '-Djava.io.tmpdir=' + temporary,
+    '-Dclassworlds.conf=' + path.join(mavenHome, 'bin/m2.conf'), '-Dmaven.home=' + mavenHome,
+    '-Dmaven.multiModuleProjectDirectory=' + path.join(work, 'source'), '-cp', path.join(mavenHome, 'boot', boot[0]),
+    'org.codehaus.plexus.classworlds.launcher.Launcher', '-B', '-ntp', '-C', '-o',
+    '-s', path.join(work, 'settings.xml'), '-gs', path.join(work, 'settings.xml'),
+    '-Dmaven.repo.local=' + path.join(root, 'maven-repository'), '-Plauncher-dist', 'test'];
+  const log = [];
+  proof.mavenExitCode = await runProcess(java, args, { cwd: path.join(work, 'source'), env, line: line => { log.push(line); if (/Tests run:|BUILD |reserve enough|Failures:/.test(line)) console.log(line); } });
+  await fs.writeFile(path.join(evidence, 'maven-retry.txt'), log.join('\n'));
+  proof.command = { executable: java, args, heapDefaults: env.JAVA_TOOL_OPTIONS };
+  await fs.writeFile(path.join(evidence, 'heap-regression.json'), JSON.stringify(proof, null, 2));
+  if (proof.mavenExitCode !== 0) throw new Error('Maven retry failed: ' + proof.mavenExitCode);
+})().catch(error => { console.error(error); process.exitCode = 1; });

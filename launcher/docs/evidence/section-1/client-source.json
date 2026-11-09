@@ -1,0 +1,9 @@
+{
+  "repository": "YoungJibbit95/Neutron-Client",
+  "private": false,
+  "defaultBranch": "main",
+  "requestedBranch": "main",
+  "commit": "1bc6c364b58a4eb86faf4cc9aab6e15153837cd9",
+  "checkedAtUtc": "2026-10-28T15:15:34.4753060Z",
+  "method": "GitHub REST API, read only; no clone, build or source mutation"
+}

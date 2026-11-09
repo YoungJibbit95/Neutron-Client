@@ -1,0 +1,20 @@
+{
+  "arguments": [
+    "C:\\Users\\Administrator\\scoop\\apps\\temurin8-jdk\\8.0.482-8\\bin\\java.exe",
+    "-Dclassworlds.conf=C:\\Users\\Administrator\\scoop\\apps\\maven\\3.9.15\\bin\\m2.conf",
+    "-Dmaven.home=C:\\Users\\Administrator\\scoop\\apps\\maven\\3.9.15",
+    "-Dmaven.multiModuleProjectDirectory=C:\\Users\\Administrator\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Build mit Umlaut Prüfung\\source",
+    "-cp",
+    "C:\\Users\\Administrator\\scoop\\apps\\maven\\3.9.15\\boot\\plexus-classworlds-2.9.0.jar",
+    "org.codehaus.plexus.classworlds.launcher.Launcher",
+    "-B",
+    "-ntp",
+    "-Plauncher-dist",
+    "-o",
+    "clean",
+    "package"
+  ],
+  "workingDirectory": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Build mit Umlaut Prüfung\\source",
+  "javaVersion": "1.8.0_482-b08",
+  "globalEnvironmentModified": false
+}

@@ -1,0 +1,14 @@
+{
+  "capturedAt": "2026-10-28T19:17:54.757Z",
+  "realMavenProcess": true,
+  "terminationDeliberatelyDenied": true,
+  "liveAfterDeniedCancel": true,
+  "failedShutdownRejected": true,
+  "newLaunchBlocked": true,
+  "terminationRetrySucceeded": true,
+  "selectedUnchanged": true,
+  "buildCountUnchanged": true,
+  "finalStatus": "cancelled",
+  "attempts": 3,
+  "clientWindowStarted": false
+}

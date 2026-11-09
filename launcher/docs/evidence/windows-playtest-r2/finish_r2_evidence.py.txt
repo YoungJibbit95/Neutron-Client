@@ -1,0 +1,16 @@
+from pathlib import Path
+import json,shutil,hashlib,re
+base=Path(r'F:\Neutron Launcher Playtest 20261028');root=Path(r'F:\Puslar Backup - Copy');project=root/'launcher';ev=project/'docs/evidence/windows-playtest-r2'
+shutil.copyfile(project/'docs/evidence/windows-playtest/integration.json',ev/'integration-baseline-r1.json')
+for name in ['final_verify_r2.py','inspect_package_r2.cjs','collect_evidence_r2.py','finish_r2_evidence.py']:
+    shutil.copyfile(base/name,ev/(name+'.txt'))
+read=lambda p:json.loads(p.read_text(encoding='utf-8-sig'))
+candidate=read(ev/'candidate.json')
+candidate.update(dict(correctionRound='R2',fixedReviewFindings=['P1 launch/stop/shutdown reservation and explicit started/exited handshake','P2 offline manual recheck after local client lifecycle'],newTargetedRegressionTests=6,integrationSmokeReusesPreviouslyBuiltDistribution=True,fullMavenBuildsFromUnchangedClientAdapterBaseline=True,currentMainVerified='1bc6c364b58a4eb86faf4cc9aab6e15153837cd9',technicalReleaseGo=False))
+(ev/'candidate.json').write_text(json.dumps(candidate,indent=2,ensure_ascii=False),encoding='utf-8')
+sources=read(ev/'source-inventory.json');changed=[row['relativePath'] for row in sources if hashlib.sha256(Path(row['path']).read_bytes()).hexdigest()!=row['sha256']];assert not changed,changed
+for name in ['README.md','docs/INTEGRATION.md','docs/PLAYTEST.md','docs/GATES.md','docs/RELEASE-NOTES.md','docs/REVIEW-WINDOWS-R2.md']:
+    p=project/name;s=p.read_text(encoding='utf-8')
+    for link in re.findall(r'\]\(([^)]+)\)',s):
+        if '://' not in link and not link.startswith('#'):assert (p.parent/link.split('#')[0]).exists(),(name,link)
+print(json.dumps(dict(tests=candidate['tests'],sourceFiles=len(sources),sourceChangesAfterPackaging=changed,installer=candidate['installer'],publication=candidate['publication']),indent=2))

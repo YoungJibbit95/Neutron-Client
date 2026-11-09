@@ -1,0 +1,433 @@
+Picked up JAVA_TOOL_OPTIONS: -Xms32M -Xmx512M
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] -------------------------< me.pulsar:Neutron >--------------------------
+[INFO] Building Neutron dev
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] --- clean:3.2.0:clean (default-clean) @ Neutron ---
+[INFO] 
+[INFO] --- resources:3.4.0:resources (default-resources) @ Neutron ---
+[INFO] Copying 4149 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.8.1:compile (default-compile) @ Neutron ---
+[INFO] Changes detected - recompiling the module!
+[INFO] Compiling 2246 source files to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\classes
+[INFO] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/main/java/net/minecraft/stats/StatisticsFile.java: Some input files use or override a deprecated API.
+[INFO] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/main/java/net/minecraft/stats/StatisticsFile.java: Recompile with -Xlint:deprecation for details.
+[INFO] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/main/java/net/minecraft/client/renderer/texture/TextureManager.java: Some input files use unchecked or unsafe operations.
+[INFO] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/main/java/net/minecraft/client/renderer/texture/TextureManager.java: Recompile with -Xlint:unchecked for details.
+[INFO] 
+[INFO] --- resources:3.4.0:testResources (default-testResources) @ Neutron ---
+[INFO] Copying 37 resources from src\test\resources to target\test-classes
+[INFO] 
+[INFO] --- compiler:3.8.1:testCompile (default-testCompile) @ Neutron ---
+[INFO] Changes detected - recompiling the module!
+[INFO] Compiling 126 source files to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\test-classes
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/StartupServicesTest.java:[14,16] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/StartupServicesTest.java:[14,16] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/StartupServicesTest.java:[14,16] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/StartupServicesTest.java:[14,16] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/StartupServicesTest.java:[14,16] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/net/minecraft/client/renderer/ThreadDownloadImageDataTest.java:[35,37] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/net/minecraft/client/renderer/ThreadDownloadImageDataTest.java:[36,39] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/network/AttackHookTest.java:[23,25] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/network/AttackHookTest.java:[24,36] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/module/impl/render/ThemeSyncRenderCheck.java:[98,34] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/module/impl/render/ThemeSyncRenderCheck.java:[99,48] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/combat/RotationBehaviorHookTest.java:[49,25] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/combat/RotationBehaviorHookTest.java:[50,36] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/combat/RotationBehaviorHookTest.java:[54,23] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/combat/RotationBehaviorHookTest.java:[68,29] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/combat/RotationBehaviorHookTest.java:[68,51] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/network/ExploitHookFixture.java:[65,37] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/network/ExploitHookFixture.java:[66,17] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/network/ExploitHookFixture.java:[66,43] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/utils/render/WorldOverlayNativeCheck.java:[34,33] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/utils/render/WorldOverlayNativeCheck.java:[35,75] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/net/minecraft/client/gui/GuiChatInputNativeCheck.java:[128,36] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/net/minecraft/client/gui/GuiChatInputNativeCheck.java:[129,68] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/module/impl/render/ArmorHudCheck.java:[32,30] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/module/impl/render/ArmorHudCheck.java:[32,105] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/module/impl/render/ArmorHudCheck.java:[32,129] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/net/minecraft/client/gui/WorldUnloadNativeCheck.java:[30,20] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/net/minecraft/client/gui/WorldUnloadNativeCheck.java:[67,26] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/net/minecraft/client/gui/WorldUnloadNativeCheck.java:[67,109] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/combat/SpeedMovementBasisChecks.java:[20,21] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/combat/SpeedMovementBasisChecks.java:[25,31] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/combat/SpeedMovementBasisChecks.java:[26,54] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/module/impl/render/IosSettingsVisibilityTest.java:[20,17] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/module/impl/render/IosSettingsVisibilityTest.java:[20,41] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/module/impl/render/IosSettingsVisibilityTest.java:[20,63] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/utils/MovementHelperContractTest.java:[18,27] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/utils/MovementHelperContractTest.java:[20,60] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/utils/MovementHelperContractTest.java:[86,37] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/utils/MovementHelperContractTest.java:[88,50] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/net/minecraft/client/gui/MinecraftWorldLifecycleTest.java:[24,29] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/net/minecraft/client/gui/MinecraftWorldLifecycleTest.java:[25,36] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/combat/TargetingServicePerformanceTest.java:[16,34] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/combat/TargetingServicePerformanceTest.java:[19,31] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/combat/TargetingServicePerformanceTest.java:[20,31] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/module/impl/render/IosOpeningTest.java:[20,17] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/module/impl/render/IosOpeningTest.java:[20,41] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/module/impl/render/IosOpeningTest.java:[20,63] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/utils/render/UiEffectsTest.java:[12,161] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/utils/render/UiEffectsTest.java:[12,274] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/module/impl/render/IngameHudRenderCheck.java:[114,84] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/module/impl/render/IngameHudRenderCheck.java:[114,199] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/theme/ThemeUiConsumerTest.java:[32,30] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/theme/ThemeUiConsumerTest.java:[33,34] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/StartupServicesTest.java:[27,27] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/StartupServicesTest.java:[29,42] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/combat/AcceptedPositionRaycastTest.java:[22,25] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[WARNING] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/core/combat/AcceptedPositionRaycastTest.java:[23,36] sun.misc.Unsafe is internal proprietary API and may be removed in a future release
+[INFO] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/account/MicrosoftBrowserAuthTest.java: Some input files use or override a deprecated API.
+[INFO] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/account/MicrosoftBrowserAuthTest.java: Recompile with -Xlint:deprecation for details.
+[INFO] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/module/impl/render/ThemeSyncRenderCheck.java: Some input files use unchecked or unsafe operations.
+[INFO] /F:/Neutron Launcher Playtest 20261028/Managed Integration/work/d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d/source/src/test/java/me/youngjibbit/module/impl/render/ThemeSyncRenderCheck.java: Recompile with -Xlint:unchecked for details.
+[INFO] 
+[INFO] --- surefire:3.5.5:test (default-test) @ Neutron ---
+[INFO] Using auto detected provider org.apache.maven.surefire.junit4.JUnit4Provider
+[INFO] 
+[INFO] -------------------------------------------------------
+[INFO]  T E S T S
+[INFO] -------------------------------------------------------
+Picked up JAVA_TOOL_OPTIONS: -Xms32M -Xmx512M
+[INFO] Running me.neutron.launcher.ClientBootstrapTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.368 s -- in me.neutron.launcher.ClientBootstrapTest
+[INFO] Running me.youngjibbit.account.AccountManagerTest
+[INFO] Tests run: 12, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.884 s -- in me.youngjibbit.account.AccountManagerTest
+[INFO] Running me.youngjibbit.account.AccountUiTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.003 s -- in me.youngjibbit.account.AccountUiTest
+[INFO] Running me.youngjibbit.account.LoginCoordinatorTest
+[INFO] Tests run: 16, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.735 s -- in me.youngjibbit.account.LoginCoordinatorTest
+[INFO] Running me.youngjibbit.account.MicrosoftBrowserAuthTest
+[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 21.13 s -- in me.youngjibbit.account.MicrosoftBrowserAuthTest
+[INFO] Running me.youngjibbit.account.MicrosoftBrowserUiBindingTest
+Picked up JAVA_TOOL_OPTIONS: -Xms32M -Xmx512M
+JUnit version 4.13.2
+.
+Time: 1,322
+
+OK (1 test)
+
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.683 s -- in me.youngjibbit.account.MicrosoftBrowserUiBindingTest
+[INFO] Running me.youngjibbit.config.BacktrackConfigTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.870 s -- in me.youngjibbit.config.BacktrackConfigTest
+[INFO] Running me.youngjibbit.config.ClientSettingsConfigTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.296 s -- in me.youngjibbit.config.ClientSettingsConfigTest
+[INFO] Running me.youngjibbit.config.ConfigManagerTest
+Java File resolution check: old child /pulsar/configs resolves within parent = true
+[INFO] Tests run: 21, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.917 s -- in me.youngjibbit.config.ConfigManagerTest
+[INFO] Running me.youngjibbit.config.HudPositionConfigTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.103 s -- in me.youngjibbit.config.HudPositionConfigTest
+[INFO] Running me.youngjibbit.config.LegacyModuleConfigTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.217 s -- in me.youngjibbit.config.LegacyModuleConfigTest
+[INFO] Running me.youngjibbit.config.MoveFixConfigTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.821 s -- in me.youngjibbit.config.MoveFixConfigTest
+[INFO] Running me.youngjibbit.config.NetworkPolicyIntegrationTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.152 s -- in me.youngjibbit.config.NetworkPolicyIntegrationTest
+[INFO] Running me.youngjibbit.config.RotationProfileConfigTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.536 s -- in me.youngjibbit.config.RotationProfileConfigTest
+[INFO] Running me.youngjibbit.config.ThemeConfigIntegrationTest
+Theme library is read-only: Unsupported theme file version; file preserved
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.470 s -- in me.youngjibbit.config.ThemeConfigIntegrationTest
+[INFO] Running me.youngjibbit.config.TickbaseConfigTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.292 s -- in me.youngjibbit.config.TickbaseConfigTest
+[INFO] Running me.youngjibbit.core.combat.AcceptedPositionRaycastTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.747 s -- in me.youngjibbit.core.combat.AcceptedPositionRaycastTest
+[INFO] Running me.youngjibbit.core.combat.AutoToolTest
+Picked up JAVA_TOOL_OPTIONS: -Xms32M -Xmx512M
+JUnit version 4.13.2
+....
+Time: 2,428
+
+OK (4 tests)
+
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.040 s -- in me.youngjibbit.core.combat.AutoToolTest
+[INFO] Running me.youngjibbit.core.combat.BodyRotationControllerTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.combat.BodyRotationControllerTest
+[INFO] Running me.youngjibbit.core.combat.CombatFlowTest
+[INFO] Tests run: 25, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s -- in me.youngjibbit.core.combat.CombatFlowTest
+[INFO] Running me.youngjibbit.core.combat.MoveFixControllerTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.026 s -- in me.youngjibbit.core.combat.MoveFixControllerTest
+[INFO] Running me.youngjibbit.core.combat.MoveFixProductionTest
+Picked up JAVA_TOOL_OPTIONS: -Xms32M -Xmx512M
+JUnit version 4.13.2
+.
+Time: 1,504
+
+OK (1 test)
+
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.115 s -- in me.youngjibbit.core.combat.MoveFixProductionTest
+[INFO] Running me.youngjibbit.core.combat.NetworkMoveFixIntegrationTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.012 s -- in me.youngjibbit.core.combat.NetworkMoveFixIntegrationTest
+[INFO] Running me.youngjibbit.core.combat.NoSlowSprintTest
+Picked up JAVA_TOOL_OPTIONS: -Xms32M -Xmx512M
+JUnit version 4.13.2
+.....
+Time: 2,509
+
+OK (5 tests)
+
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.290 s -- in me.youngjibbit.core.combat.NoSlowSprintTest
+[INFO] Running me.youngjibbit.core.combat.RotationBehaviorHookTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.072 s -- in me.youngjibbit.core.combat.RotationBehaviorHookTest
+[INFO] Running me.youngjibbit.core.combat.RotationCorrectionsTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.combat.RotationCorrectionsTest
+[INFO] Running me.youngjibbit.core.combat.RotationModuleBindingTest
+Picked up JAVA_TOOL_OPTIONS: -Xms32M -Xmx512M
+JUnit version 4.13.2
+...................
+Time: 2,687
+
+OK (19 tests)
+
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.406 s -- in me.youngjibbit.core.combat.RotationModuleBindingTest
+[INFO] Running me.youngjibbit.core.combat.RotationTrajectoryTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.023 s -- in me.youngjibbit.core.combat.RotationTrajectoryTest
+[INFO] Running me.youngjibbit.core.combat.SpeedMovementBasisTest
+Picked up JAVA_TOOL_OPTIONS: -Xms32M -Xmx512M
+JUnit version 4.13.2
+.....
+Time: 1,393
+
+OK (5 tests)
+
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 2.046 s -- in me.youngjibbit.core.combat.SpeedMovementBasisTest
+[INFO] Running me.youngjibbit.core.combat.SprintOrderingTest
+Picked up JAVA_TOOL_OPTIONS: -Xms32M -Xmx512M
+JUnit version 4.13.2
+.........
+Time: 2,621
+
+OK (9 tests)
+
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.197 s -- in me.youngjibbit.core.combat.SprintOrderingTest
+[INFO] Running me.youngjibbit.core.combat.TargetingServicePerformanceTest
+Targeting 1024 candidates: sort comparator calls=8974, minimum scan=1023
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.048 s -- in me.youngjibbit.core.combat.TargetingServicePerformanceTest
+[INFO] Running me.youngjibbit.core.NativeDependencyTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.462 s -- in me.youngjibbit.core.NativeDependencyTest
+[INFO] Running me.youngjibbit.core.network.AttackHookTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.006 s -- in me.youngjibbit.core.network.AttackHookTest
+[INFO] Running me.youngjibbit.core.network.BacktrackBehaviorHookTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.022 s -- in me.youngjibbit.core.network.BacktrackBehaviorHookTest
+[INFO] Running me.youngjibbit.core.network.ExploitDelayTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.016 s -- in me.youngjibbit.core.network.ExploitDelayTest
+[INFO] Running me.youngjibbit.core.network.LagRangeLifecycleTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.network.LagRangeLifecycleTest
+[INFO] Running me.youngjibbit.core.network.LegacyNetworkModuleBindingTest
+Picked up JAVA_TOOL_OPTIONS: -Xms32M -Xmx512M
+JUnit version 4.13.2
+.......
+Time: 2,475
+
+OK (7 tests)
+
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.114 s -- in me.youngjibbit.core.network.LegacyNetworkModuleBindingTest
+[INFO] Running me.youngjibbit.core.network.MinibloxHookTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.network.MinibloxHookTest
+[INFO] Running me.youngjibbit.core.network.NetworkShutdownTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.013 s -- in me.youngjibbit.core.network.NetworkShutdownTest
+[INFO] Running me.youngjibbit.core.network.PacketDelayTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.080 s -- in me.youngjibbit.core.network.PacketDelayTest
+[INFO] Running me.youngjibbit.core.network.PacketFlowTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s -- in me.youngjibbit.core.network.PacketFlowTest
+[INFO] Running me.youngjibbit.core.network.PacketLifecycleTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.034 s -- in me.youngjibbit.core.network.PacketLifecycleTest
+[INFO] Running me.youngjibbit.core.network.Pass6NetworkIntegrationTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.008 s -- in me.youngjibbit.core.network.Pass6NetworkIntegrationTest
+[INFO] Running me.youngjibbit.core.network.PlayerStepHookTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.network.PlayerStepHookTest
+[INFO] Running me.youngjibbit.core.network.ReceivedPositionHookTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.network.ReceivedPositionHookTest
+[INFO] Running me.youngjibbit.core.network.ReconnectionExploitHookTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.network.ReconnectionExploitHookTest
+[INFO] Running me.youngjibbit.core.network.ScaffoldPipelineIntegrationTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in me.youngjibbit.core.network.ScaffoldPipelineIntegrationTest
+[INFO] Running me.youngjibbit.core.network.SessionConsumerIntegrationTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.022 s -- in me.youngjibbit.core.network.SessionConsumerIntegrationTest
+[INFO] Running me.youngjibbit.core.network.SilentContextHookTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.019 s -- in me.youngjibbit.core.network.SilentContextHookTest
+[INFO] Running me.youngjibbit.core.network.TickbaseBehaviorHookTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.028 s -- in me.youngjibbit.core.network.TickbaseBehaviorHookTest
+[INFO] Running me.youngjibbit.core.network.TickbaseBudgetTest
+[INFO] Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.007 s -- in me.youngjibbit.core.network.TickbaseBudgetTest
+[INFO] Running me.youngjibbit.core.StartupServicesTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.036 s -- in me.youngjibbit.core.StartupServicesTest
+[INFO] Running me.youngjibbit.core.world.LegacyScaffoldTest
+Picked up JAVA_TOOL_OPTIONS: -Xms32M -Xmx512M
+JUnit version 4.13.2
+..
+Time: 3,167
+
+OK (2 tests)
+
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 3.931 s -- in me.youngjibbit.core.world.LegacyScaffoldTest
+[INFO] Running me.youngjibbit.core.world.ScaffoldClientFlowTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.536 s -- in me.youngjibbit.core.world.ScaffoldClientFlowTest
+[INFO] Running me.youngjibbit.core.world.ScaffoldNetworkIntegrationTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.core.world.ScaffoldNetworkIntegrationTest
+[INFO] Running me.youngjibbit.core.world.ScaffoldPlacementTest
+[INFO] Tests run: 31, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.017 s -- in me.youngjibbit.core.world.ScaffoldPlacementTest
+[INFO] Running me.youngjibbit.module.impl.player.AutoHealInventoryTransferTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.107 s -- in me.youngjibbit.module.impl.player.AutoHealInventoryTransferTest
+[INFO] Running me.youngjibbit.module.impl.player.AutoHealSafetyTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.module.impl.player.AutoHealSafetyTest
+[INFO] Running me.youngjibbit.module.impl.player.GuardedInventoryClickTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.module.impl.player.GuardedInventoryClickTest
+[INFO] Running me.youngjibbit.module.impl.player.InventoryManagerSafetyTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.module.impl.player.InventoryManagerSafetyTest
+[INFO] Running me.youngjibbit.module.impl.render.IosOpeningTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.module.impl.render.IosOpeningTest
+[INFO] Running me.youngjibbit.module.impl.render.IosSettingsVisibilityTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.module.impl.render.IosSettingsVisibilityTest
+[INFO] Running me.youngjibbit.module.impl.render.SessionInfoLifecycleTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.module.impl.render.SessionInfoLifecycleTest
+[INFO] Running me.youngjibbit.module.impl.render.SessionStatisticsEventIntegrationTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.module.impl.render.SessionStatisticsEventIntegrationTest
+[INFO] Running me.youngjibbit.module.ModuleManagerTest
+[INFO] Tests run: 9, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.module.ModuleManagerTest
+[INFO] Running me.youngjibbit.notifications.NotificationTimelineTest
+[INFO] Tests run: 6, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.230 s -- in me.youngjibbit.notifications.NotificationTimelineTest
+[INFO] Running me.youngjibbit.rendercheck.RenderCheckDiagnosticsTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.rendercheck.RenderCheckDiagnosticsTest
+[INFO] Running me.youngjibbit.theme.ThemeModelTest
+[INFO] Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.772 s -- in me.youngjibbit.theme.ThemeModelTest
+[INFO] Running me.youngjibbit.theme.ThemeUiConsumerTest
+[INFO] Tests run: 3, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.665 s -- in me.youngjibbit.theme.ThemeUiConsumerTest
+[INFO] Running me.youngjibbit.utils.AutoClickerCpsContractTest
+[INFO] Tests run: 1, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in me.youngjibbit.utils.AutoClickerCpsContractTest
+[INFO] Running me.youngjibbit.utils.font.FontManagerTest
+Font unavailable: Poppins-Regular.ttf; using default font
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.396 s -- in me.youngjibbit.utils.font.FontManagerTest
+[INFO] Running me.youngjibbit.utils.MovementHelperContractTest
+[INFO] Tests run: 5, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.001 s -- in me.youngjibbit.utils.MovementHelperContractTest
+[INFO] Running me.youngjibbit.utils.render.HudDragTest
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in me.youngjibbit.utils.render.HudDragTest
+[INFO] Running me.youngjibbit.utils.render.UiEffectsTest
+[INFO] Tests run: 7, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.004 s -- in me.youngjibbit.utils.render.UiEffectsTest
+[INFO] Running me.youngjibbit.utils.render.WorldOverlayContractTest
+[WARNING] Tests run: 4, Failures: 0, Errors: 0, Skipped: 1, Time elapsed: 0.009 s -- in me.youngjibbit.utils.render.WorldOverlayContractTest
+[INFO] Running net.minecraft.client.gui.GuiChatInputTest
+[WARNING] Tests run: 1, Failures: 0, Errors: 0, Skipped: 1, Time elapsed: 0 s -- in net.minecraft.client.gui.GuiChatInputTest
+[INFO] Running net.minecraft.client.gui.GuiOverlayDebugGlStringsTest
+[WARNING] Tests run: 5, Failures: 0, Errors: 0, Skipped: 1, Time elapsed: 0 s -- in net.minecraft.client.gui.GuiOverlayDebugGlStringsTest
+[INFO] Running net.minecraft.client.gui.MinecraftWorldLifecycleTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0 s -- in net.minecraft.client.gui.MinecraftWorldLifecycleTest
+[INFO] Running net.minecraft.client.renderer.ThreadDownloadImageDataTest
+ERROR: Couldn't load skin F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\temp\pulsar-skin-cache-8577472618953486255.png
+java.io.IOException: Cached image could not be decoded: F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\temp\pulsar-skin-cache-8577472618953486255.png
+	at net.minecraft.client.renderer.ThreadDownloadImageData.loadTexture(ThreadDownloadImageData.java:108) [classes/:?]
+	at net.minecraft.client.renderer.ThreadDownloadImageDataTest.checkCache(ThreadDownloadImageDataTest.java:55) [test-classes/:?]
+	at net.minecraft.client.renderer.ThreadDownloadImageDataTest.undecodableCachedImageRetriesAndReplacesCacheFromLocalServer(ThreadDownloadImageDataTest.java:25) [test-classes/:?]
+	at sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method) ~[?:1.8.0_504]
+	at sun.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:62) ~[?:1.8.0_504]
+	at sun.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43) ~[?:1.8.0_504]
+	at java.lang.reflect.Method.invoke(Method.java:498) ~[?:1.8.0_504]
+	at org.junit.runners.model.FrameworkMethod$1.runReflectiveCall(FrameworkMethod.java:59) [junit-4.13.2.jar:4.13.2]
+	at org.junit.internal.runners.model.ReflectiveCallable.run(ReflectiveCallable.java:12) [junit-4.13.2.jar:4.13.2]
+	at org.junit.runners.model.FrameworkMethod.invokeExplosively(FrameworkMethod.java:56) [junit-4.13.2.jar:4.13.2]
+	at org.junit.internal.runners.statements.InvokeMethod.evaluate(InvokeMethod.java:17) [junit-4.13.2.jar:4.13.2]
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306) [junit-4.13.2.jar:4.13.2]
+	at org.junit.runners.BlockJUnit4ClassRunner$1.evaluate(BlockJUnit4ClassRunner.java:100) [junit-4.13.2.jar:4.13.2]
+	at org.junit.runners.ParentRunner.runLeaf(ParentRunner.java:366) [junit-4.13.2.jar:4.13.2]
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:103) [junit-4.13.2.jar:4.13.2]
+	at org.junit.runners.BlockJUnit4ClassRunner.runChild(BlockJUnit4ClassRunner.java:63) [junit-4.13.2.jar:4.13.2]
+	at org.junit.runners.ParentRunner$4.run(ParentRunner.java:331) [junit-4.13.2.jar:4.13.2]
+	at org.junit.runners.ParentRunner$1.schedule(ParentRunner.java:79) [junit-4.13.2.jar:4.13.2]
+	at org.junit.runners.ParentRunner.runChildren(ParentRunner.java:329) [junit-4.13.2.jar:4.13.2]
+	at org.junit.runners.ParentRunner.access$100(ParentRunner.java:66) [junit-4.13.2.jar:4.13.2]
+	at org.junit.runners.ParentRunner$2.evaluate(ParentRunner.java:293) [junit-4.13.2.jar:4.13.2]
+	at org.junit.runners.ParentRunner$3.evaluate(ParentRunner.java:306) [junit-4.13.2.jar:4.13.2]
+	at org.junit.runners.ParentRunner.run(ParentRunner.java:413) [junit-4.13.2.jar:4.13.2]
+	at org.apache.maven.surefire.junit4.JUnit4Provider.execute(JUnit4Provider.java:316) [surefire-junit4-3.5.5.jar:3.5.5]
+	at org.apache.maven.surefire.junit4.JUnit4Provider.executeWithRerun(JUnit4Provider.java:240) [surefire-junit4-3.5.5.jar:3.5.5]
+	at org.apache.maven.surefire.junit4.JUnit4Provider.executeTestSet(JUnit4Provider.java:214) [surefire-junit4-3.5.5.jar:3.5.5]
+	at org.apache.maven.surefire.junit4.JUnit4Provider.invoke(JUnit4Provider.java:155) [surefire-junit4-3.5.5.jar:3.5.5]
+	at org.apache.maven.surefire.booter.ForkedBooter.runSuitesInProcess(ForkedBooter.java:385) [surefire-booter-3.5.5.jar:3.5.5]
+	at org.apache.maven.surefire.booter.ForkedBooter.execute(ForkedBooter.java:162) [surefire-booter-3.5.5.jar:3.5.5]
+	at org.apache.maven.surefire.booter.ForkedBooter.run(ForkedBooter.java:507) [surefire-booter-3.5.5.jar:3.5.5]
+	at org.apache.maven.surefire.booter.ForkedBooter.main(ForkedBooter.java:495) [surefire-booter-3.5.5.jar:3.5.5]
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.091 s -- in net.minecraft.client.renderer.ThreadDownloadImageDataTest
+[INFO] 
+[INFO] Results:
+[INFO] 
+[INFO] Tests run: 400, Failures: 0, Errors: 0, Skipped: 3
+[INFO] 
+[INFO] 
+[INFO] --- jar:3.3.0:jar (default-jar) @ Neutron ---
+[WARNING]  Parameter 'finalName' is read-only, must not be used in configuration
+[INFO] Building jar: F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\neutron-client.jar
+[INFO] 
+[INFO] --- dependency:3.6.1:copy-dependencies (launcher-runtime) @ Neutron ---
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\fr\litarvan\openauth\1.1.6\openauth-1.1.6.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\fr\litarvan\openauth\1.1.6\openauth-1.1.6.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\javax\vecmath\vecmath\1.5.2\vecmath-1.5.2.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\javax\vecmath\vecmath\1.5.2\vecmath-1.5.2.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\com\squareup\okhttp3\okhttp\4.10.0\okhttp-4.10.0.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\com\squareup\okhttp3\okhttp\4.10.0\okhttp-4.10.0.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\com\squareup\okio\okio-jvm\3.0.0\okio-jvm-3.0.0.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\com\squareup\okio\okio-jvm\3.0.0\okio-jvm-3.0.0.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\jetbrains\kotlin\kotlin-stdlib-common\1.5.31\kotlin-stdlib-common-1.5.31.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\jetbrains\kotlin\kotlin-stdlib-common\1.5.31\kotlin-stdlib-common-1.5.31.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\jetbrains\kotlin\kotlin-stdlib\1.6.20\kotlin-stdlib-1.6.20.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\jetbrains\kotlin\kotlin-stdlib\1.6.20\kotlin-stdlib-1.6.20.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\com\github\zeromemes\alpine\3.1.0\alpine-3.1.0.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\com\github\zeromemes\alpine\3.1.0\alpine-3.1.0.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\it\unimi\dsi\fastutil\8.5.12\fastutil-8.5.12.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\it\unimi\dsi\fastutil\8.5.12\fastutil-8.5.12.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\net\jodah\typetools\0.6.3\typetools-0.6.3.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\net\jodah\typetools\0.6.3\typetools-0.6.3.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\com\google\code\findbugs\jsr305\3.0.2\jsr305-3.0.2.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\com\google\code\findbugs\jsr305\3.0.2\jsr305-3.0.2.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\jetbrains\annotations\24.1.0\annotations-24.1.0.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\jetbrains\annotations\24.1.0\annotations-24.1.0.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\com\mashape\unirest\unirest-java\1.4.9\unirest-java-1.4.9.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\com\mashape\unirest\unirest-java\1.4.9\unirest-java-1.4.9.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\apache\httpcomponents\httpasyncclient\4.1.1\httpasyncclient-4.1.1.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\apache\httpcomponents\httpasyncclient\4.1.1\httpasyncclient-4.1.1.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\apache\httpcomponents\httpcore-nio\4.4.4\httpcore-nio-4.4.4.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\apache\httpcomponents\httpcore-nio\4.4.4\httpcore-nio-4.4.4.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\apache\httpcomponents\httpmime\4.5.2\httpmime-4.5.2.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\apache\httpcomponents\httpmime\4.5.2\httpmime-4.5.2.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\reflections\reflections\0.10.2\reflections-0.10.2.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\reflections\reflections\0.10.2\reflections-0.10.2.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\javassist\javassist\3.28.0-GA\javassist-3.28.0-GA.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\javassist\javassist\3.28.0-GA\javassist-3.28.0-GA.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\slf4j\slf4j-api\1.7.32\slf4j-api-1.7.32.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\slf4j\slf4j-api\1.7.32\slf4j-api-1.7.32.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\projectlombok\lombok\1.18.26\lombok-1.18.26.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\projectlombok\lombok\1.18.26\lombok-1.18.26.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\io\netty\netty-all\4.0.25.Final\netty-all-4.0.25.Final.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\io\netty\netty-all\4.0.25.Final\netty-all-4.0.25.Final.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\net\sf\jopt-simple\jopt-simple\4.6\jopt-simple-4.6.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\net\sf\jopt-simple\jopt-simple\4.6\jopt-simple-4.6.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\net\java\jinput\jinput\2.0.5\jinput-2.0.5.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\net\java\jinput\jinput\2.0.5\jinput-2.0.5.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\net\java\jinput\jinput-platform\2.0.5\jinput-platform-2.0.5-natives-linux.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\net\java\jinput\jinput-platform\2.0.5\jinput-platform-2.0.5-natives-linux.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\net\java\jinput\jinput-platform\2.0.5\jinput-platform-2.0.5-natives-windows.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\net\java\jinput\jinput-platform\2.0.5\jinput-platform-2.0.5-natives-windows.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\net\java\jinput\jinput-platform\2.0.5\jinput-platform-2.0.5-natives-osx.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\net\java\jinput\jinput-platform\2.0.5\jinput-platform-2.0.5-natives-osx.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\com\ibm\icu\icu4j-core-mojang\51.2\icu4j-core-mojang-51.2.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\com\ibm\icu\icu4j-core-mojang\51.2\icu4j-core-mojang-51.2.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\apache\httpcomponents\httpclient\4.5.13\httpclient-4.5.13.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\apache\httpcomponents\httpclient\4.5.13\httpclient-4.5.13.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\apache\httpcomponents\httpcore\4.3.2\httpcore-4.3.2.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\apache\httpcomponents\httpcore\4.3.2\httpcore-4.3.2.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\com\github\oshi\oshi-core\6.4.5\oshi-core-6.4.5.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\com\github\oshi\oshi-core\6.4.5\oshi-core-6.4.5.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\net\java\dev\jna\jna\5.13.0\jna-5.13.0.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\net\java\dev\jna\jna\5.13.0\jna-5.13.0.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\net\java\dev\jna\jna-platform\5.13.0\jna-platform-5.13.0.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\net\java\dev\jna\jna-platform\5.13.0\jna-platform-5.13.0.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\net\java\jutils\jutils\1.0.0\jutils-1.0.0.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\net\java\jutils\jutils\1.0.0\jutils-1.0.0.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\commons-logging\commons-logging\1.1.3\commons-logging-1.1.3.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\commons-logging\commons-logging\1.1.3\commons-logging-1.1.3.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\apache\commons\commons-compress\1.21\commons-compress-1.21.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\apache\commons\commons-compress\1.21\commons-compress-1.21.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\apache\logging\log4j\log4j-api\2.17.1\log4j-api-2.17.1.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\apache\logging\log4j\log4j-api\2.17.1\log4j-api-2.17.1.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\apache\logging\log4j\log4j-core\2.17.1\log4j-core-2.17.1.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\apache\logging\log4j\log4j-core\2.17.1\log4j-core-2.17.1.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\apache\logging\log4j\log4j-slf4j-impl\2.17.1\log4j-slf4j-impl-2.17.1.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\apache\logging\log4j\log4j-slf4j-impl\2.17.1\log4j-slf4j-impl-2.17.1.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\tv\twitch\twitch\6.5\twitch-6.5.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\tv\twitch\twitch\6.5\twitch-6.5.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\tv\twitch\twitch-platform\6.5\twitch-platform-6.5-natives-windows-32.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\tv\twitch\twitch-platform\6.5\twitch-platform-6.5-natives-windows-32.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\tv\twitch\twitch-platform\6.5\twitch-platform-6.5-natives-windows-64.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\tv\twitch\twitch-platform\6.5\twitch-platform-6.5-natives-windows-64.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\tv\twitch\twitch-platform\6.5\twitch-platform-6.5-natives-osx.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\tv\twitch\twitch-platform\6.5\twitch-platform-6.5-natives-osx.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\tv\twitch\twitch-external-platform\4.5\twitch-external-platform-4.5-natives-windows-32.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\tv\twitch\twitch-external-platform\4.5\twitch-external-platform-4.5-natives-windows-32.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\tv\twitch\twitch-external-platform\4.5\twitch-external-platform-4.5-natives-windows-64.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\tv\twitch\twitch-external-platform\4.5\twitch-external-platform-4.5-natives-windows-64.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\com\google\guava\guava\17.0\guava-17.0.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\com\google\guava\guava\17.0\guava-17.0.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\com\mojang\realms\1.8.19\realms-1.8.19.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\com\mojang\realms\1.8.19\realms-1.8.19.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\apache\commons\commons-lang3\3.3.2\commons-lang3-3.3.2.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\apache\commons\commons-lang3\3.3.2\commons-lang3-3.3.2.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\commons-io\commons-io\2.4\commons-io-2.4.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\commons-io\commons-io\2.4\commons-io-2.4.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\commons-codec\commons-codec\1.9\commons-codec-1.9.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\commons-codec\commons-codec\1.9\commons-codec-1.9.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\com\google\code\gson\gson\2.10.1\gson-2.10.1.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\com\google\code\gson\gson\2.10.1\gson-2.10.1.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\com\paulscode\libraryjavasound\20101123\libraryjavasound-20101123.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\com\paulscode\libraryjavasound\20101123\libraryjavasound-20101123.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\com\paulscode\codecwav\20101023\codecwav-20101023.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\com\paulscode\codecwav\20101023\codecwav-20101023.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\com\paulscode\soundsystem\20120107\soundsystem-20120107.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\com\paulscode\soundsystem\20120107\soundsystem-20120107.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\com\paulscode\codecjorbis\20101023\codecjorbis-20101023.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\com\paulscode\codecjorbis\20101023\codecjorbis-20101023.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\lwjgl\lwjgl\lwjgl\2.9.4-nightly-20150209\lwjgl-2.9.4-nightly-20150209.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\lwjgl\lwjgl\lwjgl\2.9.4-nightly-20150209\lwjgl-2.9.4-nightly-20150209.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\lwjgl\lwjgl\lwjgl_util\2.9.4-nightly-20150209\lwjgl_util-2.9.4-nightly-20150209.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\lwjgl\lwjgl\lwjgl_util\2.9.4-nightly-20150209\lwjgl_util-2.9.4-nightly-20150209.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\com\paulscode\librarylwjglopenal\20100824\librarylwjglopenal-20100824.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\com\paulscode\librarylwjglopenal\20100824\librarylwjglopenal-20100824.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\java3d\vecmath\1.3.1\vecmath-1.3.1.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\java3d\vecmath\1.3.1\vecmath-1.3.1.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\jetbrains\kotlin\kotlin-stdlib-jdk8\1.9.0-RC\kotlin-stdlib-jdk8-1.9.0-RC.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\jetbrains\kotlin\kotlin-stdlib-jdk8\1.9.0-RC\kotlin-stdlib-jdk8-1.9.0-RC.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\jetbrains\kotlin\kotlin-stdlib-jdk7\1.9.0-RC\kotlin-stdlib-jdk7-1.9.0-RC.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\jetbrains\kotlin\kotlin-stdlib-jdk7\1.9.0-RC\kotlin-stdlib-jdk7-1.9.0-RC.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\l33tlabs\twl\pngdecoder\1.0\pngdecoder-1.0.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\l33tlabs\twl\pngdecoder\1.0\pngdecoder-1.0.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\org\json\json\20230618\json-20230618.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\org\json\json\20230618\json-20230618.jar
+[INFO] Installing F:\Neutron Launcher Playtest 20261028\Managed Integration\maven-repository\com\mojang\authlib\1.5.21\authlib-1.5.21.jar to F:\Neutron Launcher Playtest 20261028\Managed Integration\work\d5a277de779f6cf69768a2900e299c9af5810e1a-1dd01620-fffb-423c-9e84-38dbccace84d\source\target\launcher-libraries\com\mojang\authlib\1.5.21\authlib-1.5.21.jar
+[INFO] ------------------------------------------------------------------------
+[INFO] BUILD SUCCESS
+[INFO] ------------------------------------------------------------------------
+[INFO] Total time:  03:25 min
+[INFO] Finished at: 2026-10-28T21:09:30+01:00
+[INFO] ------------------------------------------------------------------------

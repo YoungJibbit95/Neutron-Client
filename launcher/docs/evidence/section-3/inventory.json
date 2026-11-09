@@ -1,0 +1,272 @@
+{
+  "capturedAtUtc": "2026-10-28T17:09:02.017619+00:00",
+  "selfHashExcluded": true,
+  "fileCount": 44,
+  "scope": "Section-3 source and documentation; generated artifacts are listed separately in verification.json; node_modules and caches excluded",
+  "files": [
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\package.json",
+      "relativePath": "launcher/package.json",
+      "bytes": 842,
+      "sha256": "5bd76d26eab0aa34ece5c3b8cfafa794c916b46c8e4cc2aea605bbf55545427d"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\package-lock.json",
+      "relativePath": "launcher/package-lock.json",
+      "bytes": 58206,
+      "sha256": "d330f29431490a8b83dd37b66bf7f4fc573bda9fe881739a9c1401018233150a"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\.npmrc",
+      "relativePath": "launcher/.npmrc",
+      "bytes": 65,
+      "sha256": "9f4934655ab42ce99d6a193285ea5f94218134188af6d9de6d42b52acc4dc95b"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\.gitignore",
+      "relativePath": "launcher/.gitignore",
+      "bytes": 65,
+      "sha256": "c90061c57509fb3881c9a50e2c31e4265431ced79275e53453ad9dcc8149feaf"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\index.html",
+      "relativePath": "launcher/index.html",
+      "bytes": 596,
+      "sha256": "6114e8f4892642ef62a0363e18d927ddbeabf291eb34a04f8262c25c0dc3bffe"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\tsconfig.json",
+      "relativePath": "launcher/tsconfig.json",
+      "bytes": 383,
+      "sha256": "6bf421769d5123ad573e3aea187d8735dc440ac3d1a550633e5d7d14a316bfd1"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\tsconfig.electron.json",
+      "relativePath": "launcher/tsconfig.electron.json",
+      "bytes": 278,
+      "sha256": "6aae026507f0cec737f19e7daa505dfba72359ca5b8ff49c03f9f9794ce5794d"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\vite.config.ts",
+      "relativePath": "launcher/vite.config.ts",
+      "bytes": 593,
+      "sha256": "e4947cb54cdf4ad5518821bc8647ed8354ba1c8a9d0581f087e7cab2d04c3ceb"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\README.md",
+      "relativePath": "launcher/README.md",
+      "bytes": 3948,
+      "sha256": "25bca54939da38126458ad16e86d36bdc922e79052b46865a6a4129504bfac80"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\PRODUCT.md",
+      "relativePath": "launcher/PRODUCT.md",
+      "bytes": 8082,
+      "sha256": "c649497238f3c9a88ceb35f5c9db430e2399973b8c99819018b492f40cbf559f"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\DESIGN.md",
+      "relativePath": "launcher/DESIGN.md",
+      "bytes": 3923,
+      "sha256": "6c4103b4dbb4c6eb081410df9563da679a58f5ee34d00a71c68dd89d2406b50e"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\PLAN.md",
+      "relativePath": "launcher/docs/PLAN.md",
+      "bytes": 7407,
+      "sha256": "bc6939b0e614ce48f8d3f1ba40bc3106486c5696554357c1a6f349410adcfa4d"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\GATES.md",
+      "relativePath": "launcher/docs/GATES.md",
+      "bytes": 7143,
+      "sha256": "d26c347f26870ea55c2b459ae7d9f3897465d7eb10eea8c955f9e4d0522aed5e"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\PLAYTEST.md",
+      "relativePath": "launcher/docs/PLAYTEST.md",
+      "bytes": 4948,
+      "sha256": "69fe9eff9f6eee60ef164554f97305fa2ec49f541d0f007f22c0980f7695dff5"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\UI-PROTOTYPE.md",
+      "relativePath": "launcher/docs/UI-PROTOTYPE.md",
+      "bytes": 9187,
+      "sha256": "3cf70eb9b42d9e85779f93f75331d2bfa1d658e1e914270c95bb4d93f973ad6d"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\surfaces\\desktop.md",
+      "relativePath": "launcher/docs/surfaces/desktop.md",
+      "bytes": 1498,
+      "sha256": "0d2dc10c18461144345b3f054fa65b25d85df2979f9526ce6d06b19362d010f4"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\REVIEW-3.md",
+      "relativePath": "launcher/docs/REVIEW-3.md",
+      "bytes": 13167,
+      "sha256": "6cc5ec820b3af835e4fc29dd0013cd8873cc5aaebe16ccd55cb79f3828dc81f0"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\src\\App.tsx",
+      "relativePath": "launcher/src/App.tsx",
+      "bytes": 36522,
+      "sha256": "4bd508e9b26ea8f211b837c53ec42c68ff3e0440207262a7e2984a6bdeb3df4d"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\src\\copy.ts",
+      "relativePath": "launcher/src/copy.ts",
+      "bytes": 14167,
+      "sha256": "6c5a1307c0d29b2e6be27f38d41d5edba8a79f67f883cb72fc60b1feb079ff1b"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\src\\main.tsx",
+      "relativePath": "launcher/src/main.tsx",
+      "bytes": 229,
+      "sha256": "2896a69896d7acb1d14f557d067997f399220d8fa80b7fc3804ceed31f485912"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\src\\model.ts",
+      "relativePath": "launcher/src/model.ts",
+      "bytes": 11331,
+      "sha256": "b88f34e1704bdd083d5a4b85decda795873a8dd73e5992c48c2bfc46411dd04a"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\src\\styles.css",
+      "relativePath": "launcher/src/styles.css",
+      "bytes": 24968,
+      "sha256": "4fc1c3c15002eda1bf4653639b8a3a79fb3542a5ecb213c9f956ddd246e66e2c"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\src\\tokens.ts",
+      "relativePath": "launcher/src/tokens.ts",
+      "bytes": 1889,
+      "sha256": "6a7648429ff5ecde0ded61d6645fb54a9abae635e0dab6180d7fa9b141bfbb07"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\electron\\main.cts",
+      "relativePath": "launcher/electron/main.cts",
+      "bytes": 1791,
+      "sha256": "f80aef13818b1e74344637fcd096ca8537786b5f4fe80ff8c8052b9cb52ff9f0"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\electron\\preload.cts",
+      "relativePath": "launcher/electron/preload.cts",
+      "bytes": 187,
+      "sha256": "4ef99bf209fa9c81bed715195636f59fcebfb476790af07046bd2699d6163bfb"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\electron\\window-contract.cts",
+      "relativePath": "launcher/electron/window-contract.cts",
+      "bytes": 610,
+      "sha256": "fe89b2a559b7ee194370544527372335cec57b1d195e78b60b9d77dc27d7d0dd"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\scripts\\build.mjs",
+      "relativePath": "launcher/scripts/build.mjs",
+      "bytes": 940,
+      "sha256": "886ce6b18c4d269177ce17b296caab780c910860fa5ea86ea61d19dcaf18b8bf"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\scripts\\check.mjs",
+      "relativePath": "launcher/scripts/check.mjs",
+      "bytes": 473,
+      "sha256": "969b7e23bb30f0ac1b02a5d71411b676e8fd7557c89deece4f05a2aa24ddee1e"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\tests\\components.test.tsx",
+      "relativePath": "launcher/tests/components.test.tsx",
+      "bytes": 7835,
+      "sha256": "443561b4a4025f0ca4fe70a666776b5e4374fdff7533337fa75da43c0fb1893a"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\tests\\model.test.ts",
+      "relativePath": "launcher/tests/model.test.ts",
+      "bytes": 7667,
+      "sha256": "01aa405ae9fefdd5862ecc8b1ddc07117f5ce6c732f1014dd3c3b2d164ce9a3b"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\public\\licenses\\Geist-Mono-OFL.txt",
+      "relativePath": "launcher/public/licenses/Geist-Mono-OFL.txt",
+      "bytes": 4498,
+      "sha256": "cc815ed4fc045f0e991abb10395b7932bd028c6a067deb13316d6002105074e6"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\public\\licenses\\Geist-OFL.txt",
+      "relativePath": "launcher/public/licenses/Geist-OFL.txt",
+      "bytes": 4486,
+      "sha256": "71609cbb5c78b5870d712eab73a31d76622635c6ed034ab5cee3b9ecbda8685f"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\public\\licenses\\Lucide-ISC.txt",
+      "relativePath": "launcher/public/licenses/Lucide-ISC.txt",
+      "bytes": 3208,
+      "sha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\public\\licenses\\React-MIT.txt",
+      "relativePath": "launcher/public/licenses/React-MIT.txt",
+      "bytes": 1088,
+      "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\public\\licenses\\ReactDOM-MIT.txt",
+      "relativePath": "launcher/public/licenses/ReactDOM-MIT.txt",
+      "bytes": 1088,
+      "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-3\\build.txt",
+      "relativePath": "launcher/docs/evidence/section-3/build.txt",
+      "bytes": 686,
+      "sha256": "78c0111cbd7bb5c1c8e5c598cad19a252668eae4bde4181bc0771dd907e43395"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-3\\dependency-metadata.json",
+      "relativePath": "launcher/docs/evidence/section-3/dependency-metadata.json",
+      "bytes": 4879,
+      "sha256": "b54ef51093428d16f32a7fef3514232eb54670deebac64690f72342cfa436d3f"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-3\\impeccable-context.txt",
+      "relativePath": "launcher/docs/evidence/section-3/impeccable-context.txt",
+      "bytes": 12265,
+      "sha256": "3a1d568034ce3ac9c6ff73b64b96f31e4c4be1acb01cdd37429b7bbcd24db67c"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-3\\impeccable-engine.json",
+      "relativePath": "launcher/docs/evidence/section-3/impeccable-engine.json",
+      "bytes": 437,
+      "sha256": "169609d18f79b7c73b33d9057185c7bee0b6689cc480f2facaeaee59b63bb9fc"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-3\\README.md",
+      "relativePath": "launcher/docs/evidence/section-3/README.md",
+      "bytes": 1709,
+      "sha256": "23c59eb25aff5457506d71a778e46d05dd33ad5e0ccc2a674ec05a1687732b6b"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-3\\resources.json",
+      "relativePath": "launcher/docs/evidence/section-3/resources.json",
+      "bytes": 1733,
+      "sha256": "8d1c8d26ba926e9f9f2ed0a85d37dd5a4c8f365e56c99a536d96909b1620dee2"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-3\\tests.json",
+      "relativePath": "launcher/docs/evidence/section-3/tests.json",
+      "bytes": 36283,
+      "sha256": "1436aa89aa3dfdaaff9e293c3e862719bc9c1f03237f6f05340209f3a05f6305"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-3\\tests.txt",
+      "relativePath": "launcher/docs/evidence/section-3/tests.txt",
+      "bytes": 79,
+      "sha256": "cfad2ec0ed0ce200669d01f193f8b815dded2e5391ba8548a4945e9045edd6fa"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-3\\verification.json",
+      "relativePath": "launcher/docs/evidence/section-3/verification.json",
+      "bytes": 6355,
+      "sha256": "91a1ef605448a9c9e9efc35b87f952b94daeac5247c26a6c27705bbc54357ea4"
+    }
+  ]
+}
