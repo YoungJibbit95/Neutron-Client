@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const revision = 'a'.repeat(40);
 const digest = value => createHash('sha256').update(value).digest('hex');
@@ -87,11 +87,17 @@ async function run(scenario) {
     await fixture(directory);
     const preload = path.join(directory, 'fake-github.mjs');
     await fs.writeFile(preload, `await (${fakeGithub.toString()})();\n`);
-    const result = spawnSync(process.execPath, ['--import', preload, fileURLToPath(new URL('./publish-release.mjs', import.meta.url)), directory], { encoding: 'utf8', timeout: 15000,
+    const result = spawnSync(process.execPath, ['--import', pathToFileURL(preload).href, fileURLToPath(new URL('./publish-release.mjs', import.meta.url)), directory], { encoding: 'utf8', timeout: 15000,
       env: { ...process.env, GH_TOKEN: '', GITHUB_ACTIONS: 'true', GITHUB_REPOSITORY: 'YoungJibbit95/Neutron-Client', GITHUB_REF: 'refs/heads/main',
         GITHUB_EVENT_NAME: 'push', GITHUB_SHA: revision, GITHUB_RUN_ID: '123', GITHUB_RUN_ATTEMPT: '2', GITHUB_STEP_SUMMARY: '', NEUTRON_TEST_ARTIFACTS: directory, NEUTRON_TEST_SCENARIO: scenario } });
     if (result.error) throw result.error;
-    const calls = (await fs.readFile(path.join(directory, 'calls.jsonl'), 'utf8')).trim().split('\n').map(line => JSON.parse(line));
+    let captured;
+    try { captured = await fs.readFile(path.join(directory, 'calls.jsonl'), 'utf8'); }
+    catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+      throw new Error(`Publisher test child stopped before its first GitHub call (exit ${result.status}).\n${result.stderr || result.stdout || 'No child output.'}`, { cause: error });
+    }
+    const calls = captured.trim().split('\n').map(line => JSON.parse(line));
     return { ...result, calls };
   } finally { await fs.rm(directory, { recursive: true, force: true }); }
 }
