@@ -138,4 +138,113 @@ public class IslandStateMachineTest {
         assertEquals(0, model.pendingEventCount());
     }
 
+    @Test public void clockReminderIsBelowTargetAndScaffoldButAboveIdle() {
+        IslandStateMachine model = new IslandStateMachine();
+        IslandStateMachine.Target live = target("Neutron victim");
+        IslandStateMachine.ClockReminder noon = new IslandStateMachine.ClockReminder("12:00", false);
+        assertEquals(IslandStateMachine.State.TARGET,
+                model.resolve(1, 0, live, null, noon, null, true, true, true, true).state);
+        IslandStateMachine.Scaffold scaf = new IslandStateMachine.Scaffold(true, 5, "Normal");
+        assertEquals(IslandStateMachine.State.SCAFFOLD,
+                model.resolve(1, 0, null, scaf, noon, null, true, true, true, true).state);
+        assertEquals(IslandStateMachine.State.CLOCK_REMINDER,
+                model.resolve(1, 0, null, null, noon, null, true, true, true, true).state);
+        assertEquals(IslandStateMachine.State.IDLE,
+                model.resolve(1, 0, null, null, noon, null, true, true, false, true).state);
+    }
+
+    @Test public void clockReminderDeduplicatesPerTenMinuteSlot() {
+        IslandStateMachine model = new IslandStateMachine();
+        IslandStateMachine.ClockReminder noon = new IslandStateMachine.ClockReminder("12:00", false);
+        long noonNanos = 12L * 60_000_000_000L;
+        assertTrue(model.offer(IslandStateMachine.State.CLOCK_REMINDER, "clock:12:00", "12:00", 1, noonNanos));
+        assertFalse(model.offer(IslandStateMachine.State.CLOCK_REMINDER, "clock:12:00", "12:00", 1, noonNanos + 5_000_000_000L));
+        IslandStateMachine.ClockReminder twelveTen = new IslandStateMachine.ClockReminder("12:10", false);
+        assertTrue(model.offer(IslandStateMachine.State.CLOCK_REMINDER, "clock:12:10", "12:10", 1, noonNanos + 10_000_000_000L));
+        assertEquals(IslandStateMachine.State.CLOCK_REMINDER,
+                model.resolve(1, noonNanos + 10_000_000_000L, null, null, twelveTen, null, true, true, true, true).state);
+    }
+
+    @Test public void inventoryActivityIsBelowClockButAboveIdle() {
+        IslandStateMachine model = new IslandStateMachine();
+        IslandStateMachine.InventoryActivity sort = new IslandStateMachine.InventoryActivity("Sorting", 10, 64, false);
+        IslandStateMachine.ClockReminder noon = new IslandStateMachine.ClockReminder("12:00", false);
+        assertEquals(IslandStateMachine.State.CLOCK_REMINDER,
+                model.resolve(1, 0, null, null, noon, sort, true, true, true, true).state);
+        assertEquals(IslandStateMachine.State.INVENTORY_ACTIVITY,
+                model.resolve(1, 0, null, null, null, sort, true, true, true, true).state);
+        assertEquals(IslandStateMachine.State.IDLE,
+                model.resolve(1, 0, null, null, null, sort, true, true, true, false).state);
+    }
+
+    @Test public void sceneEpochClearsClockAndInventoryState() {
+        IslandStateMachine model = new IslandStateMachine();
+        IslandStateMachine.ClockReminder noon = new IslandStateMachine.ClockReminder("12:00", false);
+        long noonNanos = 12L * 60_000_000_000L;
+        assertTrue(model.offer(IslandStateMachine.State.CLOCK_REMINDER, "clock:12:00", "12:00", 7, noonNanos));
+        assertEquals(IslandStateMachine.State.CLOCK_REMINDER,
+                model.resolve(7, noonNanos, null, null, noon, null, true, true, true, true).state);
+        assertEquals(IslandStateMachine.State.IDLE,
+                model.resolve(8, noonNanos, null, null, noon, null, true, true, true, true).state);
+        assertEquals(0, model.pendingEventCount());
+    }
+
+    @Test public void inventoryActivityExpiresAfterTtl() {
+        IslandStateMachine model = new IslandStateMachine();
+        IslandStateMachine.InventoryActivity sort = new IslandStateMachine.InventoryActivity("Sorting", 10, 64, false);
+        long now = 100_000_000_000L;
+        assertTrue(model.offer(IslandStateMachine.State.INVENTORY_ACTIVITY, "inv:sort", "Sorting", 1, now));
+        assertEquals(IslandStateMachine.State.INVENTORY_ACTIVITY,
+                model.resolve(1, now, null, null, null, sort, true, true, true, true).state);
+        assertEquals(IslandStateMachine.State.IDLE,
+                model.resolve(1, now + 5_000_000_001L, null, null, null, sort, true, true, true, true).state);
+        assertEquals(0, model.pendingEventCount());
+    }
+
+    @Test public void legacySixParameterResolveStillWorks() {
+        IslandStateMachine model = new IslandStateMachine();
+        IslandStateMachine.Target live = target("Neutron victim");
+        IslandStateMachine.Scaffold scaf = new IslandStateMachine.Scaffold(true, 3, "Arsenic");
+        assertEquals(IslandStateMachine.State.IDLE, model.resolve(1, 0, null, null, true, true).state);
+        assertEquals(IslandStateMachine.State.TARGET, model.resolve(1, 0, live, scaf, true, true).state);
+        assertEquals(IslandStateMachine.State.SCAFFOLD, model.resolve(1, 0, live, scaf, false, true).state);
+        assertEquals(IslandStateMachine.State.IDLE, model.resolve(1, 0, null, null, false, false).state);
+    }
+
+    @Test public void invalidClockAndInventoryAreNeverShown() {
+        IslandStateMachine model = new IslandStateMachine();
+        IslandStateMachine.ClockReminder emptyClock = new IslandStateMachine.ClockReminder("", false);
+        IslandStateMachine.InventoryActivity emptyInv = new IslandStateMachine.InventoryActivity("", 0, 0, false);
+        assertEquals(IslandStateMachine.State.IDLE,
+                model.resolve(1, 0, null, null, emptyClock, null, true, true, true, true).state);
+        assertEquals(IslandStateMachine.State.IDLE,
+                model.resolve(1, 0, null, null, null, emptyInv, true, true, true, true).state);
+    }
+
+    @Test public void lowerPriorityClockAndInventoryCannotReplacePossibleSetback() {
+        IslandStateMachine model=new IslandStateMachine();
+        assertTrue(model.offer(IslandStateMachine.State.POSSIBLE_SETBACK,"warning:1","",1,10));
+        assertFalse(model.offer(IslandStateMachine.State.CLOCK_REMINDER,"clock:1","12:10",1,11));
+        assertFalse(model.offer(IslandStateMachine.State.INVENTORY_ACTIVITY,"inv:1","Sorting",1,12));
+        assertEquals(IslandStateMachine.State.POSSIBLE_SETBACK,model.resolve(1,13,null,null,true,true).state);
+    }
+    @Test public void activeReminderHonorsVisibilityAndRetainsItsActualLabel() {
+        IslandStateMachine model=new IslandStateMachine();
+        model.offer(IslandStateMachine.State.CLOCK_REMINDER,"clock:1","12:10",1,10);
+        assertEquals(IslandStateMachine.State.IDLE,model.resolve(1,11,null,null,null,null,true,true,false,false).state);
+        IslandStateMachine.Selection shown=model.resolve(1,12,null,null,null,null,true,true,true,false);
+        assertEquals("12:10",shown.clock.time);
+        IslandPresentation presentation=IslandPresentation.from(shown,"Neutron","2.0","wrong",true,true,true);
+        assertEquals("12:10",presentation.title);
+    }
+    @Test public void invalidAndAcknowledgedSnapshotsDoNotCreateActivity() {
+        IslandStateMachine model=new IslandStateMachine();
+        IslandStateMachine.ClockReminder invalid=new IslandStateMachine.ClockReminder("29:99",false);
+        IslandStateMachine.ClockReminder done=new IslandStateMachine.ClockReminder("12:10",true);
+        IslandStateMachine.InventoryActivity over=new IslandStateMachine.InventoryActivity("Sorting",7,4,false);
+        assertFalse(invalid.valid());assertFalse(done.valid());assertFalse(over.valid());
+        assertFalse(model.offer(IslandStateMachine.State.CLOCK_REMINDER,"clock:x","29:99",1,0));
+        assertEquals(IslandStateMachine.State.IDLE,model.resolve(1,0,null,null,done,over,true,true,true,true).state);
+    }
+
 }

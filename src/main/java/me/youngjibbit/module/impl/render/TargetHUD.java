@@ -33,7 +33,7 @@ import static org.lwjgl.opengl.GL11.*;
 /** Freeze living-entity data and geometry before any deferred surface pass is submitted. */
 @ModuleInfo(name="TargetHUD", category=Category.Render)
 public class TargetHUD extends Module {
-    private final ComboValue mode=new ComboValue("Mode",this,new String[]{"Neutron Default","Neutron White","Neutron Outline","Rise","Tenacity","Basic","Test","Neutron 2.0"},1);
+    private final ComboValue mode=new ComboValue("Mode",this,new String[]{"Neutron Default","Neutron White","Neutron Outline","Rise","Tenacity","Basic","Test","Neutron 2.0","Modern","Creative"},1);
     public final SliderValue gradientSpeed=new SliderValue("Gradient Speed",this,5000.0,1000,10000,true);
     private final ArrayListSurface surface=new ArrayListSurface(this);
     // Append after the existing values and material controls to preserve saved settings.
@@ -131,7 +131,11 @@ public class TargetHUD extends Module {
     }
     /** Presentation-only theme overlay; all seven original modes/default remain saved. */
     static String effectiveDesign(String saved,boolean modernTheme){
-        return modernTheme&&"Neutron White".equals(saved)?"Neutron 2.0":saved;
+        if(modernTheme){
+            if("Neutron White".equals(saved))return "Neutron 2.0";
+            if("Modern".equals(saved)||"Creative".equals(saved))return saved; // 2.0 modes stay as-is
+        }
+        return saved;
     }
     static float modernWidth(int viewport,float content){
         return Math.min(Math.max(1,viewport-8),Math.max(240,Math.min(310,content)));
@@ -141,14 +145,14 @@ public class TargetHUD extends Module {
     }
     private static Theme targetTheme(String design){
         // Palette belongs to the selected ThemeCatalog, not to the layout.
-        return "Neutron 2.0".equals(design)?Theme.resolve(ThemeCatalog.global().current()):
+        return ("Neutron 2.0".equals(design)||"Modern".equals(design)||"Creative".equals(design))?Theme.resolve(ThemeCatalog.global().current()):
                 Theme.resolve(Theme.getDefaultTheme());
     }
 
     private Frame editorPreview(int sw,int sh){
         String design=effectiveDesign(mode.getValue(),
                 ThemeMode.APPROACH_TWO.equals(ThemeMode.selected()));
-        boolean modern="Neutron 2.0".equals(design);
+        boolean modern="Neutron 2.0".equals(design)||"Modern".equals(design)||"Creative".equals(design);
         boolean test="Test".equals(design),basic="Basic".equals(design),rise="Rise".equals(design);
         TTFFontRenderer nameFont=Pulsar.INSTANCE.fontManager.getFont((basic?"Product-Sans-Bold":"Poppins-Medium")+" 18");
         TTFFontRenderer infoFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 16");
@@ -194,7 +198,8 @@ public class TargetHUD extends Module {
         lastFrame=now;
         String design=effectiveDesign(mode.getValue(),
                 ThemeMode.APPROACH_TWO.equals(ThemeMode.selected()));
-        boolean modern="Neutron 2.0".equals(design);
+        boolean modern="Neutron 2.0".equals(design)||"Modern".equals(design)||"Creative".equals(design);
+        final boolean creative="Creative".equals(design);
         boolean test="Test".equals(design),basic="Basic".equals(design),rise="Rise".equals(design);
         TTFFontRenderer nameFont=Pulsar.INSTANCE.fontManager.getFont((basic?"Product-Sans-Bold":"Poppins-Medium")+" 18");
         TTFFontRenderer infoFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 16");
@@ -224,8 +229,10 @@ public class TargetHUD extends Module {
     private static String fit(String text,TTFFontRenderer font,float available){if(font.getWidth(text)<=available)return text;int end=text.length();while(end>0&&font.getWidth(text.substring(0,end)+"...")>available)end=text.offsetByCodePoints(end,-1);return end==0?"":text.substring(0,end)+"...";}
     void paint(Frame f){paint(f,1,1,0);}
     void paint(Frame f,float opacity,float scale,float slideY){
+        final boolean modern="Neutron 2.0".equals(f.design)||"Modern".equals(f.design)||"Creative".equals(f.design);
+        final boolean creative="Creative".equals(f.design);
         boolean basic="Basic".equals(f.design),outlined="Neutron Outline".equals(f.design),
-                tenacity="Tenacity".equals(f.design),modern="Neutron 2.0".equals(f.design);
+                tenacity="Tenacity".equals(f.design);
         final float x=f.x+(f.width-f.width*scale)/2;
         final float y=f.y+slideY+(f.height-f.height*scale)/2;
         final float w=f.width*scale,h=f.height*scale;
@@ -257,18 +264,29 @@ public class TargetHUD extends Module {
                 Math.round(c.getAlpha()*Math.max(0,Math.min(1,alpha))));
     }
     private void content(Frame f,float alpha){
-        boolean modern="Neutron 2.0".equals(f.design);
+        boolean modern="Neutron 2.0".equals(f.design)||"Modern".equals(f.design)||"Creative".equals(f.design);
+        final boolean creative="Creative".equals(f.design);
         boolean white="Neutron White".equals(f.design)&&(UiEffects.scene()==null||UiEffects.scene().policy.style<0);
         if(modern){
             // Neutral dark ink plate and a quiet selected-palette hairline.
-            UIUtils.drawRound(f.x+2,f.y+2,Math.max(1,f.width-4),Math.max(1,f.height-4),
-                    Math.max(1,f.radius-2),new Color(18,20,30,Math.round(205*alpha)));
+            UIUtils.drawRound(f.x+2,f.y+2,Math.max(1,f.width-4),
+                    Math.max(1,f.height-4),Math.max(1,f.radius-2),
+                    creative?new Color(24,26,38,Math.round(170*alpha)):new Color(18,20,30,Math.round(205*alpha)));
             UIUtils.drawRoundOutline(f.x+2,f.y+2,f.width-4,f.height-4,
                     Math.max(1,f.radius-2),.55f,new Color(0,0,0,1),
                     tint(f.theme.getPrimaryGradientColor(),.34f*alpha));
             UIUtils.drawGradientHorizontal(f.x+14,f.y+3,Math.min(72,Math.max(0,f.width-28)),
                     1.2f,.6f,tint(f.theme.getPrimaryGradientColor(),.62f*alpha),
                     tint(f.theme.getSecondaryGradientColor(),.48f*alpha));
+        }
+        if(creative){
+            // Creative: layered accent plates behind content
+            UIUtils.drawRound(f.x+2,f.y+2,Math.max(1,f.width-4),
+                    Math.max(1,f.height-4),Math.max(0,f.radius-2),
+                    new Color(24,26,38,Math.round(160*alpha)));
+            UIUtils.drawRound(f.x+4,f.y+4,Math.max(1,f.width-8),
+                    Math.max(1,f.height-8),Math.max(0,f.radius-4),
+                    new Color(28,30,44,Math.round(120*alpha)));
         }
         if(white)UIUtils.drawRound(f.x+1,f.y+1,f.width-2,f.height-2,
                 Math.max(.5f,f.radius-1),new Color(244,245,248,Math.round(235*alpha)));
@@ -295,7 +313,8 @@ public class TargetHUD extends Module {
     }
     /** Players use their skin; animals/mobs get an explicit species badge, never a fabricated skin. */
     private void portrait(Frame f,float alpha){
-        boolean modern="Neutron 2.0".equals(f.design);
+        boolean modern="Neutron 2.0".equals(f.design)||"Modern".equals(f.design)||"Creative".equals(f.design);
+        final boolean creative="Creative".equals(f.design);
         float size=modern?Math.min(40,Math.max(12,f.height-10)):30;
         float px=f.x+(modern?10:7),py=f.y+(f.height-size)/2;
         try(RenderState state=new RenderState()){
@@ -303,6 +322,7 @@ public class TargetHUD extends Module {
             glTranslatef(px+size/2,py+size/2,0);glScalef(pulse,pulse,1);
             glTranslatef(-px-size/2,-py-size/2,0);
             UIUtils.drawRound(px,py,size,size,modern?9:4,
+                    creative?new Color(40,34,49,Math.round(220*alpha)):
                     modern?new Color(40,34,49,Math.round(230*alpha)):
                     new Color((f.theme.getPrimaryGradientRGB()&0xffffff)
                             |(Math.round(85*alpha)<<24),true));

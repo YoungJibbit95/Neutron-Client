@@ -34,6 +34,8 @@ public final class IslandLayout {
             case SCAFFOLD: return new Frame(width, height, 260, 48, 20, .98f);
             case MODULE_TOAST: return new Frame(width, height, 240, 44, 20, 1);
             case POSSIBLE_SETBACK: return new Frame(width, height, 300, 55, 22, 1);
+            case CLOCK_REMINDER: return new Frame(width, height, 220, 40, 18, 1);
+            case INVENTORY_ACTIVITY: return new Frame(width, height, 250, 46, 19, 1);
             case IDLE:
             default: return new Frame(width, height, 245, 34, 17, .96f);
         }
@@ -52,6 +54,8 @@ public final class IslandLayout {
             case SCAFFOLD:return new Frame(width,height,248,44,17,1);
             case MODULE_TOAST:return new Frame(width,height,240,38,17,1);
             case POSSIBLE_SETBACK:return new Frame(width,height,270,50,17,1);
+            case CLOCK_REMINDER:return new Frame(width,height,210,36,17,1);
+            case INVENTORY_ACTIVITY:return new Frame(width,height,236,42,17,1);
             case IDLE:
             default:return new Frame(width,height,234,34,17,1);
         }
