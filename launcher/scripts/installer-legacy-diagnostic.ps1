@@ -31,9 +31,9 @@ function Test-ExecutableVersion([string]$File,[string]$Expected,[string]$Label) 
     $events.Add(@{label=$Label;date=[datetime]::UtcNow.ToString('o');action='observed-executable-version';path=$File;expectedVersion=$Expected;productVersion=$actualProductVersion;fileVersion=[string]$version.FileVersion})
     Save-Evidence
     # electron-builder writes ProductVersion as X.Y.Z.0 while FileVersion and
-    # release.json retain X.Y.Z. Accept only the exact version or that zero
-    # fourth component, never other revisions, suffixes or numeric coercions.
-    return ($actualProductVersion -ceq $Expected -or $actualProductVersion -ceq ($Expected+'.0'))
+    # release.json retain X.Y.Z. Require both exact fields, never other
+    # revisions, suffixes or numeric coercions.
+    return ([string]$version.FileVersion -ceq $Expected -and $actualProductVersion -ceq ($Expected+'.0'))
 }
 function Invoke-ObservedInstaller([string]$File,[string]$Arguments,[string]$Label,[bool]$Assisted) {
     $started=[datetime]::UtcNow

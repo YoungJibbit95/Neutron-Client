@@ -1,0 +1,128 @@
+{
+  "capturedAtUtc": "2026-10-28T18:15:05.632233+00:00",
+  "status": "TECHNICAL_CANDIDATE_REVIEW_PENDING_NOT_RELEASED",
+  "version": "0.1.0-playtest.1",
+  "clientCommit": "1bc6c364b58a4eb86faf4cc9aab6e15153837cd9",
+  "installer": {
+    "path": "F:\\Neutron Launcher Playtest 20261028\\Installer Candidate Review\\Neutron-Launcher-0.1.0-playtest.1-Windows-x64.exe",
+    "sha256": "7074c642753505255549f8573e5420b4ebf0bc0eccdd3c29c2f9a295c5d6d5a0",
+    "bytes": 112464901,
+    "signature": "NotSigned"
+  },
+  "app": {
+    "peMachine": "AMD64",
+    "fileVersion": "0.1.0-playtest.1",
+    "productVersion": "0.1.0.0",
+    "signature": "NotSigned"
+  },
+  "tests": {
+    "numTotalTests": 109,
+    "numPassedTests": 109,
+    "numFailedTests": 0,
+    "success": true
+  },
+  "mavenTests": [
+    {
+      "workspace": "F:\\Neutron Launcher Playtest 20261028\\Managed Integration\\work\\1bc6c364b58a4eb86faf4cc9aab6e15153837cd9-3012fc47-e5e1-4a11-aa4d-f872566d73ea",
+      "tests": 400,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 3
+    },
+    {
+      "workspace": "F:\\Neutron Launcher Playtest 20261028\\Managed Integration\\work\\1bc6c364b58a4eb86faf4cc9aab6e15153837cd9-90e7a4e5-5122-4fbe-b0f3-a46295532a92",
+      "tests": 400,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 3
+    }
+  ],
+  "realIntegrationChecks": [
+    {
+      "name": "managed-setup",
+      "success": true
+    },
+    {
+      "name": "github-commit-archive-maven-build",
+      "success": true,
+      "commit": "1bc6c364b58a4eb86faf4cc9aab6e15153837cd9",
+      "archiveSha256": "426aaaad120660f3b622543381c03e184ef40e36ebc64b9b251fe3b31cdc6524",
+      "adapterSha256": "ce8898df1b0e6ac4d54a2a8fb6b0b93c98d0918ae58b06e69d0663daa0c7234c",
+      "classpathFiles": 61,
+      "assetObjects": 722
+    },
+    {
+      "name": "bootstrap-validate-only-no-game-window",
+      "exitCode": 0,
+      "output": [
+        "NEUTRON_BOOTSTRAP_VALIDATED"
+      ]
+    },
+    {
+      "name": "verified-version-rollback-and-reselection",
+      "success": true,
+      "previous": "1bc6c364b58a4eb86faf4cc9aab6e15153837cd9-8598e0ef-ef72-4004-b29f-9c9ae6348b7e"
+    },
+    {
+      "name": "offline-registry-integrity-restoration-without-network",
+      "success": true
+    }
+  ],
+  "realMavenCancellation": {
+    "capturedAt": "2026-10-28T17:49:43.026Z",
+    "realMavenTaskCancelled": true,
+    "status": "cancelled",
+    "selectionUnchanged": true,
+    "buildCountUnchanged": true,
+    "selected": "1bc6c364b58a4eb86faf4cc9aab6e15153837cd9-874ad257-dad8-450e-8778-4c3cfa9aa3f7",
+    "clientStarted": false
+  },
+  "baselineComparison": {
+    "pom.xml": false,
+    "src/main/java/me/neutron/launcher/ClientBootstrap.java": true,
+    "src/test/java/me/neutron/launcher/ClientBootstrapTest.java": true
+  },
+  "sharedPomObservation": {
+    "matchesSection3Baseline": false,
+    "baselineSha256": "5822aeb6d382761ca8242d898461134da43f162c7b7d22ef528bd117fb865876",
+    "currentSha256": "54e838e035e5afed0b57f9eb2f1013e202bf090642d52e3fe9c44fea7088e96a",
+    "excludedFromPublication": true,
+    "launcherDidNotWriteSharedPom": true,
+    "observedChange": "Parallel local assembly mainClass changed from launchwrapper.Launch to net.minecraft.client.main.Main; launcher uses its isolated adapter instead."
+  },
+  "packagedOwnFileMatches": 25,
+  "packagedAdapterFileMatches": 3,
+  "forbiddenPackagedPaths": [],
+  "sourceInventorySha256": "aac58f2c52b6ba4949b82988d2d9ada3076903e008d40ca0ed3c55b685b92b25",
+  "publication": {
+    "base": "1bc6c364b58a4eb86faf4cc9aab6e15153837cd9",
+    "tree": "c12437b3f90bc42629798d1e52460bd479e33483",
+    "files": 52,
+    "commits": [],
+    "pushed": false,
+    "released": false
+  },
+  "installerConfiguration": {
+    "deleteAppDataOnUninstall": false,
+    "runAfterFinish": false,
+    "realInstallUninstallTested": false
+  },
+  "notExecuted": [
+    "Electron/launcher window",
+    "Minecraft client window (bootstrap --validateOnly only)",
+    "Installer UI or actual installation/uninstallation",
+    "Real UI/navigation/scroll/DPI/focus/clipboard dialogs",
+    "Real client crash/recovery/close or build-and-play",
+    "GitHub CI run",
+    "Commit/push/tag/pre-release"
+  ],
+  "nsisSilentWriteUninstallerBuildHelper": true,
+  "signingAndSmartScreenGateOpen": true,
+  "escapeRestrictionLifted": false,
+  "driveFreeMiB": {
+    "C:/": 3660,
+    "F:/": 89089
+  },
+  "cDriveCleanupPerformed": false,
+  "rejectedSection2CleanupRetried": false
+}

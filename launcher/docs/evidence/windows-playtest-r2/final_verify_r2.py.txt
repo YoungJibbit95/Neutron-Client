@@ -1,0 +1,17 @@
+import os, subprocess, json, pathlib, datetime
+base=pathlib.Path(r'F:\Neutron Launcher Playtest 20261028')
+project=pathlib.Path(r'F:\Puslar Backup - Copy\launcher')
+evidence=project/'docs/evidence/windows-playtest-r2';evidence.mkdir(parents=True,exist_ok=True)
+env=os.environ.copy()
+env.update(TEMP=str(base/'temp'),TMP=str(base/'temp'),ELECTRON_CACHE=str(base/'electron-cache'),ELECTRON_BUILDER_CACHE=str(base/'builder-cache'),NEUTRON_PACKAGE_OUTPUT=str(base/'Installer Candidate R2'),NEUTRON_VITE_CACHE=str(base/'vite-cache'),CSC_IDENTITY_AUTO_DISCOVERY='false')
+node=r'C:\Program Files\nodejs\node.exe'
+checks=[]
+for name,args in [('build',[node,'scripts/build.mjs']),('tests',[node,'node_modules/vitest/vitest.mjs','run','--reporter=json','--outputFile='+str(base/'tests-r2.json')]),('installer',[node,'scripts/package-windows.mjs'])]:
+    print('Running '+name,flush=True)
+    result=subprocess.run(args,cwd=project,env=env,capture_output=True,text=True,encoding='utf-8')
+    (evidence/(name+'.txt')).write_text(result.stdout+result.stderr,encoding='utf-8')
+    checks.append(dict(name=name,command=args,exitCode=result.returncode))
+    if result.returncode: print((result.stdout+result.stderr)[-4000:]);raise SystemExit(result.returncode)
+    print(name+' passed',flush=True)
+(evidence/'commands.json').write_text(json.dumps(dict(capturedAt=datetime.datetime.now(datetime.timezone.utc).isoformat(),checks=checks,environment={k:env[k] for k in ['TEMP','TMP','ELECTRON_CACHE','ELECTRON_BUILDER_CACHE','NEUTRON_PACKAGE_OUTPUT','NEUTRON_VITE_CACHE']}),indent=2),encoding='utf-8')
+print('Build, tests and unsigned installer produced; no app/installer executed.',flush=True)

@@ -1,0 +1,37 @@
+{
+  "domain": "stack",
+  "stack": "react",
+  "query": "virtualize lists",
+  "file": "stacks/react.csv",
+  "count": 2,
+  "results": [
+    {
+      "Category": "Performance",
+      "Guideline": "Virtualize long lists",
+      "Description": "Use windowing for lists over 100 items",
+      "Do": "react-window or react-virtual",
+      "Don't": "Render thousands of DOM nodes",
+      "Code Good": "<VirtualizedList items={items}/>",
+      "Code Bad": "{items.map(i => <Item />)}",
+      "Severity": "High",
+      "Docs URL": "https://react.dev/learn/rendering-lists",
+      "Applies To": "react 19.2.x",
+      "Status": "active",
+      "Verified At": "2026-08-13"
+    },
+    {
+      "Category": "Rendering",
+      "Guideline": "Use keys properly",
+      "Description": "Stable unique keys for list items",
+      "Do": "Use stable IDs as keys",
+      "Don't": "Array index as key for dynamic lists",
+      "Code Good": "key={item.id}",
+      "Code Bad": "key={index}",
+      "Severity": "High",
+      "Docs URL": "https://react.dev/learn/rendering-lists#keeping-list-items-in-order-with-key",
+      "Applies To": "react 19.2.x",
+      "Status": "active",
+      "Verified At": "2026-08-13"
+    }
+  ]
+}

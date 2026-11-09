@@ -1,0 +1,120 @@
+{
+  "schemaVersion": 1,
+  "platform": "windows-x64",
+  "releaseStatus": "candidate-until-real-client-start",
+  "minecraftVersion": "1.8.9",
+  "metadataUrl": "https://piston-meta.mojang.com/v1/packages/d546f1707a3f2b7d034eece5ea2e311eda875787/1.8.9.json",
+  "metadataSha1": "d546f1707a3f2b7d034eece5ea2e311eda875787",
+  "assetsComplete": true,
+  "uniqueAssetObjects": 722,
+  "assetIndexFile": {
+    "path": "assets/indexes/1.8.json",
+    "sha256": "14e3aa58cf578fd8573985ca96bf075d8be05477be988664a09446c7a76f4142"
+  },
+  "javaLibraries": [
+    {
+      "path": "java-libraries/lwjgl-2.9.4-nightly-20150209.jar",
+      "sha256": "833e721817f70d1445eec13d8ce5a86e12af70efac5014356302e2bbc68b3fe2",
+      "coordinate": "org.lwjgl.lwjgl:lwjgl:2.9.4-nightly-20150209",
+      "upstreamSha1": "697517568c68e78ae0b4544145af031c81082dfe"
+    },
+    {
+      "path": "java-libraries/lwjgl_util-2.9.4-nightly-20150209.jar",
+      "sha256": "034456b132a336b72757325bb7aaf99e075681ee5650d2bea21717bd485de42f",
+      "coordinate": "org.lwjgl.lwjgl:lwjgl_util:2.9.4-nightly-20150209",
+      "upstreamSha1": "d51a7c040a721d13efdfbd34f8b257b2df882ad0"
+    }
+  ],
+  "nativeArchives": [
+    {
+      "coordinate": "org.lwjgl.lwjgl:lwjgl-platform:2.9.4-nightly-20150209",
+      "classifier": "natives-windows",
+      "path": "org/lwjgl/lwjgl/lwjgl-platform/2.9.4-nightly-20150209/lwjgl-platform-2.9.4-nightly-20150209-natives-windows.jar",
+      "sha1": "b84d5102b9dbfabfeb5e43c7e2828d98a7fc80e0",
+      "size": 613748,
+      "url": "https://libraries.minecraft.net/org/lwjgl/lwjgl/lwjgl-platform/2.9.4-nightly-20150209/lwjgl-platform-2.9.4-nightly-20150209-natives-windows.jar"
+    },
+    {
+      "coordinate": "net.java.jinput:jinput-platform:2.0.5",
+      "classifier": "natives-windows",
+      "path": "net/java/jinput/jinput-platform/2.0.5/jinput-platform-2.0.5-natives-windows.jar",
+      "sha1": "385ee093e01f587f30ee1c8a2ee7d408fd732e16",
+      "size": 155179,
+      "url": "https://libraries.minecraft.net/net/java/jinput/jinput-platform/2.0.5/jinput-platform-2.0.5-natives-windows.jar"
+    },
+    {
+      "coordinate": "tv.twitch:twitch-platform:6.5",
+      "classifier": "natives-windows-64",
+      "path": "tv/twitch/twitch-platform/6.5/twitch-platform-6.5-natives-windows-64.jar",
+      "sha1": "9fdd0fd5aed0817063dcf95b69349a171f447ebd",
+      "size": 580098,
+      "url": "https://libraries.minecraft.net/tv/twitch/twitch-platform/6.5/twitch-platform-6.5-natives-windows-64.jar"
+    },
+    {
+      "coordinate": "tv.twitch:twitch-external-platform:4.5",
+      "classifier": "natives-windows-64",
+      "path": "tv/twitch/twitch-external-platform/4.5/twitch-external-platform-4.5-natives-windows-64.jar",
+      "sha1": "c3cde57891b935d41b6680a9c5e1502eeab76d86",
+      "size": 7457619,
+      "url": "https://libraries.minecraft.net/tv/twitch/twitch-external-platform/4.5/twitch-external-platform-4.5-natives-windows-64.jar"
+    }
+  ],
+  "nativeFiles": [
+    {
+      "path": "natives/avutil-ttv-51.dll",
+      "sha256": "d16151cf613bd26f9138188efab2e55df37b0c21956ea70adc252d0fa35ae3cc"
+    },
+    {
+      "path": "natives/jinput-dx8.dll",
+      "sha256": "89779abf806a93dd809bc7a4914967d0e6924dedf293afd48dd205dbce87d8b8"
+    },
+    {
+      "path": "natives/jinput-dx8_64.dll",
+      "sha256": "a38cb458b9e5a246d7418f38ac04430c2e5a3f46b082955d6dfd5d2bd74f4222"
+    },
+    {
+      "path": "natives/jinput-raw.dll",
+      "sha256": "0a8c0b47e173453bd92da224f73a6aff35b07c2db315abaf33e68edbdb147971"
+    },
+    {
+      "path": "natives/jinput-raw_64.dll",
+      "sha256": "832308f96b1760f2ebc183d1a1771278bb3236e4567dd7a23e1eaecf95f9c03c"
+    },
+    {
+      "path": "natives/jinput-wintab.dll",
+      "sha256": "59201c94eb563025e47fe6b6f5c4dc326f0059d49285e2d3a44482cb60ffc9e2"
+    },
+    {
+      "path": "natives/libmfxsw64.dll",
+      "sha256": "b5eaa1918ffbdcdfaf91a4895dac20b6325a9f53d20f343b7e7f05ff95c9aabd"
+    },
+    {
+      "path": "natives/libmp3lame-ttv.dll",
+      "sha256": "d2941e4392fe2c55f7858b0e5d76567b6dea00c99ebbbf9e6049cefc5241c0e0"
+    },
+    {
+      "path": "natives/lwjgl.dll",
+      "sha256": "fff711369747e9bb3656d4c5bdee7051bbc13f30abd634418bf40706a25f365c"
+    },
+    {
+      "path": "natives/lwjgl64.dll",
+      "sha256": "ebdcedbc3e24b911aacd7bb666ab426397ca7d7883a8d4e3cf28946041c95425"
+    },
+    {
+      "path": "natives/OpenAL32.dll",
+      "sha256": "baf27fc91dc852d78889e052cfc9ed2b6fc0927258bb507a895c6fcd50f10fef"
+    },
+    {
+      "path": "natives/OpenAL64.dll",
+      "sha256": "9261b66010a845ddef9f61d5e4266fe2f08a53f3605da002e9e8f8d202bdbc5e"
+    },
+    {
+      "path": "natives/swresample-ttv-0.dll",
+      "sha256": "d2e299de60803d5c4f869b45a3c9f9eff3876dd466bfc5b8071bf34ef592afea"
+    },
+    {
+      "path": "natives/twitchsdk.dll",
+      "sha256": "d0e66caf685c48b3839b6e883a7365cb225830ef5ec6eb6eddae0d38569fe1f7"
+    }
+  ]
+}

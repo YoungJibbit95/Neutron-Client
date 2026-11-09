@@ -1,0 +1,92 @@
+{
+  "capturedAtUtc": "2026-10-28T15:58:54.098464+00:00",
+  "disks": {
+    "C:/": {
+      "total": 394546638848,
+      "used": 394492899328,
+      "free": 53739520
+    },
+    "F:/": {
+      "total": 999592079360,
+      "used": 900392701952,
+      "free": 99199377408
+    }
+  },
+  "ownedTestDirectories": [
+    {
+      "path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Build mit Umlaut Pr\u00fcfung",
+      "files": 14853,
+      "bytes": 442663802
+    },
+    {
+      "path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Cold Cache Build",
+      "files": 4635,
+      "bytes": 19197601
+    },
+    {
+      "path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Cold Cache Build Retry",
+      "files": 1288,
+      "bytes": 8970218
+    },
+    {
+      "path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Runtime Linux Candidate",
+      "files": 13,
+      "bytes": 3575510
+    },
+    {
+      "path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Runtime macOS Candidate",
+      "files": 12,
+      "bytes": 5691389
+    },
+    {
+      "path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Runtime Windows Pr\u00fcfung",
+      "files": 745,
+      "bytes": 150161557
+    },
+    {
+      "path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Spiel ohne pers\u00f6nliche Daten Pr\u00fcfung",
+      "files": 2,
+      "bytes": 34245
+    },
+    {
+      "path": "F:\\Neutron Launcher Section2 20261028\\Cold Cache Build",
+      "files": 14985,
+      "bytes": 472513673
+    },
+    {
+      "path": "F:\\Neutron Launcher Section2 20261028\\Empty Maven Cache",
+      "files": 1851,
+      "bytes": 100539740
+    },
+    {
+      "path": "F:\\Neutron Launcher Section2 20261028\\Final Distribution",
+      "files": 64,
+      "bytes": 136475443
+    },
+    {
+      "path": "F:\\Neutron Launcher Section2 20261028\\Final Spiel Pr\u00fcfung",
+      "files": 4,
+      "bytes": 288709
+    },
+    {
+      "path": "F:\\Neutron Launcher Section2 20261028\\Spiel Pr\u00fcfung mit Leerzeichen",
+      "files": 5,
+      "bytes": 295024
+    },
+    {
+      "path": "F:\\Neutron Launcher Section2 20261028\\Unit Test Temp",
+      "files": 0,
+      "bytes": 0
+    },
+    {
+      "path": "F:\\Neutron Launcher Section2 20261028\\Warm Distribution Casefix",
+      "files": 59,
+      "bytes": 121853027
+    }
+  ],
+  "notes": [
+    "Read-only size scan; cold-cache build may still add files on F:",
+    "No subsequent large copies or downloads on C:",
+    "Cleanup rejection respected; no deletion retry"
+  ]
+}

@@ -15,8 +15,10 @@ receipts do not accept a new executable.
   install; settings/data preservation and uninstall remain required.
 - Independent artifact review checks EXE SHA-256, version, source SHA and completed
   receipts. Offline checks must identify the same selected JAR/JSON/manifest.
-- Publication requires a normal protected-main merge and successful Java 8 / Windows
-  regression, Repository policy and Dependency review checks; no rules are bypassed.
+- Main pushes build and independently review artifacts without publication.
+  Publication requires the user's playtest approval and an explicit manual dispatch
+  with publish enabled on main, a normal protected-main merge and successful Java 8 /
+  Windows regression, Repository policy and Dependency review checks; no rules are bypassed.
 - The accepted EXE is uploaded unchanged. Draft hashes/sizes are checked before
   publication and the public download afterward. Published releases are not replaced.
 

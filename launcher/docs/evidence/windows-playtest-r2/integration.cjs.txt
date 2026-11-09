@@ -1,0 +1,55 @@
+// Headless build/integrity/bootstrap validation only. Never starts Electron or Minecraft.
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const { LauncherService } = require('F:/Puslar Backup - Copy/launcher/out-electron/service.cjs');
+const { verifyDistribution, launchArguments } = require('F:/Puslar Backup - Copy/launcher/out-electron/distribution.cjs');
+const { verifyRuntime } = require('F:/Puslar Backup - Copy/launcher/out-electron/minecraft.cjs');
+const { verifyTools } = require('F:/Puslar Backup - Copy/launcher/out-electron/toolchain.cjs');
+const { runProcess, childEnvironment } = require('F:/Puslar Backup - Copy/launcher/out-electron/processes.cjs');
+const base = 'F:/Neutron Launcher Playtest 20261028';
+const root = path.join(base, 'Managed Integration');
+const adapter = 'F:/Puslar Backup - Copy/launcher/resources/source-adapter';
+const checks = [];
+let previous = '';
+const service = new LauncherService(root, adapter);
+service.on('snapshot', state => { const current = state.status + ':' + state.logs.length; if (state.status !== previous) { previous = state.status; console.log(JSON.stringify({ phase: state.status, build: state.selected, error: state.error })); } });
+(async () => {
+  await service.initialize();
+  await service.execute({ type: 'save-options', patch: { gameDir: path.join(base, 'Spiel Prüfung mit Leerzeichen'), ramMiB: 2048 } });
+  if (!service.snapshot().setupComplete) { await service.execute({ type: 'setup' }); const setup = await service.idle(); if (!setup.setupComplete) throw new Error(setup.error); }
+  checks.push({ name: 'managed-setup', success: true });
+  const previousBuild = service.snapshot().builds.find(build => build.id === service.snapshot().selected);
+  if (!service.snapshot().selected || process.argv.includes('--rebuild')) { await service.execute({ type: 'build', play: false }); const built = await service.idle(); if (!built.selected || built.status !== 'ready') throw new Error(built.error); }
+  const state = service.snapshot(); const record = state.builds.find(build => build.id === state.selected);
+  const distribution = await verifyDistribution(root, record); const runtime = await verifyRuntime(root, distribution.manifest.runtime); const tools = await verifyTools(root);
+  checks.push({ name: 'github-commit-archive-maven-build', success: true, commit: record.commit, archiveSha256: distribution.manifest.archiveSha256, adapterSha256: distribution.manifest.adapterSha256, classpathFiles: distribution.classpath.length, assetObjects: runtime.manifest.assets.length });
+  await fs.mkdir(state.options.gameDir, { recursive: true }); const temp = path.join(root, 'temp');
+  const args = launchArguments(state.options, state.maxRamMiB, [...runtime.manifest.javaLibraries.map(name => path.join(runtime.directory, name)), ...distribution.classpath], runtime.directory, distribution.manifest.version, temp);
+  args.push('--validateOnly');
+  const lines = [];
+  const code = await runProcess(path.join(tools.javaHome, 'bin/java.exe'), args, { cwd: state.options.gameDir, env: childEnvironment(tools.javaHome, temp), line: line => lines.push(line) });
+  if (code !== 0 || !lines.includes('NEUTRON_BOOTSTRAP_VALIDATED')) throw new Error('Headless bootstrap validation failed: ' + lines.join('\n'));
+  checks.push({ name: 'bootstrap-validate-only-no-game-window', exitCode: code, output: lines });
+  if (previousBuild && previousBuild.id !== record.id) {
+    await service.execute({ type: 'select', id: previousBuild.id });
+    if (service.snapshot().selected !== previousBuild.id) throw new Error('Rollback selection failed.');
+    await service.execute({ type: 'select', id: record.id });
+    checks.push({ name: 'verified-version-rollback-and-reselection', success: true, previous: previousBuild.id });
+  }
+  if (process.argv.includes('--rebuild')) {
+    let cancelled = false;
+    const cancelMaven = snapshot => { if (snapshot.status === 'build' && !cancelled) { cancelled = true; void service.execute({ type: 'cancel' }); } };
+    service.on('snapshot', cancelMaven);
+    await service.execute({ type: 'build', play: false }); const stopped = await service.idle(); service.off('snapshot', cancelMaven);
+    if (!cancelled || stopped.status !== 'cancelled' || stopped.selected !== record.id) throw new Error('Real Maven cancellation changed the active version.');
+    await verifyDistribution(root, record);
+    checks.push({ name: 'real-maven-process-cancellation-preserves-verified-selection', success: true });
+  }
+  await service.shutdown();
+  const offline = new LauncherService(root, adapter); const restored = await offline.initialize();
+  if (restored.selected !== record.id || !restored.setupComplete) throw new Error('Offline restart did not restore state.');
+  await verifyDistribution(root, record); await offline.shutdown();
+  checks.push({ name: 'offline-registry-integrity-restoration-without-network', success: true });
+  await fs.writeFile(path.join(base, 'integration-result.json'), JSON.stringify({ capturedAt: new Date().toISOString(), root, checks, build: record, noElectronOrMinecraftStarted: true, installerNotExecuted: true }, null, 2));
+  console.log(JSON.stringify({ success: true, checks, build: record }, null, 2));
+})().catch(async error => { console.error(error); await fs.writeFile(path.join(base, 'integration-failure.txt'), String(error)); await service.shutdown().catch(() => {}); process.exitCode = 1; });

@@ -1,0 +1,14 @@
+{
+  "window": {
+    "app": "process:C:\\Users\\Administrator\\scoop\\apps\\temurin8-jdk\\8.0.482-8\\bin\\java.exe",
+    "id": 4916950,
+    "title": "Neutron | Dev 2.2 by youngjibbit for LauncherSmoke"
+  },
+  "screenshotId": "screenshot-0",
+  "width": 962,
+  "height": 672,
+  "sha256": "91e2c5db76ecce18d08cf025efa1e74b70ea538bad208bad375e0f88c823b7df",
+  "capturedAtUtc": "2026-10-28T15:50:44.106Z",
+  "source": "Final cold-cache distribution with resource alias; synthetic LauncherSmoke profile",
+  "timestampMeaning": "capturedAtUtc records persistence of the previously observed screenshot buffer, not exact image acquisition; buffer was saved after the process had ended"
+}

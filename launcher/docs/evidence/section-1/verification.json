@@ -1,0 +1,120 @@
+{
+  "capturedUtc": "2026-10-28T15:14:54.344797+00:00",
+  "installedSkills": 17,
+  "installedFiles": 159,
+  "existingSkillFilesChecked": 125,
+  "existingSkillFilesChanged": 0,
+  "pythonFilesSyntaxChecked": 18,
+  "nonemptyCsvFiles": 35,
+  "csvRows": {
+    "data/app-interface.csv": 32,
+    "data/charts.csv": 25,
+    "data/colors.csv": 192,
+    "data/google-fonts.csv": 1934,
+    "data/icons.csv": 105,
+    "data/landing.csv": 34,
+    "data/motion.csv": 17,
+    "data/products.csv": 192,
+    "data/react-performance.csv": 44,
+    "data/styles.csv": 88,
+    "data/typography.csv": 74,
+    "data/ui-reasoning.csv": 192,
+    "data/ux-guidelines.csv": 119,
+    "data/stacks/angular.csv": 50,
+    "data/stacks/astro.csv": 53,
+    "data/stacks/avalonia.csv": 56,
+    "data/stacks/flutter.csv": 52,
+    "data/stacks/html-tailwind.csv": 59,
+    "data/stacks/javafx.csv": 75,
+    "data/stacks/jetpack-compose.csv": 52,
+    "data/stacks/laravel.csv": 50,
+    "data/stacks/nextjs.csv": 60,
+    "data/stacks/nuxt-ui.csv": 76,
+    "data/stacks/nuxtjs.csv": 67,
+    "data/stacks/react-native.csv": 51,
+    "data/stacks/react.csv": 66,
+    "data/stacks/shadcn.csv": 68,
+    "data/stacks/svelte.csv": 55,
+    "data/stacks/swiftui.csv": 50,
+    "data/stacks/threejs.csv": 53,
+    "data/stacks/uno.csv": 59,
+    "data/stacks/uwp.csv": 55,
+    "data/stacks/vue.csv": 49,
+    "data/stacks/winui.csv": 59,
+    "data/stacks/wpf.csv": 56
+  },
+  "smokeTests": [
+    {
+      "name": "ux-search",
+      "command": "C:\\Python313\\python.exe -B C:\\Users\\Administrator\\.codex\\skills\\ui-ux-pro-max\\scripts\\search.py \"keyboard focus modal\" --domain ux --json",
+      "exitCode": 0,
+      "resultCount": 3,
+      "stderr": "",
+      "evidence": "ux-search.json"
+    },
+    {
+      "name": "react-search",
+      "command": "C:\\Python313\\python.exe -B C:\\Users\\Administrator\\.codex\\skills\\ui-ux-pro-max\\scripts\\search.py \"virtualize lists\" --stack react --json",
+      "exitCode": 0,
+      "resultCount": 2,
+      "stderr": "",
+      "evidence": "react-search.json"
+    },
+    {
+      "name": "design-system",
+      "command": "C:\\Python313\\python.exe -B C:\\Users\\Administrator\\.codex\\skills\\ui-ux-pro-max\\scripts\\search.py \"desktop game launcher dark\" --design-system --json -p \"Neutron Launcher\"",
+      "exitCode": 0,
+      "resultCount": null,
+      "stderr": "",
+      "evidence": "design-system.json"
+    },
+    {
+      "name": "design-system-retry",
+      "command": "C:\\Python313\\python.exe -B C:\\Users\\Administrator\\.codex\\skills\\ui-ux-pro-max\\scripts\\search.py \"gaming desktop launcher\" --design-system --json -p \"Neutron Launcher\"",
+      "exitCode": 0,
+      "evidence": "design-system-retry.json",
+      "stderr": ""
+    }
+  ],
+  "baseline": {
+    "capturedUtc": "2026-10-28T15:08:53.626355+00:00",
+    "head": "eeddb7da58978f04fad95ad8042175b7ad848d6a",
+    "branch": "codex/revived-final-integration",
+    "statusEntries": 164,
+    "modifiedTracked": 147,
+    "untracked": 17,
+    "fingerprintsChecked": 150,
+    "fingerprintsChanged": 0,
+    "unexpectedStatusChangesOutsideLauncher": 0,
+    "keyFileSha256": {
+      "README.md": "965d0cb198bbbd616fb938cbe9f2f23c3bd10cc010de587712b82a269e3d44c9",
+      "pom.xml": "f7733cba543515ca33d7c34d80c984ca22e883ff021a2f13c5f48b0f1108d98f",
+      "src/test/java/Start.java": "ece09035a5d2e2043bbb8460a260719d923078f994cee3d6354fb47b1099c9c0"
+    }
+  },
+  "notRun": [
+    "Impeccable engine/context (installation and resource integrity only; no frontend edit in section 1)",
+    "Client build/start",
+    "Launcher UI/setup/installer",
+    "Linux/macOS runtime tests"
+  ],
+  "designSystemRelevanceReview": {
+    "initial": "General category with marketing-page pattern; rejected for this desktop application",
+    "retryCategory": "Gaming",
+    "retry": "Gaming guidance targets a showcase, not this operational launcher; not adopted",
+    "authority": "User-approved Sunset Graphite brief in launcher/DESIGN.md; no generated MASTER.md or styles persisted",
+    "note": "JSON files are test evidence, not a selected design system"
+  },
+  "finalDocumentCheck": {
+    "relativeLinksChecked": 16,
+    "brokenLinks": 0,
+    "newLauncherFiles": 18,
+    "launcherFileExtensions": {
+      ".md": 8,
+      ".json": 7,
+      ".txt": 3
+    },
+    "existingProjectFingerprintsChanged": 0,
+    "unexpectedStatusChangesOutsideLauncher": 0
+  }
+}

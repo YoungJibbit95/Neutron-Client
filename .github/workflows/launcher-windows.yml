@@ -115,7 +115,8 @@ jobs:
   publish:
     name: Publish accepted Windows installer
     needs: artifact-review
-    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish))
+    # Main integration produces reviewed artifacts; publication is an explicit later action.
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.publish
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

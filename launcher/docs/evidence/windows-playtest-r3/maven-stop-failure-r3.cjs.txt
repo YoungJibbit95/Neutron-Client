@@ -1,0 +1,35 @@
+// Real Maven task; only termination is deliberately denied, then retried.
+const fs = require('node:fs/promises');
+const { LauncherService } = require('F:/Puslar Backup - Copy/launcher/out-electron/service.cjs');
+const { ProcessGroup, killTree } = require('F:/Puslar Backup - Copy/launcher/out-electron/processes.cjs');
+const { verifyDistribution } = require('F:/Puslar Backup - Copy/launcher/out-electron/distribution.cjs');
+const base = 'F:/Neutron Launcher Playtest 20261028'; const root = base + '/Managed Integration';
+class FaultService extends LauncherService {
+  denied = true; target = null; attempts = 0;
+  workerResolve = null; workerStarted = new Promise(resolve => { this.workerResolve = resolve; });
+  createProcessGroup() {
+    const group = new ProcessGroup({ terminate: async child => { this.target = child; this.attempts++; if (this.denied) throw new Error('Injected termination denial for own Maven task'); await killTree(child); }, onStopError: error => this.setError(error) });
+    const add = group.add.bind(group); group.add = handle => { add(handle); void handle.started.then(child => this.workerResolve(child), () => {}); }; return group;
+  }
+}
+const service = new FaultService(root, 'F:/Puslar Backup - Copy/launcher/resources/source-adapter');
+(async () => {
+  const before = await service.initialize(); const selected = before.builds.find(build => build.id === before.selected); if (!selected) throw new Error('Existing verified version required.');
+  let enter; const entered = new Promise(resolve => { enter = resolve; }); const listener = state => { if (state.status === 'build') enter(); };
+  service.on('snapshot', listener); await service.execute({ type: 'build', play: false });
+  const reachedMaven = await Promise.race([entered.then(() => true), service.idle().then(() => false)]); service.off('snapshot', listener);
+  if (!reachedMaven) throw new Error('Maven phase not reached: ' + service.snapshot().error);
+  const spawned = await Promise.race([service.workerStarted.then(() => true), service.idle().then(() => false)]); if (!spawned) throw new Error('Maven worker did not start.');
+  let denied = false; try { await service.execute({ type: 'cancel' }); } catch { denied = true; }
+  if (!denied || !service.target?.pid || service.target.exitCode !== null) throw new Error('Failed termination did not preserve a live Maven worker.');
+  process.kill(service.target.pid, 0); const during = service.snapshot();
+  if (during.selected !== before.selected || during.status !== 'build' || during.builds.length !== before.builds.length) throw new Error('Registry/task guard was released early.');
+  let launchBlocked = false; try { await service.execute({ type: 'launch' }); } catch { launchBlocked = true; }
+  let shutdownRejected = false; try { await service.shutdown(); } catch { shutdownRejected = true; }
+  if (!launchBlocked || !shutdownRejected) throw new Error('Live background worker was not protected.');
+  process.kill(service.target.pid, 0); service.denied = false; await service.execute({ type: 'cancel' }); const after = await service.idle();
+  if (after.status !== 'cancelled' || after.selected !== before.selected || after.builds.length !== before.builds.length) throw new Error('Retry changed active registry.');
+  await verifyDistribution(root, selected); await service.shutdown();
+  const result = { capturedAt: new Date().toISOString(), realMavenProcess: true, terminationDeliberatelyDenied: true, liveAfterDeniedCancel: true, failedShutdownRejected: shutdownRejected, newLaunchBlocked: launchBlocked, terminationRetrySucceeded: true, selectedUnchanged: true, buildCountUnchanged: true, finalStatus: after.status, attempts: service.attempts, clientWindowStarted: false };
+  await fs.writeFile(base + '/maven-stop-failure-r3.json', JSON.stringify(result, null, 2)); console.log(JSON.stringify(result));
+})().catch(async error => { console.error(error); service.denied = false; await service.shutdown().catch(() => {}); process.exitCode = 1; });

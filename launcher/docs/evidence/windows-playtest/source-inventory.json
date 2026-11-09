@@ -1,0 +1,284 @@
+[
+  {
+    "path": "F:\\Puslar Backup - Copy\\.github\\workflows\\launcher-windows.yml",
+    "relativePath": ".github/workflows/launcher-windows.yml",
+    "sha256": "6b467e16e382c9f489b097fb10e7c38a12564eef27110e5ae4302f9faf701f0b",
+    "bytes": 1699
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\.gitignore",
+    "relativePath": "launcher/.gitignore",
+    "sha256": "7393bb5ebc6c4e93f7d99c6c154102d11a7e4d7d648e3353155ee10881b7a586",
+    "bytes": 74
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\.npmrc",
+    "relativePath": "launcher/.npmrc",
+    "sha256": "9f4934655ab42ce99d6a193285ea5f94218134188af6d9de6d42b52acc4dc95b",
+    "bytes": 65
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\electron\\archives.cts",
+    "relativePath": "launcher/electron/archives.cts",
+    "sha256": "9a514449131b287923d35e3ac197303a01ee7ee56661dba0a5c9e43983b3e494",
+    "bytes": 3296
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\electron\\contracts.cts",
+    "relativePath": "launcher/electron/contracts.cts",
+    "sha256": "1a1abba3eff0dae3a1a46172b290b57e350e9de6df32c3d1b06b41038901b56d",
+    "bytes": 5196
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\electron\\distribution.cts",
+    "relativePath": "launcher/electron/distribution.cts",
+    "sha256": "c719faea96a44213063d8726ef2c83f624eeae15851497ed26e102b0753f6de6",
+    "bytes": 11298
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\electron\\files.cts",
+    "relativePath": "launcher/electron/files.cts",
+    "sha256": "5a4bdb108df5fa521d094ba8657c55904c431a3b18c308e4f697a3717c755a5e",
+    "bytes": 2461
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\electron\\lease.cts",
+    "relativePath": "launcher/electron/lease.cts",
+    "sha256": "009ae3f7ae69b995d37d744ca51ecad8baffbbe8cee50cde22404956dabd322f",
+    "bytes": 2496
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\electron\\legacy-dependencies.cts",
+    "relativePath": "launcher/electron/legacy-dependencies.cts",
+    "sha256": "7e9bd78cb69f8f1e273796d79449206cac7df7d9a600bc88a9169715abd05639",
+    "bytes": 2282
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\electron\\logs.cts",
+    "relativePath": "launcher/electron/logs.cts",
+    "sha256": "b4e575bc33b1c9ce6e0c2bf78b7e7a56e350b701fc22a07a479d46795229d713",
+    "bytes": 3855
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\electron\\main.cts",
+    "relativePath": "launcher/electron/main.cts",
+    "sha256": "96b102f295f2139b9ddebccf45489fbe818504246621f4527987c32e631b49cf",
+    "bytes": 5624
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\electron\\minecraft.cts",
+    "relativePath": "launcher/electron/minecraft.cts",
+    "sha256": "267377bfd482bf27f70579bf58f033717cb987654c1d0fc730ac8ca4a4225b76",
+    "bytes": 7240
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\electron\\network.cts",
+    "relativePath": "launcher/electron/network.cts",
+    "sha256": "e75a663800737f05147b493e8b8f78fac9739e73ec59d964cb37210c56a8991e",
+    "bytes": 3724
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\electron\\preload.cts",
+    "relativePath": "launcher/electron/preload.cts",
+    "sha256": "03c58002ed538f94b0a21a14f99d28ffb27af947801b1ec1e83093384b3fb824",
+    "bytes": 796
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\electron\\processes.cts",
+    "relativePath": "launcher/electron/processes.cts",
+    "sha256": "d60cbbbeadf81b93b1ceb4125067200adda2adc46632d19c82768bcdba5f3812",
+    "bytes": 2789
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\electron\\service.cts",
+    "relativePath": "launcher/electron/service.cts",
+    "sha256": "554a7b7be03de2eb65a2ecd99b5120145218cd1884b1e47e197a2d746372f6b3",
+    "bytes": 19815
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\electron\\toolchain.cts",
+    "relativePath": "launcher/electron/toolchain.cts",
+    "sha256": "716b92f12f7ac9b640a0b72d7dff3902e76d27a0e0cb300b33d5684f5679b81e",
+    "bytes": 3747
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\electron\\window-contract.cts",
+    "relativePath": "launcher/electron/window-contract.cts",
+    "sha256": "936d401c06713f425259fd0f0aa607cc0040194cea2781a0f578aed2e39a09d2",
+    "bytes": 597
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\electron-builder.cjs",
+    "relativePath": "launcher/electron-builder.cjs",
+    "sha256": "8e0ea01d61ac263b8cc754fa31d4ab6586fe0ffc12aa32ab41d7694bded3d916",
+    "bytes": 830
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\index.html",
+    "relativePath": "launcher/index.html",
+    "sha256": "6114e8f4892642ef62a0363e18d927ddbeabf291eb34a04f8262c25c0dc3bffe",
+    "bytes": 596
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\package-lock.json",
+    "relativePath": "launcher/package-lock.json",
+    "sha256": "515d30cc9fb184f33f5cc1f3fbf51ddebef9f99d62a9b5bfa61626c21ea12261",
+    "bytes": 179993
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\package.json",
+    "relativePath": "launcher/package.json",
+    "sha256": "355be84651ad94404bce753ce141220ebf36e8810ece3159bb42dc928efa38b3",
+    "bytes": 1174
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\public\\licenses\\Geist-Mono-OFL.txt",
+    "relativePath": "launcher/public/licenses/Geist-Mono-OFL.txt",
+    "sha256": "cc815ed4fc045f0e991abb10395b7932bd028c6a067deb13316d6002105074e6",
+    "bytes": 4498
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\public\\licenses\\Geist-OFL.txt",
+    "relativePath": "launcher/public/licenses/Geist-OFL.txt",
+    "sha256": "71609cbb5c78b5870d712eab73a31d76622635c6ed034ab5cee3b9ecbda8685f",
+    "bytes": 4486
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\public\\licenses\\Lucide-ISC.txt",
+    "relativePath": "launcher/public/licenses/Lucide-ISC.txt",
+    "sha256": "b495047bd93a9b06913511076f504daba17d5bbeb3e0650f3bb53a4220329c57",
+    "bytes": 3208
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\public\\licenses\\React-MIT.txt",
+    "relativePath": "launcher/public/licenses/React-MIT.txt",
+    "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93",
+    "bytes": 1088
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\public\\licenses\\ReactDOM-MIT.txt",
+    "relativePath": "launcher/public/licenses/ReactDOM-MIT.txt",
+    "sha256": "da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93",
+    "bytes": 1088
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\resources\\brand-mark.svg",
+    "relativePath": "launcher/resources/brand-mark.svg",
+    "sha256": "a3cac4b28530c768ce4be8a542fc482e4788b82326a7002fa9f893b7479733bb",
+    "bytes": 566
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\resources\\icon.ico",
+    "relativePath": "launcher/resources/icon.ico",
+    "sha256": "9b0acdb53b70467f6768e8cc05a173d8bddbaa66972fe8966a7980040ee9bd12",
+    "bytes": 58490
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\resources\\source-adapter\\ClientBootstrap.java",
+    "relativePath": "launcher/resources/source-adapter/ClientBootstrap.java",
+    "sha256": "cdbea5225256318dc970275760556c8d31e9c8d7b4260d7c120dbfeb45ef9bd1",
+    "bytes": 7033
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\resources\\source-adapter\\ClientBootstrapTest.java",
+    "relativePath": "launcher/resources/source-adapter/ClientBootstrapTest.java",
+    "sha256": "45ff7861788349ed00f6677a804e37f01e72eaa04be0c8e39a675076138a7831",
+    "bytes": 4703
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\resources\\source-adapter\\pom.xml",
+    "relativePath": "launcher/resources/source-adapter/pom.xml",
+    "sha256": "76a40e898d3248d6bb39706dda680fd23a66c467175ed7ee1bfa3bc72f3c8204",
+    "bytes": 16197
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\scripts\\build.mjs",
+    "relativePath": "launcher/scripts/build.mjs",
+    "sha256": "886ce6b18c4d269177ce17b296caab780c910860fa5ea86ea61d19dcaf18b8bf",
+    "bytes": 940
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\scripts\\check.mjs",
+    "relativePath": "launcher/scripts/check.mjs",
+    "sha256": "969b7e23bb30f0ac1b02a5d71411b676e8fd7557c89deece4f05a2aa24ddee1e",
+    "bytes": 473
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\scripts\\package-windows.mjs",
+    "relativePath": "launcher/scripts/package-windows.mjs",
+    "sha256": "7d322bbe21f1f7820b1e0abf784db0f5a7453c6bfec9cffb4438acfb0c0ec2a8",
+    "bytes": 997
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\src\\App.tsx",
+    "relativePath": "launcher/src/App.tsx",
+    "sha256": "9d6b8664638e364820cd075c2702a2d1d1df81a50103cd60877103b2039e319d",
+    "bytes": 40877
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\src\\copy.ts",
+    "relativePath": "launcher/src/copy.ts",
+    "sha256": "594e292daa8292cffe714d4a60d2b36bc6578e40a40170b024a52cbcd38a33e6",
+    "bytes": 18840
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\src\\main.tsx",
+    "relativePath": "launcher/src/main.tsx",
+    "sha256": "2896a69896d7acb1d14f557d067997f399220d8fa80b7fc3804ceed31f485912",
+    "bytes": 229
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\src\\model.ts",
+    "relativePath": "launcher/src/model.ts",
+    "sha256": "0cf6f1f2dc5c1732fe398a4665b8edee1a18297b47ed38ec0af20a4cac39aa28",
+    "bytes": 12512
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\src\\styles.css",
+    "relativePath": "launcher/src/styles.css",
+    "sha256": "4fc1c3c15002eda1bf4653639b8a3a79fb3542a5ecb213c9f956ddd246e66e2c",
+    "bytes": 24968
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\src\\tokens.ts",
+    "relativePath": "launcher/src/tokens.ts",
+    "sha256": "6a7648429ff5ecde0ded61d6645fb54a9abae635e0dab6180d7fa9b141bfbb07",
+    "bytes": 1889
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\tests\\backend.test.ts",
+    "relativePath": "launcher/tests/backend.test.ts",
+    "sha256": "b74ab06447bbf2ead78f3393403eeb771b234c4e2fd435a06519728a7f1c63ae",
+    "bytes": 13087
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\tests\\components.test.tsx",
+    "relativePath": "launcher/tests/components.test.tsx",
+    "sha256": "c5686c6e3e5d462ea93f01ce04e543b4b828a605f4ddaf355b9990530dd6a779",
+    "bytes": 7857
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\tests\\model.test.ts",
+    "relativePath": "launcher/tests/model.test.ts",
+    "sha256": "01aa405ae9fefdd5862ecc8b1ddc07117f5ce6c732f1014dd3c3b2d164ce9a3b",
+    "bytes": 7667
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\tsconfig.electron.json",
+    "relativePath": "launcher/tsconfig.electron.json",
+    "sha256": "6aae026507f0cec737f19e7daa505dfba72359ca5b8ff49c03f9f9794ce5794d",
+    "bytes": 278
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\tsconfig.json",
+    "relativePath": "launcher/tsconfig.json",
+    "sha256": "6bf421769d5123ad573e3aea187d8735dc440ac3d1a550633e5d7d14a316bfd1",
+    "bytes": 383
+  },
+  {
+    "path": "F:\\Puslar Backup - Copy\\launcher\\vite.config.ts",
+    "relativePath": "launcher/vite.config.ts",
+    "sha256": "e4947cb54cdf4ad5518821bc8647ed8354ba1c8a9d0581f087e7cab2d04c3ceb",
+    "bytes": 593
+  }
+]

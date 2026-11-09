@@ -1,0 +1,40 @@
+{
+  "capturedAt": "2026-10-28T20:29:08.707032+00:00",
+  "checks": [
+    {
+      "name": "build",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/build.mjs"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "tests",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "node_modules/vitest/vitest.mjs",
+        "run",
+        "--reporter=json",
+        "--outputFile=F:\\Neutron Launcher Playtest 20261028\\tests-r5.json"
+      ],
+      "exitCode": 0
+    },
+    {
+      "name": "installer",
+      "command": [
+        "C:\\Program Files\\nodejs\\node.exe",
+        "scripts/package-windows.mjs"
+      ],
+      "exitCode": 0
+    }
+  ],
+  "environment": {
+    "TEMP": "F:\\Neutron Launcher Playtest 20261028\\temp",
+    "TMP": "F:\\Neutron Launcher Playtest 20261028\\temp",
+    "ELECTRON_CACHE": "F:\\Neutron Launcher Playtest 20261028\\electron-cache",
+    "ELECTRON_BUILDER_CACHE": "F:\\Neutron Launcher Playtest 20261028\\builder-cache",
+    "NEUTRON_PACKAGE_OUTPUT": "F:\\Neutron Launcher Playtest 20261028\\Installer Candidate R5",
+    "NEUTRON_VITE_CACHE": "F:\\Neutron Launcher Playtest 20261028\\vite-cache"
+  }
+}

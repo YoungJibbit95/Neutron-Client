@@ -1,0 +1,204 @@
+[
+  {
+    "platform": "windows-x64",
+    "javaLibraries": [
+      "org.lwjgl.lwjgl:lwjgl:2.9.4-nightly-20150209",
+      "org.lwjgl.lwjgl:lwjgl_util:2.9.4-nightly-20150209"
+    ],
+    "nativeFiles": [
+      {
+        "file": "avutil-ttv-51.dll",
+        "format": "PE",
+        "architectures": [
+          "x64"
+        ]
+      },
+      {
+        "file": "jinput-dx8.dll",
+        "format": "PE",
+        "architectures": [
+          "x86"
+        ]
+      },
+      {
+        "file": "jinput-dx8_64.dll",
+        "format": "PE",
+        "architectures": [
+          "x64"
+        ]
+      },
+      {
+        "file": "jinput-raw.dll",
+        "format": "PE",
+        "architectures": [
+          "x86"
+        ]
+      },
+      {
+        "file": "jinput-raw_64.dll",
+        "format": "PE",
+        "architectures": [
+          "x64"
+        ]
+      },
+      {
+        "file": "jinput-wintab.dll",
+        "format": "PE",
+        "architectures": [
+          "x86"
+        ]
+      },
+      {
+        "file": "libmfxsw64.dll",
+        "format": "PE",
+        "architectures": [
+          "x64"
+        ]
+      },
+      {
+        "file": "libmp3lame-ttv.dll",
+        "format": "PE",
+        "architectures": [
+          "x64"
+        ]
+      },
+      {
+        "file": "lwjgl.dll",
+        "format": "PE",
+        "architectures": [
+          "x86"
+        ]
+      },
+      {
+        "file": "lwjgl64.dll",
+        "format": "PE",
+        "architectures": [
+          "x64"
+        ]
+      },
+      {
+        "file": "OpenAL32.dll",
+        "format": "PE",
+        "architectures": [
+          "x86"
+        ]
+      },
+      {
+        "file": "OpenAL64.dll",
+        "format": "PE",
+        "architectures": [
+          "x64"
+        ]
+      },
+      {
+        "file": "swresample-ttv-0.dll",
+        "format": "PE",
+        "architectures": [
+          "x64"
+        ]
+      },
+      {
+        "file": "twitchsdk.dll",
+        "format": "PE",
+        "architectures": [
+          "x64"
+        ]
+      }
+    ],
+    "executed": false
+  },
+  {
+    "platform": "linux-x64",
+    "javaLibraries": [
+      "org.lwjgl.lwjgl:lwjgl:2.9.4-nightly-20150209",
+      "org.lwjgl.lwjgl:lwjgl_util:2.9.4-nightly-20150209"
+    ],
+    "nativeFiles": [
+      {
+        "file": "libjinput-linux.so",
+        "format": "ELF",
+        "architectures": [
+          "x86"
+        ]
+      },
+      {
+        "file": "libjinput-linux64.so",
+        "format": "ELF",
+        "architectures": [
+          "x64"
+        ]
+      },
+      {
+        "file": "liblwjgl.so",
+        "format": "ELF",
+        "architectures": [
+          "x86"
+        ]
+      },
+      {
+        "file": "liblwjgl64.so",
+        "format": "ELF",
+        "architectures": [
+          "x64"
+        ]
+      },
+      {
+        "file": "libopenal.so",
+        "format": "ELF",
+        "architectures": [
+          "x86"
+        ]
+      },
+      {
+        "file": "libopenal64.so",
+        "format": "ELF",
+        "architectures": [
+          "x64"
+        ]
+      }
+    ],
+    "executed": false
+  },
+  {
+    "platform": "macos-x64",
+    "javaLibraries": [
+      "org.lwjgl.lwjgl:lwjgl:2.9.2-nightly-20140822",
+      "org.lwjgl.lwjgl:lwjgl_util:2.9.2-nightly-20140822"
+    ],
+    "nativeFiles": [
+      {
+        "file": "libjinput-osx.jnilib",
+        "format": "Mach-O universal",
+        "architectures": [
+          "0x12",
+          "x86",
+          "x64"
+        ]
+      },
+      {
+        "file": "liblwjgl.dylib",
+        "format": "Mach-O universal",
+        "architectures": [
+          "x86",
+          "x64"
+        ]
+      },
+      {
+        "file": "libtwitchsdk.dylib",
+        "format": "Mach-O",
+        "architectures": [
+          "x64"
+        ]
+      },
+      {
+        "file": "openal.dylib",
+        "format": "Mach-O universal",
+        "architectures": [
+          "x86",
+          "x64"
+        ]
+      }
+    ],
+    "executed": false
+  }
+]

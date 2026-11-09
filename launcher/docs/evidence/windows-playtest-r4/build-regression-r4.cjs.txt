@@ -1,0 +1,36 @@
+// Full production build and validateOnly; no Electron or game window.
+const fs = require('node:fs/promises');
+const path = require('node:path');
+const { buildDistribution, verifyDistribution, launchArguments } = require('F:/Puslar Backup - Copy/launcher/out-electron/distribution.cjs');
+const { verifyTools } = require('F:/Puslar Backup - Copy/launcher/out-electron/toolchain.cjs');
+const { verifyRuntime } = require('F:/Puslar Backup - Copy/launcher/out-electron/minecraft.cjs');
+const { runProcess, childEnvironment } = require('F:/Puslar Backup - Copy/launcher/out-electron/processes.cjs');
+const root = 'F:/Neutron Launcher Playtest 20261028/Managed Integration';
+const evidence = 'F:/Puslar Backup - Copy/launcher/docs/evidence/windows-playtest-r4';
+(async () => {
+  try { await fs.access(path.join(root, 'client-process.json')); throw new Error('Client lease present; refusing build regression'); }
+  catch (error) { if (error.code !== 'ENOENT') throw error; }
+  const before = await fs.readFile(path.join(root, 'state.json'), 'utf8'); const state = JSON.parse(before);
+  const tools = await verifyTools(root); await verifyRuntime(root, state.runtime);
+  const lines = []; const signal = new AbortController().signal;
+  const record = await buildDistribution(root, 'd5a277de779f6cf69768a2900e299c9af5810e1a',
+    'F:/Puslar Backup - Copy/launcher/resources/source-adapter', tools, state.runtime, signal,
+    phase => console.log('Production phase: ' + phase), (line, error) => { lines.push(line); if (/Tests run: 400|BUILD SUCCESS|BUILD FAILURE|reserve enough/.test(line)) console.log(line); });
+  const distribution = await verifyDistribution(root, record); const runtime = await verifyRuntime(root, state.runtime);
+  const game = 'F:/Neutron Launcher Playtest 20261028/R4 Build Validation'; await fs.mkdir(game, { recursive: true });
+  const args = launchArguments({ ...state.options, gameDir: game, ramMiB: 1024 }, 8192,
+    [...runtime.manifest.javaLibraries.map(name => path.join(runtime.directory, name)), ...distribution.classpath], runtime.directory,
+    distribution.manifest.version, path.join(root, 'temp')); args.push('--validateOnly');
+  const output = [];
+  const exitCode = await runProcess(path.join(tools.javaHome, 'bin/java.exe'), args,
+    { cwd: game, env: childEnvironment(tools.javaHome, path.join(root, 'temp')), line: line => output.push(line) });
+  if (exitCode !== 0 || !output.includes('NEUTRON_BOOTSTRAP_VALIDATED')) throw new Error('Bootstrap validateOnly failed');
+  if (await fs.readFile(path.join(root, 'state.json'), 'utf8') !== before) throw new Error('Existing selection changed');
+  await fs.writeFile(path.join(evidence, 'full-maven-build.txt'), lines.join('\n'));
+  await fs.writeFile(path.join(evidence, 'full-build-regression.json'), JSON.stringify({ capturedAt: new Date().toISOString(), record,
+    adapterSha256: distribution.manifest.adapterSha256, archiveSha256: distribution.manifest.archiveSha256,
+    classpathFiles: distribution.classpath.length, assets: runtime.manifest.assets.length,
+    bootstrap: { exitCode, output }, previousSelectionUnchanged: true, testSummary: lines.filter(line => /Tests run: 400/.test(line)),
+    noElectronOrGameWindow: true, freshSourceWorkspace: true }, null, 2));
+  console.log(JSON.stringify({ success: true, record, previousSelectionUnchanged: true }));
+})().catch(error => { console.error(error); process.exitCode = 1; });

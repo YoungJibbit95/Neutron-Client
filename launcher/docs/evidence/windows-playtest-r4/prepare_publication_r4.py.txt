@@ -1,0 +1,27 @@
+from pathlib import Path
+import hashlib, json, shutil, subprocess
+root=Path(r'F:\Puslar Backup - Copy'); project=root/'launcher'; base=Path(r'F:\Neutron Launcher Playtest 20261028'); checkout=base/'Publish Checkout R4'
+assert subprocess.check_output(['git','-C',str(checkout),'rev-parse','HEAD'],text=True).strip()=='d5a277de779f6cf69768a2900e299c9af5810e1a'
+def sha(p): return hashlib.sha256(p.read_bytes()).hexdigest()
+selected=['package.json','package-lock.json','.npmrc','.gitignore','index.html','tsconfig.json','tsconfig.electron.json','vite.config.ts','electron-builder.cjs','README.md','docs/INTEGRATION.md','docs/PLAYTEST.md','docs/GATES.md','docs/RELEASE-NOTES.md']
+paths=[project/x for x in selected]
+for folder in ['src','electron','scripts','tests','resources','public/licenses']:
+    paths.extend(p for p in sorted((project/folder).rglob('*')) if p.is_file())
+paths.append(root/'.github/workflows/launcher-windows.yml')
+records=[]
+for source in paths:
+    assert not source.is_symlink()
+    relative=source.relative_to(root); target=checkout/relative; target.parent.mkdir(parents=True,exist_ok=True); shutil.copyfile(source,target)
+    assert sha(source)==sha(target)
+    records.append(dict(path=relative.as_posix(),sha256=sha(target),bytes=target.stat().st_size))
+subprocess.run(['git','-C',str(checkout),'read-tree','HEAD'],check=True)
+subprocess.run(['git','-C',str(checkout),'-c','core.autocrlf=false','add','--','launcher','.github/workflows/launcher-windows.yml'],check=True)
+subprocess.run(['git','-C',str(checkout),'sparse-checkout','reapply'],check=True)
+subprocess.run(['git','-C',str(checkout),'-c','core.whitespace=blank-at-eol,blank-at-eof,space-before-tab,cr-at-eol','diff','--cached','--check'],check=True)
+files=subprocess.check_output(['git','-C',str(checkout),'diff','--cached','--name-only'],text=True).splitlines()
+assert set(files)=={x['path'] for x in records}, 'Staged paths differ from the explicit launcher whitelist.'
+tree=subprocess.check_output(['git','-C',str(checkout),'write-tree'],text=True).strip()
+stat=subprocess.check_output(['git','-C',str(checkout),'diff','--cached','--stat'],text=True)
+proof=dict(baseCommit='d5a277de779f6cf69768a2900e299c9af5810e1a',localSharedHead=subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],text=True).strip(),isolatedCheckout=str(checkout),branch='codex/launcher-playtest-r4',candidateTree=tree,files=records,actualReleaseCommits=[],proposedCommitMessage='Add Windows playtest launcher and guarded local client builds',excluded=['test_run/**','design/**','shared src/** and pom.xml','.vscode/**','launcher/docs/evidence/**','launcher/tools/**','node_modules/**','dist/**','out-electron/**','local logs, caches and credentials'],pushed=False,tagged=False,released=False)
+(base/'publication-scope.json').write_text(json.dumps(proof,indent=2),encoding='utf-8');(base/'publication-diff-stat.txt').write_text(stat,encoding='utf-8')
+print(json.dumps(dict(files=len(records),tree=tree,commits=0,push=False),indent=2))

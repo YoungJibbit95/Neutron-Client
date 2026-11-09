@@ -1,0 +1,248 @@
+{
+  "capturedAtUtc": "2026-10-28T16:03:20.402661+00:00",
+  "scope": "Files authored or updated by section 2, excluding unchanged section-1 files",
+  "selfHashExcluded": true,
+  "fileCount": 40,
+  "files": [
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\pom.xml",
+      "relativePath": "pom.xml",
+      "bytes": 16200,
+      "sha256": "5822aeb6d382761ca8242d898461134da43f162c7b7d22ef528bd117fb865876"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\src\\main\\java\\me\\neutron\\launcher\\ClientBootstrap.java",
+      "relativePath": "src/main/java/me/neutron/launcher/ClientBootstrap.java",
+      "bytes": 7033,
+      "sha256": "cdbea5225256318dc970275760556c8d31e9c8d7b4260d7c120dbfeb45ef9bd1"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\src\\test\\java\\me\\neutron\\launcher\\ClientBootstrapTest.java",
+      "relativePath": "src/test/java/me/neutron/launcher/ClientBootstrapTest.java",
+      "bytes": 4703,
+      "sha256": "45ff7861788349ed00f6677a804e37f01e72eaa04be0c8e39a675076138a7831"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\tools\\client_contract.py",
+      "relativePath": "launcher/tools/client_contract.py",
+      "bytes": 6000,
+      "sha256": "6722ec83eda9c5fe2103afb5bde74adbfeb5edbd6ca6887844403fffae16fb85"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\tools\\build_client.py",
+      "relativePath": "launcher/tools/build_client.py",
+      "bytes": 4740,
+      "sha256": "2826999e5adf0e31e0b9aaf963e86cc846ebcad0730717da679d102f75b394a8"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\tools\\package_client.py",
+      "relativePath": "launcher/tools/package_client.py",
+      "bytes": 4763,
+      "sha256": "ade8594b1736ddf52cde69a3d314cc5c0089d6d1c0b3058f925e1863918ab243"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\tools\\provision_minecraft.py",
+      "relativePath": "launcher/tools/provision_minecraft.py",
+      "bytes": 8035,
+      "sha256": "94cd8ea9ace1ad10620387c20a6a83566eb66afd1649aa6d14dc36462a888778"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\tools\\run_client.py",
+      "relativePath": "launcher/tools/run_client.py",
+      "bytes": 936,
+      "sha256": "c401afcf97a20a6a4bab71bff761a261d662c087f0d041c47341da22c9d410c9"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\tools\\tests\\test_contract.py",
+      "relativePath": "launcher/tools/tests/test_contract.py",
+      "bytes": 5392,
+      "sha256": "4e42cff8d88a93231f89528c34767315e69c2f741e248447a0811a09c81e8d66"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\STARTABILITY.md",
+      "relativePath": "launcher/docs/STARTABILITY.md",
+      "bytes": 11394,
+      "sha256": "e1cf321e2bf51ca3fbac37f409ca4f8d96deada2bea60f4e6c059370c3d8c6ce"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\PLAN.md",
+      "relativePath": "launcher/docs/PLAN.md",
+      "bytes": 4857,
+      "sha256": "333147b4024a25c600df7cdd3652746c222448aa3d1daa724616bc9a95e06f2f"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\GATES.md",
+      "relativePath": "launcher/docs/GATES.md",
+      "bytes": 4339,
+      "sha256": "a4696030aec61f0e1bcecb166f7f9216e22963e258b11ee9743a5f414ff8ade5"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\REVIEW-2.md",
+      "relativePath": "launcher/docs/REVIEW-2.md",
+      "bytes": 12777,
+      "sha256": "78128740fd5a060174627dff583a8250da66c9227372cf24cc89b03a456903c5"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\before-alias-settings-crash.txt",
+      "relativePath": "launcher/docs/evidence/section-2/before-alias-settings-crash.txt",
+      "bytes": 4059,
+      "sha256": "bddb2fa9150776cf1291ac4c5b8e79c4c9139fc8d82375c8e1afae85e217a2fe"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\cold-bootstrap-tests.txt",
+      "relativePath": "launcher/docs/evidence/section-2/cold-bootstrap-tests.txt",
+      "bytes": 332,
+      "sha256": "a65ea2fda17fc41ce51130cd635caaeaa0a647e83f295744fe4762025ecbdfe7"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\cold-build-command.json",
+      "relativePath": "launcher/docs/evidence/section-2/cold-build-command.json",
+      "bytes": 992,
+      "sha256": "1a7503153c8e1268617e96d18837fc8ea1755fef9f8f76626455e854cf6f65f9"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\cold-maven-output.txt",
+      "relativePath": "launcher/docs/evidence/section-2/cold-maven-output.txt",
+      "bytes": 108126,
+      "sha256": "cdf9a4a67b69c7b2c52aca4cbed1e6e118ecb3ff022df537bfd64edaba3ff737"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\disk-space-initial.json",
+      "relativePath": "launcher/docs/evidence/section-2/disk-space-initial.json",
+      "bytes": 2249,
+      "sha256": "dc686b4899bae57c1f467dac8a4e0b74bee00142aad70542ce5b923c2998aed9"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\disk-space-inspection.json",
+      "relativePath": "launcher/docs/evidence/section-2/disk-space-inspection.json",
+      "bytes": 2797,
+      "sha256": "e9dc3a2cf08c1c69ce8ff2b222c55e23412601c63a70038039891045ef9c59d2"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\final-client-menu.json",
+      "relativePath": "launcher/docs/evidence/section-2/final-client-menu.json",
+      "bytes": 692,
+      "sha256": "114101492b3fee26a6b5bd7bf7c9d8d93092ac6a20e41c35e7a74a5eadb1fce9"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\final-client-menu.png",
+      "relativePath": "launcher/docs/evidence/section-2/final-client-menu.png",
+      "bytes": 64822,
+      "sha256": "91e2c5db76ecce18d08cf025efa1e74b70ea538bad208bad375e0f88c823b7df"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\final-client-output.txt",
+      "relativePath": "launcher/docs/evidence/section-2/final-client-output.txt",
+      "bytes": 18612,
+      "sha256": "6bf1cca7d0964db7eb0045a0a128f4377b9cbc4b2c6ebc6962c70cf2bcae2fb6"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\final-client-run.json",
+      "relativePath": "launcher/docs/evidence/section-2/final-client-run.json",
+      "bytes": 10205,
+      "sha256": "c0e0eb91b37580d1f904b88c78cd02677319d36d6a034d87e6423278db380dfd"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\final-launch-manifest.json",
+      "relativePath": "launcher/docs/evidence/section-2/final-launch-manifest.json",
+      "bytes": 13203,
+      "sha256": "065feab0692fe5d58c0b704d6a2bb2ace5ad6132d1e801b3d58325e333fbde03"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\linux-x64-runtime-manifest.json",
+      "relativePath": "launcher/docs/evidence/section-2/linux-x64-runtime-manifest.json",
+      "bytes": 2986,
+      "sha256": "67a170ebac185b6f27d1ff344df920f03de0dc71eb6a79cf46cf1a10f5c4aafb"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\macos-x64-runtime-manifest.json",
+      "relativePath": "launcher/docs/evidence/section-2/macos-x64-runtime-manifest.json",
+      "bytes": 3083,
+      "sha256": "4de08f3ab5cea197a21a0de227c1cc5003bb040414631e79c35c255c8caddebe"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\native-architecture-inspection.json",
+      "relativePath": "launcher/docs/evidence/section-2/native-architecture-inspection.json",
+      "bytes": 4108,
+      "sha256": "9b0a8755bda2e8f2b4d4d1f7c45da38da20aa3a22274f03c87cd50dd0eefcb9a"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\python-unit-tests.txt",
+      "relativePath": "launcher/docs/evidence/section-2/python-unit-tests.txt",
+      "bytes": 1137,
+      "sha256": "e0cdc2016267208479d1854333de40e643e7e0010f90291302a1f27d179dae9b"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\README.md",
+      "relativePath": "launcher/docs/evidence/section-2/README.md",
+      "bytes": 2668,
+      "sha256": "84129cd428dcc3728880abb35690e614ca3daf7d51f574d52cc11c49435e4821"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\repository-probes.json",
+      "relativePath": "launcher/docs/evidence/section-2/repository-probes.json",
+      "bytes": 549,
+      "sha256": "f3302c73afe5762ebc81ff2324ff85e9a76477c1921c7cae20fbe4f75a9f660e"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\resource-failures.json",
+      "relativePath": "launcher/docs/evidence/section-2/resource-failures.json",
+      "bytes": 1767,
+      "sha256": "715dfd7eb938047a8fc4805c6b129eae251477d09c1e3768015dea39b7ce9020"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\verification.json",
+      "relativePath": "launcher/docs/evidence/section-2/verification.json",
+      "bytes": 11209,
+      "sha256": "8d35127ce15865252c397add4d4184c8812d35dc8f011523ce88686737994ddd"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\warm-bootstrap-tests.txt",
+      "relativePath": "launcher/docs/evidence/section-2/warm-bootstrap-tests.txt",
+      "bytes": 332,
+      "sha256": "503dfbd472944e423cc4ed6b53f106d9ff1264efe503353af488fd8e54f113bb"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\warm-build-command.json",
+      "relativePath": "launcher/docs/evidence/section-2/warm-build-command.json",
+      "bytes": 918,
+      "sha256": "36ec4557ff6c0d883e03f8b28c0e2a8ffe85be1c96ce0d81db88ed688ce594a4"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\warm-maven-output.txt",
+      "relativePath": "launcher/docs/evidence/section-2/warm-maven-output.txt",
+      "bytes": 60237,
+      "sha256": "e20cda76ca8b43bd832546192f95a060f135bfcc94f29c31ce62038e8320fcdf"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\windows-client-menu.png",
+      "relativePath": "launcher/docs/evidence/section-2/windows-client-menu.png",
+      "bytes": 64590,
+      "sha256": "81bafa48d3241ee199c16e276bfd1b64ba222cdd76c90d82421200145afdd9a5"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\windows-client-output.txt",
+      "relativePath": "launcher/docs/evidence/section-2/windows-client-output.txt",
+      "bytes": 25051,
+      "sha256": "24a4da35e2a26ddf91cb951c0552bcad674d248d4842221c51ec18923066b3ac"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\windows-client-run.json",
+      "relativePath": "launcher/docs/evidence/section-2/windows-client-run.json",
+      "bytes": 13236,
+      "sha256": "a944424c7198dd5a7b35af373e7fa21197eb257ab655b7be9f76cd5c61b646f4"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\windows-window-capture.json",
+      "relativePath": "launcher/docs/evidence/section-2/windows-window-capture.json",
+      "bytes": 552,
+      "sha256": "1994a6b704636b3796a0a8065a0453759675c264ac11f84bf8c54df34198a41a"
+    },
+    {
+      "absolutePath": "F:\\Puslar Backup - Copy\\launcher\\docs\\evidence\\section-2\\windows-x64-runtime-manifest.json",
+      "relativePath": "launcher/docs/evidence/section-2/windows-x64-runtime-manifest.json",
+      "bytes": 4983,
+      "sha256": "15e892173243b6eeee3605ff32023d440a624a666fc5fcca90313bdd74fdafba"
+    }
+  ]
+}

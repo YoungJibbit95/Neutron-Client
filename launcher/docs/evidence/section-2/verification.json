@@ -1,0 +1,284 @@
+{
+  "capturedAtUtc": "2026-10-28T15:57:21.216517+00:00",
+  "status": "PARTIAL_REVIEW_UI_STOPPED_BY_USER",
+  "section3Allowed": false,
+  "builds": [
+    {
+      "name": "warm",
+      "workspace": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Build mit Umlaut Prüfung",
+      "buildSuccess": true,
+      "mavenSummary": [
+        400,
+        0,
+        0,
+        3
+      ],
+      "surefireTotals": {
+        "tests": 400,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 3
+      },
+      "surefireReportFiles": 79,
+      "bootstrapTests": {
+        "tests": "6",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      "sourceSnapshotSha256": "6b1a7d9a0c200e079c611d7247ab3d0a57aee88fbd357ab089fb4a90f7d9ae5b",
+      "sourceFiles": 6585,
+      "snapshotContainsOnlySourcesAndPom": true,
+      "buildCommand": {
+        "arguments": [
+          "C:\\Users\\Administrator\\scoop\\apps\\temurin8-jdk\\8.0.482-8\\bin\\java.exe",
+          "-Dclassworlds.conf=C:\\Users\\Administrator\\scoop\\apps\\maven\\3.9.15\\bin\\m2.conf",
+          "-Dmaven.home=C:\\Users\\Administrator\\scoop\\apps\\maven\\3.9.15",
+          "-Dmaven.multiModuleProjectDirectory=C:\\Users\\Administrator\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Build mit Umlaut Prüfung\\source",
+          "-cp",
+          "C:\\Users\\Administrator\\scoop\\apps\\maven\\3.9.15\\boot\\plexus-classworlds-2.9.0.jar",
+          "org.codehaus.plexus.classworlds.launcher.Launcher",
+          "-B",
+          "-ntp",
+          "-Plauncher-dist",
+          "-o",
+          "clean",
+          "package"
+        ],
+        "workingDirectory": "C:\\Users\\Administrator\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Build mit Umlaut Prüfung\\source",
+        "javaVersion": "1.8.0_482-b08",
+        "globalEnvironmentModified": false
+      },
+      "logSha256": "e20cda76ca8b43bd832546192f95a060f135bfcc94f29c31ce62038e8320fcdf",
+      "checksumWarnings": 0
+    },
+    {
+      "name": "cold",
+      "workspace": "F:\\Neutron Launcher Section2 20261028\\Cold Cache Build",
+      "buildSuccess": true,
+      "mavenSummary": [
+        400,
+        0,
+        0,
+        3
+      ],
+      "surefireTotals": {
+        "tests": 400,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 3
+      },
+      "surefireReportFiles": 79,
+      "bootstrapTests": {
+        "tests": "6",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      "sourceSnapshotSha256": "266eb684ed33b3607ac484e1dd0dc31868612bc10bcae1448e97a06dbef13fd9",
+      "sourceFiles": 6585,
+      "snapshotContainsOnlySourcesAndPom": true,
+      "buildCommand": {
+        "arguments": [
+          "C:\\Users\\Administrator\\scoop\\apps\\temurin8-jdk\\8.0.482-8\\bin\\java.exe",
+          "-Xmx1536M",
+          "-Djava.io.tmpdir=F:\\Neutron Launcher Section2 20261028\\Cold Cache Build\\temp",
+          "-Dclassworlds.conf=C:\\Users\\Administrator\\scoop\\apps\\maven\\3.9.15\\bin\\m2.conf",
+          "-Dmaven.home=C:\\Users\\Administrator\\scoop\\apps\\maven\\3.9.15",
+          "-Dmaven.multiModuleProjectDirectory=F:\\Neutron Launcher Section2 20261028\\Cold Cache Build\\source",
+          "-cp",
+          "C:\\Users\\Administrator\\scoop\\apps\\maven\\3.9.15\\boot\\plexus-classworlds-2.9.0.jar",
+          "org.codehaus.plexus.classworlds.launcher.Launcher",
+          "-B",
+          "-ntp",
+          "-Plauncher-dist",
+          "-Dmaven.repo.local=F:\\Neutron Launcher Section2 20261028\\Empty Maven Cache",
+          "clean",
+          "package"
+        ],
+        "workingDirectory": "F:\\Neutron Launcher Section2 20261028\\Cold Cache Build\\source",
+        "javaVersion": "1.8.0_482-b08",
+        "globalEnvironmentModified": false
+      },
+      "logSha256": "cdf9a4a67b69c7b2c52aca4cbed1e6e118ecb3ff022df537bfd64edaba3ff737",
+      "checksumWarnings": 16
+    }
+  ],
+  "pythonUnitTests": {
+    "exitCode": 0,
+    "count": 8,
+    "log": "python-unit-tests.txt",
+    "temporaryDirectory": "F:\\Neutron Launcher Section2 20261028\\Unit Test Temp"
+  },
+  "pythonSyntaxFiles": [
+    "launcher\\tools\\build_client.py",
+    "launcher\\tools\\client_contract.py",
+    "launcher\\tools\\package_client.py",
+    "launcher\\tools\\provision_minecraft.py",
+    "launcher\\tools\\run_client.py",
+    "launcher\\tools\\tests\\test_contract.py"
+  ],
+  "finalDistribution": {
+    "path": "F:\\Neutron Launcher Section2 20261028\\Final Distribution",
+    "manifestSha256": "065feab0692fe5d58c0b704d6a2bb2ace5ad6132d1e801b3d58325e333fbde03",
+    "jarSha256": "3696f2c7c41c5db7de6e99f342210861a55a4f4df4901a179de3546494fbe3d8",
+    "classpathFilesVerified": 63,
+    "jarChecks": {
+      "productionEntryClassPresent": true,
+      "testStartAbsent": true,
+      "shaderAliasCount": 1,
+      "shaderAliasBytesMatch": true,
+      "manifestMainClassCorrect": true
+    },
+    "packagerMatchesManifest": true,
+    "sourceMatchesColdSnapshot": {
+      "pom.xml": true,
+      "src/main/java/me/neutron/launcher/ClientBootstrap.java": true,
+      "src/test/java/me/neutron/launcher/ClientBootstrapTest.java": true
+    },
+    "sourceSha256": {
+      "pom.xml": "5822aeb6d382761ca8242d898461134da43f162c7b7d22ef528bd117fb865876",
+      "src/main/java/me/neutron/launcher/ClientBootstrap.java": "cdbea5225256318dc970275760556c8d31e9c8d7b4260d7c120dbfeb45ef9bd1",
+      "src/test/java/me/neutron/launcher/ClientBootstrapTest.java": "45ff7861788349ed00f6677a804e37f01e72eaa04be0c8e39a675076138a7831"
+    }
+  },
+  "runtime": [
+    {
+      "path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Runtime Windows Prüfung",
+      "platform": "windows-x64",
+      "assetsComplete": true,
+      "uniqueAssetObjects": 722,
+      "nativeFiles": 14,
+      "javaLibraries": [
+        "org.lwjgl.lwjgl:lwjgl:2.9.4-nightly-20150209",
+        "org.lwjgl.lwjgl:lwjgl_util:2.9.4-nightly-20150209"
+      ],
+      "fileIntegrityVerified": true
+    },
+    {
+      "path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Runtime Linux Candidate",
+      "platform": "linux-x64",
+      "assetsComplete": false,
+      "uniqueAssetObjects": 722,
+      "nativeFiles": 6,
+      "javaLibraries": [
+        "org.lwjgl.lwjgl:lwjgl:2.9.4-nightly-20150209",
+        "org.lwjgl.lwjgl:lwjgl_util:2.9.4-nightly-20150209"
+      ],
+      "fileIntegrityVerified": true
+    },
+    {
+      "path": "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Runtime macOS Candidate",
+      "platform": "macos-x64",
+      "assetsComplete": false,
+      "uniqueAssetObjects": 722,
+      "nativeFiles": 4,
+      "javaLibraries": [
+        "org.lwjgl.lwjgl:lwjgl:2.9.2-nightly-20140822",
+        "org.lwjgl.lwjgl:lwjgl_util:2.9.2-nightly-20140822"
+      ],
+      "fileIntegrityVerified": true
+    }
+  ],
+  "officialAssets": {
+    "objects": 722,
+    "allSha1AndSizesVerified": true
+  },
+  "screenshotAssociation": {
+    "file": "final-client-menu.png",
+    "fileSha256Verified": true,
+    "metadata": "final-client-menu.json",
+    "processRun": "final-client-run.json",
+    "observedState": "actual final client main menu",
+    "association": "matching Java 8 app, LauncherSmoke title, run time and final-distribution classpath; screenshot itself does not include a PID",
+    "snapshotSha256": "266eb684ed33b3607ac484e1dd0dc31868612bc10bcae1448e97a06dbef13fd9",
+    "jarSha256": "3696f2c7c41c5db7de6e99f342210861a55a4f4df4901a179de3546494fbe3d8",
+    "metadataTimestampMeaning": "capturedAtUtc records persistence of the previously observed screenshot buffer, not exact image acquisition; buffer was saved after the process had ended"
+  },
+  "finalClientProcessReadOnlyObservation": {
+    "recordedPid": 72872,
+    "observedProcess": null,
+    "launchRecordHasExitCode": true,
+    "recordedExitCode": 0,
+    "terminationAttemptedThisTurn": false
+  },
+  "uiChecksNotExecuted": [
+    "Settings reopen after alias: user stopped Computer Use with physical Escape; click outcome not verified",
+    "Regular client termination after final run: user stop; no subsequent close or kill"
+  ],
+  "notExecuted": [
+    "Linux client start",
+    "macOS Intel client start",
+    "Apple Silicon x64 compatibility start",
+    "Fresh OS without Java/Maven/Git",
+    "Automatic toolchain install",
+    "Installer/signing",
+    "Remote main build"
+  ],
+  "diskSpace": {
+    "C:/": {
+      "total": 394546638848,
+      "used": 394496307200,
+      "free": 50331648
+    },
+    "F:/": {
+      "total": 999592079360,
+      "used": 900416319488,
+      "free": 99175759872
+    }
+  },
+  "baseline": {
+    "existingFingerprintsChecked": 150,
+    "changed": [
+      "pom.xml"
+    ],
+    "newOrChangedStatusOutsideLauncher": [
+      {
+        "status": " M",
+        "path": "pom.xml"
+      },
+      {
+        "status": "??",
+        "path": "src/main/java/me/neutron/launcher/ClientBootstrap.java"
+      },
+      {
+        "status": "??",
+        "path": "src/test/java/me/neutron/launcher/ClientBootstrapTest.java"
+      }
+    ]
+  },
+  "dependencyDifference": {
+    "warmClasspathEntries": 58,
+    "coldClasspathEntries": 63,
+    "onlyCold": [
+      "libraries/tv/twitch/twitch-external-platform/4.5/twitch-external-platform-4.5-natives-windows-32.jar",
+      "libraries/tv/twitch/twitch-external-platform/4.5/twitch-external-platform-4.5-natives-windows-64.jar",
+      "libraries/tv/twitch/twitch-platform/6.5/twitch-platform-6.5-natives-osx.jar",
+      "libraries/tv/twitch/twitch-platform/6.5/twitch-platform-6.5-natives-windows-32.jar",
+      "libraries/tv/twitch/twitch-platform/6.5/twitch-platform-6.5-natives-windows-64.jar"
+    ],
+    "onlyWarm": [],
+    "changedSharedHashes": [
+      "neutron-client.jar"
+    ]
+  },
+  "cleanupDeniedTargets": [
+    "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Cold Cache Build",
+    "C:\\Users\\ADMINI~1\\AppData\\Local\\Temp\\neutron-launcher-section2-20261028\\Cold Cache Build Retry"
+  ],
+  "cleanupPolicyReason": "Automatic approval review rejected recursive delete: blocked by policy; no bypass or repeated delete",
+  "futureReleaseRisks": [
+    "Legacy repositories emitted missing-checksum warnings in cold build",
+    "Cached and fresh dependency graphs differ; no lockfile equivalence claimed",
+    "Settings alias verified statically, not by a completed UI regression test"
+  ],
+  "latestDirectorySizeInspection": "disk-space-inspection.json",
+  "earlierDirectorySizeInspection": "disk-space-initial.json",
+  "documentationVerification": {
+    "reviewStatus": "PARTIAL; NOT FULLY PASSED",
+    "section3Allowed": false,
+    "localMarkdownLinksChecked": 20,
+    "brokenLinks": [],
+    "documentationOnlyContinuation": "No Computer Use, restart, close or termination after user interruption; static checks, isolated Python unit tests and read-only process/disk observations only"
+  }
+}

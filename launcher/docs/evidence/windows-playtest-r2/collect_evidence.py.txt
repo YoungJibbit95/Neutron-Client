@@ -1,0 +1,44 @@
+from pathlib import Path
+import json,hashlib,shutil,datetime,xml.etree.ElementTree as ET,subprocess,re
+base=Path(r'F:\Neutron Launcher Playtest 20261028');root=Path(r'F:\Puslar Backup - Copy');project=root/'launcher';ev=project/'docs/evidence/windows-playtest';ev.mkdir(parents=True,exist_ok=True)
+def sha(p):
+    h=hashlib.sha256()
+    with p.open('rb') as f:
+        for chunk in iter(lambda:f.read(1024*1024),b''):h.update(chunk)
+    return h.hexdigest()
+def read(p):return json.loads(p.read_text(encoding='utf-8-sig'))
+def write(p,data):p.write_text(json.dumps(data,indent=2,ensure_ascii=False),encoding='utf-8')
+baseline=read(Path(r'F:\Neutron Launcher Section3 20261028\baseline.json'))
+preserved={name:sha(root/name)==digest for name,digest in baseline.items()};assert all(value for name,value in preserved.items() if name!='pom.xml'),preserved
+shared_pom=dict(matchesSection3Baseline=preserved['pom.xml'],baselineSha256=baseline['pom.xml'],currentSha256=sha(root/'pom.xml'),excludedFromPublication=True,launcherDidNotWriteSharedPom=True,observedChange='Parallel local assembly mainClass changed from launchwrapper.Launch to net.minecraft.client.main.Main; launcher uses its isolated adapter instead.')
+tests=read(base/'tests-final.json');assert tests['success'] and tests['numFailedTests']==0
+integration=read(base/'integration-result.json');cancellation=read(base/'cancellation-result.json');inspection=read(base/'package-inspection.json');signature=read(base/'signature-version.json')
+artifact=base/'Installer Candidate Review/Neutron-Launcher-0.1.0-playtest.1-Windows-x64.exe';assert artifact.is_file()
+reports=[]
+for work in (base/'Managed Integration/work').iterdir():
+    folder=work/'source/target/surefire-reports'
+    if not folder.exists():continue
+    totals=dict(tests=0,failures=0,errors=0,skipped=0)
+    for p in folder.glob('TEST-*.xml'):
+        data=ET.parse(p).getroot().attrib
+        for k in totals:totals[k]+=int(data.get(k,0))
+    if totals['tests']:reports.append(dict(workspace=str(work),**totals))
+scope=read(base/'publication-scope.json')
+sources=[project/x for x in ['package.json','package-lock.json','.npmrc','.gitignore','tsconfig.json','tsconfig.electron.json','vite.config.ts','electron-builder.cjs','index.html']]
+for folder in ['src','electron','scripts','tests','resources','public/licenses']:sources.extend(p for p in (project/folder).rglob('*') if p.is_file())
+sources.append(root/'.github/workflows/launcher-windows.yml')
+source_records=[dict(path=str(p),relativePath=p.relative_to(root).as_posix(),sha256=sha(p),bytes=p.stat().st_size) for p in sorted(sources)]
+write(ev/'source-inventory.json',source_records)
+for source,target in [('tests-final.json','tests.json'),('integration-result.json','integration.json'),('cancellation-result.json','cancellation.json'),('package-inspection.json','package-inspection.json'),('signature-version.json','signature-version.json'),('publication-scope.json','publication-scope.json'),('publication-diff-stat.txt','publication-diff-stat.txt')]:shutil.copyfile(base/source,ev/target)
+shutil.copyfile(base/'Managed Integration/logs/build.log',ev/'maven-build-and-cancel.log')
+for name in ['integration.cjs','cancel-maven.cjs','inspect_package.cjs','final_verify.py','retry_package.py','collect_evidence.py','prepare_publication.py']:
+    shutil.copyfile(base/name,ev/(name+'.txt'))
+write(ev/'maven-tests.json',reports)
+config=(project/'electron-builder.cjs').read_text(encoding='utf-8');assert 'deleteAppDataOnUninstall: false' in config and 'runAfterFinish: false' in config
+html=(project/'dist/index.html').read_text(encoding='utf-8');assert "connect-src 'none'" in html
+for p in project.rglob('*.md'):
+    if 'node_modules' in p.parts:continue
+    p.read_text(encoding='utf-8')
+summary=dict(capturedAtUtc=datetime.datetime.now(datetime.timezone.utc).isoformat(),status='TECHNICAL_CANDIDATE_REVIEW_PENDING_NOT_RELEASED',version='0.1.0-playtest.1',clientCommit=integration['build']['commit'],installer=dict(path=str(artifact),sha256=sha(artifact),bytes=artifact.stat().st_size,signature=signature['InstallerSignature']),app=dict(peMachine=inspection['appPeMachine'],fileVersion=signature['FileVersion'],productVersion=signature['ProductVersion'],signature=signature['AppSignature']),tests={k:tests[k] for k in ['numTotalTests','numPassedTests','numFailedTests','success']},mavenTests=reports,realIntegrationChecks=integration['checks'],realMavenCancellation=cancellation,baselineComparison=preserved,sharedPomObservation=shared_pom,packagedOwnFileMatches=len(inspection['compiledFilesMatch']),packagedAdapterFileMatches=len(inspection['adapterFilesMatch']),forbiddenPackagedPaths=inspection['forbiddenPackagedPaths'],sourceInventorySha256=sha(ev/'source-inventory.json'),publication=dict(base=scope['baseCommit'],tree=scope['candidateTree'],files=len(scope['files']),commits=[],pushed=False,released=False),installerConfiguration=dict(deleteAppDataOnUninstall=False,runAfterFinish=False,realInstallUninstallTested=False),notExecuted=['Electron/launcher window','Minecraft client window (bootstrap --validateOnly only)','Installer UI or actual installation/uninstallation','Real UI/navigation/scroll/DPI/focus/clipboard dialogs','Real client crash/recovery/close or build-and-play','GitHub CI run','Commit/push/tag/pre-release'],nsisSilentWriteUninstallerBuildHelper=True,signingAndSmartScreenGateOpen=True,escapeRestrictionLifted=False,driveFreeMiB={d:shutil.disk_usage(d).free//1048576 for d in ['C:/','F:/']},cDriveCleanupPerformed=False,rejectedSection2CleanupRetried=False)
+write(ev/'candidate.json',summary)
+print(json.dumps(dict(installer=summary['installer'],tests=summary['tests'],mavenTests=reports,publication=summary['publication'],preserved=preserved),indent=2))
