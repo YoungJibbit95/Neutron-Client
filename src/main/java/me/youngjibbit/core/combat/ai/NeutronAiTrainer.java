@@ -156,6 +156,13 @@ public final class NeutronAiTrainer implements AutoCloseable {
         if(trainClicks<12 || valClicks<3 || trainReactions<2 || valReactions<1)
             return rejected(Status.INSUFFICIENT_DATA,frames,trainingEnd,frames-validationStart,progress);
 
+        // These simultaneous copies alone require this much primitive payload.
+        // VM-wide net heap samples can remain flat inside an already reserved TLAB.
+        long samplePayloadBytes=(long)frames*
+                (NeutronAiCheckpoint.INPUTS+NeutronAiCheckpoint.OUTPUTS)*Float.BYTES;
+        if(samplePayloadBytes>limits.maxHeapGrowthBytes)
+            return rejected(Status.HEAP_LIMIT,frames,trainingEnd,frames-validationStart,progress);
+
         float[][] features=new float[frames][],labels=new float[frames][];
         for(int i=0;i<frames;i++) {
             if((i&63)==0) {
