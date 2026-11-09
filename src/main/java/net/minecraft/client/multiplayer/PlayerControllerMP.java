@@ -570,6 +570,9 @@ public class PlayerControllerMP
     }
 
     public boolean tryAttackEntity(EntityPlayer playerIn, Entity targetEntity, java.util.function.BooleanSupplier validHit) {
+        if (playerIn == null || this.mc.thePlayer != playerIn || this.mc.playerController != this) return false;
+        final World scene = playerIn.worldObj;
+        if (scene == null || this.mc.theWorld != scene) return false;
         me.youngjibbit.core.combat.AttackScheduler scheduler = me.youngjibbit.core.bootstrap.RuntimeServices.attackScheduler();
         me.youngjibbit.module.Module aura = Pulsar.INSTANCE.getMm() == null ? null
                 : Pulsar.INSTANCE.getMm().getModule(me.youngjibbit.module.impl.combat.Aura.class);
@@ -581,8 +584,8 @@ public class PlayerControllerMP
                 Pulsar.BUS.post(attackEvent);
                 cancelled = attackEvent.isCancelled();
             }
-            final World scene = playerIn.worldObj;
-            java.util.function.BooleanSupplier currentHit = () -> this.mc.thePlayer == playerIn && this.mc.theWorld == scene
+            java.util.function.BooleanSupplier currentHit = () -> this.mc.playerController == this
+                    && this.mc.thePlayer == playerIn && this.mc.theWorld == scene && playerIn.worldObj == scene
                     && !playerIn.isDead && scene != null && targetEntity != null && targetEntity.worldObj == scene && !targetEntity.isDead
                     && scene.getEntityByID(targetEntity.getEntityId()) == targetEntity && validHit.getAsBoolean();
             if (!cancelled && currentHit.getAsBoolean()) {
