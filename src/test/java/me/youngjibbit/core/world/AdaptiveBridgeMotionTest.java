@@ -287,4 +287,112 @@ public class AdaptiveBridgeMotionTest {
             field.setAccessible(true); checkReachable(field.get(value), forbidden, seen);
         }
     }
+
+    /** Presets split initial/keeping caps; the flat W08 constructor stays uniform. */
+    @Test public void splitPresetsStrengthenOnlyTheInitialPhaseAndStayMonotone() {
+        AdaptiveBridgeMotion.Speed[] presets = {AdaptiveBridgeMotion.Speed.CALM,
+                AdaptiveBridgeMotion.Speed.BALANCED, AdaptiveBridgeMotion.Speed.SWIFT};
+        for (AdaptiveBridgeMotion.Mode mode : AdaptiveBridgeMotion.Mode.values()) {
+            double scale = mode == AdaptiveBridgeMotion.Mode.GODBRIDGE ? .8 : 1;
+            double lastInitial = 0, lastKeeping = 0;
+            for (AdaptiveBridgeMotion.Speed speed : presets) {
+                AdaptiveBridgeMotion.Settings p = new AdaptiveBridgeMotion.Settings(mode,
+                        speed, 1, 35, 30, 35, 30);
+                assertEquals(35 * 20 * speedToInitial(speed) * scale, p.maxYawSpeed, 1e-9);
+                assertEquals(35 * 20 * speedToKeep(speed) * scale, p.keepingYawSpeed, 1e-9);
+                assertEquals(30 * 20 * speedToKeep(speed) * scale, p.keepingPitchSpeed, 1e-9);
+                assertTrue(p.keepingYawSpeed <= p.maxYawSpeed);
+                assertTrue(p.keepingPitchSpeed <= p.maxPitchSpeed);
+                assertTrue("finite physical budget", p.maxAcceleration > 0 && p.maxJerk > 0);
+                // The settled W08 pace is unchanged: keeping caps equal the flat preset caps.
+                AdaptiveBridgeMotion.Settings flat = new AdaptiveBridgeMotion.Settings(mode,
+                        speed, 1, 35, 30);
+                assertEquals(flat.maxYawSpeed, p.keepingYawSpeed, 0);
+                assertEquals(flat.maxPitchSpeed, p.keepingPitchSpeed, 0);
+                lastInitial = p.maxYawSpeed; lastKeeping = p.keepingYawSpeed;
+            }
+            // Monotone preset ladder on both phases.
+            for (int i = 1; i < presets.length; i++) {
+                AdaptiveBridgeMotion.Settings a = new AdaptiveBridgeMotion.Settings(mode,
+                        presets[i - 1], 1, 35, 30, 35, 30);
+                AdaptiveBridgeMotion.Settings b = new AdaptiveBridgeMotion.Settings(mode,
+                        presets[i], 1, 35, 30, 35, 30);
+                assertTrue(b.maxYawSpeed > a.maxYawSpeed);
+                assertTrue(b.keepingYawSpeed > a.keepingYawSpeed);
+            }
+        }
+        // Raw custom sliders bypass preset multipliers entirely (only leaving the W08 clamp bounds).
+        AdaptiveBridgeMotion.Settings custom = new AdaptiveBridgeMotion.Settings(
+                AdaptiveBridgeMotion.Mode.ADAPTIVE, AdaptiveBridgeMotion.Speed.CUSTOM, 1, 12, 34, 28, 30);
+        assertEquals(240, custom.maxYawSpeed, 0);
+        assertEquals(680, custom.maxPitchSpeed, 0);
+        assertEquals(560, custom.keepingYawSpeed, 0);
+        assertEquals(600, custom.keepingPitchSpeed, 0);
+        assertTrue(custom.same(new AdaptiveBridgeMotion.Settings(
+                AdaptiveBridgeMotion.Mode.ADAPTIVE, AdaptiveBridgeMotion.Speed.CUSTOM, 1, 12, 34, 28, 30)));
+        assertFalse(custom.same(new AdaptiveBridgeMotion.Settings(
+                AdaptiveBridgeMotion.Mode.ADAPTIVE, AdaptiveBridgeMotion.Speed.CUSTOM, 1, 12, 34, 28, 29)));
+        assertFalse(custom.same(new AdaptiveBridgeMotion.Settings(
+                AdaptiveBridgeMotion.Mode.ADAPTIVE, AdaptiveBridgeMotion.Speed.SWIFT, 1, 12, 34, 28, 30)));
+        // Sliders above the shared 720 degrees/second bound saturate exactly like the W08 caps.
+        AdaptiveBridgeMotion.Settings saturated = new AdaptiveBridgeMotion.Settings(
+                AdaptiveBridgeMotion.Mode.ADAPTIVE, AdaptiveBridgeMotion.Speed.CUSTOM, 1, 90, 90, 90, 90);
+        assertEquals(720, saturated.maxYawSpeed, 0);
+        assertEquals(720, saturated.keepingPitchSpeed, 0);
+    }
+
+    private static double speedToInitial(AdaptiveBridgeMotion.Speed speed) {
+        switch (speed) {
+            case CALM: return .5;
+            case BALANCED: return .75;
+            case SWIFT: case CUSTOM: return 1;
+            default: throw new AssertionError();
+        }
+    }
+    private static double speedToKeep(AdaptiveBridgeMotion.Speed speed) {
+        switch (speed) {
+            case CALM: return .38;
+            case BALANCED: return .55;
+            case SWIFT: case CUSTOM: return .8;
+            default: throw new AssertionError();
+        }
+    }
+
+    /** The keeping caps must exist as real motion caps on the shared engine, not only as numbers. */
+    @Test public void keepingPhaseUsesTheLowerCapsOnRealMotions() {
+        AdaptiveBridgeMotion c = new AdaptiveBridgeMotion(53);
+        AdaptiveBridgePlanner.Scope s = scope(); Object key = new Object();
+        AdaptiveBridgeMotion.Settings p = new AdaptiveBridgeMotion.Settings(
+                AdaptiveBridgeMotion.Mode.ADAPTIVE, AdaptiveBridgeMotion.Speed.SWIFT, 1, 35, 30, 35, 30);
+        double yaw = 0, pitch = 0, progress = 0;
+        boolean sawCalmKeeping = false;
+        double initialDistance = Math.hypot(150, 75);
+        for (int tick = 0; tick < 260; tick++) {
+            AdaptiveMotionController.Result r = advance(c, s, key, p, tick, tick * STEP, yaw, pitch, 150, 75);
+            assertNotNull(r);
+            if (progress >= AdaptiveBridgeMotion.Settings.KEEPING_PROGRESS && r.candidate) {
+                assertTrue("bridge keep yaw cap: yawVelocity=" + r.yawVelocity + " tick=" + tick,
+                        Math.abs(r.yawVelocity) <= p.keepingYawSpeed + 1e-6);
+                assertTrue("bridge keep pitch cap: pitchVelocity=" + r.pitchVelocity + " tick=" + tick,
+                        Math.abs(r.pitchVelocity) <= p.keepingPitchSpeed + 1e-6);
+                sawCalmKeeping = true;
+            }
+            yaw = r.yaw; pitch = r.pitch;
+            progress = 1 - Math.hypot(wrap(150 - yaw), 75 - pitch) / initialDistance;
+        }
+        assertTrue(sawCalmKeeping);
+        assertEquals(0, wrap(150 - yaw), 1e-6);
+        assertEquals(75, pitch, 1e-6);
+    }
+
+    @Test public void splitSettingsRejectInvalidKeepingTicks() {
+        for (double invalid : new double[]{0, -1, 91, Double.NaN}) {
+            try { new AdaptiveBridgeMotion.Settings(AdaptiveBridgeMotion.Mode.ADAPTIVE,
+                    AdaptiveBridgeMotion.Speed.SWIFT, .25, 35, 30, invalid, 30); fail(); }
+            catch (IllegalArgumentException expected) { }
+            try { new AdaptiveBridgeMotion.Settings(AdaptiveBridgeMotion.Mode.ADAPTIVE,
+                    AdaptiveBridgeMotion.Speed.SWIFT, .25, 35, 30, 35, invalid); fail(); }
+            catch (IllegalArgumentException expected) { }
+        }
+    }
 }

@@ -76,8 +76,21 @@ public class Scaffold extends Module {
     private final SliderValue bridgePrediction=new SliderValue("Bridge Prediction",this,1D,0,3,false);
     private final ComboValue bridgeRotationProfile=new ComboValue("Bridge Rotation Profile",this,
             new String[]{"Adaptive","Godbridge"},0);
-    private final ComboValue bridgeRotationSpeed=new ComboValue("Bridge Rotation Speed",this,
-            new String[]{"Calm","Balanced","Fast"},1);
+    /** Aim preset for the bridge route; "Custom" exposes the four per-phase sliders below. */
+    private final ComboValue bridgeAimSpeed=new ComboValue("Aim Speed",this,
+            new String[]{"Calm","Balanced","Swift","Custom"},1);
+    private final SliderValue bridgeInitialYawSpeed=new SliderValue("Initial Yaw Speed",this,55D,1,90,true);
+    private final SliderValue bridgeInitialPitchSpeed=new SliderValue("Initial Pitch Speed",this,55D,1,90,true);
+    private final SliderValue bridgeKeepingYawSpeed=new SliderValue("Keeping Yaw Speed",this,30D,1,90,true);
+    private final SliderValue bridgeKeepingPitchSpeed=new SliderValue("Keeping Pitch Speed",this,30D,1,90,true);
+    /** Load-only alias for the retired W08 combo; never serialized and never shown in the UI. */
+    private final ComboValue bridgeRotationSpeedAlias=new ComboValue("Bridge Rotation Speed",null,
+            new String[]{"Calm","Balanced","Fast"},1){
+        @Override public void setValue(String label) {
+            // Explicit migration at load time: Fast keeps its pace as the Swift preset.
+            if(label!=null)bridgeAimSpeed.setValue(label.equalsIgnoreCase("Fast")?"Swift":label);
+        }
+    };
     private final SliderValue bridgeRotationVariation=new SliderValue("Bridge Rotation Variation",this,.25D,0,1,false);
     private final SliderValue bridgePlaceMinCps=new SliderValue("Place Min CPS",this,12D,1,20,false);
     private final SliderValue bridgePlaceMaxCps=new SliderValue("Place Max CPS",this,16D,1,20,false);
@@ -177,8 +190,12 @@ public class Scaffold extends Module {
                 value.setVisibility(m->adaptiveBridge());continue;
             }
             if(value==bridgeEdgeSafety || value==bridgePrediction || value==bridgeRotationProfile
-                    || value==bridgeRotationSpeed || value==bridgeRotationVariation) {
+                    || value==bridgeAimSpeed || value==bridgeRotationVariation) {
                 value.setVisibility(m->adaptiveBridge());continue;
+            }
+            if(value==bridgeInitialYawSpeed || value==bridgeInitialPitchSpeed
+                    || value==bridgeKeepingYawSpeed || value==bridgeKeepingPitchSpeed) {
+                value.setVisibility(m->adaptiveBridge() && "Custom".equals(bridgeAimSpeed.getValue()));continue;
             }
             if(value==yawSpeed || value==pitchSpeed) {
                 java.util.function.Predicate<Module> previous=value.getVisibility();
@@ -200,12 +217,21 @@ public class Scaffold extends Module {
     @Override public void beginConfigUpdate() {
         super.beginConfigUpdate();approach.reset();softArsenicMotion.reset();sneakAfterBlocks.reset();
         bridgeEdgeSafety.reset();bridgePrediction.reset();bridgeRotationProfile.reset();
-        bridgeRotationSpeed.reset();bridgeRotationVariation.reset();
+        bridgeAimSpeed.reset();bridgeInitialYawSpeed.reset();bridgeInitialPitchSpeed.reset();
+        bridgeKeepingYawSpeed.reset();bridgeKeepingPitchSpeed.reset();bridgeRotationVariation.reset();
         bridgePlaceMinCps.reset();bridgePlaceMaxCps.reset();bridgeClickProfile.reset();
         bridgeClickInterpolation.reset();bridgeClickVariation.reset();bridgePlaceDebug.reset();
         bridgeAutoJump.reset();bridgeJumpAfter.reset();
     }
-    @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String name) { return super.getValueByName(name!=null && name.replace("_","").replace(" ","").equalsIgnoreCase("SameY")?"keep_y":name); }
+    @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String name) {
+        if(name!=null) {
+            String normalized=name.replace("_","").replace(" ","");
+            if(normalized.equalsIgnoreCase("SameY"))return super.getValueByName("keep_y");
+            // Saved W08 configs keep the retired combo id; migrate it into Aim Speed here.
+            if(normalized.equalsIgnoreCase("BridgeRotationSpeed"))return (me.youngjibbit.value.Value<T>) bridgeRotationSpeedAlias;
+        }
+        return super.getValueByName(name);
+    }
     @Override public void onValueChange() {
         long generation = ++lifecycleGeneration;
         sneakInterval.reset();
@@ -696,9 +722,14 @@ public class Scaffold extends Module {
     private AdaptiveBridgeMotion.Settings bridgeRotationSettings() {
         AdaptiveBridgeMotion.Mode mode="Godbridge".equals(bridgeRotationProfile.getValue())
                 ?AdaptiveBridgeMotion.Mode.GODBRIDGE:AdaptiveBridgeMotion.Mode.ADAPTIVE;
-        AdaptiveBridgeMotion.Speed speed="Calm".equals(bridgeRotationSpeed.getValue())
-                ?AdaptiveBridgeMotion.Speed.CALM:"Fast".equals(bridgeRotationSpeed.getValue())
-                ?AdaptiveBridgeMotion.Speed.FAST:AdaptiveBridgeMotion.Speed.BALANCED;
+        String aim=bridgeAimSpeed.getValue();
+        if("Custom".equals(aim))
+            return new AdaptiveBridgeMotion.Settings(mode,AdaptiveBridgeMotion.Speed.CUSTOM,
+                    bridgeRotationVariation.getValue(),bridgeInitialYawSpeed.getValue(),
+                    bridgeInitialPitchSpeed.getValue(),bridgeKeepingYawSpeed.getValue(),
+                    bridgeKeepingPitchSpeed.getValue());
+        AdaptiveBridgeMotion.Speed speed="Calm".equals(aim)?AdaptiveBridgeMotion.Speed.CALM
+                :"Swift".equals(aim)?AdaptiveBridgeMotion.Speed.SWIFT:AdaptiveBridgeMotion.Speed.BALANCED;
         return new AdaptiveBridgeMotion.Settings(mode,speed,bridgeRotationVariation.getValue(),
                 yawSpeed.getValue(),pitchSpeed.getValue());
     }
