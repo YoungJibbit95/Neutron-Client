@@ -101,6 +101,8 @@ public class Aura extends Module {
     private final SliderValue maxPitchStep = new SliderValue("Pitch Speed", this, 28.0, 1.0, 90.0, true);
     private final SliderValue jitter = new SliderValue("Jitter", this, 0.35, 0.0, 5.0, false);
 
+    // Explicit opt-in for camera-only, off-target swings; never licenses a C02 attack.
+    private final CheckBoxValue clickWhileAiming = new CheckBoxValue("Click While Aiming", this, false);
     private final CheckBoxValue rotations = new CheckBoxValue("Rotations", this, true);
     private final CheckBoxValue bestHitVec = new CheckBoxValue("Best Aim Vec", this, true);
     private final CheckBoxValue randomHitVec = new CheckBoxValue("Random Hit Vec", this, false);
@@ -136,6 +138,7 @@ public class Aura extends Module {
     @Override public void beginConfigUpdate() {
         super.beginConfigUpdate();
         clickTiming.legacyDefaults();
+        clickWhileAiming.setValue(false);
         customBlockFrequency.setValue(false);
         blockFrequency.reset();
         aimRangeMargin.reset();
@@ -370,9 +373,9 @@ public class Aura extends Module {
                 // only the original controller/raycast path may emit an actual C02.
                 boolean clickEligible=rotationManager.isMotionAccepted() && owns && aiAccepted
                         && !mc.thePlayer.isUsingItem() && getActiveTarget()==selected
-                        // Camera-only Aura may click only a genuinely validated ray:
-                        // old off-camera and rotation-return paths must never swing.
-                        && (rotations.getValue() || hit);
+                        // Camera-only off-target swings require explicit opt-in; only a
+                        // validated hit may progress to actual controller attack.
+                        && (rotations.getValue() || hit || clickWhileAiming.getValue());
                 final long clickGeneration=lifecycleGeneration;
                 // The legacy overload's false eligibility preserves the old
                 // attempted-motion tombstone without spending any click or RNG.
