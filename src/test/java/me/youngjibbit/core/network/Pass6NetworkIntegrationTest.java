@@ -49,11 +49,11 @@ public class Pass6NetworkIntegrationTest {
             AtomicLong now=new AtomicLong();Backtrack back=new Backtrack(now::get,f.client); back.getBooleanSetting("Only Aura").setValue(false);back.getBooleanSetting("Diagnostics").setValue(true);
             back.getModeSetting("Delay Mode").setValue("Fixed");back.getNumberSetting("Delay").setValue(500D);back.setToggled(true);
             try {
-                Animal animal=AttackHookTest.bare(Animal.class);animal.worldObj=f.world;animal.setEntityId(9);animal.posX=3;animal.serverPosX=96;animal.hurtTime=4;animal.setEntityBoundingBox(new AxisAlignedBB(2.7,0,-.3,3.3,1.8,.3));f.world.entities.put(9,animal);f.world.loadedEntityList.add(animal);f.cursor(animal);
+                Animal animal=NetworkTestSupport.bare(Animal.class);animal.worldObj=f.world;animal.setEntityId(9);animal.posX=3;animal.serverPosX=96;animal.hurtTime=4;animal.setEntityBoundingBox(new AxisAlignedBB(2.7,0,-.3,3.3,1.8,.3));f.world.entities.put(9,animal);f.world.loadedEntityList.add(animal);f.cursor(animal);
                 Pulsar.BUS.post(new TickEvent());assertEquals(-1,back.getDiagnostics().targetId);
                 back.getBooleanSetting("Animals").setValue(true);assertTrue(f.controller.tryAttackEntity(f.player,animal,()->true));assertEquals(9,back.getDiagnostics().targetId);assertEquals("attack",back.getDiagnostics().source);
                 f.receive(new S14PacketEntity.S15PacketEntityRelMove(9,(byte)16,(byte)0,(byte)0,true));assertEquals(96,animal.serverPosX);assertEquals(3.5,f.pipe().receivedPosition(animal).xCoord,0);
-                Animal replacement=AttackHookTest.bare(Animal.class);replacement.worldObj=f.world;replacement.setEntityId(9);replacement.serverPosX=32;replacement.setEntityBoundingBox(new AxisAlignedBB(0,0,0,1,1,1));f.world.entities.put(9,replacement);f.cursor(null);
+                Animal replacement=NetworkTestSupport.bare(Animal.class);replacement.worldObj=f.world;replacement.setEntityId(9);replacement.serverPosX=32;replacement.setEntityBoundingBox(new AxisAlignedBB(0,0,0,1,1,1));f.world.entities.put(9,replacement);f.cursor(null);
                 Pulsar.BUS.post(new TickEvent());assertEquals(-1,back.getDiagnostics().targetId);assertEquals(32,replacement.serverPosX);assertNull(f.pipe().receivedPosition(animal));
             }finally{back.setToggled(false);}
         }

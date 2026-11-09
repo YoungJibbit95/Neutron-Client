@@ -1,5 +1,7 @@
 package me.youngjibbit.module.impl.render;
 
+import me.youngjibbit.core.network.NetworkTestSupport;
+
 import io.netty.channel.embedded.EmbeddedChannel;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.bootstrap.ClientRuntime;
@@ -35,7 +37,7 @@ final class RotationHudRenderCheck {
         Module aura=IngameHudRenderCheck.modules.getModule(Aura.class),scaffold=IngameHudRenderCheck.modules.getModule(Scaffold.class);
         ClientRuntime runtime=new ClientRuntime(IngameHudRenderCheck.modules,null);
         try {
-            network.configureClientPackets(new PacketFlowTest.MainThread());
+            network.configureClientPackets(new NetworkTestSupport.MainThread());
             NetHandlerPlayClient handler=new NetHandlerPlayClient(mc,null,network,mc.getSession().getProfile());network.setNetHandler(handler);
             SessionInfoRenderCheck.set(mc.thePlayer,"sendQueue",handler);mc.playerController=new PlayerControllerMP(mc,handler);
             SessionInfoRenderCheck.set(Pulsar.INSTANCE,"runtime",runtime);

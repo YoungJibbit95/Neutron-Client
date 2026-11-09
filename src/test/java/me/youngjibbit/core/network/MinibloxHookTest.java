@@ -12,7 +12,7 @@ import static org.junit.Assert.*;
 public class MinibloxHookTest {
     @Test public void actualOutboundPathSanitizesOnePacketWithoutRecursiveResendsOrExtraMovement() {
         NetworkManager network=new NetworkManager(EnumPacketDirection.CLIENTBOUND);EmbeddedChannel channel=new EmbeddedChannel(network);
-        network.configureClientPackets(new PacketFlowTest.MainThread());MinibloxFix module=new MinibloxFix();PacketFlowTest.Observer events=new PacketFlowTest.Observer();
+        network.configureClientPackets(new NetworkTestSupport.MainThread());MinibloxFix module=new MinibloxFix();NetworkTestSupport.Observer events=new NetworkTestSupport.Observer();
         module.setToggled(true);Pulsar.BUS.subscribe(events);
         try {
             C0CPacketInput original=new C0CPacketInput(Float.NaN,2.5f,true,false);

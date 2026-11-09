@@ -60,7 +60,7 @@ public class PlayerSpawnProfileTest {
     }
 
     private static SpawnWorld world() throws Exception {
-        SpawnWorld world = AttackHookTest.bare(SpawnWorld.class);
+        SpawnWorld world = NetworkTestSupport.bare(SpawnWorld.class);
         world.entities = new HashMap<>();
         field(World.class, "provider").set(world, new WorldProviderSurface());
         field(World.class, "isRemote").setBoolean(world, true);
@@ -68,8 +68,8 @@ public class PlayerSpawnProfileTest {
     }
 
     private static final class Fixture implements AutoCloseable {
-        final PacketFlowTest.MainThread main = new PacketFlowTest.MainThread();
-        final SessionConsumerIntegrationTest.Client client = AttackHookTest.bare(SessionConsumerIntegrationTest.Client.class);
+        final NetworkTestSupport.MainThread main = new NetworkTestSupport.MainThread();
+        final NetworkTestSupport.Client client = NetworkTestSupport.bare(NetworkTestSupport.Client.class);
         final NetworkManager network = new NetworkManager(EnumPacketDirection.CLIENTBOUND);
         final EmbeddedChannel channel = new EmbeddedChannel(network);
         final SpawnWorld world = world();
@@ -243,7 +243,7 @@ public class PlayerSpawnProfileTest {
         try (Fixture f = new Fixture()) {
             UUID uuid = UUID.randomUUID();
             f.play.handleSpawnPlayer(spawn(17, uuid, 80));
-            Entity replacement = AttackHookTest.bare(EntityOtherPlayerMP.class);
+            Entity replacement = NetworkTestSupport.bare(EntityOtherPlayerMP.class);
             f.world.addEntityToWorld(17, replacement);
             addProfile(f, uuid);
             assertSame(replacement, f.world.getEntityByID(17));

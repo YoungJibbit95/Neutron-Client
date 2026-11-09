@@ -1,5 +1,7 @@
 package me.youngjibbit.core.world;
 
+import me.youngjibbit.core.network.NetworkTestSupport;
+
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.bootstrap.ClientRuntime;
 import me.youngjibbit.core.combat.*;
@@ -112,7 +114,7 @@ public class ScaffoldLateC03TransportTest {
                 if(s==0)r.f.mc.thePlayer=null;
                 if(s==1)r.f.mc.theWorld=r.f.world;
                 if(s==2)ScaffoldOwnerContinuityTest.field(EntityPlayerSP.class,"sendQueue").set(r.f.player,new NetHandlerPlayClient(null,null,r.f.network,null));
-                if(s==3)r.f.network.configureClientPackets(new PacketFlowTest.MainThread());
+                if(s==3)r.f.network.configureClientPackets(new NetworkTestSupport.MainThread());
                 if(s==4)r.f.network.getClientPackets().worldChanged();
             }catch(Exception x){throw new AssertionError(x);}};
             withHook(h,()->noMovementOrActions(r.walk()));assertNull(r.rotation.getConfirmedOwner());

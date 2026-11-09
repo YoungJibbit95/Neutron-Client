@@ -15,7 +15,7 @@ import java.lang.reflect.Field;
 import static org.junit.Assert.*;
 
 public class PlayerStepHookTest {
-    public static class WorldStub extends AttackHookTest.WorldStub {
+    public static class WorldStub extends NetworkTestSupport.WorldStub {
         boolean loaded;
         @Override public boolean isBlockLoaded(BlockPos pos) {return loaded;}
     }
@@ -28,9 +28,9 @@ public class PlayerStepHookTest {
         @Subscribe final Listener<EventUpdate> listener=new Listener<>(e->{updates++;e.cancel();});
     }
     @Test public void actualPlayerHookWithholdsBeforeUpdateAndCancellationAbortsCreditWithoutFreezingMaintenance() throws Exception {
-        try(SessionConsumerIntegrationTest.Fixture connection=new SessionConsumerIntegrationTest.Fixture()) {
-        Minecraft mc=connection.client;PlayerStub player=AttackHookTest.bare(PlayerStub.class);
-        WorldStub world=AttackHookTest.bare(WorldStub.class);world.loaded=true;player.worldObj=world;player.onGround=true;
+        try(NetworkTestSupport.Fixture connection=new NetworkTestSupport.Fixture()) {
+        Minecraft mc=connection.client;PlayerStub player=NetworkTestSupport.bare(PlayerStub.class);
+        WorldStub world=NetworkTestSupport.bare(WorldStub.class);world.loaded=true;player.worldObj=world;player.onGround=true;
         mc.thePlayer=player;mc.theWorld=world;mc.inGameHasFocus=true;mc.timer=new Timer(20,()->0);
         Field send=EntityPlayerSP.class.getDeclaredField("sendQueue");send.setAccessible(true);send.set(player,connection.play);
         connection.play.clientWorldController=world;

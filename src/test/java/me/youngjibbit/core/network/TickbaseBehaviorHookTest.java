@@ -13,7 +13,7 @@ import static org.junit.Assert.*;
 
 public class TickbaseBehaviorHookTest {
     private Tickbase enable(AtomicLong now, ExploitHookFixture f) throws Exception {
-        BacktrackLagRangeControlTest.clock(f, now);
+        NetworkTestSupport.clock(f, now);
         Tickbase tick = new Tickbase(now::get, f.client); tick.getBooleanSetting("Only Aura").setValue(false); assertNull(tick.getDiagnostics());
         tick.getBooleanSetting("Debug").setValue(true); tick.getNumberSetting("Charge Ticks").setValue(2.0);
         tick.getNumberSetting("Min Charge").setValue(1.0); tick.getNumberSetting("Release Speed").setValue(2.0);
@@ -45,7 +45,7 @@ public class TickbaseBehaviorHookTest {
     @Test public void replacedCancelledAndInvalidatedAttacksCannotTriggerRelease() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             AtomicLong now = new AtomicLong(); Tickbase tick = enable(now, f);
-            PacketFlowTest.Observer packets = new PacketFlowTest.Observer(); Pulsar.BUS.subscribe(packets);
+            NetworkTestSupport.Observer packets = new NetworkTestSupport.Observer(); Pulsar.BUS.subscribe(packets);
             try {
                 ExploitHookFixture.Enemy enemy = f.enemy(7, 3); f.cursor(enemy); chargeTwo(f, tick);
                 AttackEvent cancelled = new AttackEvent(enemy); cancelled.cancel(); Pulsar.BUS.post(cancelled); assertFalse(tick.getDiagnostics().releasing);
@@ -112,7 +112,7 @@ public class TickbaseBehaviorHookTest {
     }
     @Test public void enabledModulesSerializeTheirWindowsAndPreserveForeignPacketOwners() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
-            AtomicLong now = new AtomicLong(); BacktrackLagRangeControlTest.clock(f, now);
+            AtomicLong now = new AtomicLong(); NetworkTestSupport.clock(f, now);
             Tickbase tick = enable(now, f);
             Backtrack back = new Backtrack(now::get, f.client); back.getBooleanSetting("Only Aura").setValue(false);
             LagRange lag = new LagRange(now::get, (min,max)->min); lag.getBooleanSetting("Only Aura").setValue(false);

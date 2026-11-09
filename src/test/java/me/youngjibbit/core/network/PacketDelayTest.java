@@ -46,12 +46,12 @@ public class PacketDelayTest {
     }
 
     private PacketPipeline pipeline(AtomicLong time, List<Packet<?>> accepted) {
-        return new PacketPipeline(new PacketFlowTest.MainThread(),()->true,accepted::add,
+        return new PacketPipeline(new NetworkTestSupport.MainThread(),()->true,accepted::add,
                 error->{throw new AssertionError(error);},new PacketDelays(time::get));
     }
     @Test public void twoOwnersReleaseOnlyTheirOwnHoldsAndReplayHasOnePreOnePost() {
         AtomicLong now=new AtomicLong();List<Packet<?>> accepted=new ArrayList<>();
-        PacketPipeline pipe=pipeline(now,accepted);PacketFlowTest.Observer events=new PacketFlowTest.Observer();
+        PacketPipeline pipe=pipeline(now,accepted);NetworkTestSupport.Observer events=new NetworkTestSupport.Observer();
         PingSpoofComponent.Owner back=new PingSpoofComponent.Owner(),lag=new PingSpoofComponent.Owner();
         back.request(pipe,150,(p,f)->true);lag.request(pipe,200,(p,f)->true);
         C03PacketPlayer first=new C03PacketPlayer(true),second=new C03PacketPlayer(false);
@@ -77,7 +77,7 @@ public class PacketDelayTest {
     }
     @Test public void inboundDeltasStayOrderedAndTeleportAppliesAfterThemButCorrectionDiscardsThem() {
         AtomicLong now=new AtomicLong();List<Packet<?>> received=new ArrayList<>();PacketPipeline pipe=pipeline(now,new ArrayList<>());
-        INetHandler handler=PacketFlowTest.handler(a->received.add((Packet<?>)a[0]));
+        INetHandler handler=NetworkTestSupport.handler(a->received.add((Packet<?>)a[0]));
         pipe.delays().request("back",200,(p,f)->f==EventFlow.INBOUND);
         S14PacketEntity first=new S14PacketEntity(4),second=new S14PacketEntity(4);
         pipe.inbound(first,handler,false);pipe.inbound(second,handler,false);assertTrue(received.isEmpty());
@@ -100,9 +100,9 @@ public class PacketDelayTest {
         pipe.close();pipe.delays().barrier(EventFlow.OUTBOUND);assertTrue(accepted.isEmpty());assertEquals(0,pipe.delays().size());
     }
     @Test public void worldChangeCancelsAlreadyScheduledTransportAndFreshSceneStillWorks() throws Exception {
-        AtomicLong now=new AtomicLong();PacketFlowTest.MainThread main=new PacketFlowTest.MainThread();List<Packet<?>> accepted=new ArrayList<>();
+        AtomicLong now=new AtomicLong();NetworkTestSupport.MainThread main=new NetworkTestSupport.MainThread();List<Packet<?>> accepted=new ArrayList<>();
         PacketPipeline pipe=new PacketPipeline(main,()->true,accepted::add,e->{throw new AssertionError(e);},new PacketDelays(now::get));
-        AtomicInteger applied=new AtomicInteger();INetHandler handler=PacketFlowTest.handler(a->applied.incrementAndGet());
+        AtomicInteger applied=new AtomicInteger();INetHandler handler=NetworkTestSupport.handler(a->applied.incrementAndGet());
         Thread netty=new Thread(()->{pipe.inbound(new S00PacketKeepAlive(1),handler,false);pipe.outbound(new C03PacketPlayer(true),false,p->{});});
         netty.start();netty.join();pipe.worldChanged();main.drain();assertEquals(0,applied.get());assertTrue(accepted.isEmpty());
         pipe.inbound(new S00PacketKeepAlive(2),handler,false);assertEquals(1,applied.get());

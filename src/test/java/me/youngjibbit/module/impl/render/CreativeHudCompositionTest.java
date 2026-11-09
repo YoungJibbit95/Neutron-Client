@@ -1,6 +1,7 @@
 package me.youngjibbit.module.impl.render;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.core.combat.RotationBehaviorHookTest;
 import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.utils.font.FontManager;
 import me.youngjibbit.utils.render.Vis02TestContext;
@@ -18,17 +19,27 @@ import static org.junit.Assert.*;
 public class CreativeHudCompositionTest {
     private FontManager previousFonts,fonts;
     private Vis02TestContext effects;
+    private RotationBehaviorHookTest.Fixture client;
     private String previousTheme;
     @Before public void prepare()throws Exception {
         previousFonts=Pulsar.INSTANCE.fontManager;previousTheme=ThemeMode.selected();
+        // Armor layout reads the real Module.mc world binding, which Vis02TestContext does not install.
+        client=new RotationBehaviorHookTest.Fixture();
         effects=new Vis02TestContext();effects.settings.reducedMotion.setValue(true);
         fonts=new FontManager();Pulsar.INSTANCE.fontManager=fonts;
         Bootstrap.register();ThemeMode.select(ThemeMode.APPROACH_TWO);
     }
     @After public void restore()throws Exception {
-        Pulsar.INSTANCE.fontManager=previousFonts;
-        if(fonts!=null)fonts.close();if(effects!=null)effects.close();
-        if(previousTheme!=null)ThemeMode.select(previousTheme);
+        try {
+            Pulsar.INSTANCE.fontManager=previousFonts;
+            if(fonts!=null)fonts.close();
+        } finally {
+            try {if(effects!=null)effects.close();}
+            finally {
+                try {if(client!=null)client.close();}
+                finally {if(previousTheme!=null)ThemeMode.select(previousTheme);}
+            }
+        }
     }
 
     @Test public void actualArmorUsesCompactTabsAndCopiedEquipmentForBothFunctionalLayouts(){
