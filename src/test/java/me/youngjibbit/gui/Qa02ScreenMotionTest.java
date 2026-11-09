@@ -68,8 +68,27 @@ public class Qa02ScreenMotionTest {
         Settings s=new Settings();s.resize(480,320);ClipRect b=s.box(2);float lift=0;for(String preset:c.motionIntensity.getOptions()){c.motionIntensity.setValue(preset);s.resize(480,320);for(int n=0;n<60;n++)s.step(1f/60,midX(b),midY(b));UiSpring visual=((UiSpring[])get(s,"actionMotion"))[2];assertTrue(visual.lift()>lift);lift=visual.lift();same(b,s.box(2));}assertEquals(0,s.calls);s.onGuiClosed();
     }
     @Test public void settingsKeyboardFocusAndResizeCloseCancelVisualPress()throws Exception{
-        Settings s=new Settings();s.resize(480,320);ClipRect b=s.box(0);s.click(midX(b),midY(b),0);s.resize(367,245);assertEquals(-1,get(s,"pressed"));
-        for(int i=0;i<c.groups().get("Appearance").size();i++)s.key(Keyboard.KEY_TAB);s.step(0,-1,-1);assertTrue(((UiSpring[])get(s,"actionMotion"))[0].focused());int calls=s.calls;s.key(Keyboard.KEY_RETURN);assertEquals(calls+1,s.calls);s.up();assertEquals(calls+1,s.calls);s.onGuiClosed();for(UiSpring state:(UiSpring[])get(s,"actionMotion")){assertEquals(0,state.amount(),0);assertFalse(state.pressed());}
+        String oldTheme=ThemeMode.selected();
+        try{
+            for(String theme:new String[]{ThemeMode.LEGACY,ThemeMode.APPROACH_TWO})
+                for(String style:new String[]{"Modern","Creative"}){
+                    ThemeMode.select(theme);c.neutronScreenStyle.setValue(style);
+                    assertEquals("the appended style keeps every original Appearance value",8,c.groups().get("Appearance").size());
+                    int visible=0;
+                    for(me.youngjibbit.value.Value<?> value:c.groups().get("Appearance"))if(value.isVisible())visible++;
+                    assertEquals("only Neutron 2.0 exposes the style selector",
+                            ThemeMode.APPROACH_TWO.equals(theme)?8:7,visible);
+                    Settings s=new Settings();s.resize(480,320);ClipRect b=s.box(0);
+                    s.click(midX(b),midY(b),0);s.resize(367,245);assertEquals(-1,get(s,"pressed"));
+                    for(int i=0;i<visible;i++)s.key(Keyboard.KEY_TAB);
+                    s.step(0,-1,-1);assertTrue(((UiSpring[])get(s,"actionMotion"))[0].focused());
+                    int calls=s.calls;s.key(Keyboard.KEY_RETURN);assertEquals(calls+1,s.calls);
+                    s.up();assertEquals(calls+1,s.calls);s.onGuiClosed();
+                    for(UiSpring state:(UiSpring[])get(s,"actionMotion")){
+                        assertEquals(0,state.amount(),0);assertFalse(state.pressed());
+                    }
+                }
+        }finally{ThemeMode.select(oldTheme);}
     }
     @Test public void settingsOutsideAndExclusiveEdgesRemainInactive()throws Exception{
         Settings s=new Settings();s.resize(480,320);for(int i=0;i<6;i++){ClipRect b=s.box(i);s.step(.2f,midX(b),midY(b));s.click((int)Math.ceil(b.x+b.width),midY(b),0);}assertEquals(0,s.calls);s.onGuiClosed();
