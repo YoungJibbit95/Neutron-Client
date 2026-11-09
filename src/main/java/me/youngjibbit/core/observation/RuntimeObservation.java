@@ -105,6 +105,12 @@ public final class RuntimeObservation {
      */
     public void observePlayerStep(Object updatingPlayer, BooleanSupplier simulation,
                                   Consumer<BooleanSupplier> decision) {
+        observePlayerStep(updatingPlayer, simulation, decision, false);
+    }
+
+    /** A scheduler-owned earned entry is already extra before its first callback; this is not a grant. */
+    public void observePlayerStep(Object updatingPlayer, BooleanSupplier simulation,
+                                  Consumer<BooleanSupplier> decision, boolean firstBodyIsEarnedExtra) {
         SceneSample sample = source.get();
         if (!outerTickActive || updatingPlayer != sample.player) {
             decision.accept(simulation);
@@ -118,7 +124,7 @@ public final class RuntimeObservation {
         lastWithheld = null;
         try {
             decision.accept(() -> {
-                int index = calls[0]++;
+                int index = calls[0]++ + (firstBodyIsEarnedExtra ? 1 : 0);
                 // A reset ends observation, never the existing callback or budget processing.
                 if (!outerTickActive || revision != boundary) return simulation.getAsBoolean();
                 SceneContext scene = captureScene();
