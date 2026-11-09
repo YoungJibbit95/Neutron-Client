@@ -97,20 +97,18 @@ public class SessionInfo extends Module {
     }
     Frame layout(SessionStatistics.Snapshot snapshot,String username,int screenWidth,int screenHeight) {
         String design=modernFor(mode.getValue(),ThemeMode.APPROACH_TWO.equals(ThemeMode.selected()));
-        boolean modern="Neutron 2.0".equals(design)||"Modern".equals(design)||"Creative".equals(design);
+        if("Creative".equals(design))return creativeLayout(snapshot,username,screenWidth,screenHeight);
+        boolean modern="Neutron 2.0".equals(design)||"Modern".equals(design);
         TTFFontRenderer body=font("Product-Sans-Bold 20");
         TTFFontRenderer title=font("Poppins-Bold 23");
         String time="Time: "+snapshot.time(), counts="Kills: "+snapshot.kills+"   Deaths: "+snapshot.deaths;
         boolean tenacity="Tenacity".equals(design), outline="Outline".equals(design), rue="Rue (Rise)".equals(design);
-        boolean creative="Creative".equals(design);
         float desired=Math.max(150,Math.max(body.getWidth(time),
                 Math.max(body.getWidth(username),body.getWidth(counts)))+36);
         float radius=modern?13:rue?14:UiEffects.radius(5,width,height);
         height=modern?100:rue?80:tenacity?82:outline?70:76;
         if(modern)desired=Math.max(250,Math.min(330,
                 Math.max(body.getWidth(username),body.getWidth(time))+116));
-        if(creative)desired=Math.max(220,Math.min(400,
-                Math.max(body.getWidth(username),Math.max(body.getWidth(counts),body.getWidth(snapshot.time())))+120));
         if (tenacity) desired=Math.max(desired,Math.max(body.getWidth(username),Math.max(body.getWidth(counts),body.getWidth(snapshot.time())))+112);
         width=Math.min(Math.max(1,screenWidth-8),desired);
         height=Math.min(Math.max(1,screenHeight-8),height);
@@ -120,28 +118,12 @@ public class SessionInfo extends Module {
                 (float)((System.nanoTime()-ANIMATION_EPOCH)/(gradientSpeed.getValue()*1_000_000.0)%1));
         float contentWidth=width-32;
         if(modern){
-            if(creative){
-                // Creative: expressive asymmetrical layout with accented corner accents
-                float leftWidth=Math.max(0,width-110);
-                frame.add("Session",title,14,6,false);
-                frame.add(fit(username,body,leftWidth),body,16,32,false);
-                frame.add(fit("Kills: "+snapshot.kills+"   Deaths: "+snapshot.deaths,body,leftWidth),
-                        body,16,52,false);
-                frame.add(fit((snapshot.active?"Time: ":"Ended: ")+snapshot.time(),body,leftWidth),
-                        body,16,74,false);
-                frame.add(snapshot.active?"Live":"Ended",font("Product-Sans-Bold 14"),width-44,6,false);
-                frame.ring=true;
-            } else {
-                // Modern: calm two-column Stats card
-                float leftWidth=Math.max(0,width-98);
-                frame.add("Statistics",title,12,4,false);
-                frame.add(fit(username,body,leftWidth),body,14,28,false);
-                frame.add(fit("Kills: "+snapshot.kills+"   D: "+snapshot.deaths,body,leftWidth),
-                        body,14,49,false);
-                frame.add(fit((snapshot.active?"Time: ":"Ended: ")+snapshot.time(),body,leftWidth),
-                        body,14,70,false);
-                frame.ring=true;
-            }
+            float leftWidth=Math.max(0,width-98);
+            frame.add("Statistics",title,12,4,false);
+            frame.add(fit(username,body,leftWidth),body,14,28,false);
+            frame.add(fit("Kills: "+snapshot.kills+"   D: "+snapshot.deaths,body,leftWidth),body,14,49,false);
+            frame.add(fit((snapshot.active?"Time: ":"Ended: ")+snapshot.time(),body,leftWidth),body,14,70,false);
+            frame.ring=true;
         }else if (tenacity) {
             frame.add("Statistics",title,width/2-title.getWidth("Statistics")/2,4,true);
             float leftWidth=Math.max(0,width-108);
@@ -169,9 +151,66 @@ public class SessionInfo extends Module {
         return frame;
     }
 
+    private Frame creativeLayout(SessionStatistics.Snapshot snapshot,String username,int sw,int sh){
+        CreativeHudLayout.Session geometry=new CreativeHudLayout.Session();
+        width=Math.min(Math.max(1,sw-8),geometry.width);
+        height=Math.min(Math.max(1,sh-8),geometry.height);clamp(sw,sh);
+        Frame frame=new Frame(x,y,width,height,6,"Creative",snapshot,Theme.resolve(Theme.getDefaultTheme()),
+                bg.getValue(),blurbg.getValue(),false,blurStrength.getValue().floatValue(),0);
+        TTFFontRenderer small=font("Product-Sans-Regular 12"),name=font("Product-Sans-Bold 16");
+        TTFFontRenderer clock=font("Product-Sans-Bold 22"),count=font("Product-Sans-Bold 24");
+        frame.add("SESSION",small,10,7,false);
+        frame.add(fit(snapshot.clock(),clock,66),clock,10,23,false);
+        frame.add(snapshot.active?"Live":"Ended",small,10,49,false);
+        frame.add(fit(username,name,126),name,100,7,false);
+        frame.add("KILLS",small,geometry.kills.x,geometry.kills.y,false);
+        frame.add(fit(Integer.toString(snapshot.kills),count,geometry.kills.width),count,
+                geometry.kills.x,geometry.kills.y+12,false);
+        frame.add("DEATHS",small,geometry.deaths.x,geometry.deaths.y,false);
+        frame.add(fit(Integer.toString(snapshot.deaths),count,geometry.deaths.width),count,
+                geometry.deaths.x,geometry.deaths.y+12,false);
+        return frame;
+    }
+
+    /** A separate time block and two factual counters; no repeated card layers or decorative ring. */
+    private void creativeContent(Frame frame,UiEffects.SurfacePolicy policy){
+        CreativeHudLayout.Session geometry=new CreativeHudLayout.Session();
+        CreativeHudLayout.Fit fit=geometry.fit(frame.width,frame.height);
+        try(me.youngjibbit.utils.render.RenderState state=new me.youngjibbit.utils.render.RenderState();
+            UiEffects.GradientSpace domain=UiEffects.gradientSpace(frame.x,frame.y,frame.width,frame.height)){
+            state.screenSpace();
+            try(GuiClip clip=GuiClip.push(new ClipRect(frame.x,frame.y,frame.width,frame.height))){
+                GL11.glTranslatef(frame.x+fit.x-frame.x*fit.scale,frame.y+fit.y-frame.y*fit.scale,0);
+                GL11.glScalef(fit.scale,fit.scale,1);
+                creativeBlock(frame,geometry.time,fit,policy);
+                creativeBlock(frame,geometry.statistics,fit,policy);
+                UIUtils.drawRound(frame.x,frame.y+17,1.5f,30,.75f,
+                        alpha(frame.theme.getPrimaryGradientRGB(),145));
+                UIUtils.drawRound(frame.x+100,frame.y+25,126,1,.5f,new Color(255,255,255,22));
+                for(TextRun run:frame.text)run.draw(frame);
+            }
+        }
+    }
+
+    private void creativeBlock(Frame frame,CreativeHudLayout.Rect part,CreativeHudLayout.Fit fit,UiEffects.SurfacePolicy policy){
+        try(UiEffects.GradientSpace contour=UiEffects.perimeterSpace(
+                frame.x+fit.x+part.x*fit.scale,frame.y+fit.y+part.y*fit.scale,
+                part.width*fit.scale,part.height*fit.scale,
+                UiEffects.radius(6,part.width,part.height)*fit.scale)){
+            if(policy.blur)UiEffects.drawBlurredRect(frame.x+part.x,frame.y+part.y,part.width,part.height,6,
+                    Color.WHITE,Math.max(1,Math.round(frame.blurRadius)),1);
+            if(policy.background)UIUtils.drawRound(frame.x+part.x,frame.y+part.y,part.width,part.height,6,
+                    new Color(20,24,33,210));
+        }
+    }
+
     void paint(Frame frame) {
+        if("Creative".equals(frame.design)){
+            GuiShaderBloom.afterBatch(()->surface.withScene(frame.theme,frame.background,frame.blur,frame.blurRadius,
+                    policy->creativeContent(frame,policy)));
+            return;
+        }
         final boolean modern="Neutron 2.0".equals(frame.design)||"Modern".equals(frame.design)||"Creative".equals(frame.design);
-        final boolean creative="Creative".equals(frame.design);
         GuiShaderBloom.afterBatch(() -> surface.designedPanel(frame.x,frame.y,frame.width,frame.height,frame.radius,frame.theme,
                 frame.background,frame.blur,modern?false:frame.glow,frame.blurRadius,
                 modern?.82f:"Outline".equals(frame.design)?0.78f:0.48f,
@@ -182,16 +221,10 @@ public class SessionInfo extends Module {
     private void content(Frame frame) {
         try (GuiClip ignored=GuiClip.push(new ClipRect(frame.x+2,frame.y+2,frame.width-4,frame.height-4))) {
             boolean modern="Neutron 2.0".equals(frame.design)||"Modern".equals(frame.design)||"Creative".equals(frame.design);
-            final boolean creative="Creative".equals(frame.design);
-            if(modern&&frame.background){
+                if(modern&&frame.background){
                 UIUtils.drawRound(frame.x+2,frame.y+2,Math.max(1,frame.width-4),
                         Math.max(1,frame.height-4),Math.max(0,frame.radius-2),
-                        creative?new Color(24,26,38,160):new Color(20,22,32,182));
-            }
-            if(creative&&frame.background){
-                UIUtils.drawRound(frame.x+4,frame.y+4,Math.max(1,frame.width-8),
-                        Math.max(1,frame.height-8),Math.max(0,frame.radius-4),
-                        new Color(28,30,44,120));
+                        new Color(20,22,32,182));
             }
             float ruleY=frame.y+(modern?23:18);
             UIUtils.drawGradientHorizontal(frame.x+(modern?11:1),ruleY,
@@ -216,8 +249,10 @@ public class SessionInfo extends Module {
 
     private void clamp(int screenWidth,int screenHeight) {
         if(!me.youngjibbit.module.impl.client.HUD.bounded())return;
-        x=Math.max(4,Math.min(x,screenWidth-width-4));
-        y=Math.max(4,Math.min(y,screenHeight-height-4));
+        float insetX="Creative".equals(mode.getValue())?Math.min(4,Math.max(0,(screenWidth-width)/2)):4;
+        float insetY="Creative".equals(mode.getValue())?Math.min(4,Math.max(0,(screenHeight-height)/2)):4;
+        x=Math.max(insetX,Math.min(x,screenWidth-width-insetX));
+        y=Math.max(insetY,Math.min(y,screenHeight-height-insetY));
     }
 
     public float getKillDeathRatio() {
