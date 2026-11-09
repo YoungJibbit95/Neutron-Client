@@ -59,6 +59,28 @@ public class RuntimeObservationTest {
         assertEquals(0, observer.getOuterTickId()); assertEquals(1, budget.getExtraSteps());
         assertNull(observer.getCurrentStep()); assertNull(observer.getLastWithheld());
     }
+    @Test public void explicitEarnedEntryCannotClaimOrdinaryKindOrConsumeTheLaterOrdinaryEntry() {
+        observer.beginOuterTick(); List<ExecutedStep> entered = new ArrayList<>();
+        observer.observePlayerStep(player, () -> {
+            entered.add(observer.getCurrentStep());
+            assertFalse("an explicitly earned body cannot satisfy automatic admission", eligible());
+            return true;
+        }, callback -> { callback.getAsBoolean(); callback.getAsBoolean(); }, true);
+        assertEquals(2, entered.size());
+        for (int index = 0; index < entered.size(); index++) {
+            assertEquals(ExecutedStep.Kind.EARNED_EXTRA, entered.get(index).getKind());
+            assertEquals(index + 1, entered.get(index).getStepIndex());
+            assertEquals(0, entered.get(index).getOuterTickId());
+        }
+        assertNull(observer.getCurrentStep()); assertNull(observer.getLastWithheld());
+        ordinary(() -> {
+            assertEquals(ExecutedStep.Kind.ORDINARY, observer.getCurrentStep().getKind());
+            assertEquals(0, observer.getCurrentStep().getStepIndex());
+            assertTrue("the later ordinary entry retains its ordinary prerequisite", eligible());
+            return true;
+        });
+        assertEquals(0, observer.getLastSteps().get(0).getOuterTickId());
+    }
     @Test public void falseCallbackIsInterruptedAndNeverWithheld() {
         observer.beginOuterTick(); ordinary(() -> false);
         assertEquals(1, observer.getLastSteps().size()); assertTrue(observer.getLastSteps().get(0).isInterrupted());
