@@ -64,8 +64,7 @@ public class AdaptiveMotionControllerTest {
         }
     }
 
-    @Test public void invalidAnglesNoTimeAndBadLimitsNeverAdvance() {
-        AdaptiveMotionController c = new AdaptiveMotionController(25, LIMITS);
+    @Test public void invalidAnglesNoTimeAndBadLimitsNeverAdvance() {        AdaptiveMotionController c = new AdaptiveMotionController(25, LIMITS);
         AdaptiveMotionController.Acquisition a = token(1, 1);
         assertFalse(step(c, a, 0, 0, 0, 0, 45, 12).candidate);
         assertFalse(step(c, a, 1, 0, 0, 0, 45, 12).candidate);
@@ -261,5 +260,82 @@ public class AdaptiveMotionControllerTest {
         assertFalse(step(c, a, 2, 500_000_000L, capped.yaw, 0, 90, 0).candidate);
         assertNull(c.profile());
         assertFalse(step(c, a, 3, 550_000_000L, capped.yaw, 0, 90, 0).candidate);
+    }
+
+    /** NaN keep caps must be a byte-for-byte alias of the legacy uniform limits. */
+    @Test public void nanKeepCapsRunTheExactLegacyTrajectory() {
+        AdaptiveMotionController.Limits base = new AdaptiveMotionController.Limits(
+                240, 120, 1800, 36000, 0.1, 0.1);
+        AdaptiveMotionController legacy = new AdaptiveMotionController(11, base);
+        AdaptiveMotionController aliased = new AdaptiveMotionController(11,
+                new AdaptiveMotionController.Limits(240, 120, 1800, 36000, 0.1, 0.1,
+                        Double.NaN, Double.NaN, Double.NaN));
+        AdaptiveMotionController.Acquisition a = token(4, 1), b = token(4, 1);
+        double yaw = 0, pitch = 0;
+        for (int i = 0; i <= 120; i++) {
+            AdaptiveMotionController.Result first = step(legacy, a, i, i * 50_000_000L,
+                    yaw, pitch, 137, -41);
+            AdaptiveMotionController.Result second = step(aliased, b, i, i * 50_000_000L,
+                    yaw, pitch, 137, -41);
+            assertEquals(first.candidate, second.candidate);
+            assertEquals(first.yaw, second.yaw, 0);
+            assertEquals(first.pitch, second.pitch, 0);
+            assertEquals(first.yawVelocity, second.yawVelocity, 0);
+            assertEquals(first.pitchVelocity, second.pitchVelocity, 0);
+            yaw = first.yaw; pitch = first.pitch;
+            if (!first.candidate && i > 8) break;
+        }
+        assertEquals(0, wrap(137 - yaw), 1e-6);
+    }
+
+    /** Optional keeping caps only calm the final approach; convergence stays exact. */
+    @Test public void keepingPhaseCapsEngageOnlyNearTheTarget() {
+        AdaptiveMotionController.Limits phased = new AdaptiveMotionController.Limits(
+                240, 120, 1800, 36000, 0, 0, 54, 30, .55);
+        AdaptiveMotionController c = new AdaptiveMotionController(11, phased);
+        AdaptiveMotionController.Acquisition a = token(2, 1);
+        double initialDistance = Math.hypot(150, 75);
+        double yaw = 0, pitch = 0, progress = 0;
+        boolean sawFastTravel = false;
+        boolean sawCalmKeeping = false;
+        for (int i = 0; i <= 260; i++) {
+            AdaptiveMotionController.Result r = step(c, a, i, i * 50_000_000L, yaw, pitch, 150, 75);
+            assertTrue(Double.isFinite(r.yaw) && Double.isFinite(r.pitch));
+            double previousProgress = progress;
+            if (previousProgress >= phased.keepEnterProgress) {
+                // The step after crossing the threshold travels under the keeping caps.
+                assertTrue("keep yaw cap violated: yawVelocity=" + r.yawVelocity + " step=" + i,
+                        Math.abs(r.yawVelocity) <= phased.keepYawSpeed + 1e-6);
+                assertTrue("keep pitch cap violated: pitchVelocity=" + r.pitchVelocity + " step=" + i,
+                        Math.abs(r.pitchVelocity) <= phased.keepPitchSpeed + 1e-6);
+                sawCalmKeeping = true;
+            }
+            yaw = r.yaw; pitch = r.pitch;
+            progress = 1 - Math.hypot(wrap(150 - yaw), 75 - pitch) / initialDistance;
+            if (r.candidate && progress < phased.keepEnterProgress
+                    && Math.abs(r.yawVelocity) > phased.keepYawSpeed + 1e-6
+                    && Math.abs(r.pitchVelocity) > phased.keepPitchSpeed + 1e-6) sawFastTravel = true;
+        }
+        assertTrue("initial phase must travel faster than the keeping caps", sawFastTravel);
+        assertTrue("keeping phase must engage for a calm hold", sawCalmKeeping);
+        assertEquals(0, wrap(150 - yaw), 1e-6);
+        assertEquals(75, pitch, 1e-6);
+    }
+
+    @Test public void invalidKeepingLimitsAreRejected() {
+        for (double keep : new double[]{0, -1, Double.POSITIVE_INFINITY}) {
+            try { new AdaptiveMotionController.Limits(240, 120, 1800, 36000, 0, 0, keep, 30, .4); fail(); }
+            catch (IllegalArgumentException expected) { }
+            try { new AdaptiveMotionController.Limits(240, 120, 1800, 36000, 0, 0, 54, keep, .4); fail(); }
+            catch (IllegalArgumentException expected) { }
+        }
+        for (double enter : new double[]{-0.5, 1.0, Double.NaN, Double.POSITIVE_INFINITY}) {
+            try { new AdaptiveMotionController.Limits(240, 120, 1800, 36000, 0, 0, 54, 30, enter); fail(); }
+            catch (IllegalArgumentException expected) { }
+        }
+        try { new AdaptiveMotionController.Limits(240, 120, 1800, 36000, 0, 0, Double.NaN, Double.NaN, .4); fail(); }
+        catch (IllegalArgumentException expected) { }
+        // A valid single-axis phase stays legal.
+        new AdaptiveMotionController.Limits(240, 120, 1800, 36000, 0, 0, 54, Double.NaN, .4);
     }
 }
