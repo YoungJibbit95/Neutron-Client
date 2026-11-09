@@ -116,6 +116,7 @@ class ReleaseBundleTest(unittest.TestCase):
             with zipfile.ZipFile(info["jar"]) as jar:
                 for alias in release.RESOURCE_ALIASES:
                     self.assertEqual(b"shader fixture", jar.read(alias))
+            self.assertNotIn(b"\r", (output / "SHA256SUMS.txt").read_bytes())
             for line in (output / "SHA256SUMS.txt").read_text().splitlines():
                 checksum, name = line.split("  ", 1)
                 self.assertEqual(hashlib.sha256((output / name).read_bytes()).hexdigest(), checksum)
@@ -152,9 +153,9 @@ class DraftPreparationTest(unittest.TestCase):
                         root / "release" / (version + "-bundle.zip"): b"fixture zip"}
             for path, content in payloads.items():
                 path.write_bytes(content)
-            (root / "release/SHA256SUMS.txt").write_text("".join(
+            (root / "release/SHA256SUMS.txt").write_bytes("".join(
                 hashlib.sha256(data).hexdigest() + "  " + path.relative_to(root / "release").as_posix() + "\n"
-                for path, data in payloads.items()))
+                for path, data in payloads.items()).encode("utf-8"))
             info = {"version": version, "commit": sha}
             info.update(info_change or {})
             (root / "release/build-info.json").write_text(json.dumps(info))
@@ -171,7 +172,9 @@ class DraftPreparationTest(unittest.TestCase):
                                                   "targetCommitish": target or sha}),
                    "FIXTURE_CREATED": json.dumps({"isDraft": True, "tagName": tag, "targetCommitish": sha})}
             stub = r'''
-            python3() { "$PYTHON_EXE" "$@"; }
+            # The production shell runs on Ubuntu; normalize native Windows
+            # Python text output here while retaining errors through pipefail.
+            python3() { "$PYTHON_EXE" "$@" | tr -d '\r'; }
             gh() {
               printf '%s\n' "$*" >> gh-calls.txt
               case "$1 $2" in
