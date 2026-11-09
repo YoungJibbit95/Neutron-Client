@@ -29,6 +29,7 @@ public class InventoryManagerSafetyTest {
   Bootstrap.register();try(RotationBehaviorHookTest.Fixture f=new RotationBehaviorHookTest.Fixture()) {
    InventoryManager m=new InventoryManager();Drops d=new Drops(f.mc);f.mc.playerController=d;
    f.player.inventoryContainer=new net.minecraft.inventory.ContainerPlayer(f.player.inventory,false,f.player);
+   f.player.openContainer=f.player.inventoryContainer;
    for(boolean full:new boolean[]{false,true}) {
     Arrays.fill(f.player.inventory.mainInventory,null);
     if(full) for(int i=0;i<9;i++)f.player.inventory.mainInventory[i]=new ItemStack(Items.stick);
@@ -46,3 +47,4 @@ public class InventoryManagerSafetyTest {
   }
  }
 }
+
