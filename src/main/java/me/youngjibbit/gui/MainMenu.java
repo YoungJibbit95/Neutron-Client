@@ -37,12 +37,18 @@ public class MainMenu extends GuiScreen {
 
     @Override public void initGui(){buttonList.clear();clearMotion();layout();lastFrame=System.nanoTime();focus=Math.max(0,Math.min(8,focus));}
     private void clearMotion(){pressed=-1;for(int i=0;i<9;i++){hover[i]=0;springs[i].reset();}}
-    private void layout(){panelWidth=Math.min(two()?336:282,Math.max(1,width-24));panelHeight=Math.min(two()?360:330,Math.max(1,height-16));panelX=(width-panelWidth)/2;panelY=(height-panelHeight)/2;header=Math.max(54,panelHeight*.27f);buttonHeight=Math.max(8,(panelHeight-header-61)/6);}
+    private void layout(){panelWidth=Math.min(two()?(creative()?360:336):282,Math.max(1,width-24));panelHeight=Math.min(two()?(creative()?320:360):330,Math.max(1,height-16));panelX=(width-panelWidth)/2;panelY=(height-panelHeight)/2;header=Math.max(54,panelHeight*.27f);buttonHeight=Math.max(8,(panelHeight-header-61)/(creative()?4:6));}
     private boolean two(){return ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());}
     private boolean modern(){return two()&&!creative();}
     private boolean creative(){return two()&&creativePresentation();}
-    protected boolean creativePresentation(){return false;}
+    protected boolean creativePresentation(){return ClientSettings.creativeScreenStyle();}
     protected ClipRect actionBounds(int id){
+        if(creative()&&(id<5||id==8)){
+            float gap=6,bw=panelWidth-32;
+            if(id<4)return new ClipRect(panelX+16+(id%2)*(bw+gap)/2,
+                    panelY+header+(id/2)*(buttonHeight+4),(bw-gap)/2,buttonHeight);
+            return new ClipRect(panelX+16,panelY+header+(id==8?2:3)*(buttonHeight+4),bw,buttonHeight);
+        }
         if(id<5||id==8){int row=id==8?4:id==4?5:id;float bw=Math.min(two()?230:176,panelWidth-32);return new ClipRect(panelX+(panelWidth-bw)/2,panelY+header+row*(buttonHeight+4),bw,buttonHeight);}
         float w=(panelWidth-40)/3;return new ClipRect(panelX+16+(id-5)*(w+4),panelY+panelHeight-28,w,18);
     }
@@ -87,7 +93,7 @@ public class MainMenu extends GuiScreen {
         if(two()&&creative()){
             // Dynamic expressive accent above the action cards.
             float pulse=UiEffects.time()*1.2f;
-            UIUtils.drawDecorationRound(panelX+14,panelY+header+6,Math.max(1,panelWidth-28),1,.5f,
+            UIUtils.drawDecorationRound(panelX+14,panelY+header-4,Math.max(1,panelWidth-28),1,.5f,
                     NeutronVisualTokens.accent(theme,(int)(120+80*Math.abs((float)Math.sin(pulse*.5f)))));
         }
         // The base contour never moves. Only its inset and label lift/scale inside it.
