@@ -372,7 +372,7 @@ public class Aura extends Module {
                 // Clicks are continuous while Aura owns an accepted C03 motion, but
                 // only the original controller/raycast path may emit an actual C02.
                 boolean clickEligible=rotationManager.isMotionAccepted() && owns && aiAccepted
-                        && !mc.thePlayer.isUsingItem() && getActiveTarget()==selected
+                        && !mc.thePlayer.isUsingItem() && selected != null && getActiveTarget()==selected
                         // Camera-only off-target swings require explicit opt-in; only a
                         // validated hit may progress to actual controller attack.
                         && (rotations.getValue() || hit || clickWhileAiming.getValue());
