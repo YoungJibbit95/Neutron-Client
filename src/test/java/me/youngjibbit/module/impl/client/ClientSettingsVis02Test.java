@@ -60,17 +60,51 @@ public class ClientSettingsVis02Test {
         "warning_notifications|Warning Notifications|true|",
         "error_notifications|Error Notifications|true|"
     };
+    static final String[] GRADIENT_METHODS={"Flow","Ping-Pong","Pulse","Perimeter Orbit","Flame","Neon","Lines"};
+    // Exact new tail, after all 55 pre-existing registrations. BEFORE remains the full historical capture.
+    static final String[] VISUAL_ADDITIONS={
+        "orbit_direction|Orbit Direction|Clockwise|Clockwise,Counterclockwise",
+        "orbit_speed|Orbit Speed|0.18|",
+        "orbit_glow|Orbit Glow|1.0|",
+        "orbit_trail|Orbit Trail|0.5|",
+        "flame_speed|Flame Speed|0.18|",
+        "flame_height|Flame Height|0.5|",
+        "neon_core|Neon Core|0.5|",
+        "neon_glow|Neon Glow|1.0|",
+        "line_segments|Line Segments|4.0|",
+        "line_trail|Line Trail|0.5|"
+    };
+    static boolean isVisualAddition(Value<?> value) {
+        for(String signature:VISUAL_ADDITIONS)
+            if(signature.substring(0,signature.indexOf('|')).equals(value.getId()))return true;
+        return false;
+    }
+    static String signature(Value<?> value) {
+        return value.getId()+"|"+value.getName()+"|"+value.getDefaultValue()+"|"+
+                (value instanceof ComboValue?String.join(",",((ComboValue)value).getOptions()):"");
+    }
     @Test public void everyOldIdNameDefaultAndEnumIndexIsUnchanged() {
         ClientSettings c=new ClientSettings();List<String> current=new ArrayList<>();
-        for(Value<?> v:c.getValues())if(!Arrays.asList("gradient_method","ambient_motion","semantic_color_priority","notification_theme","ui_font","text_glow","text_glow_strength","text_glow_radius","text_glow_color").contains(v.getId()))
-            current.add(v.getId()+"|"+v.getName()+"|"+v.getDefaultValue()+"|"+(v instanceof ComboValue?String.join(",",((ComboValue)v).getOptions()):""));
-        assertArrayEquals(BEFORE,current.toArray(new String[0]));assertEquals(BEFORE.length+3+1+5,c.getValues().size());
+        for(Value<?> v:c.getValues())if(!isVisualAddition(v)&&!Arrays.asList("gradient_method","ambient_motion","semantic_color_priority","notification_theme","ui_font","text_glow","text_glow_strength","text_glow_radius","text_glow_color").contains(v.getId()))
+            current.add(signature(v));
+        assertArrayEquals(BEFORE,current.toArray(new String[0]));assertEquals(BEFORE.length+3+1+5+10,c.getValues().size());
+        List<String> appended=new ArrayList<>();
+        for(Value<?> v:c.getValues().subList(55,c.getValues().size()))appended.add(signature(v));
+        assertArrayEquals(VISUAL_ADDITIONS,appended.toArray(new String[0]));
         assertEquals("Balanced",c.motionIntensity.getValue());
     }
     @Test public void threeNewDefaultsBelongToExactlyOneExistingGroup() {
         ClientSettings c=new ClientSettings();
         assertEquals("gradient_method",c.gradientMethod.getId());assertEquals("Flow",c.gradientMethod.getValue());assertEquals(0,c.gradientMethod.getSelectedIndex());
-        assertArrayEquals(new String[]{"Flow","Ping-Pong","Pulse"},c.gradientMethod.getOptions());
+        assertArrayEquals(GRADIENT_METHODS,c.gradientMethod.getOptions());
+        String[] legacyMethods={"Flow","Ping-Pong","Pulse"};
+        for(int i=0;i<legacyMethods.length;i++){
+            c.gradientMethod.setValue(legacyMethods[i]);assertEquals(i,c.gradientMethod.getSelectedIndex());
+        }
+        for(int i=3;i<GRADIENT_METHODS.length;i++){
+            c.gradientMethod.setValue(GRADIENT_METHODS[i]);assertEquals(i,c.gradientMethod.getSelectedIndex());
+        }
+        c.gradientMethod.reset();assertEquals("Flow",c.gradientMethod.getValue());
         assertEquals("ambient_motion",c.ambientMotion.getId());assertTrue(c.ambientMotion.getValue());
         assertEquals("semantic_color_priority",c.semanticColorPriority.getId());assertTrue(c.semanticColorPriority.getValue());
         Set<Value<?>> seen=Collections.newSetFromMap(new IdentityHashMap<Value<?>,Boolean>());
@@ -82,13 +116,17 @@ public class ClientSettingsVis02Test {
         JsonObject root=new JsonParser().parse(codec.serialize()).getAsJsonObject();
         JsonObject values=root.getAsJsonObject("modules").getAsJsonObject("client_settings").getAsJsonObject("settings");
         values.remove("gradient_method");values.remove("ambient_motion");values.remove("semantic_color_priority");
+        for(String signature:VISUAL_ADDITIONS)values.remove(signature.substring(0,signature.indexOf('|')));
         values.addProperty("synchronize_text_border_glow",false);values.addProperty("glow_direction","Up");values.addProperty("text_motion","Animated");values.addProperty("text_speed",.37);
         assertTrue(codec.saveConfig("old",root.toString()));assertTrue(codec.loadConfig("old"));
         assertEquals("Flow",c.gradientMethod.getValue());assertTrue(c.ambientMotion.getValue());assertTrue(c.semanticColorPriority.getValue());
+        List<String> appended=new ArrayList<>();for(Value<?> v:c.getValues().subList(55,c.getValues().size()))appended.add(signature(v));
+        assertArrayEquals(VISUAL_ADDITIONS,appended.toArray(new String[0]));
+        assertEquals(.18,c.orbitSpeed.getValue(),0);assertEquals(.18,c.flameSpeed.getValue(),0);
         assertFalse(c.synchronize.getValue());assertEquals("Up",c.glowDirection.getValue());assertEquals("Animated",c.textMotion.getValue());assertEquals(.37,c.textSpeed.getValue(),0);
     }
     @Test public void allMethodsAndSwitchesRoundTripWithTheRealCodec() throws Exception {
-        for(String method:new String[]{"Flow","Ping-Pong","Pulse"})for(boolean flag:new boolean[]{false,true}) {
+        for(String method:GRADIENT_METHODS)for(boolean flag:new boolean[]{false,true}) {
             ClientSettings c=new ClientSettings();ConfigManager codec=codec(c);
             c.gradientMethod.setValue(method);c.ambientMotion.setValue(flag);c.semanticColorPriority.setValue(!flag);
             assertTrue(codec.saveConfig("vis02",codec.serialize()));

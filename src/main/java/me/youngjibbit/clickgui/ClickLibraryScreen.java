@@ -58,9 +58,8 @@ public class ClickLibraryScreen extends GuiScreen {
         font().drawString(ClickControlStyle.fit(font(), text, width), x, y, ink);
     }
     private void layout() {
-        boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
-        w = Math.min(two()?920:modern?780:640, Math.max(1,width-20));
-        h = Math.min(two()?560:modern?480:420, Math.max(1,height-20));
+        w = Math.min(two()?780:640, Math.max(1,width-20));
+        h = Math.min(two()?460:420, Math.max(1,height-20));
         x = (width - w) / 2; y = (height - h) / 2;
         float max = Math.max(0, rowsHeight() - listBounds().height);
         targetScroll = Math.max(0, Math.min(max, targetScroll)); scroll = Math.max(0, Math.min(max, scroll));
@@ -372,8 +371,8 @@ public class ClickLibraryScreen extends GuiScreen {
     @Override protected void mouseClicked(int mx,int my,int button)throws IOException {
         if(button!=0)return;layout();
         if(configs.pending()!=ConfigLibrary.Pending.NONE) {
-            if(confirmBounds(true).contains(mx,my)){configs.confirm();renaming=false;renameBuffer="";focus=-1;layout();return;}
-            else if(confirmBounds(false).contains(mx,my)){configs.cancel();renaming=false;renameBuffer="";focus=-1;return;}
+            if(confirmBounds(true).contains(mx,my)){finishConfirmation(true);return;}
+            else if(confirmBounds(false).contains(mx,my)){finishConfirmation(false);return;}
             return;
         }
         if(searchBounds().contains(mx,my)){focus=-1;replace=false;return;}
@@ -391,14 +390,22 @@ public class ClickLibraryScreen extends GuiScreen {
         if(configs.pending()!=ConfigLibrary.Pending.NONE||!listBounds().contains(mx,my)||wheel==0)return;
         targetScroll-=Math.signum(wheel)*rowHeight()*2;layout();
     }
+    private void finishConfirmation(boolean confirm) {
+        ConfigLibrary.Pending action=configs.pending();
+        if(confirm)configs.confirm();else configs.cancel();
+        renaming=false;renameBuffer="";
+        // Return to the originating action. A fresh Enter must open a new dialog.
+        focus=action==ConfigLibrary.Pending.DELETE?2:action==ConfigLibrary.Pending.RENAME?4:0;
+        layout();
+    }
     protected boolean ctrlDown(){return Keyboard.isCreated()&&isCtrlKeyDown();}
     protected boolean shiftDown(){return Keyboard.isCreated()&&isShiftKeyDown();}
     @Override protected void keyTyped(char c,int key)throws IOException {
         pressed=-99;
         boolean enter=key==Keyboard.KEY_RETURN||key==Keyboard.KEY_NUMPADENTER;
         if(configs.pending()!=ConfigLibrary.Pending.NONE) {
-            if(key==Keyboard.KEY_ESCAPE){configs.cancel();renaming=false;renameBuffer="";focus=-1;return;}
-            else if(enter){configs.confirm();renaming=false;renameBuffer="";focus=-1;layout();return;}
+            if(key==Keyboard.KEY_ESCAPE){finishConfirmation(false);return;}
+            else if(enter){finishConfirmation(true);return;}
             return;
         }
         if(key==Keyboard.KEY_ESCAPE){if(renaming){renaming=false;renameBuffer="";focus=-1;return;}open(parent);return;}

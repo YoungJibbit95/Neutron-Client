@@ -2,6 +2,8 @@ package me.youngjibbit.gui.clientsettings;
 
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.clickgui.ClickLibraryScreen;
+import me.youngjibbit.clickgui.ClickGui;
+import me.youngjibbit.gui.MainMenu;
 import me.youngjibbit.clickgui.component.impl.ClickModule;
 import me.youngjibbit.clickgui.utils.ClipRect;
 import me.youngjibbit.config.ConfigManager;
@@ -49,12 +51,47 @@ public class Wave07ModernScreensTest {
         ClipRect visible(){return view();}
         ClipRect row(int n){return rowBounds(n);}
         ClipRect action(int n){return actionBounds(n);}
+        ClipRect control(int n){return controlBounds(n);}
     }
     private static class Library extends ClickLibraryScreen {
         Library(ConfigManager configs){super(null,false,configs,new ThemeCatalog(null));}
         void setup(int w,int h){width=w;height=h;initGui();}
         ClipRect visible(){return listBounds();}
         ClipRect search(){return searchBounds();}
+    }
+
+    private static class Main extends MainMenu {
+        void setup(int w,int h){width=w;height=h;initGui();}
+        ClipRect action(int n){return actionBounds(n);}
+    }
+    private static float dimension(Object screen,Class<?> owner,String field)throws Exception{
+        Field value=owner.getDeclaredField(field);value.setAccessible(true);return value.getFloat(screen);
+    }
+    @Test public void actualModernScreensKeepCompactDefaultFramesAndReadableControls()throws Exception{
+        ThemeMode.select(ThemeMode.APPROACH_TWO);
+        Main menu=new Main();menu.setup(1920,1080);
+        assertTrue(dimension(menu,MainMenu.class,"panelWidth")<=336);
+        assertTrue(dimension(menu,MainMenu.class,"panelHeight")<=360);
+        assertTrue(menu.action(0).height>=30);
+        Settings preferences=new Settings();preferences.setup(1920,1080);
+        assertTrue(dimension(preferences,SettingsMenu.class,"w")<=740);
+        assertTrue(dimension(preferences,SettingsMenu.class,"h")<=448);
+        assertEquals(30,preferences.control(0).height,0);
+        ClickGui panel=new ClickGui();
+        ((net.minecraft.client.gui.GuiScreen)panel).width=1920;
+        ((net.minecraft.client.gui.GuiScreen)panel).height=1080;panel.initGui();
+        assertTrue(dimension(panel,ClickGui.class,"width")<=760);
+        assertTrue(dimension(panel,ClickGui.class,"height")<=448);
+        ConfigManager manager=new ConfigManager(folder.newFolder().toPath(),
+                Arrays.asList(settings,fixture),()->false,ignored->{});
+        manager.initialize(Collections.emptyList());
+        try{
+            Library library=new Library(manager);library.setup(1920,1080);
+            assertTrue(dimension(library,ClickLibraryScreen.class,"w")<=780);
+            assertTrue(dimension(library,ClickLibraryScreen.class,"h")<=460);
+            assertTrue(library.visible().width>360 && library.visible().height>300);
+        }finally{manager.shutdown();}
+        assertEquals(0,fixture.changes);
     }
 
     @Test public void modernSettingsHaveRealSeparateNavigationAndContentCoordinates(){

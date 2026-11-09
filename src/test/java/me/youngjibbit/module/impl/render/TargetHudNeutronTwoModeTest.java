@@ -13,7 +13,8 @@ public class TargetHudNeutronTwoModeTest {
         ComboValue mode=hud.getModeSetting("Mode");
         String[] legacy={"Neutron Default","Neutron White","Neutron Outline",
                 "Rise","Tenacity","Basic","Test"};
-        assertEquals(8,mode.getOptions().length);
+        assertArrayEquals(new String[]{"Neutron Default","Neutron White","Neutron Outline",
+                "Rise","Tenacity","Basic","Test","Neutron 2.0","Modern","Creative"},mode.getOptions());
         for(int i=0;i<legacy.length;i++){
             assertEquals(legacy[i],mode.getOptions()[i]);
             mode.setValue(legacy[i]);
@@ -21,6 +22,8 @@ public class TargetHudNeutronTwoModeTest {
         }
         mode.setValue("Neutron 2.0");
         assertEquals(7,mode.getSelectedIndex());
+        mode.setValue("Modern");assertEquals(8,mode.getSelectedIndex());
+        mode.setValue("Creative");assertEquals(9,mode.getSelectedIndex());
         assertEquals(5000d,hud.gradientSpeed.getValue(),0);
         hud.resetPosition();
         assertEquals(0d,hud.getNumberSetting("Position X").getValue(),0);

@@ -37,7 +37,7 @@ public class MainMenu extends GuiScreen {
 
     @Override public void initGui(){buttonList.clear();clearMotion();layout();lastFrame=System.nanoTime();focus=Math.max(0,Math.min(8,focus));}
     private void clearMotion(){pressed=-1;for(int i=0;i<9;i++){hover[i]=0;springs[i].reset();}}
-    private void layout(){panelWidth=Math.min(two()?420:282,Math.max(1,width-24));panelHeight=Math.min(two()?420:330,Math.max(1,height-16));panelX=(width-panelWidth)/2;panelY=(height-panelHeight)/2;header=Math.max(54,panelHeight*.27f);buttonHeight=Math.max(8,(panelHeight-header-61)/6);}
+    private void layout(){panelWidth=Math.min(two()?336:282,Math.max(1,width-24));panelHeight=Math.min(two()?360:330,Math.max(1,height-16));panelX=(width-panelWidth)/2;panelY=(height-panelHeight)/2;header=Math.max(54,panelHeight*.27f);buttonHeight=Math.max(8,(panelHeight-header-61)/6);}
     private boolean two(){return ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());}
     private boolean modern(){return two()&&!creative();}
     private boolean creative(){return two()&&creativePresentation();}

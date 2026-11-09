@@ -87,9 +87,10 @@ public class ClientSettings extends Module {
         groups.put("Blur / Liquid Glass",Arrays.asList(blur,blurMethod,blurStrength,blurQuality,glassAppearance,glassRefraction,glassTint,glassLight));
         groups.put("Glow",Arrays.asList(glow,glowIntensity,glowRadius));
         groups.put("Gradients / Motion",Arrays.asList(gradients,synchronize,direction,gradientMotion,gradientMethod,gradientSpeed,textDirection,textMotion,textSpeed,borderDirection,borderMotion,borderSpeed,glowDirection,glowMotion,glowSpeed,animations,reducedMotion,motionIntensity,ambientMotion,semanticColorPriority,orbitDirection,orbitSpeed,orbitGlow,orbitTrail));
-        groups.put("World effects",Arrays.asList(flameSpeed,flameHeight,neonCore,neonGlow,lineSegments,lineTrail));
         groups.put("Notifications",Arrays.asList(notifications,notificationDesign,notificationTheme,notificationPosition,notificationDuration,notificationWidth,notificationVisible,notificationQueue,info,success,warnings,errors));
         groups.put("Typography",Arrays.asList(fontFamily,textGlow,textGlowStrength,textGlowRadius,textGlowColor));
+        // Append new sections: existing keyboard/category indices stay stable.
+        groups.put("World effects",Arrays.asList(flameSpeed,flameHeight,neonCore,neonGlow,lineSegments,lineTrail));
         return groups;
     }
     public ClientSettings(){

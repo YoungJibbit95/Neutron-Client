@@ -85,7 +85,7 @@ public class SettingsMenu extends GuiScreen {
     private boolean rail(){return w>=560&&h>=330;}
     private float inset(){return rail()?ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())?190:154:14;}
     private void layout(){
-        w=Math.min(two()?860:740,Math.max(1,width-16));h=Math.min(two()?520:464,Math.max(1,height-12));x=(width-w)/2;y=(height-h)/2;
+        w=Math.min(740,Math.max(1,width-16));h=Math.min(two()?448:464,Math.max(1,height-12));x=(width-w)/2;y=(height-h)/2;
         List<Value<?>> visible=rows();
         focus=Math.max(0,Math.min(focus,Math.max(0,visible.size()+5)));
         if(editValue!=null){editing=visible.indexOf(editValue);if(editing<0)editValue=null;}

@@ -123,13 +123,13 @@ public class ClickGui extends GuiScreen {
 
     private void fitWindow() {
         if(!positioned&&two()){
-            width=NeutronVisualTokens.width(super.width);
-            height=NeutronVisualTokens.height(super.height);
+            width=Math.min(760,NeutronVisualTokens.width(super.width));
+            height=Math.min(448,NeutronVisualTokens.height(super.height));
         }
         float availableWidth = Math.max(1, super.width - MARGIN * 2);
         float availableHeight = Math.max(1, super.height - MARGIN * 2);
-        width = Math.max(Math.min(two()?820:320, availableWidth), Math.min(width, availableWidth));
-        height = Math.max(Math.min(two()?520:224, availableHeight), Math.min(height, availableHeight));
+        width = Math.max(Math.min(two()?560:320, availableWidth), Math.min(width, availableWidth));
+        height = Math.max(Math.min(two()?360:224, availableHeight), Math.min(height, availableHeight));
         if (!positioned) {
             x = (super.width - width) / 2;
             y = (super.height - height) / 2;
