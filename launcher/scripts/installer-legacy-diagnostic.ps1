@@ -25,6 +25,16 @@ function Save-Evidence {
     }
     @{schemaVersion=2;revision=$env:GITHUB_SHA;launcherVersion=$newVersion;installerSha256=$acceptedCandidateHash;completed=$completed;oldInstallationComplete=$oldInstallationComplete;upgradeMode=$(if($oldInstallationComplete){'complete-old-install'}else{'repair-incomplete-old-install'});install=$install;temp=$temp;ordinaryAccount=$true;uiEvents=$events.ToArray();processes=$processes.ToArray();logs=$logs} | ConvertTo-Json -Depth 12 | Set-Content -LiteralPath (Join-Path $root 'legacy-diagnostic.json') -Encoding utf8
 }
+function Test-ExecutableVersion([string]$File,[string]$Expected,[string]$Label) {
+    $version=(Get-Item -LiteralPath $File).VersionInfo
+    $actualProductVersion=[string]$version.ProductVersion
+    $events.Add(@{label=$Label;date=[datetime]::UtcNow.ToString('o');action='observed-executable-version';path=$File;expectedVersion=$Expected;productVersion=$actualProductVersion;fileVersion=[string]$version.FileVersion})
+    Save-Evidence
+    # electron-builder writes ProductVersion as X.Y.Z.0 while FileVersion and
+    # release.json retain X.Y.Z. Accept only the exact version or that zero
+    # fourth component, never other revisions, suffixes or numeric coercions.
+    return ($actualProductVersion -ceq $Expected -or $actualProductVersion -ceq ($Expected+'.0'))
+}
 function Invoke-ObservedInstaller([string]$File,[string]$Arguments,[string]$Label,[bool]$Assisted) {
     $started=[datetime]::UtcNow
     # Assisted means the actual visible dialogs: no /S or equivalent is passed.
@@ -181,7 +191,9 @@ try {
         # old install. This is explicitly NOT evidence of a complete old setup.
         $oldExe=Join-Path $install 'Neutron Launcher.exe'
         $registration=Get-ItemProperty -LiteralPath 'HKCU:\Software\17d12e18-c0d2-5a05-b898-3c34ccfad7ff' -ErrorAction SilentlyContinue
-        if(-not (Test-Path -LiteralPath $oldExe) -or (Get-Item -LiteralPath $oldExe).VersionInfo.ProductVersion -ne '0.2.0' -or $null -eq $registration -or $registration.InstallLocation -ne $install){throw}
+        $oldVersionMatches=$false
+        if(Test-Path -LiteralPath $oldExe){$oldVersionMatches=Test-ExecutableVersion $oldExe '0.2.0' 'old-fixture-version'}
+        if(-not $oldVersionMatches -or $null -eq $registration -or $registration.InstallLocation -ne $install){throw}
         $events.Add(@{label='old-fixture-incomplete';error=$_.Exception.Message;fullOldInstallationAccepted=$false})
         Save-Evidence
     }
@@ -191,7 +203,7 @@ try {
     $events.Add(@{label='assisted-install-location';requested=$install;registered=$registeredInstall})
     if(-not $registeredInstall.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase)){throw 'Registered install escaped the owned fixture.'}
     $installedExe=Join-Path $registeredInstall 'Neutron Launcher.exe'
-    if((Get-Item -LiteralPath $installedExe).VersionInfo.ProductVersion -ne $newVersion){throw ('Assisted upgrade did not install version '+$newVersion+'.')}
+    if(-not (Test-ExecutableVersion $installedExe $newVersion 'assisted-installed-version')){throw ('Assisted upgrade did not install version '+$newVersion+'; inspect observed-executable-version evidence for the actual PE metadata.')}
     $metadata=Get-Content -LiteralPath (Join-Path $registeredInstall 'resources/release.json') -Raw | ConvertFrom-Json
     if($metadata.launcherVersion -ne $newVersion){throw 'Installed release metadata differs from the candidate.'}
     if((Get-FileHash -LiteralPath (Join-Path $registeredInstall 'resources/app.asar')).Hash -ne $expectedAsar){throw 'Assisted upgrade application bytes differ from the expected pinned candidate.'}
