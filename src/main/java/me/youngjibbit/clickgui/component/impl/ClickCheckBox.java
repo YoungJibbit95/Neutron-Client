@@ -55,15 +55,18 @@ public class ClickCheckBox extends Component.Sub<CheckBoxValue> {
                         me.youngjibbit.theme.ThemeMode.selected());
         float progress=(panelStyle||compactModern)&&Float.isFinite(panelProgress)?panelProgress:
                 Math.max(0,Math.min(1,UiEffects.motion()?animation.getOutput().floatValue():value.getValue()?1:0));
-        Theme theme=Theme.resolve(Theme.getDefaultTheme());int ink=hoverInk(theme.isCustom()?theme.getTextColor().getRGB():0xffe4e4e8);
+        Theme theme=Theme.resolve(Theme.getDefaultTheme());int ink=hoverInk(ClickControlStyle.ink(theme));
         if (panelStyle) {
+            ClickControlStyle.row(x,y,width,height,theme,hit(mouseX,mouseY,x+10,y,width-20,height)||getPresentation().keyboardFocused());
             float left = toggleX(), top = y + 5;
             float knobX = left + 2 + (toggleWidth() - 14) * progress;
             ClickControlStyle.halo(left, top, toggleWidth(), 13, theme, .12f * progress);
             int neutral = Theme.interpolateRGB(theme.getBackground().getRGB(), theme.getTextColor().getRGB(), .29f);
-            UIUtils.drawDecorationGradientVertical(left, top, toggleWidth(), 13, 6.5f,
-                    new Color(Theme.interpolateRGB(neutral, theme.getPrimaryGradientRGB(), progress), true),
-                    new Color(Theme.interpolateRGB(neutral, theme.getSecondaryGradientRGB(), progress), true));
+            if(ClickControlStyle.legacy())UIUtils.drawDecorationRound(left,top,toggleWidth(),13,6.5f,
+                    new Color(Theme.interpolateRGB(0xff414d60,theme.getPrimaryGradientRGB(),progress),true));
+            else UIUtils.drawDecorationGradientVertical(left, top, toggleWidth(), 13, 6.5f,
+                        new Color(Theme.interpolateRGB(neutral, theme.getPrimaryGradientRGB(), progress), true),
+                        new Color(Theme.interpolateRGB(neutral, theme.getSecondaryGradientRGB(), progress), true));
             float bounce=panelBounce*12;
             UIUtils.drawDecorationRound(knobX-bounce/2,top+2.5f-bounce/2,
                     10+bounce,10+bounce,(10+bounce)/2,new Color(0,0,0,95));

@@ -103,7 +103,8 @@ public class ClickSlider extends Component.Sub<SliderValue> {
         TTFFontRenderer font=compact()?me.youngjibbit.Pulsar.INSTANCE.fontManager.getFont("Poppins-Regular 16"):ClickControlStyle.font();
         float labelX=x+(compact()?7:12),labelY=y+(compact()?4:6);
         font.drawString(ClickControlStyle.fit(font,value.getName(),(compact()?valueX()-4:fieldX()-8)-labelX),labelX,labelY,ink);
-        GuiStyle.panel(valueX(),badgeY(),valueWidth(),badgeHeight(),3,editing?1:isMouseOver(mouseX,mouseY)?.5f:.12f,new Color(29,31,36));
+        if(ClickControlStyle.legacy())ClickControlStyle.panelField(valueX(),badgeY(),valueWidth(),badgeHeight(),theme,editing||isMouseOver(mouseX,mouseY));
+        else GuiStyle.panel(valueX(),badgeY(),valueWidth(),badgeHeight(),3,editing?1:isMouseOver(mouseX,mouseY)?.5f:.12f,new Color(29,31,36));
         drawFeedback();
         try(GuiClip ignored=GuiClip.push(new ClipRect(valueX()+3,badgeY()+1,valueWidth()-6,badgeHeight()-2))){
             String text=editing?input+(error?" !":"_"):BigDecimal.valueOf(value.getValue()).stripTrailingZeros().toPlainString();
@@ -112,17 +113,19 @@ public class ClickSlider extends Component.Sub<SliderValue> {
         }
     }
     private void drawPanelSlider(Theme theme, int mouseX, int mouseY) {
+        ClickControlStyle.row(x,y,width,height,theme,isMouseOver(mouseX,mouseY)||getPresentation().keyboardFocused());
         TTFFontRenderer font = ClickControlStyle.font();
         float left = trackX(), center = trackY(), length = trackWidth();
         float fraction = Float.isNaN(displayedFraction) ? fraction() : displayedFraction;
         float fill = length * fraction;
         float energy = UiEffects.motion() ? Math.min(1, Math.abs(getPresentation().amount())) : 0;
-        float radius = 3.2f + 1.8f * energy;
-        int ink = theme.isCustom() ? theme.getTextColor().getRGB() : 0xffeef0f5;
+        float radius = 3.2f + (ClickControlStyle.legacy()?.8f:1.8f) * energy;
+        int ink = ClickControlStyle.ink(theme);
 
-        UIUtils.drawDecorationRound(left, center - 2, length, 4, 2, UiEffects.accent(ink, .19f));
+        float thickness=ClickControlStyle.legacy()?2.5f:4;
+        UIUtils.drawDecorationRound(left, center - thickness/2, length, thickness, thickness/2, UiEffects.accent(ink, .19f));
         if (fill > .5f) {
-            UIUtils.drawDecorationGradientVertical(left, center - 2, fill, 4, Math.min(2, fill / 2),
+            UIUtils.drawDecorationGradientVertical(left, center - thickness/2, fill, thickness, Math.min(thickness/2, fill / 2),
                     theme.getPrimaryGradientColor(), theme.getSecondaryGradientColor());
         }
         float cx = left + fill;

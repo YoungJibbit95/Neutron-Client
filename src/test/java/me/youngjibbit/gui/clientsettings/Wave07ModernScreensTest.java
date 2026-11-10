@@ -58,6 +58,9 @@ public class Wave07ModernScreensTest {
         void setup(int w,int h){width=w;height=h;initGui();}
         ClipRect visible(){return listBounds();}
         ClipRect search(){return searchBounds();}
+        ClipRect item(int id){return itemBounds(id);}
+        ClipRect action(int id){return actionBounds(id);}
+        ClipRect name(){return nameBounds();}
     }
 
     private static class Main extends MainMenu {
@@ -110,7 +113,7 @@ public class Wave07ModernScreensTest {
         assertEquals("Blur",settings.surface.getValue());
     }
 
-    @Test public void actualLibraryUsesConsistentTwoPaneResponsiveLayoutWithoutConfigWrites()
+    @Test public void actualLibraryKeepsApproachTwoPaneAndUsesLegacyGridWithoutConfigWrites()
             throws Exception {
         ConfigManager manager=new ConfigManager(folder.newFolder().toPath(),
                 Arrays.asList(settings,fixture),()->false,ignored->{});
@@ -126,7 +129,11 @@ public class Wave07ModernScreensTest {
         assertEquals(0,fixture.changes);
         ThemeMode.select(ThemeMode.LEGACY);
         library.setup(1024,768);
-        assertTrue(library.visible().width<modern.width);
+        assertEquals(720f,outer.getFloat(library),0);
+        assertTrue("Legacy grid uses the content width",library.visible().width>modern.width);
+        assertEquals(library.item(0).y,library.item(1).y,0);
+        assertTrue(library.item(1).x>library.item(0).x+library.item(0).width);
+        assertTrue("Legacy toolbar belongs below the name field",library.action(0).y>library.name().y+library.name().height);
         assertFalse(fixture.checked.getValue());
         assertEquals(0,fixture.changes);
         manager.shutdown();

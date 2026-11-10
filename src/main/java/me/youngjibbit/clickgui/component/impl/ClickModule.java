@@ -25,6 +25,9 @@ import java.util.List;
 public class ClickModule extends Component {
     private final Module module;
     private final List<Sub<?>> values = new ArrayList<>();
+    private final List<ClickSubcategory> subcategories = new ArrayList<>();
+    private final List<Sub<?>> groupedValues = new ArrayList<>();
+    private final java.util.Map<Sub<?>, ClickSubcategory> groups = new java.util.IdentityHashMap<>();
     private boolean open;
     private final DecelerateAnimation openAnimation = new me.youngjibbit.clickgui.utils.ClickAnimation(220, 1, Direction.BACKWARDS);
     private final DecelerateAnimation toggleAnimation = new me.youngjibbit.clickgui.utils.ClickAnimation(180, 1, Direction.BACKWARDS);
@@ -52,7 +55,7 @@ public class ClickModule extends Component {
 
     private float settingsTop() {
         if (panelStyle) return PANEL_TOP;
-        return compactSettings() ? 2 : 20;
+        return compactSettings() ? 2 : grouped() ? 5 : 20;
     }
 
     private float valueGap() {
@@ -70,7 +73,62 @@ public class ClickModule extends Component {
             if (value instanceof ComboValue) values.add(new ClickCombo((ComboValue) value, 0, 0, width, 24));
             if (value instanceof SliderValue) values.add(new ClickSlider((SliderValue) value, 0, 0, width, 24));
         }
+        List<Value<?>> supported = new ArrayList<>();
+        for (Sub<?> value : values) supported.add((Value<?>) value.getValue());
+        for (me.youngjibbit.value.impl.SubcategoryValue category :
+                me.youngjibbit.clickgui.utils.SettingSubcategories.create(module, supported)) {
+            ClickSubcategory section = new ClickSubcategory(category, width);
+            subcategories.add(section);
+            groupedValues.add(section);
+            for (Value<?> child : category.children()) for (Sub<?> widget : values) {
+                if (widget.getValue() == child) {
+                    section.add(widget);
+                    groupedValues.add(widget);
+                    groups.put(widget, section);
+                    break;
+                }
+            }
+        }
+        // Keep the main controls immediately reachable; other sections remember their UI state.
+        if (!subcategories.isEmpty()) subcategories.get(0).setOpen(true);
         updateAnimation();
+    }
+
+    private boolean grouped() {
+        return !modernCard && !subcategories.isEmpty()
+                && !me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(me.youngjibbit.theme.ThemeMode.selected());
+    }
+
+    private List<Sub<?>> rows() { return grouped() ? groupedValues : values; }
+    public List<ClickSubcategory> subcategories() { return java.util.Collections.unmodifiableList(subcategories); }
+    public boolean ownsComponent(Component component) {
+        return component == this || values.contains(component) || subcategories.contains(component);
+    }
+    public Component focusParent(Component component) {
+        ClickSubcategory section = groups.get(component);
+        return grouped() && section != null && section.getValue().isVisible() && open ? section : this;
+    }
+    public boolean inputVisible(Sub<?> value) {
+        if (!visible(value)) return false;
+        ClickSubcategory section = groups.get(value);
+        return !grouped() || section == null || section.isOpen() && section.getValue().isVisible();
+    }
+
+    private float groupContent(ClickSubcategory section) {
+        float content = 0;
+        for (Sub<?> child : section.children()) if (visible(child)) content += child.getHeight() + valueGap();
+        return content;
+    }
+
+    private void measureSettings(float seconds) {
+        settingsContentHeight = settingsTop() + (panelStyle ? PANEL_BOTTOM : compactSettings() ? 2 : 4);
+        if (grouped()) {
+            for (ClickSubcategory section : subcategories) {
+                section.step(seconds);
+                if (section.getValue().isVisible())
+                    settingsContentHeight += section.getHeight() + 3 + groupContent(section) * section.progress();
+            }
+        } else for (Sub<?> value : values) if (visible(value)) settingsContentHeight += value.getHeight() + valueGap();
     }
 
     public void updateAnimation() {
@@ -78,12 +136,11 @@ public class ClickModule extends Component {
         toggleAnimation.setDirection(module.isToggled() ? Direction.FORWARDS : Direction.BACKWARDS);
         openProgress = Math.max(0, Math.min(1, me.youngjibbit.utils.render.UiEffects.motion()?openAnimation.getOutput().floatValue():open?1:0));
         toggleProgress = Math.max(0, Math.min(1, me.youngjibbit.utils.render.UiEffects.motion()?toggleAnimation.getOutput().floatValue():module.isToggled()?1:0));
-        settingsContentHeight = settingsTop() + (panelStyle ? PANEL_BOTTOM : compactSettings() ? 2 : 4);
         for (Sub<?> value : values) {
             if (!visible(value)) continue;
             if (value instanceof ClickCombo) ((ClickCombo) value).updateAnimation();
-            settingsContentHeight += value.getHeight() + valueGap();
         }
+        measureSettings(0);
     }
 
     /** Visual state only; never resets a toggled Module or a saved setting. */
@@ -120,12 +177,11 @@ public class ClickModule extends Component {
         toggleBounce=Math.min(.1f,Math.abs(toggle-toggleProgress));
         float openValue=compactReveal.step(open?1:0,seconds,animated,reduced,intensity);
         openProgress=Math.max(0,Math.min(1,openValue));
-        settingsContentHeight=settingsTop()+2;
         for(Sub<?> value:values){
             if(!visible(value))continue;
             if(value instanceof ClickCombo)((ClickCombo)value).updatePanelAnimation(seconds);
-            settingsContentHeight+=value.getHeight()+valueGap();
         }
+        measureSettings(seconds);
     }
 
     /** Panel-only springs; compact Dropdown retains its original animation path. */
@@ -141,21 +197,26 @@ public class ClickModule extends Component {
         openProgress=Math.max(0,Math.min(1.08f,panelReveal.transition(
                 open?1:0,seconds,settings)));
         // Combo geometry must be frozen from the same spring sample as the clip.
-        settingsContentHeight=settingsTop()+PANEL_BOTTOM;
         for(Sub<?> value:values){
             if(!visible(value))continue;
             if(value instanceof ClickCombo)((ClickCombo)value).updatePanelAnimation(seconds);
-            settingsContentHeight+=value.getHeight()+valueGap();
         }
+        measureSettings(seconds);
+    }
+
+    public void updateLegacyAnimation(float seconds) {
+        updateAnimation();
+        measureSettings(seconds);
     }
 
     protected boolean compactSettings() { return false; }
     @Override public void setWidth(float next) {
         width=next;
         for(Sub<?> value:values)value.setWidth(compactSettings()?width-4:width);
+        for(ClickSubcategory section:subcategories)section.setWidth(compactSettings()?width-4:width);
     }
     @Override public void mouseDragged(int mouseX,int mouseY) {
-        if(open)for(Sub<?> value:values)if(visible(value))value.mouseDragged(mouseX,mouseY);
+        if(open)for(Sub<?> value:values)if(inputVisible(value))value.mouseDragged(mouseX,mouseY);
     }
 
     public void layout(float x, float y, float width, ClipRect parentClip) {
@@ -164,18 +225,51 @@ public class ClickModule extends Component {
         this.clip = parentClip;
         settingsClip = parentClip.intersect(new ClipRect(x + 1, y + height, width - 2, settingsContentHeight * openProgress));
         float valueY = y + height + settingsTop();
+        if (grouped()) {
+            for (ClickSubcategory section : subcategories) {
+                if (!section.getValue().isVisible()) {
+                    hide(section);
+                    for (Sub<?> child : section.children()) hide(child);
+                    continue;
+                }
+                place(section, valueY, settingsClip);
+                valueY += section.getHeight();
+                float revealedHeight = groupContent(section) * section.progress();
+                ClipRect reveal = new ClipRect(x + 1, valueY, width - 2, revealedHeight);
+                section.childReveal(reveal);
+                ClipRect childClip = settingsClip.intersect(reveal);
+                float childY = valueY;
+                for (Sub<?> child : section.children()) {
+                    if (!visible(child)) { hide(child); continue; }
+                    place(child, childY, childClip);
+                    if (!section.isOpen()) ClickSubcategory.cancel(child);
+                    childY += child.getHeight() + valueGap();
+                }
+                valueY += revealedHeight + 3;
+            }
+            return;
+        }
         for (Sub<?> value : values) {
             if (!visible(value)) {
-                value.setClip(new ClipRect(0, 0, 0, 0));
-                value.mouseReleased();
+                hide(value);
                 continue;
             }
-            value.updateComponent(x + (compactSettings() ? 2 : 0), valueY);
-            value.setWidth(compactSettings() ? width - 4 : width);
-            value.setClip(settingsClip);
-            if (!open || settingsClip.intersect(new ClipRect(x, valueY, width, value.getHeight())).isEmpty()) value.mouseReleased();
+            place(value, valueY, settingsClip);
             valueY += value.getHeight() + valueGap();
         }
+    }
+
+    private void hide(Sub<?> value) {
+        value.setClip(new ClipRect(0, 0, 0, 0));
+        ClickSubcategory.cancel(value);
+    }
+
+    private void place(Sub<?> value, float valueY, ClipRect valueClip) {
+        value.updateComponent(x + (compactSettings() ? 2 : 0), valueY);
+        value.setWidth(compactSettings() ? width - 4 : width);
+        value.setClip(valueClip);
+        if (!open || valueClip.intersect(new ClipRect(x, valueY, width, value.getHeight())).isEmpty())
+            value.mouseReleased();
     }
 
     @Override
@@ -228,11 +322,11 @@ public class ClickModule extends Component {
             return;
         }
         // Module hover stays anchored, even while the settings below grow or scroll.
-        int text = theme.getTextColor().getRGB();
+        int text = me.youngjibbit.gui.LegacyUiStyle.ink(theme);
         float over = Math.max(0, Math.min(1, getPresentation().amount()));
-        int base = theme.isCustom() ? theme.getBackground().getRGB() : 0xff17181d;
+        int base = me.youngjibbit.gui.LegacyUiStyle.panel(theme).getRGB();
         int fill = Theme.interpolateRGB(base, text, over * .045f);
-        GuiStyle.panel(x, y, width, getHeight(), 6, .09f + toggleProgress * .17f, new Color(fill, true));
+        GuiStyle.panel(x, y, width, getHeight(), 6, .06f + toggleProgress * .13f, new Color(fill, true));
         float dotX = x + 10, dotY = y + height / 2 - 2;
         if (module.isToggled()||toggleProgress>.005f){
             float dot=4+toggleBounce*18;
@@ -242,7 +336,8 @@ public class ClickModule extends Component {
                             theme.getPrimaryGradientRGB(),.24f+.76f*toggleProgress));
         }
         if (getPresentation().keyboardFocused())
-            Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString("â€º", x + 3, y + 6, text);
+            me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x+2,y+6,1.5f,height-12,.75f,
+                    me.youngjibbit.gui.LegacyUiStyle.accent(theme,.9f));
 
         me.youngjibbit.utils.font.TTFFontRenderer title = Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18");
         float right = x + width - 28;
@@ -255,7 +350,7 @@ public class ClickModule extends Component {
             right -= title.getWidth(key);
             title.drawString(key, right, y + 6, conflict ? 0xffffb975 : me.youngjibbit.utils.render.UiEffects.alpha(text, .72f));
         }
-        int titleInk = Theme.interpolateRGB(text, theme.getPrimaryGradientRGB(), toggleProgress * .34f);
+        int titleInk = Theme.interpolateRGB(text, theme.getPrimaryGradientRGB(), toggleProgress * .15f);
         title.drawString(ClickControlStyle.fit(title, module.getName(), right - x - 24), x + 19, y + 6, titleInk);
         Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString(openProgress > .5f ? "h" : "i",
                 x + width - 17, y + 7, me.youngjibbit.utils.render.UiEffects.alpha(text, hover || open ? .95f : .62f));
@@ -328,21 +423,29 @@ public class ClickModule extends Component {
                         Theme theme=Theme.resolve(Theme.getDefaultTheme());
                         me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x+7,y+height+2,
                                 width-14,settingsContentHeight-4,5,
-                                me.youngjibbit.utils.render.UiEffects.accent(theme.getBackground().getRGB(),.34f));
-                        me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x+13,y+height+2,
-                                width-26,.7f,0,
-                                me.youngjibbit.utils.render.UiEffects.accent(theme.getTextColor().getRGB(),.16f));
+                                me.youngjibbit.gui.LegacyUiStyle.alpha(0xff0e1420,.35f));
+                        me.youngjibbit.gui.LegacyUiStyle.rule(x+13,y+height+2,width-26,theme);
                     }
-                } else if(!compactSettings())Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString("Settings", x + 12, y + height + 5,
+                } else if(!compactSettings() && !grouped())Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString("Settings", x + 12, y + height + 5,
                         new Color(180, 180, 185).getRGB());
-                for (Sub<?> value : values) {
-                    if (!visible(value)) continue;
-                    if (!settingsClip.intersect(new ClipRect(value.getX(), value.getY(), value.getWidth(), value.getHeight())).isEmpty()) {
-                        value.drawScreen(open ? mouseX : -1, open ? mouseY : -1);
+                if(grouped())for(ClickSubcategory section:subcategories){
+                    if(!section.getValue().isVisible())continue;
+                    drawValue(section,mouseX,mouseY);
+                    ClipRect sectionClip=settingsClip.intersect(section.childReveal());
+                    if(!sectionClip.isEmpty())try(GuiClip childClip=GuiClip.push(sectionClip)){
+                        for(Sub<?> child:section.children())drawValue(child,mouseX,mouseY);
                     }
                 }
+                else for(Sub<?> value:values)drawValue(value,mouseX,mouseY);
             }
         }
+    }
+
+    private void drawValue(Sub<?> value,int mouseX,int mouseY){
+        if(!visible(value)||value.getClip()==null||value.getClip().intersect(
+                new ClipRect(value.getX(),value.getY(),value.getWidth(),value.getHeight())).isEmpty())return;
+        boolean interactive=open&&inputVisible(value);
+        value.drawScreen(interactive?mouseX:-1,interactive?mouseY:-1);
     }
 
     protected final float getToggleProgress() { return toggleProgress; }
@@ -365,7 +468,13 @@ public class ClickModule extends Component {
             return;
         }
         if (open && settingsClip.contains(mouseX, mouseY)) {
-            for (Sub<?> value : values) if (visible(value)) value.mouseClicked(mouseX, mouseY, button);
+            // Deliver once using the pre-click layout. Disclosure changes must not bleed into children.
+            for (Sub<?> value : rows()) if (inputVisible(value) && value.getClip() != null
+                    && value.getClip().contains(mouseX, mouseY)
+                    && new ClipRect(value.getX(), value.getY(), value.getWidth(), value.getHeight()).contains(mouseX, mouseY)) {
+                value.mouseClicked(mouseX, mouseY, button);
+                return;
+            }
         }
     }
 
@@ -377,7 +486,7 @@ public class ClickModule extends Component {
     public void mouseReleased() { for (Sub<?> value : values) value.mouseReleased(); }
 
     public Module getModule(){return module;}
-    public List<Sub<?>> presentationValues(){return java.util.Collections.unmodifiableList(values);}
+    public List<Sub<?>> presentationValues(){return java.util.Collections.unmodifiableList(rows());}
     public boolean isOpen(){return open;}
     public void setOpen(boolean next){open=next;mouseReleased();if(!next)cancelInputs();}
     public List<Sub<?>> focusableValues() {
@@ -386,8 +495,11 @@ public class ClickModule extends Component {
         // Use the module reveal, not settingsClip: offscreen settings remain Tab destinations.
         // The inherited header is 24px for Panel and 16px for Dropdown.
         ClipRect reveal = new ClipRect(x + 1, y + height, width - 2, settingsContentHeight * openProgress);
-        for (Sub<?> value : values) {
-            if (visible(value) && !reveal.intersect(value.presentationBounds()).isEmpty()) result.add(value);
+        for (Sub<?> value : rows()) {
+            if (!inputVisible(value) || reveal.intersect(value.presentationBounds()).isEmpty()) continue;
+            ClickSubcategory section = groups.get(value);
+            if (grouped() && section != null && section.childReveal().intersect(value.presentationBounds()).isEmpty()) continue;
+            result.add(value);
         }
         return result;
     }

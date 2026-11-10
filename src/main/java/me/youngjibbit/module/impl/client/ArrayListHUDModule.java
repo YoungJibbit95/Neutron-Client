@@ -47,7 +47,9 @@ public class ArrayListHUDModule extends Module {
     private final CheckBoxValue background = new CheckBoxValue("Background", this, true);
     private final CheckBoxValue blur = new CheckBoxValue("Blur", this, true);
     private final CheckBoxValue glow = new CheckBoxValue("Glow", this, true);
-    private final CheckBoxValue showModuleInfo = new CheckBoxValue("Show Module Info", this, false);
+    private final CheckBoxValue showModuleInfo = new CheckBoxValue("Show Module Info", this, true) {
+        @Override public String getName() { return "Module Prefixes"; }
+    };
     private final CheckBoxValue showCombat = new CheckBoxValue("Show Combat", this, true);
     private final CheckBoxValue showMovement = new CheckBoxValue("Show Movement", this, true);
     private final CheckBoxValue showPlayer = new CheckBoxValue("Show Player", this, true);
@@ -91,6 +93,7 @@ public class ArrayListHUDModule extends Module {
     private final Map<String, HudSpring> modernVisibility = new HashMap<>();
     private final Map<String, Float> yPositions = new HashMap<>();
     private final Map<String, Metrics> metricsCache = new HashMap<>();
+    private final me.youngjibbit.gui.ModulePrefixes.Sampler prefixDetails = new me.youngjibbit.gui.ModulePrefixes.Sampler();
     private final ArrayListSurface surface = new ArrayListSurface(this);
     private final me.youngjibbit.utils.render.TextEffects textEffects=new me.youngjibbit.utils.render.TextEffects();
     private final SliderValue positionX = new SliderValue("Position X",this,10.0,-16384,16384);
@@ -154,6 +157,7 @@ public class ArrayListHUDModule extends Module {
         float dx=anchorX-oldX,dy=anchorY-oldY;moveRows(rows,dx,dy);
         for(ArrayRow row:rows)row.clip=new ClipRect(row.clip.x+dx,row.clip.y+dy,row.clip.width,row.clip.height);
         final ArrayListSurface.Shape shape=initial.translated(dx,dy);frameShape=shape;
+        final boolean hasPrefixes=rows.stream().anyMatch(row -> !row.metrics.prefix.isEmpty());
         Runnable labels=() -> {
             Runnable glyphs=()->{
             int idx=0;
@@ -190,6 +194,10 @@ public class ArrayListHUDModule extends Module {
             // inherits the selected palette. Legacy retains its glyph shader.
             if(modern)glyphs.run();
             else textEffects.themed(theme,glyphs);
+            // Details have their own neutral ink pass, outside the name's gradient/halo scope.
+            if (hasPrefixes) me.youngjibbit.utils.render.FontInk.plain(() -> {
+                for (ArrayRow row : rows) drawPrefix(row);
+            });
         };
         GuiShaderBloom.afterBatch(() -> {
             if (!surface.inheritsEffects() && !filled && !glowing) surface.text(labels);
@@ -301,8 +309,23 @@ public class ArrayListHUDModule extends Module {
                 GL11.glTranslatef(row.textX,row.textY,0);
                 GL11.glScalef(metrics.scale,metrics.scale,1);
                 int color=UiEffects.alpha(-1,row.progress);
-                if(metrics.renderer==null)Wrapper.mc.fontRendererObj.drawStringWithShadow(metrics.label,0,0,color);
-                else metrics.renderer.drawString(metrics.label,0,0,color);
+                if(metrics.renderer==null)Wrapper.mc.fontRendererObj.drawStringWithShadow(metrics.name,0,0,color);
+                else metrics.renderer.drawString(metrics.name,0,0,color);
+            } finally { GL11.glPopMatrix(); }
+        }
+    }
+
+    private void drawPrefix(ArrayRow row) {
+        Metrics metrics = row.metrics;
+        if (metrics.prefix.isEmpty()) return;
+        try (GuiClip ignored = GuiClip.push(row.clip)) {
+            GL11.glPushMatrix();
+            try {
+                GL11.glTranslatef(row.textX, row.textY, 0);
+                GL11.glScalef(metrics.scale, metrics.scale, 1);
+                int color = UiEffects.alpha(me.youngjibbit.gui.LegacyUiStyle.PREFIX, row.progress);
+                if (metrics.renderer == null) Wrapper.mc.fontRendererObj.drawStringWithShadow(metrics.prefix, metrics.nameWidth, 0, color);
+                else metrics.renderer.drawString(metrics.prefix, metrics.nameWidth, 0, color);
             } finally { GL11.glPopMatrix(); }
         }
     }
@@ -325,12 +348,17 @@ public class ArrayListHUDModule extends Module {
     }
 
     private static final class Metrics {
-        final String label;
+        final String label, name, prefix;
         final TTFFontRenderer renderer;
-        final float scale,width,height;
+        final float scale,width,height,nameWidth;
         Metrics(String label,TTFFontRenderer renderer,float scale) {
             this.label=label;this.renderer=renderer;this.scale=scale;
-            width=(renderer==null?Wrapper.mc.fontRendererObj.getStringWidth(label)+1:renderer.getWidth(label))*scale;
+            int split=label.indexOf(" : ");
+            name=split<0?label:label.substring(0,split);
+            prefix=split<0?"":label.substring(split);
+            nameWidth=renderer==null?Wrapper.mc.fontRendererObj.getStringWidth(name):renderer.getWidth(name);
+            float detailWidth=renderer==null?Wrapper.mc.fontRendererObj.getStringWidth(prefix):renderer.getWidth(prefix);
+            width=(nameWidth+detailWidth+(renderer==null?1:0))*scale;
             height=(renderer==null?Wrapper.mc.fontRendererObj.FONT_HEIGHT:renderer.getHeight("Ay"))*scale;
         }
     }
@@ -342,8 +370,12 @@ public class ArrayListHUDModule extends Module {
     private String getLabel(Module module) {
         String label = modern()?module.getName():"| " + module.getName();
         if (!showModuleInfo.getValue() || !module.isToggled()) return label;
-        String detail = module.getInfo();
-        return detail == null || detail.isEmpty() ? label : label + " " + detail;
+        String detail = prefixDetails.detail(module);
+        return detail.isEmpty() ? label : label + " : " + detail;
+    }
+
+    @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String nameOrId) {
+        return super.getValueByName("Show Module Info".equalsIgnoreCase(nameOrId) ? "show_module_info" : nameOrId);
     }
 
     private TTFFontRenderer getFontRenderer() {
@@ -420,6 +452,7 @@ public class ArrayListHUDModule extends Module {
         modernVisibility.clear();
         yPositions.clear();
         metricsCache.clear();
+        prefixDetails.clear();
         surface.close();textEffects.close();
     }
 

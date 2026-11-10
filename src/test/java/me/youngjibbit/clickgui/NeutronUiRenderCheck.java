@@ -24,8 +24,9 @@ import static org.lwjgl.opengl.GL11.*;
 public final class NeutronUiRenderCheck {
     static final File OUT=new File("neutron-ui-preview");
     static class Library extends SideGuiScreen {
+        GuiScreen opened;
         Library(){super(new MainMenu());}
-        void search(String q){query(q);}
+        @Override protected void open(GuiScreen screen){opened=screen;}
         void key(int key)throws Exception{keyTyped(' ',key);}
     }
     public static void run(Minecraft mc)throws Exception{
@@ -37,13 +38,22 @@ public final class NeutronUiRenderCheck {
             for(int[] size:new int[][]{{960,640,2},{640,360,2},{1101,733,3}}){
                 mc.displayWidth=size[0];mc.displayHeight=size[1];mc.gameSettings.guiScale=size[2];mc.getFramebuffer().createBindFramebuffer(size[0],size[1]);
                 ScaledResolution sr=new ScaledResolution(mc);Library library=new Library();library.setWorldAndResolution(mc,sr.getScaledWidth(),sr.getScaledHeight());
+                // Minecraft's resize helper unbinds the new FBO. A real GUI frame
+                // starts on that main target, not on the context's default drawable.
+                clear(.05f,.06f,.08f);
                 library.drawScreen(-1,-1,0);save(mc,"library-"+size[0]+".png");
                 if(size[0]==960){
-                    library.key(org.lwjgl.input.Keyboard.KEY_DOWN);library.drawScreen(-1,-1,0);save(mc,"library-keyboard-list.png");
-                    library.key(org.lwjgl.input.Keyboard.KEY_RETURN);library.drawScreen(-1,-1,0);save(mc,"library-keyboard-settings.png");
+                    library.key(org.lwjgl.input.Keyboard.KEY_DOWN);library.drawScreen(-1,-1,0);save(mc,"library-keyboard-settings.png");
+                    library.key(org.lwjgl.input.Keyboard.KEY_RETURN);
+                    require(library.opened instanceof me.youngjibbit.gui.clientsettings.SettingsMenu,"Hub keyboard navigation opens actual Client settings");
+                    library.opened.onGuiClosed();
                 }
-                library.search("glow");library.drawScreen(-1,-1,0);save(mc,"search-glow-"+size[0]+".png");
-                library.search("no result exists");library.drawScreen(-1,-1,0);save(mc,"search-empty-"+size[0]+".png");library.onGuiClosed();
+                require(library.tabBounds(0).isEmpty(),"Library must not retain the module browser");
+                for(int id=1;id<=5;id++) {
+                    me.youngjibbit.clickgui.utils.ClipRect card=library.tabBounds(id),window=library.window();
+                    require(card.width==card.intersect(window).width&&card.height==card.intersect(window).height,"Every Library destination stays inside its window");
+                }
+                library.onGuiClosed();
             }
             mc.displayWidth=960;mc.displayHeight=640;mc.gameSettings.guiScale=2;mc.getFramebuffer().createBindFramebuffer(960,640);
             c.animations.setValue(true);c.reducedMotion.setValue(false);
@@ -81,13 +91,54 @@ public final class NeutronUiRenderCheck {
             c.reducedMotion.setValue(false);GuiTransitions.beforeChange(new MainMenu(),new Library());mc.displayWidth--;GuiTransitions.draw();require(!(Boolean)get(GuiTransitions.class,"active"),"Resize reused an invalid snapshot");mc.displayWidth++;
             c.reducedMotion.setValue(false);
             visualNavigation(mc,drawAt);
+            checkUndimmedWorldNavigation(mc,drawAt,c);
             int incoming=(Integer)get(GuiTransitions.class,"incomingTexture");
             GuiTransitions.releaseResources();require(!glIsTexture(texture)&&!glIsTexture(incoming),"Transition textures survived shutdown");
             require(glGetError()==GL_NO_ERROR,"Neutron UI GL error");
-            System.out.println("PASS: SideGUI search/layout; continuous forward/back slide pixels, first/end frames, interruption, input guard, hostile GL state, reduced motion, resize, two-texture release, actual Library/Config/Settings composites");
+            System.out.println("PASS: Library hub layout/navigation; continuous forward/back slide pixels, first/end frames, interruption, input guard, hostile GL state, reduced motion, resize, two-texture release, actual Library/Config/Settings composites");
         }finally{GuiTransitions.releaseResources();Pulsar.INSTANCE.fontManager.close();Pulsar.INSTANCE.fontManager=oldFonts;set(Pulsar.INSTANCE,"mm",old);Theme.setDefaultTheme(oldTheme);}
     }
-    private static void clear(float r,float g,float b){glDisable(GL_SCISSOR_TEST);glColorMask(true,true,true,true);glClearColor(r,g,b,1);glClear(GL_COLOR_BUFFER_BIT);}
+    private static void clear(float r,float g,float b){Minecraft.getMinecraft().getFramebuffer().bindFramebuffer(true);glDisable(GL_SCISSOR_TEST);glColorMask(true,true,true,true);glClearColor(r,g,b,1);glClear(GL_COLOR_BUFFER_BIT);}
+    private static void checkUndimmedWorldNavigation(Minecraft mc,Method drawAt,ClientSettings settings)throws Exception {
+        // Only world presence is supplied; no world simulation, networking or player is invoked.
+        Field unsafe=sun.misc.Unsafe.class.getDeclaredField("theUnsafe");unsafe.setAccessible(true);
+        net.minecraft.client.multiplayer.WorldClient oldWorld=mc.theWorld;
+        String surface=settings.surface.getValue();boolean blur=settings.blur.getValue(),glow=settings.glow.getValue();
+        GuiScreen previous=null;
+        try {
+            mc.theWorld=(net.minecraft.client.multiplayer.WorldClient)((sun.misc.Unsafe)unsafe.get(null)).allocateInstance(net.minecraft.client.multiplayer.WorldClient.class);
+            settings.surface.setValue("Standard");settings.blur.setValue(false);settings.glow.setValue(false);
+            mc.getFramebuffer().bindFramebuffer(true);clear(.25f,.4f,.6f);
+            int background=capture(mc).getRGB(2,2);
+            ScaledResolution sr=new ScaledResolution(mc);
+            for(int navigation=0;navigation<12;navigation++) {
+                GuiScreen screen;
+                switch(navigation%4) {
+                    case 0:screen=new SideGuiScreen(null);break;
+                    case 1:screen=new ClickLibraryScreen(null,false);break;
+                    case 2:screen=new me.youngjibbit.gui.clientsettings.SettingsMenu(null);break;
+                    default:screen=new ThemeEditorScreen(null,me.youngjibbit.theme.ThemeCatalog.global(),me.youngjibbit.theme.ThemeRuntime::select);
+                }
+                if(previous!=null) { GuiTransitions.beforeChange(previous,screen);previous.onGuiClosed(); }
+                screen.setWorldAndResolution(mc,sr.getScaledWidth(),sr.getScaledHeight());
+                long started=System.nanoTime();
+                int frames=navigation%3==2?2:3; // Interrupt every third slide.
+                for(int frame=0;frame<frames;frame++) {
+                    mc.getFramebuffer().bindFramebuffer(true);clear(.25f,.4f,.6f);
+                    screen.drawScreen(-1,-1,0);drawAt.invoke(null,started+frame*110_000_000L);
+                    BufferedImage rendered=capture(mc);
+                    for(int x:new int[]{2,mc.displayWidth/2,mc.displayWidth-3})for(int y:new int[]{2,mc.displayHeight-3})
+                        require(rendered.getRGB(x,y)==background,"Full-screen tint accumulated during navigation "+navigation+", frame "+frame);
+                }
+                if(navigation==2||navigation==11)save(mc,"world-navigation-"+navigation+".png");
+                previous=screen;
+            }
+            System.out.println("WORLD_BACKDROP: unchanged pixels outside actual Library/Config/Settings/Theme windows through 12 forward/interrupted navigations");
+        } finally {
+            if(previous!=null)previous.onGuiClosed();mc.theWorld=oldWorld;
+            settings.surface.setValue(surface);settings.blur.setValue(blur);settings.glow.setValue(glow);
+        }
+    }
     private static void visualNavigation(Minecraft mc,Method drawAt)throws Exception{
         Library library=new Library();
         GuiScreen configs=new ClickLibraryScreen(library,false);
@@ -108,7 +159,7 @@ public final class NeutronUiRenderCheck {
     }
     static Object get(Class<?> type,String name)throws Exception{Field f=type.getDeclaredField(name);f.setAccessible(true);return f.get(null);}
     static void set(Object owner,String name,Object value)throws Exception{Field f=owner.getClass().getDeclaredField(name);f.setAccessible(true);f.set(owner,value);}
-    static BufferedImage capture(Minecraft mc){glFinish();ByteBuffer bytes=BufferUtils.createByteBuffer(mc.displayWidth*mc.displayHeight*4);glReadPixels(0,0,mc.displayWidth,mc.displayHeight,GL_RGBA,GL_UNSIGNED_BYTE,bytes);BufferedImage image=new BufferedImage(mc.displayWidth,mc.displayHeight,BufferedImage.TYPE_INT_RGB);for(int y=0;y<mc.displayHeight;y++)for(int x=0;x<mc.displayWidth;x++){int i=(y*mc.displayWidth+x)*4;image.setRGB(x,mc.displayHeight-y-1,(bytes.get(i)&255)<<16|(bytes.get(i+1)&255)<<8|(bytes.get(i+2)&255));}return image;}
+    static BufferedImage capture(Minecraft mc){require(glGetInteger(org.lwjgl.opengl.EXTFramebufferObject.GL_FRAMEBUFFER_BINDING_EXT)==mc.getFramebuffer().framebufferObject,"UI capture must read the actual Minecraft framebuffer");glFinish();ByteBuffer bytes=BufferUtils.createByteBuffer(mc.displayWidth*mc.displayHeight*4);glReadPixels(0,0,mc.displayWidth,mc.displayHeight,GL_RGBA,GL_UNSIGNED_BYTE,bytes);BufferedImage image=new BufferedImage(mc.displayWidth,mc.displayHeight,BufferedImage.TYPE_INT_RGB);for(int y=0;y<mc.displayHeight;y++)for(int x=0;x<mc.displayWidth;x++){int i=(y*mc.displayWidth+x)*4;image.setRGB(x,mc.displayHeight-y-1,(bytes.get(i)&255)<<16|(bytes.get(i+1)&255)<<8|(bytes.get(i+2)&255));}return image;}
     static void save(Minecraft mc,String name)throws Exception{ImageIO.write(capture(mc),"png",new File(OUT,name));}
     static void require(boolean ok,String message){if(!ok)throw new AssertionError(message);}
 }
