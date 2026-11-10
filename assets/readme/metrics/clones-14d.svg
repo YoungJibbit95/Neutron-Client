@@ -1,12 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="280" height="88" viewBox="0 0 280 88" role="img" aria-labelledby="title desc">
 <title id="title">Neutron GitHub clones in the last 14 days</title>
-<desc id="desc">4,377 clones; 728 unique · 14 days · updated 2026-11-09 UTC</desc>
+<desc id="desc">6,407 clones; 920 unique · 14 days · updated 2026-11-10 UTC</desc>
 <defs><linearGradient id="accent"><stop stop-color="#FF00EA"/><stop offset="1" stop-color="#FF6200"/></linearGradient></defs>
 <rect x="0.75" y="0.75" width="278.5" height="86.5" rx="13" fill="#10111B" stroke="#60405D" stroke-width="1.5"/>
 <rect x="1" y="1" width="5" height="86" rx="2.5" fill="url(#accent)"/>
 <g font-family="Inter,Segoe UI,Arial,sans-serif">
 <text x="18" y="21" font-size="12" font-weight="700" letter-spacing="1.5" fill="#CCA6C8">REPO CLONES · 14D</text>
-<text x="18" y="48" font-size="24" font-weight="800" fill="#FCF6FF">4,377</text>
-<text x="18" y="65" font-size="11" fill="#B8A1B3">728 unique</text>
-<text x="18" y="79" font-size="9" fill="#B8A1B3">Updated 2026-11-09 UTC</text>
+<text x="18" y="48" font-size="24" font-weight="800" fill="#FCF6FF">6,407</text>
+<text x="18" y="65" font-size="11" fill="#B8A1B3">920 unique</text>
+<text x="18" y="79" font-size="9" fill="#B8A1B3">Updated 2026-11-10 UTC</text>
 </g></svg>
