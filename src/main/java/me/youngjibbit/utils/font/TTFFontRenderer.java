@@ -142,8 +142,6 @@ public class TTFFontRenderer implements AutoCloseable {
     }
 
     private void prepare(String text) {
-        boolean cacheable=text.length()<=MAX_CACHED_TEXT_LENGTH;
-        if(cacheable&&!Float.isNaN(preparedTexts.get(text)))return;
         Format format=new Format(-1,false);
         boolean needsUpload=false;
         for(int index=0;index<text.length();){
@@ -154,10 +152,7 @@ public class TTFFontRenderer implements AutoCloseable {
             if((format.underline||format.strike)&&glyph('_',format.style).page==null){needsUpload=true;break;}
             if(!glyph.empty&&glyph.page==null){needsUpload=true;break;}
         }
-        if(!needsUpload){
-            if(cacheable)preparedTexts.put(text,1);
-            return;
-        }
+        if(!needsUpload)return;
         // Cold uploads may bind textures; the active gradient shader and caller's state survive.
         try(RenderState ignored=new RenderState()){
             format=new Format(-1,false);
@@ -169,7 +164,6 @@ public class TTFFontRenderer implements AutoCloseable {
                 upload(glyph(format.obfuscated?obfuscated(cp):cp,format.style));
             }
         }
-        if(cacheable)preparedTexts.put(text,1);
     }
 
     public int drawString(String text,float x,float y,int color){return render(text,x,y,color,false);}
@@ -236,10 +230,6 @@ public class TTFFontRenderer implements AutoCloseable {
     /** Width and draw use the same codepoint/style/advance rules, including multiline text. */
     public float getWidth(String text) {
         checkOpen();if(text==null||text.isEmpty())return 0;
-        boolean cacheable=text.length()<=MAX_CACHED_TEXT_LENGTH;
-        if(cacheable){
-            synchronized(this){float cached=widths.get(text);if(!Float.isNaN(cached))return cached;}
-        }
         Format format=new Format(-1,false);float line=0,max=0;
         for(int index=0;index<text.length();){
             int cp=text.codePointAt(index);index+=Character.charCount(cp);
@@ -248,11 +238,7 @@ public class TTFFontRenderer implements AutoCloseable {
             if(cp=='\t'){line+=glyph(' ',format.style).advance*2;continue;}
             if(!Character.isISOControl(cp))line+=glyph(format.obfuscated?obfuscated(cp):cp,format.style).advance/2;
         }
-        float width=Math.max(max,line);
-        if(cacheable){
-            synchronized(this){checkOpen();widths.put(text,width);}
-        }
-        return width;
+        return Math.max(max,line);
     }
     public float getHeight(String text) {
         checkOpen();if(text==null||text.isEmpty())return 0;
