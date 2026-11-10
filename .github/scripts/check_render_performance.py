@@ -143,6 +143,7 @@ def main():
     # instead of disabling RandR or substituting desktop state in the harness.
     run(["xrandr", "--query"], output / "xrandr.log", timeout=30, env=environment)
     run(["glxinfo", "-B"], output / "glxinfo.log", timeout=30, env=environment)
+    run(["glxinfo", "-t"], output / "glxinfo-configs.log", timeout=30, env=environment)
     baseline, materialized, source_count = baseline_classes(args.base, dependency_classpath, output, javac)
     natives = ROOT / "target/render-native-libraries"
     native_libraries(natives)
