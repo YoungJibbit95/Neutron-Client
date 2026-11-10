@@ -543,17 +543,55 @@ public class PlayerControllerMP
         final ItemStack sword = player.getHeldItem();
         final World world = player.worldObj;
         if (sword == null || !(sword.getItem() instanceof net.minecraft.item.ItemSword)) return false;
-        java.util.function.BooleanSupplier sameUse = () -> mc.thePlayer == player && mc.theWorld == world
+        final me.youngjibbit.core.network.PacketPipeline usePipeline = netClientHandler.getNetworkManager().getClientPackets();
+        if (usePipeline == null || !usePipeline.isActive()) return false;
+        final long useEpoch = usePipeline.getContextVersion();
+        java.util.function.BooleanSupplier manualUse = () -> mc.gameSettings != null
+                && mc.gameSettings.keyBindUseItem != null && mc.gameSettings.keyBindUseItem.isKeyDown();
+        java.util.function.BooleanSupplier sameContext = () -> mc.thePlayer == player && mc.theWorld == world
                 && mc.playerController == this && !player.isDead && !isSpectatorMode()
-                && player.getHeldItem() == sword && (block ? !player.isUsingItem() : player.getItemInUse() == sword);
+                && usePipeline.isActive() && usePipeline.getContextVersion() == useEpoch
+                && mc.getNetHandler() == netClientHandler
+                && player.getHeldItem() == sword;
+        java.util.function.BooleanSupplier sameUse = () -> sameContext.getAsBoolean()
+                && (block ? !player.isUsingItem() : player.getItemInUse() == sword);
         if (!sameUse.getAsBoolean() || !eligible.getAsBoolean()) return false;
         syncCurrentPlayItem();
         net.minecraft.network.Packet<?> action = block ? new C08PacketPlayerBlockPlacement(sword)
                 : new C07PacketPlayerDigging(C07PacketPlayerDigging.Action.RELEASE_USE_ITEM, BlockPos.ORIGIN, EnumFacing.DOWN);
-        if (netClientHandler.addToSendQueueGuarded(action, () -> sameUse.getAsBoolean() && eligible.getAsBoolean()) != action
-                || !sameUse.getAsBoolean()) return false;
+        final boolean[] transported = {false};
+        java.util.function.BooleanSupplier closeStart = () -> {
+            if (!transported[0] || !block || !sameUse.getAsBoolean() || manualUse.getAsBoolean()) return false;
+            net.minecraft.network.Packet<?> cleanup = new C07PacketPlayerDigging(
+                    C07PacketPlayerDigging.Action.RELEASE_USE_ITEM, BlockPos.ORIGIN, EnumFacing.DOWN);
+            return netClientHandler.addToSendQueueGuarded(cleanup,
+                    () -> sameUse.getAsBoolean() && !manualUse.getAsBoolean()) == cleanup;
+        };
+        try {
+            if (netClientHandler.addToSendQueueGuarded(action, () -> sameUse.getAsBoolean() && eligible.getAsBoolean(),
+                    accepted -> {
+                        transported[0] = accepted == action;
+                        // Reflect the confirmed release before POST can start a new manual use.
+                        // This changes only the exact old local use; it emits no further action.
+                        if (transported[0] && !block && sameUse.getAsBoolean()) player.stopUsingItem();
+                    }) != action || !sameContext.getAsBoolean()
+                    || block && !sameUse.getAsBoolean()) return false;
+        } catch (RuntimeException | Error failure) {
+            // A POST listener may throw after the use reached transport. Close this
+            // request only in its original live sword context; never seize manual use.
+            try {
+                if (block) closeStart.getAsBoolean();
+            }
+            catch (RuntimeException | Error cleanup) { failure.addSuppressed(cleanup); }
+            throw failure;
+        }
+        if (!eligible.getAsBoolean()) {
+            // POST may revoke a start after it reached transport. Do not create a stale
+            // local use; close only that just-accepted request while its sword context survives.
+            if (block) closeStart.getAsBoolean();
+            return false;
+        }
         if (block) sword.useItemRightClick(world, player);
-        else player.stopUsingItem();
         return true;
     }
 
@@ -570,7 +608,22 @@ public class PlayerControllerMP
     }
 
     public boolean tryAttackEntity(EntityPlayer playerIn, Entity targetEntity, java.util.function.BooleanSupplier validHit) {
+        return tryAttackEntity(playerIn, targetEntity, AttackExecution.CONTROLLER, validHit);
+    }
+
+    /** All Aura strategies share cancellation, transport validation and the native attack budget. */
+    public enum AttackExecution { CONTROLLER, NATIVE_CLICK, PACKET }
+
+    public boolean canNativeEntityClick(Entity target) {
+        return mc.currentScreen == null && mc.inGameHasFocus && mc.leftClickCounter <= 0
+                && mc.objectMouseOver != null && mc.objectMouseOver.typeOfHit == MovingObjectPosition.MovingObjectType.ENTITY
+                && mc.objectMouseOver.entityHit == target;
+    }
+
+    public boolean tryAttackEntity(EntityPlayer playerIn, Entity targetEntity, AttackExecution execution,
+                                   java.util.function.BooleanSupplier validHit) {
         if (playerIn == null || this.mc.thePlayer != playerIn || this.mc.playerController != this) return false;
+        if (execution == null || execution == AttackExecution.NATIVE_CLICK && !canNativeEntityClick(targetEntity)) return false;
         final World scene = playerIn.worldObj;
         if (scene == null || this.mc.theWorld != scene) return false;
         me.youngjibbit.core.combat.AttackScheduler scheduler = me.youngjibbit.core.bootstrap.RuntimeServices.attackScheduler();
@@ -587,7 +640,8 @@ public class PlayerControllerMP
             java.util.function.BooleanSupplier currentHit = () -> this.mc.playerController == this
                     && this.mc.thePlayer == playerIn && this.mc.theWorld == scene && playerIn.worldObj == scene
                     && !playerIn.isDead && scene != null && targetEntity != null && targetEntity.worldObj == scene && !targetEntity.isDead
-                    && scene.getEntityByID(targetEntity.getEntityId()) == targetEntity && validHit.getAsBoolean();
+                    && scene.getEntityByID(targetEntity.getEntityId()) == targetEntity
+                    && (execution != AttackExecution.NATIVE_CLICK || canNativeEntityClick(targetEntity)) && validHit.getAsBoolean();
             if (!cancelled && currentHit.getAsBoolean()) {
                 this.syncCurrentPlayItem();
                 net.minecraft.network.Packet<?> accepted = this.netClientHandler.addToSendQueueTracked(
@@ -602,7 +656,9 @@ public class PlayerControllerMP
                         || !currentHit.getAsBoolean()) return false;
                 scheduler.recordControllerAttack();
 
-                if (this.currentGameType != WorldSettings.GameType.SPECTATOR) {
+                // Packet mode intentionally omits local vanilla damage/exhaustion/knockback effects.
+                // It still reports only the same accepted, current-context action as the controller path.
+                if (execution != AttackExecution.PACKET && this.currentGameType != WorldSettings.GameType.SPECTATOR) {
                     playerIn.attackTargetEntityWithCurrentItem(targetEntity);
                 }
                 if (targetEntity instanceof EntityLivingBase)

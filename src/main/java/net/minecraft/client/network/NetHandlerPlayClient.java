@@ -959,6 +959,13 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
         return this.netManager.sendPacketGuarded(packet, outgoing -> outgoing == packet && validAction.getAsBoolean());
     }
 
+    /** Observe transport before POST callbacks, even when a later listener revokes the caller's lifecycle. */
+    public Packet<?> addToSendQueueGuarded(Packet packet, java.util.function.BooleanSupplier validAction,
+                                          java.util.function.Consumer<Packet<?>> onAccepted) {
+        return this.netManager.sendPacketGuarded(packet, false,
+                outgoing -> outgoing == packet && validAction.getAsBoolean(), onAccepted);
+    }
+
     /** Called once at local transport acceptance, before outbound POST listeners. */
     public void observeAcceptedOutbound(Packet<?> packet) {
         if (packet instanceof C09PacketHeldItemChange && gameController != null && gameController.playerController != null)

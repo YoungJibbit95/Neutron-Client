@@ -69,9 +69,14 @@ public final class PacketPipeline {
         return outboundSelected(packet, silent, transport, validAction);
     }
     public Packet<?> outboundSelected(Packet<?> packet, boolean silent, Consumer<Packet<?>> transport, Predicate<Packet<?>> validAction) {
+        return outboundSelected(packet, silent, transport, validAction, accepted -> { });
+    }
+    /** Factual local-transport observation only; it grants no follow-up action or scene authority. */
+    public Packet<?> outboundSelected(Packet<?> packet, boolean silent, Consumer<Packet<?>> transport,
+                                      Predicate<Packet<?>> validAction, Consumer<Packet<?>> onAccepted) {
         if (!thread.isCallingFromMinecraftThread()) {
             long scene = appliedScene;
-            execute(() -> { if(scene == appliedScene) outboundSelected(packet, silent, transport, validAction); }, true);
+            execute(() -> { if(scene == appliedScene) outboundSelected(packet, silent, transport, validAction, onAccepted); }, true);
             return null; // scheduled is not yet accepted
         }
         long attemptedScene = appliedScene;
@@ -102,6 +107,7 @@ public final class PacketPipeline {
                 CombatDiagnostics.packetStage(trace,selected,Stage.FAILED);throw failure;
             }
             accepted[0] = true;
+            onAccepted.accept(selected);
             CombatDiagnostics.packetStage(trace,selected,Stage.LOCAL_ACCEPTED);
             acceptedOutbound.accept(selected);
             if (!silent) post(selected, EventFlow.OUTBOUND, EventPhase.POST);

@@ -2139,7 +2139,10 @@ public class Minecraft implements IThreadListener, IPlayerUsage
 
             if (this.thePlayer.isUsingItem())
             {
-                if (!this.gameSettings.keyBindUseItem.isKeyDown())
+                me.youngjibbit.module.impl.combat.Aura useAura = Pulsar.INSTANCE.getMm() == null ? null
+                        : (me.youngjibbit.module.impl.combat.Aura) Pulsar.INSTANCE.getMm().getModule(me.youngjibbit.module.impl.combat.Aura.class);
+                if (!this.gameSettings.keyBindUseItem.isKeyDown()
+                        && (useAura == null || !useAura.keepsAdaptiveSwordUse()))
                 {
                     this.playerController.onStoppedUsingItem(this.thePlayer);
                 }

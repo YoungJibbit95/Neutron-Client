@@ -17,6 +17,10 @@ public final class RotationSettings {
     public final SliderValue adaptiveVariationStrength;
     public final ComboValue adaptiveAimPoint;
     public final CheckBoxValue adaptiveKeepAim;
+    public final ComboValue adaptiveCurve, adaptiveNoiseProfile;
+    public final SliderValue adaptiveMinAimSpeed, adaptiveMaxAimSpeed, adaptiveYawScale, adaptivePitchScale, adaptiveNoiseTempo;
+    public final CheckBoxValue adaptiveAdvancedAim;
+    private boolean adaptiveConfigImport, minAimImported, maxAimImported, yawScaleImported, pitchScaleImported, advancedAimImported;
     private final ComboValue hitpointProfile;
     private final SliderValue hitpointSpeed, hitpointStrength;
     private final boolean placement;
@@ -119,21 +123,86 @@ public final class RotationSettings {
         // Append new values after the legacy registration sequence. Only Aura owns them.
         boolean auraOnly = !assist && !placement;
         adaptiveSpeedPreset = auraOnly ? new ComboValue("Adaptive Speed", parent,
-                new String[]{"Calm","Balanced","Swift"}, 1) : null;
+                new String[]{"Calm","Balanced","Swift"}, 1) {
+            @Override public String getName() { return "Adaptive Response"; }
+        } : null;
         adaptiveHitpointPreset = auraOnly ? new ComboValue("Adaptive Hitpoint", parent,
                 new String[]{"Stable","Organic","Dynamic"}, 0) : null;
         adaptiveVariationStrength = auraOnly ? new SliderValue("Adaptive Variation Strength",
-                parent, .5D, 0, 1, false) : null;
+                parent, .5D, 0, 1, false) {
+            @Override public String getName() { return "Adaptive Noise Amount"; }
+        } : null;
         adaptiveAimPoint = auraOnly ? new ComboValue("Adaptive Aim Point",parent,
-                new String[]{"Straight","Nearest","Legacy"},0) : null;
+                new String[]{"Straight","Nearest","Legacy","Head","Torso","Legs"},0) : null;
         adaptiveKeepAim = auraOnly ? new CheckBoxValue("Adaptive Keep Valid Aim",parent,true) : null;
+        adaptiveMinAimSpeed = auraOnly ? new SliderValue("Adaptive Min Aim Speed",parent,360D,20,1800,true) {
+            @Override public String getName() { return "Adaptive Min Aim Speed (deg/s)"; }
+            @Override public void setValue(Double value) { super.setValue(value); if(adaptiveConfigImport)minAimImported=true; }
+        } : null;
+        adaptiveMaxAimSpeed = auraOnly ? new SliderValue("Adaptive Max Aim Speed",parent,560D,20,1800,true) {
+            @Override public String getName() { return "Adaptive Max Aim Speed (deg/s)"; }
+            @Override public void setValue(Double value) { super.setValue(value); if(adaptiveConfigImport)maxAimImported=true; }
+        } : null;
+        adaptiveAdvancedAim = auraOnly ? new CheckBoxValue("Adaptive Advanced Aim",parent,false) {
+            @Override public void setValue(Boolean value) { super.setValue(value); if(adaptiveConfigImport)advancedAimImported=true; }
+        } : null;
+        adaptiveYawScale = auraOnly ? new SliderValue("Adaptive Yaw Scale",parent,1D,1D/36,1,false) {
+            @Override public void setValue(Double value) { super.setValue(value); if(adaptiveConfigImport)yawScaleImported=true; }
+        } : null;
+        adaptivePitchScale = auraOnly ? new SliderValue("Adaptive Pitch Scale",parent,1D,1D/36,1,false) {
+            @Override public void setValue(Double value) { super.setValue(value); if(adaptiveConfigImport)pitchScaleImported=true; }
+        } : null;
+        adaptiveCurve = auraOnly ? new ComboValue("Adaptive Curve",parent,
+                new String[]{"Adaptive","Linear","Relative"},2) : null;
+        adaptiveNoiseProfile = auraOnly ? new ComboValue("Adaptive Noise Profile",parent,
+                new String[]{"Off","Soft","Organic"},1) : null;
+        adaptiveNoiseTempo = auraOnly ? new SliderValue("Adaptive Noise Tempo",parent,1D,.1,3,false) : null;
         if (auraOnly) {
             adaptiveSpeedPreset.setVisibility(m -> adaptive());
-            adaptiveHitpointPreset.setVisibility(m -> adaptive());
-            adaptiveVariationStrength.setVisibility(m -> adaptive());
+            adaptiveHitpointPreset.setVisibility(m -> adaptive() && !"Off".equals(adaptiveNoiseProfile.getValue())
+                    && adaptiveVariationStrength.getValue()>0);
+            adaptiveVariationStrength.setVisibility(m -> adaptive() && !"Off".equals(adaptiveNoiseProfile.getValue()));
             adaptiveAimPoint.setVisibility(m -> adaptive());
             adaptiveKeepAim.setVisibility(m -> adaptive());
+            for(Value<?> value:new Value<?>[]{adaptiveMinAimSpeed,adaptiveMaxAimSpeed,adaptiveAdvancedAim,
+                    adaptiveCurve,adaptiveNoiseProfile,adaptiveNoiseTempo})value.setVisibility(m->adaptive());
+            adaptiveYawScale.setVisibility(m->adaptive() && adaptiveAdvancedAim.getValue());
+            adaptivePitchScale.setVisibility(m->adaptive() && adaptiveAdvancedAim.getValue());
+            adaptiveNoiseTempo.setVisibility(m->adaptive() && !"Off".equals(adaptiveNoiseProfile.getValue())
+                    && adaptiveVariationStrength.getValue()>0);
+            // These legacy controls remain persisted, but do not steer the closed Adaptive profile.
+            yawSpeed.setVisibility(m->!adaptive());pitchSpeed.setVisibility(m->!adaptive());
+            stopOnTarget.setVisibility(m->!adaptive());
         }
+    }
+
+    /** Called after legacy defaults, before incoming config values are assigned. */
+    public void beginAdaptiveConfigUpdate() {
+        if(adaptiveMinAimSpeed==null)return;
+        adaptiveConfigImport=false;
+        adaptiveMinAimSpeed.reset();adaptiveMaxAimSpeed.reset();adaptiveYawScale.reset();adaptivePitchScale.reset();
+        adaptiveAdvancedAim.reset();
+        adaptiveCurve.reset();adaptiveNoiseProfile.reset();adaptiveNoiseTempo.reset();
+        minAimImported=maxAimImported=yawScaleImported=pitchScaleImported=advancedAimImported=false;
+        adaptiveConfigImport=true;
+    }
+
+    /** Missing keys use the actual incoming legacy speeds, independent of JSON member order. */
+    public void endAdaptiveConfigUpdate() {
+        if(!adaptiveConfigImport)return;
+        adaptiveConfigImport=false;
+        double factor=AdaptivePresetMotion.Speed.values()[adaptiveSpeedPreset.getSelectedIndex()].speed;
+        double yaw=Math.max(20,Math.min(720,yawSpeed.getValue()*20*factor));
+        double pitch=Math.max(20,Math.min(720,pitchSpeed.getValue()*20*factor));
+        double maximum=Math.max(yaw,pitch);
+        if(!maxAimImported)adaptiveMaxAimSpeed.setValue(maximum);
+        if(!minAimImported)adaptiveMinAimSpeed.setValue(Math.max(20,adaptiveMaxAimSpeed.getValue()*.65));
+        if(!yawScaleImported)adaptiveYawScale.setValue(yaw/maximum);
+        if(!pitchScaleImported)adaptivePitchScale.setValue(pitch/maximum);
+        if(!advancedAimImported && (adaptiveYawScale.getValue()!=1 || adaptivePitchScale.getValue()!=1))adaptiveAdvancedAim.setValue(true);
+        double lo=Math.min(adaptiveMinAimSpeed.getValue(),adaptiveMaxAimSpeed.getValue());
+        double hi=Math.max(adaptiveMinAimSpeed.getValue(),adaptiveMaxAimSpeed.getValue());
+        adaptiveMinAimSpeed.setValue(lo);adaptiveMaxAimSpeed.setValue(hi);
     }
     public boolean arsenic() { return !placement && mode.getValue().startsWith("Arsenic "); }
     /** Only Aura offers this appended option; legacy mode indices and defaults stay identical. */
@@ -158,6 +227,16 @@ public final class RotationSettings {
             p.adaptiveVariation=adaptiveVariationStrength.getValue().floatValue();
             p.adaptiveAimPoint=AdaptivePresetMotion.AimPoint.values()[adaptiveAimPoint.getSelectedIndex()];
             p.adaptiveKeepAim=adaptiveKeepAim.getValue();
+            p.adaptiveExplicitControls=true;
+            p.adaptiveMinAimSpeed=Math.min(f(adaptiveMinAimSpeed),f(adaptiveMaxAimSpeed));
+            p.adaptiveMaxAimSpeed=Math.max(f(adaptiveMinAimSpeed),f(adaptiveMaxAimSpeed));
+            p.adaptiveYawScale=f(adaptiveYawScale);p.adaptivePitchScale=f(adaptivePitchScale);p.adaptiveNoiseTempo=f(adaptiveNoiseTempo);
+            p.adaptiveCurve=AdaptiveMotionController.Curve.values()[adaptiveCurve.getSelectedIndex()];
+            p.adaptiveNoise=AdaptivePresetMotion.Noise.values()[adaptiveNoiseProfile.getSelectedIndex()];
+            p.yawSpeed=p.adaptiveMaxAimSpeed*p.adaptiveYawScale/20;
+            p.pitchSpeed=p.adaptiveMaxAimSpeed*p.adaptivePitchScale/20;
+            // No hidden legacy setting is copied into the Adaptive geometry/motion path.
+            return p;
         }
         p.mode=basic()?RotationProfile.Mode.BASIC:advanced()?RotationProfile.Mode.ADVANCED:RotationProfile.Mode.SMOOTH;
         p.yawSpeed=f(yawSpeed);p.pitchSpeed=f(pitchSpeed);p.jitter=f(jitter);p.minSpeed=f(minSpeed);p.maxSpeed=f(maxSpeed);p.interpolation=f(interpolation);
@@ -194,6 +273,10 @@ public final class RotationSettings {
     public static String canonicalName(String name) {
         if(name==null)return null;
         switch(name.toLowerCase(java.util.Locale.ROOT).replace("_","").replace(" ","")) {
+            case "adaptivespeed":case "adaptiveresponse":return "adaptive_speed";
+            case "adaptivevariationstrength":case "adaptivenoiseamount":return "adaptive_variation_strength";
+            case "adaptiveminaimspeed":return "adaptive_min_aim_speed";
+            case "adaptivemaxaimspeed":return "adaptive_max_aim_speed";
             case "smartaim":return "smart_aim";
             case "stopontarget":return "stop_on_target";
             case "interpolaterotation":case "interpolationtoggle":return "interpolate_rotation";

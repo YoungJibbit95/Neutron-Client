@@ -1316,7 +1316,12 @@ public final class RotationManager {
         }
         final AdaptivePresetMotion.Configuration preset;
         try {
-            preset = new AdaptivePresetMotion.Configuration(profile.adaptiveSpeed,
+            preset = profile.adaptiveExplicitControls ? new AdaptivePresetMotion.Configuration(
+                    profile.adaptiveSpeed,profile.adaptiveHitpoint,profile.adaptiveVariation,
+                    profile.adaptiveMinAimSpeed,profile.adaptiveMaxAimSpeed,profile.adaptiveYawScale,profile.adaptivePitchScale,
+                    profile.adaptiveCurve,profile.adaptiveNoise,profile.adaptiveNoiseTempo,
+                    profile.adaptiveAimPoint,profile.adaptiveKeepAim)
+                    : new AdaptivePresetMotion.Configuration(profile.adaptiveSpeed,
                     profile.adaptiveHitpoint, profile.adaptiveVariation,
                     profile.yawSpeed, profile.pitchSpeed);
         } catch (IllegalArgumentException badPreset) {
@@ -1337,6 +1342,16 @@ public final class RotationManager {
             return new float[]{fromYaw,fromPitch};
         }
         final long suspension=observation.getObservedSuspensionRevision();
+        if(profile.adaptiveExplicitControls
+                && Float.compare(state.adaptiveSensitivity,mc.gameSettings.mouseSensitivity)!=0) {
+            state.adaptiveSensitivity=mc.gameSettings.mouseSensitivity;
+            state.adaptiveYawRemainder=state.adaptivePitchRemainder=state.adaptiveCountCredit=0;
+            state.adaptiveQuantizedSequence=Long.MIN_VALUE;
+            if(state.adaptiveLastSequence==sequence) {
+                state.invalidateAdaptive();state.adaptiveBlockedSequence=sequence;
+                return new float[]{fromYaw,fromPitch};
+            }
+        }
         final boolean acquire=state.adaptiveToken==null || state.adaptiveTarget.get()!=target
                 || state.adaptiveScene==null || !state.adaptiveScene.sameSceneAs(scene)
                 || state.adaptiveSuspension!=suspension;
@@ -1347,10 +1362,12 @@ public final class RotationManager {
             state.adaptiveBlockedSequence=sequence;
             return new float[]{fromYaw,fromPitch};
         }
+        if(profile.adaptiveExplicitControls && !acquire && state.adaptiveQuantizedSequence==sequence)
+            return new float[]{state.adaptiveQuantizedYaw,state.adaptiveQuantizedPitch};
         // Demise's update-on-miss idea is bound to this exact target, current
         // scene and the existing range/obstruction checks. Holding still consumes
         // the normal motion clock below; it cannot accumulate a later turn burst.
-        boolean keepAim=(profile.adaptiveKeepAim || profile.stopOnTarget)
+        boolean keepAim=profile.adaptiveKeepAim
                 && rays.canHitFrom(feet,target,fromYaw,fromPitch,profile.reach,profile.throughWalls);
         Vec3 point=baseAimPoint(target,bestHitVec,box);
         if(!keepAim && profile.adaptiveAimPoint!=AdaptivePresetMotion.AimPoint.LEGACY) {
@@ -1358,7 +1375,7 @@ public final class RotationManager {
                     eyes.xCoord,eyes.yCoord,eyes.zCoord,box.minX,box.minY,box.minZ,box.maxX,box.maxY,box.maxZ);
             if(anchor!=null)point=new Vec3(anchor[0],anchor[1],anchor[2]);
         }
-        if(!keepAim && (profile.smartAim || profile.heuristics || !hitsPoint(rays,feet,target,point,profile)))
+        if(!keepAim && !adaptivePointHit(rays,feet,target,point,profile,fromYaw,fromPitch))
             point=visibleAimPoint(target,box,point,feet,fromYaw,fromPitch,profile,rays);
         if(point==null || !observation.isCurrent(scene)) {
             state.invalidateAdaptive();
@@ -1379,7 +1396,7 @@ public final class RotationManager {
             state.adaptiveStartNanos=now;
             state.adaptiveHitpoint=new AdaptivePresetMotion.HitpointTrajectory(
                     state.adaptiveSeed ^ (state.adaptiveOrdinal * 0x9e3779b97f4a7c15L),
-                    preset.hitpoint);
+                    preset);
         }
         // Relative monotonic time is safe even when the VM's System.nanoTime origin is negative.
         long elapsed=now-state.adaptiveStartNanos;
@@ -1393,7 +1410,7 @@ public final class RotationManager {
         if(!keepAim && preset.hitpoint!=AdaptivePresetMotion.Hitpoint.STABLE) {
             Vec3 candidate=new Vec3(hit[0],hit[1],hit[2]);
             // Preserve the original raycast/visibility policy: an invalid point is never sent.
-            if(hitsPoint(rays,feet,target,candidate,profile)) point=candidate;
+            if(adaptivePointHit(rays,feet,target,candidate,profile,fromYaw,fromPitch)) point=candidate;
         }
         final float[] desired=keepAim?new float[]{fromYaw,fromPitch}:angles(eyes,point);
         AdaptiveMotionController.Result result=state.adaptive.advance(state.adaptiveToken,sequence,
@@ -1413,11 +1430,67 @@ public final class RotationManager {
         float wantedYaw=fromYaw+MathHelper.wrapAngleTo180_float((float)result.yaw-fromYaw);
         float[] snapped=quantize(wantedYaw,(float)result.pitch,fromYaw,fromPitch,
                 mc.gameSettings.mouseSensitivity);
+        if(profile.adaptiveExplicitControls) {
+            float quantum=RotationSensitivity.mouseStep(mc.gameSettings.mouseSensitivity);
+            if(keepAim || result.elapsedSeconds<=0) {
+                state.adaptiveYawRemainder=state.adaptivePitchRemainder=0;
+                state.adaptiveCountCredit=0;
+                snapped=new float[]{fromYaw,fromPitch};
+            } else if(Float.isFinite(quantum) && quantum>0) {
+                double yawRemaining=MathHelper.wrapAngleTo180_float(desired[0]-fromYaw);
+                double pitchRemaining=desired[1]-fromPitch;
+                if(state.adaptiveYawRemainder*yawRemaining<0)state.adaptiveYawRemainder=0;
+                if(state.adaptivePitchRemainder*pitchRemaining<0)state.adaptivePitchRemainder=0;
+                double yawWanted=MathHelper.wrapAngleTo180_float(wantedYaw-fromYaw)+state.adaptiveYawRemainder;
+                double pitchWanted=result.pitch-fromPitch+state.adaptivePitchRemainder;
+                AdaptiveMotionController.Limits limits=preset.limits();
+                long yawCounts=boundedAdaptiveCounts(yawWanted,yawRemaining,limits.maxYawSpeed*result.elapsedSeconds,quantum);
+                long pitchCounts=boundedAdaptiveCounts(pitchWanted,pitchRemaining,limits.maxPitchSpeed*result.elapsedSeconds,quantum);
+                double travelCap=preset.maxAimSpeed*result.elapsedSeconds;
+                // A sub-count interval cannot emit any representable angle by itself.
+                // Carry at most one count of time credit only across those intervals.
+                // As soon as one count fits this motion, the normal strict cap applies.
+                boolean subCount=travelCap+1e-7<quantum;
+                double available=travelCap+(subCount?state.adaptiveCountCredit:0);
+                while(Math.hypot(yawCounts*quantum,pitchCounts*quantum)>available+1e-7) {
+                    if(Math.abs(yawCounts)>=Math.abs(pitchCounts))yawCounts-=Long.signum(yawCounts);
+                    else pitchCounts-=Long.signum(pitchCounts);
+                }
+                state.adaptiveCountCredit=subCount?Math.min(quantum,
+                        Math.max(0,available-Math.hypot(yawCounts*quantum,pitchCounts*quantum))):0;
+                snapped=new float[]{fromYaw+yawCounts*quantum,clamp(fromPitch+pitchCounts*quantum,-90,90)};
+                // At most one count remains; holding/retargeting can never bank a future turn burst.
+                state.adaptiveYawRemainder=Math.max(-quantum,Math.min(quantum,yawWanted-(snapped[0]-fromYaw)));
+                state.adaptivePitchRemainder=Math.max(-quantum,Math.min(quantum,pitchWanted-(snapped[1]-fromPitch)));
+            }
+            state.adaptiveQuantizedSequence=sequence;
+            state.adaptiveQuantizedYaw=snapped[0];state.adaptiveQuantizedPitch=snapped[1];
+        }
         if(!Float.isFinite(snapped[0]) || !Float.isFinite(snapped[1])) {
             state.invalidateAdaptive();
             return null;
         }
         return snapped;
+    }
+
+    private static long boundedAdaptiveCounts(double wanted,double remaining,double cap,float quantum) {
+        long counts=Math.round(wanted/quantum);
+        // An axis fraction may request less than one count per motion. The remainder
+        // earns that count over several motions; the combined global cap is enforced below.
+        long maximum=Math.max(1,(long)Math.floor((cap+1e-7)/quantum));
+        counts=Math.max(-maximum,Math.min(maximum,counts));
+        long target=Math.round(remaining/quantum);
+        return target>=0?Math.max(0,Math.min(target,counts)):Math.min(0,Math.max(target,counts));
+    }
+
+    private boolean adaptivePointHit(RaycastService rays,Vec3 feet,EntityLivingBase target,Vec3 point,
+                                     RotationProfile profile,float fromYaw,float fromPitch) {
+        if(!profile.adaptiveExplicitControls)return hitsPoint(rays,feet,target,point,profile);
+        if(point==null)return false;
+        float[] desired=angles(feet.addVector(0,mc.thePlayer.getEyeHeight(),0),point);
+        desired[0]=fromYaw+MathHelper.wrapAngleTo180_float(desired[0]-fromYaw);
+        float[] snapped=quantize(desired[0],desired[1],fromYaw,fromPitch,mc.gameSettings.mouseSensitivity);
+        return rays.canHitFrom(feet,target,snapped[0],snapped[1],profile.reach,profile.throughWalls);
     }
 
     private boolean hitsPoint(RaycastService rays,Vec3 feet,EntityLivingBase target,Vec3 point,RotationProfile profile) {
@@ -1439,7 +1512,9 @@ public final class RotationManager {
             scores.put(point,dy*dy+dp*dp);
         }
         candidates.sort(Comparator.comparingDouble(scores::get));
-        for(Vec3 candidate:candidates)if(hitsPoint(rays,feet,target,candidate,profile))return candidate;
+        for(Vec3 candidate:candidates)if(profile.adaptiveExplicitControls
+                ?adaptivePointHit(rays,feet,target,candidate,profile,yaw,pitch)
+                :hitsPoint(rays,feet,target,candidate,profile))return candidate;
         return null;
     }
     private double[] axisSamples(double min,double max) {
@@ -1719,6 +1794,9 @@ public final class RotationManager {
         WeakReference<Object> adaptiveTarget=new WeakReference<>(null);
         long adaptiveOrdinal,adaptiveStartNanos,adaptiveSuspension;
         long adaptiveLastSequence=Long.MIN_VALUE,adaptiveBlockedSequence=Long.MIN_VALUE;
+        long adaptiveQuantizedSequence=Long.MIN_VALUE;
+        float adaptiveQuantizedYaw,adaptiveQuantizedPitch,adaptiveSensitivity=Float.NaN;
+        double adaptiveYawRemainder,adaptivePitchRemainder,adaptiveCountCredit;
         RotationState(RotationTrajectory trajectory,ArsenicAimTrajectory arsenic,long adaptiveSeed) {
             this.trajectory=trajectory;this.arsenic=arsenic;this.adaptiveSeed=adaptiveSeed;
         }
@@ -1728,6 +1806,9 @@ public final class RotationManager {
             adaptiveHitpoint=null;
             adaptiveScene=null;
             adaptiveTarget.clear();
+            adaptiveQuantizedSequence=Long.MIN_VALUE;
+            adaptiveYawRemainder=adaptivePitchRemainder=0;
+            adaptiveCountCredit=0;
         }
         void invalidateAi() {
             if(ai!=null && aiToken!=null)ai.invalidateIfCurrent(aiToken);

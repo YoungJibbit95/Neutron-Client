@@ -521,6 +521,16 @@ public class ConfigManager {
                 }
                 if(added)plan.migratedDefaults++;
             }
+            // Adaptive's new speed range may be absent in older files. Derive it
+            // from incoming legacy axes or their defaults, never hidden warm state.
+            // Other rotation modes keep their existing partial-import semantics.
+            if("aura".equals(module.getId())
+                    && "Adaptive".equals(change.values.get(module.getValueByName("rot_mode")))) {
+                for(String axis:Arrays.asList("yaw_speed","pitch_speed")) {
+                    Value<?> value=module.getValueByName(axis);
+                    if(value!=null && !change.values.containsKey(value))change.values.put(value,value.getDefaultValue());
+                }
+            }
             if(change.legacyScaffold) {
                 Value<?> mode=module.getValueByName("rotation_mode");if(mode!=null && !change.values.containsKey(mode))change.values.put(mode,"Godbridge");
                 plan.legacyScaffold++;
@@ -574,6 +584,11 @@ public class ConfigManager {
             defaultSetting(change,"preactivation",change.legacyLag?2D:0D);defaultSetting(change,"only_swinging",change.legacyLag);defaultSetting(change,"animals",!change.legacyLag);
             if(change.legacyLag)plan.legacyNetwork++;
         } else if(id.equals("tickbase")) {
+            // Full imports predate packet timing modes. Missing keys must have the
+            // same meaning after a warm import as they have in a fresh client;
+            // explicit modern values are retained by defaultSetting.
+            defaultSetting(change,"mode","Player Steps");
+            defaultSetting(change,"packet_hold_ms",200D);defaultSetting(change,"pulse_gap_ms",60D);
             defaultSetting(change,"release_cooldown_ms",change.currentNetwork || change.legacyTickbase?300D:0D);
             defaultSetting(change,"release_on","Attack");defaultSetting(change,"charge_range",6D);defaultSetting(change,"release_range",3.4D);
             if(!change.currentNetwork)plan.migratedNetworkPolicies++;

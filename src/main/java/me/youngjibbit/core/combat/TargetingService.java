@@ -19,7 +19,8 @@ public final class TargetingService {
         DISTANCE,
         HEALTH,
         HURT_TIME,
-        ARMOR
+        ARMOR,
+        ANGLE
     }
 
     public static final class Options {
@@ -87,6 +88,12 @@ public final class TargetingService {
 
     private Comparator<EntityLivingBase> targetComparator(SortMode sortMode) {
         switch (sortMode) {
+            case ANGLE:
+                return Comparator.comparingDouble(entity -> {
+                    double yaw = Math.toDegrees(Math.atan2(entity.posZ - mc.thePlayer.posZ,
+                            entity.posX - mc.thePlayer.posX)) - 90;
+                    return Math.abs(net.minecraft.util.MathHelper.wrapAngleTo180_double(yaw - mc.thePlayer.rotationYaw));
+                });
             case HEALTH:
                 return Comparator.comparingDouble(EntityLivingBase::getHealth);
             case HURT_TIME:

@@ -64,7 +64,7 @@ public enum Pulsar implements Subscriber {
 
     public final String name = "Neutron";
     public boolean devBuild = true;
-    public final String version = devBuild ? "0.3.0 Alpha 1" : "Private 1.1";
+    public final String version = devBuild ? "0.3.0 Alpha 2" : "Private 1.1";
     private final String commandPrefix = ".";
     public final String author = "youngjibbit";
     public final String clientPrefix = "§l§b✎§d[§bN§de§bu§dt§br§do§bn§d] : §f";
