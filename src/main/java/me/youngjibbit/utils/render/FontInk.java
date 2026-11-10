@@ -38,6 +38,16 @@ public final class FontInk {
         try (RenderState state = new RenderState()) {
             plainActive = true;
             GL20.glUseProgram(0);
+            // A fixed-function glyph must sample only its atlas. Inherited
+            // lightmap/effect texture units otherwise modulate the supplied ink.
+            for (int slot = 1; slot <= 4; slot++) {
+                int unit = slot == 4 ? 16 : slot;
+                org.lwjgl.opengl.GL13.glActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0 + unit);
+                org.lwjgl.opengl.GL11.glDisable(org.lwjgl.opengl.GL11.GL_TEXTURE_2D);
+            }
+            org.lwjgl.opengl.GL13.glActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0);
+            org.lwjgl.opengl.GL11.glTexEnvi(org.lwjgl.opengl.GL11.GL_TEXTURE_ENV,
+                    org.lwjgl.opengl.GL11.GL_TEXTURE_ENV_MODE, org.lwjgl.opengl.GL11.GL_MODULATE);
             glyphs.run();
         } finally { plainActive = previous; }
     }

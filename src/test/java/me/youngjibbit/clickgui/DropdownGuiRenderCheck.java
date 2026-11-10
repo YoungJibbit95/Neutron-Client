@@ -133,17 +133,23 @@ public final class DropdownGuiRenderCheck {
         try {
             RenderDiagnostics.enabled = true;
             owner.getBooleanSetting("Heading Glow").setValue(false);
+            // Warm the unchanged contour halos before measuring the steady frame. Surface
+            // masks are cached; only the nine disconnected surfaces still composite each frame.
+            frame(gui, -1, -1);
             RenderDiagnostics.reset();
             frame(gui, -1, -1);
-            long surfaceMasks = panels(gui).size() + 1;
+            long headings = panels(gui).size(), surfaceComposites = headings + 1;
             System.out.println("HEADING GLOW OFF: " + RenderDiagnostics.snapshot());
-            if (!PERFORMANCE_BASELINE) require(RenderDiagnostics.maskPasses == surfaceMasks
-                    && RenderDiagnostics.composites == surfaceMasks, "Disabled heading glow must not add glyph mask/composite passes");
+            if (!PERFORMANCE_BASELINE) require(RenderDiagnostics.maskPasses == 0
+                    && RenderDiagnostics.composites == surfaceComposites,
+                    "Disabled heading glow must reuse surface masks and add no glyph mask/composite passes");
             owner.getBooleanSetting("Heading Glow").setValue(true);
             RenderDiagnostics.reset();
             frame(gui, -1, -1);
             System.out.println("HEADING GLOW ON: " + RenderDiagnostics.snapshot());
-            require(RenderDiagnostics.maskPasses == surfaceMasks + panels(gui).size(), "Enabled heading glow must use the shared glyph path");
+            require(RenderDiagnostics.maskPasses == headings
+                    && RenderDiagnostics.composites == surfaceComposites + headings,
+                    "Enabled heading glow must add exactly one glyph mask/composite per heading and reuse surface masks");
             snapshot("02-heading-glow.png");
         } finally {
             owner.getBooleanSetting("Heading Glow").setValue(previousGlow);
@@ -181,10 +187,22 @@ public final class DropdownGuiRenderCheck {
         gui.type("2.75");
         gui.key(' ', Keyboard.KEY_ESCAPE);
         require(slider.getValue().getValue() == 3.25 && !slider.isEditing(), "Esc must cancel exact-number input");
+        checkSubcategory(gui, aim, slider);
         slider.getValue().setValue(original);
         snapshot("03-settings.png");
 
         // Scroll only the hovered category. The other column's offset stays unchanged.
+        // The first section alone now fits this viewport. Expand the remaining real
+        // sections through keyboard disclosure so this remains a deep-scroll check.
+        for (ClickSubcategory section : aim.subcategories()) if (!section.isOpen() && section.getValue().isVisible()) {
+            set(gui, "focus", section);
+            Method reveal = DropdownGui.class.getDeclaredMethod("reveal", Component.class);
+            reveal.setAccessible(true);
+            reveal.invoke(gui, section);
+            gui.key(' ', Keyboard.KEY_RIGHT);
+            frame(gui, -1, -1);
+            require(section.isOpen(), "Keyboard disclosure must expand the scroll fixture section");
+        }
         resize(gui, 854, 480, 1);
         frame(gui, -1, -1);
         require(number(combat, "maxScroll") > 0, "Scroll fixture must overflow before testing wheel dispatch");
@@ -215,6 +233,33 @@ public final class DropdownGuiRenderCheck {
         gui.click(aim.getX() + 10, aim.getY() + 8, 1);
         frame(gui, -1, -1);
         require(!aim.isOpen() && aim.getHeight() == DropdownModule.ROW_HEIGHT, "Settings did not collapse");
+    }
+
+    private static void checkSubcategory(Gui gui, DropdownModule row, ClickSlider slider) throws Exception {
+        require(!row.subcategories().isEmpty(), "Dense dropdown modules expose semantic sections");
+        ClickSubcategory section = row.subcategories().get(0);
+        require(section.isOpen() && section.children().contains(slider), "Main section exposes the original numeric control");
+        double before = slider.getValue().getValue();
+        gui.key(' ', Keyboard.KEY_RETURN);
+        gui.type("2.50");
+        require(slider.isEditing(), "Section child supports exact numeric capture");
+        gui.click(section.getX() + 20, section.getY() + 10, 1);
+        require(!section.isOpen() && !slider.isEditing() && slider.getValue().getValue() == before,
+                "Right-click section collapse must cancel child editing without committing its draft");
+        frame(gui, -1, -1);
+        require(get(gui, "focus") == section && !row.focusableValues().contains(slider) && slider.getClip().isEmpty(),
+                "Collapsed children must leave the keyboard order and receive an empty input clip");
+        slider.mouseClicked((int)methodNumber(slider, "valueX") + 5, (int)slider.getY() + 10, 0);
+        require(!slider.isEditing() && slider.getValue().getValue() == before,
+                "Collapsed numeric control must reject its stale hit region");
+        snapshot("03a-subcategory-collapsed.png");
+        gui.key(' ', Keyboard.KEY_RIGHT);
+        frame(gui, -1, -1);
+        require(section.isOpen() && row.focusableValues().contains(slider), "Keyboard disclosure restores the original child controls");
+        gui.key(' ', Keyboard.KEY_TAB);
+        require(get(gui, "focus") == slider && slider.getClip().contains((int)methodNumber(slider, "valueX") + 5, (int)slider.getY() + 10),
+                "Tab from an open section must reveal its first numeric child");
+        frame(gui, -1, -1);
     }
 
     private static void checkAnimatedControls(Gui gui,ClientSettings settings)throws Exception{
@@ -266,7 +311,7 @@ public final class DropdownGuiRenderCheck {
         gui.key(' ', Keyboard.KEY_RIGHT);
         frame(gui, -1, -1);
         gui.key(' ', Keyboard.KEY_TAB);
-        require(get(gui, "focus") instanceof Component.Sub, "Tab must reach shared settings");
+        require(get(gui, "focus") instanceof ClickSubcategory, "Tab must reach the module's first subcategory header");
         Component focused = (Component)get(gui, "focus");
         require(focused.getClip().contains((int)focused.getX() + 20, (int)focused.getY() + 10), "Keyboard setting must be revealed in its viewport");
         snapshot("04-search-keyboard.png");

@@ -13,6 +13,8 @@ import java.io.File;
 import java.nio.file.*;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
+import java.util.concurrent.atomic.AtomicLong;
 import static org.lwjgl.opengl.GL11.*;
 
 /** Real editor draw/click/key handlers in the existing isolated pbuffer; navigation alone is intercepted. */
@@ -22,11 +24,12 @@ public final class ThemeEditorCheck {
   Screen(ThemeCatalog c,Consumer<String> selected){super(null,c,selected);}
   @Override public void revealControl(int id){super.revealControl(id);}
   @Override public ClipRect actionBounds(int id){return super.actionBounds(id);}
+  @Override public ClipRect previewBounds(){return super.previewBounds();}
   @Override protected void leave(){returned=true;}
   @Override protected boolean ctrlDown(){return ctrl;}@Override protected boolean shiftDown(){return shift;}
   void click(int id)throws Exception{revealControl(id);ClipRect r=actionBounds(id);mouseClicked((int)(r.x+r.width/2),(int)(r.y+r.height/2),0);mouseReleased(0,0,0);}
   void field(int id,String text)throws Exception{click(id);for(char c:text.toCharArray())keyTyped(c,Keyboard.KEY_NONE);keyTyped(' ',Keyboard.KEY_RETURN);}
-  void slider(int id,float progress)throws Exception{revealControl(id);ClipRect r=actionBounds(id);mouseClicked((int)(r.x+r.width*progress),(int)(r.y+r.height/2),0);mouseReleased(0,0,0);}
+  void slider(int id,float progress)throws Exception{revealControl(id);ClipRect r=sliderTrack(id);mouseClicked(Math.round(r.x+r.width*progress),Math.round(r.y+1),0);mouseReleased(0,0,0);}
   void type(String text)throws Exception{for(char c:text.toCharArray())keyTyped(c,Keyboard.KEY_NONE);}
   void number(int id,String value)throws Exception{revealControl(id);ClipRect r=actionBounds(id);mouseClicked((int)(r.x+r.width/2),(int)(r.y+r.height/2),1);type(value);keyTyped(' ',Keyboard.KEY_RETURN);}
   void key(int k)throws Exception{keyTyped(' ',k);}
@@ -48,7 +51,7 @@ public final class ThemeEditorCheck {
    SessionInfoRenderCheck.require((int)SessionInfoRenderCheck.get(screen,"section")==2&&(int)SessionInfoRenderCheck.get(screen,"focus")==27,"Theme section keyboard focus");
    SessionInfoRenderCheck.require(!Files.exists(file)&&selections.isEmpty(),"Preview persisted");RenderDiagnostics.enabled=true;RenderDiagnostics.reset();for(int i=0;i<8;i++)draw(screen);SessionInfoRenderCheck.require(RenderDiagnostics.framebufferCreates==0&&RenderDiagnostics.programCreates==0&&RenderDiagnostics.shaderCompiles==0,"Editor steady resource creation");System.out.println("Editor steady 8 frames: "+RenderDiagnostics.snapshot());RenderDiagnostics.enabled=false;
    screen.click(4);screen.onGuiClosed();SessionInfoRenderCheck.require(screen.returned&&c.current()==Theme.SynthWave&&!Files.exists(file),"Cancel did not restore active theme");
-   screen=new Screen(c,select);init(screen,1280,960,2);screen.click(2);screen.field(9,"Studio theme");screen.field(10,"A020F080");screen.field(12,"17243A90");screen.field(13,"EEF6FFFF");screen.field(14,"8EF5FFFF");screen.click(7);screen.settlePresentation();save(screen,"03-custom-static");BufferedImage frozen=SessionInfoRenderCheck.capture();draw(screen);SessionInfoRenderCheck.require(WatermarkCheck.equal(frozen,SessionInfoRenderCheck.capture()),"Static preview still changes");screen.click(3);screen.onGuiClosed();String id=c.selectedReference();SessionInfoRenderCheck.require(Files.exists(file)&&id.startsWith("custom:")&&selections.size()==1&&c.current().getDisplayName().equals("Studio theme"),"Save/use handler");
+   screen=new Screen(c,select);init(screen,1280,960,2);screen.click(2);screen.field(9,"Studio theme");screen.field(10,"A020F080");screen.field(12,"17243A90");screen.field(13,"EEF6FFFF");screen.field(14,"8EF5FFFF");screen.click(7);checkStaticPresentation(screen,c);screen.click(3);screen.onGuiClosed();String id=c.selectedReference();SessionInfoRenderCheck.require(Files.exists(file)&&id.startsWith("custom:")&&selections.size()==1&&c.current().getDisplayName().equals("Studio theme"),"Save/use handler");
    ThemeCatalog reload=new ThemeCatalog(new ThemeStore(file));reload.select(id);SessionInfoRenderCheck.require(reload.current().getBackground().getAlpha()==144&&reload.current().getDisplayName().equals("Studio theme"),"Definition reload RGBA");
    screen=new Screen(c,select);init(screen,1280,960,2);screen.field(9,"Resize preview");draw(screen);RenderDiagnostics.enabled=true;RenderDiagnostics.reset();
    for(int i=0;i<3;i++){init(screen,i==0?640:1101,i==0?480:733,i==2?3:2);draw(screen);for(int control:new int[]{0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,20,21,22,23,24,25,26,27}){screen.revealControl(control);ClipRect r=screen.actionBounds(control);ScaledResolution sr=new ScaledResolution(SessionInfoRenderCheck.mc);SessionInfoRenderCheck.require(r.x>=0&&r.y>=0&&r.x+r.width<=sr.getScaledWidth()&&r.y+r.height<=sr.getScaledHeight(),"Editor bounds/resize");}SessionInfoRenderCheck.require(c.current().getDisplayName().equals("Resize preview"),"Resize lost draft");if(i==2)save(screen,"04-small-scale3");}
@@ -60,6 +63,32 @@ public final class ThemeEditorCheck {
    screen=new Screen(c,select);init(screen,1280,960,2);screen.click(6);SessionInfoRenderCheck.require(c.find(id)!=null,"Delete skipped confirmation");screen.click(6);screen.onGuiClosed();SessionInfoRenderCheck.require(c.current()==Theme.PinkLemonade&&c.find(id)==null&&selections.get(selections.size()-1).equals("PinkLemonade"),"Delete/fallback handler");
    SessionInfoRenderCheck.require(glGetError()==GL_NO_ERROR,"Theme editor GL error");System.out.println("PASS: editor UI RGBA/name/direction/motion/sliders/exact-invalid-cancelled-numbers/save/cancel/reset/delete, stable IDs, resize/scales, cached effects, custom mask and transparent glyph pixels");
   }finally{RenderDiagnostics.enabled=false;c.cancelPreview();ThemeCatalog.install(previous);}
+ }
+ static void checkStaticPresentation(Screen screen,ThemeCatalog catalog)throws Exception{
+  java.lang.reflect.Field clockField=UiEffects.class.getDeclaredField("clock");clockField.setAccessible(true);LongSupplier originalClock=(LongSupplier)clockField.get(null);
+  java.lang.reflect.Method source=UiEffects.class.getDeclaredMethod("timeSource",LongSupplier.class);source.setAccessible(true);AtomicLong nanos=new AtomicLong();
+  try{
+   source.invoke(null,(LongSupplier)nanos::get);screen.settlePresentation();save(screen,"03-custom-static");BufferedImage frozen=SessionInfoRenderCheck.capture();
+   draw(screen);SessionInfoRenderCheck.require(WatermarkCheck.equal(frozen,SessionInfoRenderCheck.capture()),"Settled editor changes with a fixed ambient clock");
+   SessionInfoRenderCheck.require(!catalog.current().isAnimated(),"Static fixture must select a static draft");
+   float before=UiEffects.time();nanos.addAndGet(100_000_000L);draw(screen);BufferedImage movingBackdrop=SessionInfoRenderCheck.capture();
+   javax.imageio.ImageIO.write(movingBackdrop,"png",new File(OUT,"03-static-moving-backdrop.png"));
+   SessionInfoRenderCheck.require(UiEffects.time()>before,"Static preview check must advance the ambient clock");
+   SessionInfoRenderCheck.require(previewChanges(frozen,movingBackdrop,screen.previewBounds())==0,"Static theme preview changes while the ambient menu scene moves");
+   SessionInfoRenderCheck.require(!WatermarkCheck.equal(frozen,movingBackdrop),"The moving scene must remain outside the static preview");
+   screen.click(8);nanos.addAndGet(100_000_000L);draw(screen);BufferedImage animated=SessionInfoRenderCheck.capture();
+   nanos.addAndGet(100_000_000L);draw(screen);
+   SessionInfoRenderCheck.require(previewChanges(animated,SessionInfoRenderCheck.capture(),screen.previewBounds())>0,"Animated preview positive control did not animate");
+   screen.click(8);SessionInfoRenderCheck.require(!catalog.current().isAnimated(),"Animation check must restore the static draft");
+   System.out.println("PASS: settled editor is pixel-stable; static preview stays pixel-stable over a moving ambient scene; animated preview changes");
+  }finally{source.invoke(null,originalClock);UiEffects.invalidate();}
+ }
+ static int previewChanges(BufferedImage first,BufferedImage second,ClipRect bounds){
+  int scale=new ScaledResolution(SessionInfoRenderCheck.mc).getScaleFactor(),changed=0;
+  int left=(int)Math.ceil(bounds.x*scale),top=(int)Math.ceil(bounds.y*scale),right=(int)Math.floor((bounds.x+bounds.width)*scale),bottom=(int)Math.floor((bounds.y+bounds.height)*scale);
+  SessionInfoRenderCheck.require(right>left&&bottom>top,"Static preview pixel region must be nonempty");
+  for(int y=top;y<bottom;y++)for(int x=left;x<right;x++)if(first.getRGB(x,y)!=second.getRGB(x,y))changed++;
+  return changed;
  }
  static void checkMasks(Theme theme)throws Exception{
   ArrayListSurface surface=new ArrayListSurface();ArrayListSurface.Shape shape=new ArrayListSurface.Shape(30,new float[]{40},new float[]{110},new float[]{220},6);

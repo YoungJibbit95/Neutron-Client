@@ -169,13 +169,21 @@ public class ThemeEditorScreen extends GuiScreen {
             });
         }
     }
+    protected ClipRect previewBounds(){
+        if(!wide())return new ClipRect(0,0,0,0);
+        ClipRect f=formBounds();float left=f.x+f.width+20,top=tabsY()+38;
+        return new ClipRect(left,top,ox+w-14-left,Math.min(176,Math.max(68,f.y+f.height-top-56)));
+    }
     private void drawPreview(Theme theme){
         ClipRect f=formBounds();float x=f.x+f.width+20,y=tabsY(),pw=ox+w-14-x;
         LegacyUiStyle.card(x,y,pw,28,theme,false,false);
         LegacyUiStyle.icon("palette",x+9,y+8,12,LegacyUiStyle.MUTED);
         text("Live preview",x+28,y+9,LegacyUiStyle.INK);
-        float top=y+38,ph=Math.min(176,Math.max(68,f.y+f.height-top-56));
-        try(GuiClip clip=GuiClip.push(new ClipRect(x,top,pw,ph))){
+        ClipRect bounds=previewBounds();float top=bounds.y,ph=bounds.height;
+        try(GuiClip clip=GuiClip.push(bounds)){
+            // A solid backing also covers antialiased checkerboard seams, so the
+            // preview's transparency sample is independent of the moving menu scene.
+            UIUtils.drawDecorationRound(x-1,top-1,pw+2,ph+2,0,new Color(0xff25313e,true));
             for(int row=0;row<(int)Math.ceil(ph/10);row++)for(int col=0;col<(int)Math.ceil(pw/10);col++)
                 UIUtils.drawDecorationRound(x+col*10,top+row*10,Math.min(10,pw-col*10),Math.min(10,ph-row*10),0,new Color((row+col)%2==0?0xff344252:0xff25313e,true));
             UiEffects.independentScene(()->previewScene.withScene(theme,()->{

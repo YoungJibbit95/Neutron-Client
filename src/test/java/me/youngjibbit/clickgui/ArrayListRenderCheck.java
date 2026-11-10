@@ -130,18 +130,27 @@ public final class ArrayListRenderCheck {
             hud.getBooleanSetting("Module Prefixes").setValue(true);a.label="Aura";a.info="\u00a7cSwitch";a.setToggled(true);
             Theme.setDefaultTheme(Theme.SynthWave);render();finishAnimations();render();
             BufferedImage blue=capture();Object row=rows().get(0),metrics=get(row,"metrics");
+            ImageIO.write(blue,"png",new File(OUT,"06a-prefix-synthwave.png"));
             require("| Aura".equals(get(metrics,"name"))&&" : Switch".equals(get(metrics,"prefix")),"Name/prefix split and format stripping");
             float scale=(Float)get(metrics,"scale"),x=(Float)get(row,"textX"),y=(Float)get(row,"textY");
             int factor=new ScaledResolution(mc).getScaleFactor();
             int left=(int)Math.ceil((x+(Float)get(metrics,"nameWidth")*scale+9)*factor);
             int right=(int)Math.ceil((x+(Float)get(metrics,"width"))*factor);
             int top=(int)Math.floor(y*factor),bottom=(int)Math.ceil((y+(Float)get(metrics,"height"))*factor);
-            int grayPixels=0;
+            int grayPixels=0;Map<Integer,Integer> prefixColors=new HashMap<>();
             for(int py=top;py<bottom;py++)for(int px=left;px<right;px++) {
-                if((blue.getRGB(px,py)&0xffffff)==0xc6c6c6)grayPixels++;
+                int rgb=blue.getRGB(px,py)&0xffffff;
+                prefixColors.put(rgb,prefixColors.getOrDefault(rgb,0)+1);
+                if(rgb==0xc6c6c6)grayPixels++;
             }
+            List<Map.Entry<Integer,Integer>> frequent=new ArrayList<>(prefixColors.entrySet());
+            frequent.sort((first,second)->Integer.compare(second.getValue(),first.getValue()));
+            StringBuilder colors=new StringBuilder();
+            for(int i=0;i<Math.min(8,frequent.size());i++)colors.append(String.format(" %06x:%d",frequent.get(i).getKey(),frequent.get(i).getValue()));
+            System.out.println("PREFIX_PIXELS: bounds="+left+","+top+".."+right+","+bottom+" exactGray="+grayPixels+" colors="+colors);
             require(grayPixels>12,"Prefix lost its opaque light-gray ink under theme gradient/glow");
             Theme.setDefaultTheme(Theme.Neon);render();BufferedImage green=capture();
+            ImageIO.write(green,"png",new File(OUT,"06b-prefix-neon.png"));
             for(int py=top;py<bottom;py++)for(int px=left;px<right;px++)
                 require(blue.getRGB(px,py)==green.getRGB(px,py),"Theme recolored neutral prefix at "+px+","+py);
             sheet("06-neutral-prefix.png",new String[]{"Theme gradient and halo: SynthWave","Theme gradient and halo: Neon"},blue,green);
