@@ -361,7 +361,7 @@ public class ClickLibraryScreen extends GuiScreen {
                             // Selection and hover only move the local card; grid geometry stays stable.
                             float lift=UiEffects.motion()?Math.min(1.5f,Math.max(0,animation.lift())):0;
                             ClipRect r=new ClipRect(hit.x,hit.y-lift,hit.width,hit.height);
-                            LegacyUiStyle.card(r.x,r.y,r.width,r.height,theme,selected,hovered);
+                            legacyConfigCard(r,theme,selected,hovered);
                             GuiStyle.feedback(r,animation);
                             if(r.height>=60) {
                                 LegacyUiStyle.icon("settings",r.x+12,r.y+12,17,theme.getPrimaryGradientRGB());
@@ -398,6 +398,16 @@ public class ClickLibraryScreen extends GuiScreen {
                 }
             });
         }
+    }
+    private void legacyConfigCard(ClipRect r,Theme theme,boolean selected,boolean hovered) {
+        LegacyUiStyle.card(r.x,r.y,r.width,r.height,theme,selected,hovered);
+        // Blur/glass can give adjacent cards the same scene sample. Keep their
+        // boundaries visible with a light local veil over the shared material.
+        // The low-alpha fill is decorative, so it does not sample that scene again.
+        UIUtils.drawRoundOutline(r.x+.5f,r.y+.5f,r.width-1,r.height-1,
+                LegacyUiStyle.CONTROL_RADIUS,.7f,
+                LegacyUiStyle.alpha(LegacyUiStyle.INK,selected?.08f:hovered?.065f:.045f),
+                LegacyUiStyle.alpha(LegacyUiStyle.INK,selected?.28f:hovered?.20f:.14f),0);
     }
     private void legacyAction(int id,int mx,int my,float dt,Theme theme,int ink) {
         ClipRect hit=actionBounds(id);boolean active=enabled(id);

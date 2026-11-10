@@ -128,7 +128,7 @@ public final class ArrayListRenderCheck {
             settings.textGlowStrength.setValue(1d);settings.glowIntensity.setValue(1d);settings.textGlowRadius.setValue(2d);
             hud.getBooleanSetting("Background").setValue(false);hud.getBooleanSetting("Glow").setValue(false);
             hud.getBooleanSetting("Module Prefixes").setValue(true);a.label="Aura";a.info="\u00a7cSwitch";a.setToggled(true);
-            Theme.setDefaultTheme(Theme.SynthWave);render();finishAnimations();render();
+            Theme.setDefaultTheme(Theme.SynthWave);backdrop();BufferedImage scene=capture();render();finishAnimations();render();
             BufferedImage blue=capture();Object row=rows().get(0),metrics=get(row,"metrics");
             ImageIO.write(blue,"png",new File(OUT,"06a-prefix-synthwave.png"));
             require("| Aura".equals(get(metrics,"name"))&&" : Switch".equals(get(metrics,"prefix")),"Name/prefix split and format stripping");
@@ -142,13 +142,23 @@ public final class ArrayListRenderCheck {
                 int rgb=blue.getRGB(px,py)&0xffffff;
                 prefixColors.put(rgb,prefixColors.getOrDefault(rgb,0)+1);
                 if(rgb==0xc6c6c6)grayPixels++;
+                // Antialiased pixels blend neutral ink with the blue checkerboard.
+                // Validate that blend instead of assuming a font-specific number
+                // of completely opaque pixels in a subpixel-positioned glyph.
+                int backdrop=scene.getRGB(px,py),red=rgb>>16&255,green=rgb>>8&255,blueChannel=rgb&255;
+                int baseRed=backdrop>>16&255,baseGreen=backdrop>>8&255,baseBlue=backdrop&255;
+                double coverage=(red-baseRed)/(198d-baseRed);
+                require(coverage>=0 && coverage<=1
+                        && Math.abs(green-(baseGreen+coverage*(198-baseGreen)))<=1.5
+                        && Math.abs(blueChannel-(baseBlue+coverage*(198-baseBlue)))<=1.5,
+                        "Prefix pixel does not composite neutral gray ink at "+px+","+py);
             }
             List<Map.Entry<Integer,Integer>> frequent=new ArrayList<>(prefixColors.entrySet());
             frequent.sort((first,second)->Integer.compare(second.getValue(),first.getValue()));
             StringBuilder colors=new StringBuilder();
             for(int i=0;i<Math.min(8,frequent.size());i++)colors.append(String.format(" %06x:%d",frequent.get(i).getKey(),frequent.get(i).getValue()));
             System.out.println("PREFIX_PIXELS: bounds="+left+","+top+".."+right+","+bottom+" exactGray="+grayPixels+" colors="+colors);
-            require(grayPixels>12,"Prefix lost its opaque light-gray ink under theme gradient/glow");
+            require(grayPixels>0,"Prefix lost its opaque light-gray ink under theme gradient/glow");
             Theme.setDefaultTheme(Theme.Neon);render();BufferedImage green=capture();
             ImageIO.write(green,"png",new File(OUT,"06b-prefix-neon.png"));
             for(int py=top;py<bottom;py++)for(int px=left;px<right;px++)

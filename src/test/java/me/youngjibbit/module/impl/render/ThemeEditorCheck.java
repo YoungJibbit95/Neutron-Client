@@ -6,6 +6,7 @@ import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.render.*;
 import me.youngjibbit.Pulsar;
 import net.minecraft.client.gui.ScaledResolution;
+import net.minecraft.client.shader.Framebuffer;
 import org.lwjgl.input.Keyboard;
 import java.awt.Color;
 import java.awt.image.BufferedImage;
@@ -53,9 +54,23 @@ public final class ThemeEditorCheck {
    screen.click(4);screen.onGuiClosed();SessionInfoRenderCheck.require(screen.returned&&c.current()==Theme.SynthWave&&!Files.exists(file),"Cancel did not restore active theme");
    screen=new Screen(c,select);init(screen,1280,960,2);screen.click(2);screen.field(9,"Studio theme");screen.field(10,"A020F080");screen.field(12,"17243A90");screen.field(13,"EEF6FFFF");screen.field(14,"8EF5FFFF");screen.click(7);checkStaticPresentation(screen,c);screen.click(3);screen.onGuiClosed();String id=c.selectedReference();SessionInfoRenderCheck.require(Files.exists(file)&&id.startsWith("custom:")&&selections.size()==1&&c.current().getDisplayName().equals("Studio theme"),"Save/use handler");
    ThemeCatalog reload=new ThemeCatalog(new ThemeStore(file));reload.select(id);SessionInfoRenderCheck.require(reload.current().getBackground().getAlpha()==144&&reload.current().getDisplayName().equals("Studio theme"),"Definition reload RGBA");
-   screen=new Screen(c,select);init(screen,1280,960,2);screen.field(9,"Resize preview");draw(screen);RenderDiagnostics.enabled=true;RenderDiagnostics.reset();
-   for(int i=0;i<3;i++){init(screen,i==0?640:1101,i==0?480:733,i==2?3:2);draw(screen);for(int control:new int[]{0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,20,21,22,23,24,25,26,27}){screen.revealControl(control);ClipRect r=screen.actionBounds(control);ScaledResolution sr=new ScaledResolution(SessionInfoRenderCheck.mc);SessionInfoRenderCheck.require(r.x>=0&&r.y>=0&&r.x+r.width<=sr.getScaledWidth()&&r.y+r.height<=sr.getScaledHeight(),"Editor bounds/resize");}SessionInfoRenderCheck.require(c.current().getDisplayName().equals("Resize preview"),"Resize lost draft");if(i==2)save(screen,"04-small-scale3");}
-   SessionInfoRenderCheck.require(RenderDiagnostics.framebufferCreates==RenderDiagnostics.framebufferDeletes&&RenderDiagnostics.programCreates==0,"Editor resize resource leak");System.out.println("Editor 3 resizes: "+RenderDiagnostics.snapshot());RenderDiagnostics.enabled=false;screen.click(4);screen.onGuiClosed();
+   screen=new Screen(c,select);init(screen,1280,960,2);screen.field(9,"Resize preview");draw(screen);
+   int liveBefore=liveFramebuffers().size();RenderDiagnostics.enabled=true;RenderDiagnostics.reset();
+   for(int i=0;i<3;i++){init(screen,i==0?640:1101,i==0?480:733,i==2?3:2);draw(screen);
+    System.out.println("Editor resize "+i+": "+RenderDiagnostics.snapshot()+" live="+liveFramebuffers().size()+" owned="+ownedFramebuffers(screen).size());
+    for(String owner:new String[]{"surface","previewScene","textEffects"})requireNoBufferReferences(SessionInfoRenderCheck.get(screen,owner),"Hidden preview keeps "+owner+" targets");
+    for(int control:new int[]{0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,20,21,22,23,24,25,26,27}){screen.revealControl(control);ClipRect r=screen.actionBounds(control);ScaledResolution sr=new ScaledResolution(SessionInfoRenderCheck.mc);SessionInfoRenderCheck.require(r.x>=0&&r.y>=0&&r.x+r.width<=sr.getScaledWidth()&&r.y+r.height<=sr.getScaledHeight(),"Editor bounds/resize");}SessionInfoRenderCheck.require(c.current().getDisplayName().equals("Resize preview"),"Resize lost draft");if(i==2)save(screen,"04-small-scale3");}
+   requireFramebufferBalance("Editor 3 resizes",liveBefore);
+   // Re-enter the wide layout as part of the same lifecycle: released preview
+   // targets must be recreated successfully and subsequently closed by the editor.
+   init(screen,1280,960,2);draw(screen);Set<Framebuffer> closing=ownedFramebuffers(screen);
+   Set<Integer> closingTextures=new HashSet<>();for(Framebuffer buffer:closing)closingTextures.add(buffer.framebufferTexture);
+   SessionInfoRenderCheck.require(!closing.isEmpty(),"Wide editor must exercise owned render resources");requireFramebufferBalance("Editor wide return",liveBefore);
+   screen.click(4);screen.onGuiClosed();requireFramebufferBalance("Editor close after resize",liveBefore);
+   for(String owner:new String[]{"rootSurface","surface","previewScene","textEffects"})requireNoBufferReferences(SessionInfoRenderCheck.get(screen,owner),"Closed editor retains "+owner+" targets");
+   for(Framebuffer buffer:closing)SessionInfoRenderCheck.require(buffer.framebufferObject<0&&buffer.framebufferTexture<0,"Closed editor did not delete an owned GPU target");
+   for(int texture:closingTextures)SessionInfoRenderCheck.require(!glIsTexture(texture),"Closed editor texture still exists on the GPU");
+   RenderDiagnostics.enabled=false;
    screen=new Screen(c,select);init(screen,1280,960,2);screen.field(9,"Renamed studio");screen.click(3);screen.onGuiClosed();SessionInfoRenderCheck.require(c.selectedReference().equals(id)&&c.current().getDisplayName().equals("Renamed studio"),"Rename changed ID");
    screen=new Screen(c,select);init(screen,1280,960,2);screen.click(9);screen.key(Keyboard.KEY_BACK);draw(screen);screen.click(4);screen.onGuiClosed();SessionInfoRenderCheck.require(c.current().getDisplayName().equals("Renamed studio"),"Invalid field blocked Cancel");
    screen=new Screen(c,select);init(screen,1280,960,2);screen.field(9,"Discard rename");screen.click(5);SessionInfoRenderCheck.require(c.current().getDisplayName().equals("Renamed studio"),"Reset handler");screen.key(Keyboard.KEY_ESCAPE);screen.onGuiClosed();
@@ -63,6 +78,50 @@ public final class ThemeEditorCheck {
    screen=new Screen(c,select);init(screen,1280,960,2);screen.click(6);SessionInfoRenderCheck.require(c.find(id)!=null,"Delete skipped confirmation");screen.click(6);screen.onGuiClosed();SessionInfoRenderCheck.require(c.current()==Theme.PinkLemonade&&c.find(id)==null&&selections.get(selections.size()-1).equals("PinkLemonade"),"Delete/fallback handler");
    SessionInfoRenderCheck.require(glGetError()==GL_NO_ERROR,"Theme editor GL error");System.out.println("PASS: editor UI RGBA/name/direction/motion/sliders/exact-invalid-cancelled-numbers/save/cancel/reset/delete, stable IDs, resize/scales, cached effects, custom mask and transparent glyph pixels");
   }finally{RenderDiagnostics.enabled=false;c.cancelPreview();ThemeCatalog.install(previous);}
+ }
+ static Set<Framebuffer> ownedFramebuffers(Screen screen)throws Exception{
+  Set<Framebuffer> owned=Collections.newSetFromMap(new IdentityHashMap<Framebuffer,Boolean>());
+  for(String name:new String[]{"rootSurface","surface","previewScene"}){
+   Framebuffer[] buffers=(Framebuffer[])SessionInfoRenderCheck.get(SessionInfoRenderCheck.get(screen,name),"buffers");
+   // ArrayListSurface slots 0..2 borrow the renderer's shared effect trio.
+   for(int i=3;i<buffers.length;i++)addFramebuffers(owned,buffers[i]);
+  }
+  addFramebuffers(owned,SessionInfoRenderCheck.get(SessionInfoRenderCheck.get(screen,"textEffects"),"buffers"));return owned;
+ }
+ static Set<Framebuffer> liveFramebuffers()throws Exception{
+  Set<Framebuffer> live=Collections.newSetFromMap(new IdentityHashMap<Framebuffer,Boolean>());
+  addFramebuffers(live,SessionInfoRenderCheck.mc.getFramebuffer());
+  for(Class<?> type:new Class<?>[]{ArrayListSurface.class,TextEffects.class}){
+   Collection<?> owners=(Collection<?>)SessionInfoRenderCheck.field(type,"owners").get(null);
+   for(Object owner:new ArrayList<Object>(owners))addFramebuffers(live,SessionInfoRenderCheck.get(owner,"buffers"));
+  }
+  addFramebuffers(live,SessionInfoRenderCheck.field(ArrayListSurface.class,"effects").get(null));
+  Object halo=SessionInfoRenderCheck.field(ArrayListSurface.class,"haloCache").get(null);
+  addFramebuffers(live,SessionInfoRenderCheck.get(halo,"outputs"));
+  addFramebuffers(live,SessionInfoRenderCheck.field(Blur.class,"buffers").get(null));
+  // Do not initialize an unused bloom renderer merely to inspect the fixture.
+  if((Boolean)SessionInfoRenderCheck.field(GuiShaderBloom.class,"used").get(null)){
+   Class<?> bloom=me.youngjibbit.utils.render.shader.KawaseBloom.class;
+   for(String name:new String[]{"framebuffer","bloomFramebuffer","framebufferList"})addFramebuffers(live,SessionInfoRenderCheck.field(bloom,name).get(null));
+  }
+  return live;
+ }
+ static void addFramebuffers(Set<Framebuffer> buffers,Object value){
+  if(value instanceof Framebuffer){Framebuffer buffer=(Framebuffer)value;if(buffer.framebufferObject>=0)buffers.add(buffer);}
+  else if(value instanceof Framebuffer[])for(Framebuffer buffer:(Framebuffer[])value)addFramebuffers(buffers,buffer);
+  else if(value instanceof Iterable<?>)for(Object buffer:(Iterable<?>)value)addFramebuffers(buffers,buffer);
+ }
+ static void requireNoBufferReferences(Object owner,String message)throws Exception{
+  for(Framebuffer buffer:(Framebuffer[])SessionInfoRenderCheck.get(owner,"buffers"))SessionInfoRenderCheck.require(buffer==null,message);
+ }
+ static void requireFramebufferBalance(String stage,int liveBefore)throws Exception{
+  int live=liveFramebuffers().size();long balance=RenderDiagnostics.framebufferCreates-RenderDiagnostics.framebufferDeletes;
+  System.out.println(stage+": "+RenderDiagnostics.snapshot()+" trackedLive="+liveBefore+" -> "+live+" expectedDelta="+(live-liveBefore));
+  // Different GUI scales may retain a bounded shared halo entry, and compact
+  // mode releases preview targets. Every create/delete must still be accounted
+  // for by an actual live GPU owner; a lost or unclosed allocation fails here.
+  SessionInfoRenderCheck.require(balance==live-liveBefore,"Unaccounted framebuffer during "+stage);
+  SessionInfoRenderCheck.require(RenderDiagnostics.programCreates==0&&RenderDiagnostics.shaderCompiles==0,"Editor resize recreated shader programs");
  }
  static void checkStaticPresentation(Screen screen,ThemeCatalog catalog)throws Exception{
   java.lang.reflect.Field clockField=UiEffects.class.getDeclaredField("clock");clockField.setAccessible(true);LongSupplier originalClock=(LongSupplier)clockField.get(null);

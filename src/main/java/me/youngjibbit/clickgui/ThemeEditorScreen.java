@@ -54,6 +54,7 @@ public class ThemeEditorScreen extends GuiScreen {
     }
     @Override public void initGui(){
         resetMotion();layout();
+        if(!wide())releasePreviewResources();
         if(Keyboard.isCreated()){if(!ownsKeyboardRepeat){previousRepeat=Keyboard.areRepeatEventsEnabled();ownsKeyboardRepeat=true;}Keyboard.enableRepeatEvents(true);}
         super.initGui();
     }
@@ -306,6 +307,7 @@ public class ThemeEditorScreen extends GuiScreen {
     }
     private void nextFocus(int step){int[] ids=focusOrder();int index=0;for(int i=0;i<ids.length;i++)if(ids[i]==focus)index=i;for(int i=0;i<ids.length;i++){index=(index+step+ids.length)%ids.length;if(enabled(ids[index])){focus=ids[index];revealControl(focus);return;}}}
     @Override protected void mouseReleased(int x,int y,int button){visualPressed=-1;drag=-1;picker.release();}
-    @Override public void onGuiClosed(){if(Keyboard.isCreated()&&ownsKeyboardRepeat)Keyboard.enableRepeatEvents(previousRepeat);ownsKeyboardRepeat=false;resetMotion();drag=-1;editingField=-1;picker.release();pickerField=-1;pickerOriginal=null;draft.close();surface.close();rootSurface.close();previewScene.close();textEffects.close();}
+    private void releasePreviewResources(){surface.close();previewScene.close();textEffects.close();}
+    @Override public void onGuiClosed(){if(Keyboard.isCreated()&&ownsKeyboardRepeat)Keyboard.enableRepeatEvents(previousRepeat);ownsKeyboardRepeat=false;resetMotion();drag=-1;editingField=-1;picker.release();pickerField=-1;pickerOriginal=null;draft.close();rootSurface.close();releasePreviewResources();}
     @Override public boolean doesGuiPauseGame(){return false;}
 }
