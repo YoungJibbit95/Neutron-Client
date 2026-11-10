@@ -68,7 +68,7 @@
     "movefix": "Einfach",
     "place_delay": 100,
     "timer": 1,
-    "sprint": false,
+    "sprint_mode": "Off",
     "keep_y": false,
     "downwards": false,
     "item_spoof": true,

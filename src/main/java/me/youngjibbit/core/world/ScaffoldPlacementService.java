@@ -204,6 +204,93 @@ public final class ScaffoldPlacementService {
         return isValid(held)?held:null;
     }
 
+    /** A single current-ray proposal, still requiring the adapter's narrow route membership. */
+    public PlacementTarget planBridgeRay(float yaw,float pitch) {
+        if(!access.ready() || !Float.isFinite(yaw) || !Float.isFinite(pitch) || Math.abs(pitch)>90)return null;
+        Vec3 eyes=access.eyes(),direction=Entity.getVectorForRotation(pitch,yaw);
+        MovingObjectPosition hit=access.rayTrace(eyes,eyes.add(scaled(direction,access.reach())));
+        if(hit==null || hit.typeOfHit!=MovingObjectPosition.MovingObjectType.BLOCK || hit.hitVec==null)return null;
+        PlacementTarget target=captureFace(hit.getBlockPos(),hit.sideHit,hit.hitVec);
+        return isValid(target)?target:null;
+    }
+
+    /**
+     * First try the finite face point nearest the held direction. A centre ray
+     * being hidden must not discard a visible edge of that same support face.
+     */
+    public PlacementTarget planBridgeFace(BlockPos support,EnumFacing face,Vec3 eyes,float yaw,float pitch) {
+        PlacementTarget target=captureFace(support,face,null);
+        if(target==null)return null;
+        AxisAlignedBB bounds=access.supportBounds(support);
+        Vec3 point=ScaffoldRotationPlan.stableFacePoint(bounds,face,eyes,yaw,pitch);
+        if(point!=null) {
+            PlacementTarget nearest=target.withHit(point);
+            if(isValid(nearest))return nearest;
+        }
+        return isValid(target)?target:null;
+    }
+
+    /**
+     * Keep the original support, face, destination, stack and trajectory key.
+     * Only the minimal visible-face correction is proposed; no new target search
+     * or placement authority is acquired here.
+     */
+    public PlacementTarget stabilizeBridgeHit(PlacementTarget target,Vec3 eyes,
+            float referenceYaw,float referencePitch,boolean godbridge) {
+        return stabilizeBridgeHit(target,eyes,referenceYaw,referencePitch,godbridge,.5f);
+    }
+
+    public PlacementTarget stabilizeBridgeHit(PlacementTarget target,Vec3 eyes,
+            float referenceYaw,float referencePitch,boolean godbridge,float mouseSensitivity) {
+        if(eyes==null || !isValid(target))return null;
+        if(!godbridge) {
+            PlacementTarget retained=retainBridgeHit(target,referenceYaw,referencePitch);
+            if(retained!=null)return retained;
+        }
+        AxisAlignedBB bounds=access.supportBounds(target.getBlockPos());
+        Vec3 point=godbridge?ScaffoldRotationPlan.godbridgeFacePoint(bounds,target.getFacing(),eyes,
+                referenceYaw,referencePitch):ScaffoldRotationPlan.stableFacePoint(bounds,target.getFacing(),eyes,
+                referenceYaw,referencePitch);
+        if(point!=null) {
+            PlacementTarget nearest=target.withHit(point);
+            if(isValid(nearest)) {
+                PlacementTarget representable=gridSafeBridgeHit(nearest,eyes,referenceYaw,referencePitch,mouseSensitivity);
+                if(representable!=null)return representable;
+            }
+        }
+        PlacementTarget fallback=gridSafeBridgeHit(target,eyes,referenceYaw,referencePitch,mouseSensitivity);
+        return fallback!=null?fallback:isValid(target)?target:null;
+    }
+
+    /**
+     * A near-corner point can round onto the top face at steep pitch. Check the
+     * actual mouse grid before offering that point. At most nine adjacent counts
+     * on this one face are inspected; no support, inventory or destination search
+     * is performed and the final PRE/C03/POST checks remain mandatory.
+     */
+    private PlacementTarget gridSafeBridgeHit(PlacementTarget target,Vec3 eyes,
+            float referenceYaw,float referencePitch,float sensitivity) {
+        if(!Float.isFinite(sensitivity) || sensitivity<0 || sensitivity>1)return null;
+        ScaffoldRotationPlan desired=ScaffoldRotationPlan.build("Back",eyes,target.getHitVec());
+        if(desired==null)return null;
+        float wantedYaw=referenceYaw+net.minecraft.util.MathHelper.wrapAngleTo180_float(desired.getYaw()-referenceYaw);
+        float yaw=me.youngjibbit.core.combat.RotationSensitivity.snap(wantedYaw,referenceYaw,sensitivity);
+        float pitch=me.youngjibbit.core.combat.RotationSensitivity.snap(desired.getPitch(),referencePitch,sensitivity);
+        float quantum=me.youngjibbit.core.combat.RotationSensitivity.mouseStep(sensitivity);
+        int[][] offsets={{0,0},{0,1},{0,-1},{1,0},{-1,0},{1,1},{-1,1},{1,-1},{-1,-1}};
+        for(int[] offset:offsets) {
+            float candidatePitch=pitch+offset[1]*quantum;
+            if(Math.abs(candidatePitch)>90)continue;
+            Vec3 direction=Entity.getVectorForRotation(candidatePitch,yaw+offset[0]*quantum);
+            MovingObjectPosition hit=access.rayTrace(eyes,eyes.add(scaled(direction,access.reach())));
+            if(hit==null || hit.typeOfHit!=MovingObjectPosition.MovingObjectType.BLOCK || hit.hitVec==null
+                    || !target.getBlockPos().equals(hit.getBlockPos()) || target.getFacing()!=hit.sideHit)continue;
+            PlacementTarget candidate=target.withHit(hit.hitVec);
+            if(isValid(candidate))return candidate;
+        }
+        return null;
+    }
+
     /** Keep one immutable PRE/POST intent; only accept randomized points that pass the normal face checks. */
     public PlacementTarget randomize(PlacementTarget target,RotationManager rotations,me.youngjibbit.core.combat.RotationProfile profile) {
         if(target==null || target.pointChosen) return target;

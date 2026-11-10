@@ -2,6 +2,7 @@ package me.youngjibbit.notifications;
 
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.module.impl.client.ClientSettings;
+import me.youngjibbit.module.impl.client.WatermarkHUDModule;
 import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.font.TTFFontRenderer;
 import me.youngjibbit.utils.render.*;
@@ -19,6 +20,7 @@ public final class NotificationManager {
     private static final ArrayListSurface[] surfaces=new ArrayListSurface[5];
     private static final ArrayListSurface stackScene=new ArrayListSurface();
     private static long previous;
+    private static boolean islandRoute;
     private NotificationManager(){}
     public static void show(Notification notification){
         if(notification==null)return;
@@ -35,10 +37,20 @@ public final class NotificationManager {
     public static void update(){
         Minecraft mc=Minecraft.getMinecraft();if(mc==null||!mc.isCallingFromMinecraftThread())return;
         ClientSettings c=ClientSettings.current();long now=System.nanoTime();float dt=previous==0?0:Math.min(.1f,(now-previous)/1e9f);previous=now;
-        if(c!=null&&!c.notifications.getValue()){drain();timeline.clear();return;}
+        if(c!=null&&!c.notifications.getValue()){drain();timeline.clear();islandRoute=false;return;}
+        WatermarkHUDModule watermark=Pulsar.INSTANCE.getMm()==null?null:
+                (WatermarkHUDModule)Pulsar.INSTANCE.getMm().getModule(WatermarkHUDModule.class);
+        islandRoute=watermark!=null&&watermark.routesNotificationsToIsland();
         ScaledResolution sr=new ScaledResolution(mc);
-        int visible=Math.min(c==null?3:c.notificationVisible.getValue().intValue(),Math.max(1,(sr.getScaledHeight()-16)/84));
+        int visible=islandRoute?1:Math.min(c==null?3:c.notificationVisible.getValue().intValue(),Math.max(1,(sr.getScaledHeight()-16)/84));
+        // Switching presentation preserves live cards and their remaining display time.
+        timeline.route(islandRoute,now);
         timeline.advance(drain(),now,dt,visible,c==null?32:c.notificationQueue.getValue().intValue(),c==null?5:c.notificationDuration.getValue().floatValue(),UiEffects.motion(),type->allowed(c,type));
+    }
+    /** One immutable copy of the ordinary-card timeline: no second inbox or expiry clock. */
+    public static IslandNotification islandNotification(){
+        update();
+        return islandRoute?timeline.islandSnapshot():null;
     }
     private static boolean allowed(ClientSettings c,NotificationType type){
         if(c==null)return true;
@@ -46,7 +58,7 @@ public final class NotificationManager {
     }
     public static void render(){
         Minecraft mc=Minecraft.getMinecraft();if(mc==null||!mc.isCallingFromMinecraftThread()||Pulsar.INSTANCE.fontManager==null)return;
-        update();int count=timeline.visible.size();
+        update();int count=islandRoute?0:timeline.visible.size();
         for(int i=count;i<surfaces.length;i++)if(surfaces[i]!=null){surfaces[i].close();surfaces[i]=null;}
         if(count==0){stackScene.close();return;}
         ClientSettings c=ClientSettings.current();ScaledResolution sr=new ScaledResolution(mc);
@@ -110,17 +122,50 @@ public final class NotificationManager {
             UIUtils.drawDecorationRound(x+29,y+25,Math.min(42,width-42),1,.5f,UiEffects.color(0xffb2bbc9,.28f*opacity));
         }
     }
-    public static void releaseResources(){drain();timeline.clear();stackScene.close();for(int i=0;i<surfaces.length;i++)if(surfaces[i]!=null){surfaces[i].close();surfaces[i]=null;}previous=0;}
+    public static void releaseResources(){drain();timeline.clear();stackScene.close();for(int i=0;i<surfaces.length;i++)if(surfaces[i]!=null){surfaces[i].close();surfaces[i]=null;}previous=0;islandRoute=false;}
+
+    /** Display facts only. The timeline owns filtering, coalescing, queue bounds and expiry. */
+    public static final class IslandNotification {
+        public final long id,startedAtNanos,expiresAtNanos;
+        public final String title,message;
+        public final NotificationType type;
+        public final int count;
+        public final float remaining;
+        public IslandNotification(long id,Notification notification,int count,long started,long expires,long now){
+            this.id=id;title=notification.title;message=notification.message;type=notification.type;
+            this.count=Math.max(1,Math.min(999,count));startedAtNanos=started;expiresAtNanos=expires;
+            remaining=Math.max(0,Math.min(1,(expires-now)/(float)Math.max(1,expires-started)));
+        }
+        public boolean isFresh(long now){return now>=startedAtNanos&&now<expiresAtNanos;}
+    }
 
     static final class Message {final Notification notification;int count=1;Message(Notification n){notification=n;}}
     static final class Entry {
         final Notification notification;int count;long started,expires;float alpha,y=Float.NaN;Layout layout;float layoutWidth,layoutHeight;int layoutCount;
+        long id,parkedRemaining=-1;
         Entry(Message m){notification=m.notification;count=m.count;}
     }
     /** Pure monotonic-time lifecycle, independently testable without Minecraft or OpenGL. */
     static final class Timeline {
         final List<Entry> visible=new ArrayList<>();final Deque<Entry> pending=new ArrayDeque<>();long now;float dt;
-        void clear(){visible.clear();pending.clear();}
+        private long nextId;
+        private boolean island;
+        void clear(){visible.clear();pending.clear();island=false;}
+        void route(boolean toIsland,long now){
+            if(island==toIsland)return;
+            island=toIsland;
+            if(!island)return;
+            for(int i=visible.size()-1;i>=1;i--){
+                Entry entry=visible.remove(i);
+                entry.parkedRemaining=Math.max(0,entry.expires-now);
+                if(entry.parkedRemaining>0)pending.addFirst(entry);
+            }
+        }
+        IslandNotification islandSnapshot(){
+            if(!island||visible.isEmpty())return null;
+            Entry entry=visible.get(0);
+            return now>=entry.expires?null:new IslandNotification(entry.id,entry.notification,entry.count,entry.started,entry.expires,now);
+        }
         void advance(List<Message> messages,long now,float dt,int maxVisible,int maxPending,float duration,boolean motion,Predicate<NotificationType> allowed){
             this.now=now;this.dt=dt;
             for(Message message:messages){
@@ -128,12 +173,12 @@ public final class NotificationManager {
                 Entry match=null;for(Entry e:visible)if(e.notification.key().equals(message.notification.key()))match=e;
                 if(match==null)for(Entry e:pending)if(e.notification.key().equals(message.notification.key()))match=e;
                 if(match!=null){match.count=Math.min(999,match.count+message.count);if(visible.contains(match))match.expires=Math.min(match.started+30000000000L,now+seconds(match,duration));}
-                else{if(pending.size()>=maxPending)pending.removeFirst();pending.addLast(new Entry(message));}
+                else{if(pending.size()>=maxPending)pending.removeFirst();Entry entry=new Entry(message);entry.id=++nextId;pending.addLast(entry);}
             }
             pending.removeIf(e->!allowed.test(e.notification.type));while(pending.size()>maxPending)pending.removeFirst();
-            for(int i=0;i<visible.size();i++){Entry e=visible.get(i);if(i>=maxVisible||!allowed.test(e.notification.type))e.expires=Math.min(now,e.expires);boolean leaving=now>=e.expires;float target=leaving?0:1;e.alpha+=(target-e.alpha)*(motion?1-(float)Math.exp(-dt*16):1);}
+            for(int i=0;i<visible.size();i++){Entry e=visible.get(i);if(i>=maxVisible||!allowed.test(e.notification.type))e.expires=Math.min(now,e.expires);boolean leaving=now>=e.expires;float target=leaving?0:1;e.alpha+=(target-e.alpha)*(motion&&!island?1-(float)Math.exp(-dt*16):1);}
             visible.removeIf(e->now>=e.expires&&e.alpha<.01f);
-            while(visible.size()<maxVisible&&!pending.isEmpty()){Entry e=pending.removeFirst();e.started=now;e.expires=now+seconds(e,duration);e.alpha=motion?0:1;visible.add(e);}
+            while(visible.size()<maxVisible&&!pending.isEmpty()){Entry e=pending.removeFirst();e.started=now;e.expires=now+(e.parkedRemaining>=0?e.parkedRemaining:seconds(e,duration));e.parkedRemaining=-1;e.alpha=motion&&!island?0:1;visible.add(e);}
         }
         private long seconds(Entry e,float duration){return (long)((e.notification.seconds>0?e.notification.seconds:duration)*1000000000L);}
     }

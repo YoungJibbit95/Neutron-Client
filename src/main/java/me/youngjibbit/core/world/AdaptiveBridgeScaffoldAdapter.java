@@ -44,18 +44,28 @@ public final class AdaptiveBridgeScaffoldAdapter {
             AdaptiveBridgePlanner.Frame frame,int blockY,PlacementTarget preferred) {
         if(!validFrame(service,frame,blockY))return null;
         double[] predicted=AdaptiveBridgePlanner.predict(frame);
+        PlacementTarget ray=null;
+        boolean queriedRay=!frame.hasRotation;
         for(BlockPos destination:destinations(frame,blockY,predicted)) {
+            if(!service.isReplaceableDestination(destination))continue;
             // An actual gap beneath the player takes precedence over a future
             // kept point. Within one destination keep its exact immutable intent.
             if(preferred!=null && destination.equals(preferred.getDestination())
                     && validPreview(service,frame,preferred,predicted))return preferred;
+            if(!queriedRay) {
+                ray=service.planBridgeRay((float)frame.rotationYaw,(float)frame.rotationPitch);
+                queriedRay=true;
+            }
+            // A useful held direction is the cheapest acquisition. It wins
+            // before face enumeration, but never over a more urgent route cell.
+            if(ray!=null && destination.equals(ray.getDestination())
+                    && validPreview(service,frame,ray,predicted))return ray;
             for(EnumFacing face:EnumFacing.values()) {
-                PlacementTarget candidate=service.planFace(
-                        destination.offset(face.getOpposite()),face,null);
+                PlacementTarget candidate=planFace(service,frame,destination.offset(face.getOpposite()),face);
                 if(validPreview(service,frame,candidate,predicted))return candidate;
             }
         }
-        return findDiagonalConnector(service,frame,blockY,predicted,preferred);
+        return findDiagonalConnector(service,frame,blockY,predicted,preferred,ray,queriedRay);
     }
 
     /**
@@ -64,18 +74,27 @@ public final class AdaptiveBridgeScaffoldAdapter {
      * two proposals; this is not a search around neighboring rows.
      */
     private PlacementTarget findDiagonalConnector(ScaffoldPlacementService service,
-            AdaptiveBridgePlanner.Frame frame,int blockY,double[] predicted,PlacementTarget preferred) {
+            AdaptiveBridgePlanner.Frame frame,int blockY,double[] predicted,PlacementTarget preferred,
+            PlacementTarget ray,boolean queriedRay) {
         Corner corner=corner(frame,blockY);
         if(corner==null || !service.isReplaceableDestination(
                 new BlockPos(frame.feetX,blockY,frame.feetZ)))return null;
         if(isConnector(frame,preferred,corner) && validPreview(service,frame,preferred,predicted))return preferred;
+        if(!queriedRay)ray=service.planBridgeRay((float)frame.rotationYaw,(float)frame.rotationPitch);
+        if(isConnector(frame,ray,corner) && validPreview(service,frame,ray,predicted))return ray;
         for(EnumFacing face:new EnumFacing[]{corner.first,corner.second}) {
             BlockPos destination=corner.support.offset(face);
             if(!overlapsFootprint(frame.feetX,frame.feetZ,destination))continue;
-            PlacementTarget candidate=service.planFace(corner.support,face,null);
+            PlacementTarget candidate=planFace(service,frame,corner.support,face);
             if(validPreview(service,frame,candidate,predicted))return candidate;
         }
         return null;
+    }
+
+    private static PlacementTarget planFace(ScaffoldPlacementService service,AdaptiveBridgePlanner.Frame frame,
+            BlockPos support,EnumFacing face) {
+        return frame.hasRotation?service.planBridgeFace(support,face,new Vec3(frame.eyeX,frame.eyeY,frame.eyeZ),
+                (float)frame.rotationYaw,(float)frame.rotationPitch):service.planFace(support,face,null);
     }
 
     private static final class Corner {
@@ -242,14 +261,16 @@ public final class AdaptiveBridgeScaffoldAdapter {
         List<AdaptiveBridgePlanner.SupportFace> options=new ArrayList<>();
 
         addIfValid(service,original,original,valid,options);
-        boolean held=(keeping || isConnector(frame,original,corner(frame,destination.getY())))
+        boolean held=(keeping || isConnector(frame,original,corner(frame,destination.getY()))
+                    || frame.hasRotation && service.retainBridgeHit(original,
+                        (float)frame.rotationYaw,(float)frame.rotationPitch)!=null)
                 && !valid.isEmpty() && AdaptiveBridgePlanner.validMotion(frame)
                 && validPreview(service,frame,original,AdaptiveBridgePlanner.predict(frame));
         // All alternatives must still be approved by the existing service
         // and use the SAME destination, slot and actual inventory stack.
         if(!held)for(EnumFacing face:EnumFacing.values()) {
             if(face==original.getFacing())continue;
-            PlacementTarget alternate=service.planFace(destination.offset(face.getOpposite()),face,null);
+            PlacementTarget alternate=planFace(service,frame,destination.offset(face.getOpposite()),face);
             if(alternate!=null)addIfValid(service,original,alternate,valid,options);
         }
         AdaptiveBridgePlanner.Plan candidate=planner.prepare(frame,options);

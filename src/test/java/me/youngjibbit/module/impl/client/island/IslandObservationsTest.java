@@ -6,6 +6,16 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class IslandObservationsTest {
+    @Test public void confirmedPlacementCounterIsIndependentOfStatusSequence(){
+        IslandStateMachine.Scaffold a=IslandObservations.scaffold(new ScaffoldActivitySnapshot(50,100,1,0,24,
+                "Adaptive Bridge","Adaptive",ScaffoldActivitySnapshot.Status.SEARCHING,7),100);
+        IslandStateMachine.Scaffold b=IslandObservations.scaffold(new ScaffoldActivitySnapshot(51,200,1,0,24,
+                "Adaptive Bridge","Adaptive",ScaffoldActivitySnapshot.Status.READY,7),200);
+        assertEquals(7,a.placementCount);assertEquals(7,b.placementCount);assertEquals(200,b.observedAtNanos);
+        IslandStateMachine.Scaffold c=IslandObservations.scaffold(new ScaffoldActivitySnapshot(52,300,1,0,23,
+                "Adaptive Bridge","Adaptive",ScaffoldActivitySnapshot.Status.PLACING,8),300);
+        assertEquals(8,c.placementCount);
+    }
     private static InventoryActivitySnapshot inventory(InventoryActivitySnapshot.Producer producer,
             InventoryActivitySnapshot.Action action,int done,int total,long now){
         return new InventoryActivitySnapshot(producer,action,done,total,7,now);

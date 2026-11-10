@@ -272,7 +272,7 @@
         "domain_warp_amp": 0.0,
         "place_delay": 80.0,
         "timer": 1.0,
-        "sprint": false,
+        "sprint_mode": "Off",
         "keep_y": false,
         "downwards": false,
         "item_spoof": true,

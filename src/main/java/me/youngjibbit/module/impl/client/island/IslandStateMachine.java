@@ -2,6 +2,7 @@ package me.youngjibbit.module.impl.client.island;
 
 import java.util.Locale;
 import java.util.Arrays;
+import me.youngjibbit.notifications.NotificationManager.IslandNotification;
 
 /**
  * Pure, bounded view state. Callers supply already validated, immutable observations.
@@ -10,7 +11,7 @@ import java.util.Arrays;
  */
 public final class IslandStateMachine {
     public enum State {
-        IDLE, TARGET, SCAFFOLD, MODULE_TOAST, POSSIBLE_SETBACK, CLOCK_REMINDER, INVENTORY_ACTIVITY;
+        IDLE, TARGET, SCAFFOLD, MODULE_TOAST, POSSIBLE_SETBACK, CLOCK_REMINDER, INVENTORY_ACTIVITY, NOTIFICATION;
         public static State fromName(String value) {
             if (value != null) try { return valueOf(value.toUpperCase(Locale.ROOT)); }
             catch (IllegalArgumentException ignored) { /* unknown saved/fixture state */ }
@@ -39,19 +40,24 @@ public final class IslandStateMachine {
         public final boolean active,observed;
         public final int blockCount,metadata,itemId;
         public final String approach,profile,status;
-        public final long sequence;
+        public final long sequence,placementCount,observedAtNanos;
         public Scaffold(boolean active,int blockCount,String approach) {
-            this(active,blockCount,approach,"","",-1,-1,false,0);
+            this(active,blockCount,approach,"","",-1,-1,false,0,0,0);
         }
         private Scaffold(boolean active,int blockCount,String approach,String profile,String status,
-                         int itemId,int metadata,boolean observed,long sequence) {
+                         int itemId,int metadata,boolean observed,long sequence,long placementCount,long observedAtNanos) {
             this.active=active;this.blockCount=blockCount;this.approach=approach==null?"":approach;
             this.profile=profile==null?"":profile;this.status=status==null?"":status;
             this.itemId=itemId;this.metadata=metadata;this.observed=observed;this.sequence=sequence;
+            this.placementCount=Math.max(0,placementCount);this.observedAtNanos=observedAtNanos;
         }
         public static Scaffold observed(int blockCount,String approach,String profile,String status,
                                         int itemId,int metadata,long sequence) {
-            return new Scaffold(true,blockCount,approach,profile,status,itemId,metadata,true,sequence);
+            return observed(blockCount,approach,profile,status,itemId,metadata,sequence,0,0);
+        }
+        public static Scaffold observed(int blockCount,String approach,String profile,String status,
+                                        int itemId,int metadata,long sequence,long placementCount,long observedAtNanos) {
+            return new Scaffold(true,blockCount,approach,profile,status,itemId,metadata,true,sequence,placementCount,observedAtNanos);
         }
         public boolean valid(){return active&&blockCount>=(observed?-1:0);}
     }
@@ -98,13 +104,19 @@ public final class IslandStateMachine {
         public final InventoryActivity inventory;
         public final String label;
         public final IslandNotice notice;
+        public final IslandNotification notification;
         private Selection(State state, Target target, Scaffold scaffold, ClockReminder clock, InventoryActivity inventory, String label) {
             this(state,target,scaffold,clock,inventory,label,null);
         }
         private Selection(State state,Target target,Scaffold scaffold,ClockReminder clock,
                           InventoryActivity inventory,String label,IslandNotice notice){
+            this(state,target,scaffold,clock,inventory,label,notice,null);
+        }
+        private Selection(State state,Target target,Scaffold scaffold,ClockReminder clock,
+                          InventoryActivity inventory,String label,IslandNotice notice,IslandNotification notification){
             this.state = state; this.target = target; this.scaffold = scaffold;
             this.clock = clock; this.inventory = inventory; this.label = label;this.notice=notice;
+            this.notification=notification;
         }
     }
 
@@ -234,13 +246,24 @@ public final class IslandStateMachine {
                 ||warning.sourceRun!=active.notice.sourceRun))active=null;
     }
 
-    /** Priority: safety correction > active event > fresh target > scaffold > clock > inventory > idle. */
+    /** Priority without global routing: correction > active event > target > scaffold > clock > inventory > idle. */
     public Selection resolve(long sourceEpoch, long nowNanos, Target target, Scaffold scaffold,
                              ClockReminder clock, InventoryActivity inventory,
                              boolean showTarget, boolean showScaffold, boolean showClock, boolean showInventory) {
+        return resolve(sourceEpoch,nowNanos,target,scaffold,clock,inventory,
+                showTarget,showScaffold,showClock,showInventory,null);
+    }
+
+    /** Routed global messages have one presentation owner and cannot expire behind another Island state. */
+    public Selection resolve(long sourceEpoch,long nowNanos,Target target,Scaffold scaffold,
+                             ClockReminder clock,InventoryActivity inventory,
+                             boolean showTarget,boolean showScaffold,boolean showClock,boolean showInventory,
+                             IslandNotification notification) {
         enterEpoch(sourceEpoch);
         long now = time(nowNanos);
         if (active != null && now >= active.expires) active = null;
+        if(notification!=null&&notification.isFresh(now))
+            return new Selection(State.NOTIFICATION,null,null,null,null,notification.title,null,notification);
         if (active != null && (active.state != State.CLOCK_REMINDER || showClock)
                 && (active.state != State.INVENTORY_ACTIVITY || showInventory)) {
             ClockReminder activeClock=active.state==State.CLOCK_REMINDER?new ClockReminder(active.label,false):null;

@@ -10,6 +10,75 @@ public final class ScaffoldRotationPlan {
     public float getYaw() { return yaw; }
     public float getPitch() { return pitch; }
 
+    /**
+     * Project a held direction onto one approved face. If it just misses the
+     * finite face, move only to the nearest inset edge instead of its centre.
+     * Adjacent diagonal faces therefore meet near their common edge. This is
+     * geometry only: the placement service still checks the real first ray hit.
+     */
+    public static Vec3 stableFacePoint(AxisAlignedBB box, EnumFacing face, Vec3 eyes,
+            double yaw, double pitch) {
+        if (!validBox(box) || face == null || eyes == null || !finite(eyes.xCoord)
+                || !finite(eyes.yCoord) || !finite(eyes.zCoord) || !finite(yaw)
+                || !finite(pitch) || Math.abs(pitch) > 90) return null;
+        double radians = Math.toRadians(yaw), elevation = Math.toRadians(pitch);
+        double[] direction = {-Math.sin(radians) * Math.cos(elevation), -Math.sin(elevation),
+                Math.cos(radians) * Math.cos(elevation)};
+        double[] origin = {eyes.xCoord, eyes.yCoord, eyes.zCoord};
+        double[] low = {box.minX, box.minY, box.minZ}, high = {box.maxX, box.maxY, box.maxZ};
+        int axis = face.getFrontOffsetX() != 0 ? 0 : face.getFrontOffsetY() != 0 ? 1 : 2;
+        int sign = face.getFrontOffsetX() + face.getFrontOffsetY() + face.getFrontOffsetZ();
+        double plane = sign > 0 ? high[axis] : low[axis];
+        if (Math.abs(direction[axis]) < 1e-8) return null;
+        double distance = (plane - origin[axis]) / direction[axis];
+        if (!finite(distance) || distance <= 0) return null;
+        double[] point = new double[3];
+        for (int i = 0; i < 3; i++) {
+            double margin = Math.min(.005, (high[i] - low[i]) / 4);
+            point[i] = i == axis ? plane : Math.max(low[i] + margin,
+                    Math.min(high[i] - margin, origin[i] + direction[i] * distance));
+        }
+        return new Vec3(point[0], point[1], point[2]);
+    }
+
+    /**
+     * A fixed 45-degree heading with the classic downward pitch is the first
+     * preference. Once looking downward, keep the closest such heading across
+     * block transitions. Clamping is only the correction required by the
+     * currently visible face; it never substitutes an unrelated world point.
+     */
+    public static Vec3 godbridgeFacePoint(AxisAlignedBB box, EnumFacing face, Vec3 eyes,
+            double referenceYaw, double referencePitch) {
+        if (!validBox(box) || face == null || eyes == null || !finite(referenceYaw)
+                || !finite(referencePitch)) return null;
+        Vec3 centre = new Vec3((box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2,
+                (box.minZ + box.maxZ) / 2);
+        ScaffoldRotationPlan desired = build("Back", eyes, centre);
+        if (desired == null) return null;
+        double reference = referencePitch >= 60 ? referenceYaw : desired.yaw;
+        Vec3 best = null; double bestScore = Double.POSITIVE_INFINITY;
+        for (int heading = -180; heading < 180; heading += 45) {
+            Vec3 point = stableFacePoint(box, face, eyes, heading, 83.52);
+            ScaffoldRotationPlan actual = build("Back", eyes, point);
+            if (actual == null) continue;
+            double correction = Math.abs(wrap(actual.yaw - heading));
+            double score = Math.abs(wrap(heading - reference)) + correction * 2
+                    + Math.abs(actual.pitch - 83.52) * .35;
+            if (score < bestScore) { bestScore = score; best = point; }
+        }
+        return best;
+    }
+
+    private static boolean validBox(AxisAlignedBB b) {
+        return b != null && finite(b.minX) && finite(b.minY) && finite(b.minZ)
+                && finite(b.maxX) && finite(b.maxY) && finite(b.maxZ)
+                && b.maxX > b.minX && b.maxY > b.minY && b.maxZ > b.minZ;
+    }
+    private static boolean finite(double value) { return Double.isFinite(value); }
+    private static double wrap(double angle) {
+        angle %= 360; if (angle > 180) angle -= 360; if (angle <= -180) angle += 360; return angle;
+    }
+
     /** Modes choose a point on the face; all rotations actually look at that point. */
     public static Vec3 hitPoint(String mode, AxisAlignedBB box, EnumFacing face, Vec3 eyes) {
         double x = (box.minX + box.maxX) / 2, y = (box.minY + box.maxY) / 2, z = (box.minZ + box.maxZ) / 2;

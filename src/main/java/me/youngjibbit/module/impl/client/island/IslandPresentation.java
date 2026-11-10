@@ -1,6 +1,7 @@
 package me.youngjibbit.module.impl.client.island;
 
 import java.util.Locale;
+import me.youngjibbit.notifications.NotificationManager.IslandNotification;
 
 /**
  * Frozen, GL-free content for one Island frame. Rendering never asks a live entity,
@@ -13,6 +14,7 @@ public final class IslandPresentation {
     public final IslandClockFace clockFace;
     public final IslandStateMachine.Scaffold scaffold;
     public final IslandNotice notice;
+    public final IslandNotification notification;
     public final IslandStateMachine.InventoryActivity inventory;
     public final float healthFraction, absorptionFraction;
     public final boolean hasHealthBar, fixtureOnly;
@@ -48,8 +50,17 @@ public final class IslandPresentation {
                                float healthFraction,float absorptionFraction,boolean hasHealthBar,
                                boolean fixtureOnly,String brand,String brandVersion,IslandStateMachine.Scaffold scaffold,
                                IslandClockFace clockFace,IslandNotice notice,IslandStateMachine.InventoryActivity inventory){
+        this(state,title,detail,trailing,healthFraction,absorptionFraction,hasHealthBar,fixtureOnly,
+                brand,brandVersion,scaffold,clockFace,notice,inventory,null);
+    }
+    private IslandPresentation(IslandStateMachine.State state,String title,String detail,String trailing,
+                               float healthFraction,float absorptionFraction,boolean hasHealthBar,
+                               boolean fixtureOnly,String brand,String brandVersion,IslandStateMachine.Scaffold scaffold,
+                               IslandClockFace clockFace,IslandNotice notice,IslandStateMachine.InventoryActivity inventory,
+                               IslandNotification notification){
         this.brand=brand;this.brandVersion=brandVersion;this.scaffold=scaffold;
         this.clockFace=clockFace;this.notice=notice;this.inventory=inventory;
+        this.notification=notification;
         this.state = state;
         this.title = title;
         this.detail = detail;
@@ -62,15 +73,20 @@ public final class IslandPresentation {
 
     /** Preserve event identity and duration while freezing the real current hands for this frame. */
     public IslandPresentation withClockFace(IslandClockFace captured){
-        if(state!=IslandStateMachine.State.CLOCK_REMINDER||captured==null)return this;
+        if(captured==null)return this;
         return new IslandPresentation(state,title,detail,trailing,healthFraction,absorptionFraction,
-                hasHealthBar,fixtureOnly,brand,brandVersion,scaffold,captured,notice,inventory);
+                hasHealthBar,fixtureOnly,brand,brandVersion,scaffold,captured,notice,inventory,notification);
     }
 
     public static IslandPresentation from(IslandStateMachine.Selection selection,
                                           String clientName, String version, String clock,
                                           boolean showName, boolean showVersion, boolean showClock) {
         IslandStateMachine.State state = selection == null ? IslandStateMachine.State.IDLE : selection.state;
+        if(state==IslandStateMachine.State.NOTIFICATION&&selection.notification!=null){
+            IslandNotification n=selection.notification;
+            return new IslandPresentation(state,clean(n.title)+(n.count>1?" ×"+n.count:""),clean(n.message,160),"",
+                    0,0,false,false,"","",null,null,null,null,n);
+        }
         if(selection!=null&&selection.notice!=null&&selection.notice.state==state){
             IslandNotice n=selection.notice;
             return new IslandPresentation(state,clean(n.title),clean(n.detail),"",0,0,false,false,"","",null,null,n);
@@ -127,6 +143,9 @@ public final class IslandPresentation {
     }
 
     private static String clean(String value) {
+        return clean(value,64);
+    }
+    private static String clean(String value,int limit) {
         if (value == null || value.isEmpty()) return "";
         // Never let a data provider inject Minecraft colour formatting or a line break.
         StringBuilder safe = new StringBuilder();
@@ -143,6 +162,6 @@ public final class IslandPresentation {
             if (Character.isISOControl(cp) || cp == '\u00a7') safe.append(' ');
             else safe.appendCodePoint(cp);
         }
-        return IslandLayout.limitText(safe.toString(), 64);
+        return IslandLayout.limitText(safe.toString(), limit);
     }
 }
