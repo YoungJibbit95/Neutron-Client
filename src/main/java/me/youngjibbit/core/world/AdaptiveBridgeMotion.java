@@ -7,6 +7,10 @@ import java.lang.ref.WeakReference;
 /** Scaffold-only mathematics. The host keeps every rotation, input and placement permission. */
 public final class AdaptiveBridgeMotion {
     public enum Mode { ADAPTIVE, GODBRIDGE }
+    /** Urgency of the host's checked placement task; it never grants placement authority. */
+    public enum Task { TRACKING, APPROACH, EDGE, CLUTCH }
+    private static final double MOTION_SECONDS = .05;
+    private static final long MAX_PAUSE_NANOS = 250_000_000L;
     /**
      * Preset fractions of the host yaw/pitch slider base (degrees per 50 ms).
      * The keeping multipliers reproduce the accepted W08 pace exactly, so a
@@ -90,11 +94,46 @@ public final class AdaptiveBridgeMotion {
                     && java.util.Objects.equals(keepingYawTicks, other.keepingYawTicks)
                     && java.util.Objects.equals(keepingPitchTicks, other.keepingPitchTicks);
         }
+
+        /** Degrees/second; emergency presets reserve at most 90/180 degrees per nominal tick. */
+        public double yawSpeed(Task task) {
+            double base = task == Task.TRACKING ? keepingYawSpeed : maxYawSpeed;
+            if (speed == Speed.CUSTOM) return base;
+            return task == Task.CLUTCH ? Math.max(base, 3600)
+                    : task == Task.EDGE ? Math.max(base, 1800) : base;
+        }
+        /** Degrees/second; CUSTOM always retains the configured initial/keeping limits. */
+        public double pitchSpeed(Task task) {
+            double base = task == Task.TRACKING ? keepingPitchSpeed : maxPitchSpeed;
+            return speed != Speed.CUSTOM && (task == Task.EDGE || task == Task.CLUTCH)
+                    ? Math.max(base, 1800) : base;
+        }
     }
 
     public static final class Point {
         public final double x, y, z;
         private Point(double x, double y, double z) { this.x = x; this.y = y; this.z = z; }
+    }
+    /** One task-aware turn proposal, before the manager's final sensitivity quantization. */
+    public static final class Turn {
+        public final double yaw, pitch, yawVelocity, pitchVelocity;
+        public final boolean candidate;
+        private Turn(double yaw, double pitch, double yawVelocity, double pitchVelocity) {
+            this.yaw = yaw; this.pitch = pitch;
+            this.yawVelocity = yawVelocity; this.pitchVelocity = pitchVelocity;
+            candidate = Math.abs(yawVelocity) > 1e-7 || Math.abs(pitchVelocity) > 1e-7;
+        }
+    }
+
+    /** Time continuity belongs to the bridge manoeuvre, not to its next block face. */
+    private static final class TaskTrajectory {
+        final AdaptiveBridgePlanner.Scope scope;
+        final Settings settings;
+        long lastSequence, lastNanos;
+        TaskTrajectory(AdaptiveBridgePlanner.Scope scope, Settings settings, long sequence, long nanos) {
+            this.scope = scope; this.settings = settings;
+            lastSequence = sequence; lastNanos = nanos;
+        }
     }
     /** Weak tombstone: reset releases the active scene without reopening old generations. */
     private static final class Lifetime {
@@ -124,6 +163,7 @@ public final class AdaptiveBridgeMotion {
         AdaptiveBridgePlanner.Face face;
         Point cachedPoint;
         AdaptiveMotionController.Result cachedRotation;
+        Turn cachedTurn;
         Acquisition(AdaptiveBridgePlanner.Scope scope, Object identity, Settings settings,
                     long seed, long ordinal, long sequence, long nanos) {
             this.scope = scope; this.identity = identity; this.settings = settings;
@@ -141,6 +181,7 @@ public final class AdaptiveBridgeMotion {
     private final long seed;
     private Lifetime highest;
     private Acquisition current;
+    private TaskTrajectory taskTrajectory;
     private long ordinal, lastSequence = Long.MIN_VALUE, blockedThrough = Long.MIN_VALUE;
     private boolean retired;
     public AdaptiveBridgeMotion(long seed) { this.seed = seed; }
@@ -208,10 +249,71 @@ public final class AdaptiveBridgeMotion {
         return result;
     }
 
+    /**
+     * A real host motion supplies a nominal 50 ms first-step budget. Looking at a
+     * face does not spend it. Later steps use elapsed motion time, capped at 75 ms;
+     * duplicate callbacks and a new face cannot buy another budget. Safe tracking
+     * eases into the target; an imminent edge or falling catch removes that delay.
+     * Physical motions without a task accrue no credit: resuming after them gets
+     * one nominal step, while a stalled consecutive task is still rejected.
+     * Custom sliders remain hard speed caps, even when a late catch is impossible.
+     */
+    public synchronized Turn advanceTask(AdaptiveBridgePlanner.Scope scope, Object identity,
+            Settings settings, Task task, long sequence, long nanos,
+            double fromYaw, double fromPitch, double targetYaw, double targetPitch, boolean authorized) {
+        Acquisition a = acquire(scope, identity, settings, sequence, nanos, authorized);
+        if (a == null) return null;
+        if (task == null || !finite(fromYaw) || !finite(fromPitch) || !finite(targetYaw)
+                || !finite(targetPitch) || fromPitch < -90 || fromPitch > 90
+                || targetPitch < -90 || targetPitch > 90) {
+            rejectIfCurrent(scope, identity, sequence); return null;
+        }
+        if (a.rotationSequence == sequence) return a.cachedTurn;
+        double dt = MOTION_SECONDS;
+        TaskTrajectory trajectory = taskTrajectory;
+        if (trajectory != null && trajectory.scope.same(scope) && trajectory.settings.same(settings)) {
+            long elapsed = a.lastNanos - trajectory.lastNanos;
+            long motionGap = sequence - trajectory.lastSequence;
+            if (motionGap <= 0 || elapsed < 0 || motionGap == 1 && elapsed >= MAX_PAUSE_NANOS) {
+                rejectIfCurrent(scope, identity, sequence); return null;
+            }
+            dt = motionGap > 1 ? MOTION_SECONDS : Math.min(.075, elapsed * 1e-9);
+        } else {
+            trajectory = new TaskTrajectory(scope, settings, sequence, a.lastNanos);
+            taskTrajectory = trajectory;
+        }
+        double yawError = wrap(wrap(targetYaw) - wrap(fromYaw)), pitchError = targetPitch - fromPitch;
+        double yawCap = settings.yawSpeed(task), pitchCap = settings.pitchSpeed(task);
+        double response = task == Task.TRACKING ? .10 : task == Task.APPROACH ? .04 : 0;
+        double yawStep = taskStep(yawError, yawCap, dt, response);
+        double pitchStep = taskStep(pitchError, pitchCap, dt, response);
+        Turn turn = new Turn(wrap(wrap(fromYaw) + yawStep), fromPitch + pitchStep,
+                dt > 0 ? yawStep / dt : 0, dt > 0 ? pitchStep / dt : 0);
+        trajectory.lastSequence = sequence; trajectory.lastNanos = a.lastNanos;
+        a.rotationSequence = sequence; a.cachedTurn = turn;
+        return turn;
+    }
+
+    private static double taskStep(double error, double speed, double dt, double response) {
+        if (dt <= 0 || Math.abs(error) <= 1e-7) return 0;
+        double remaining = Math.abs(error);
+        double eased = response == 0 ? remaining
+                : Math.max(.2, remaining * -Math.expm1(-dt / response));
+        return Math.copySign(Math.min(remaining, Math.min(speed * dt, eased)), error);
+    }
+
+    /** Read-only validity of the exact task proposal; a cached angle is not an active proposal. */
+    public synchronized boolean isTaskCurrent(AdaptiveBridgePlanner.Scope scope, Object identity, long sequence) {
+        return Thread.currentThread() == owningThread && !retired && current != null
+                && current.scope.same(scope) && current.identity == identity
+                && current.lastSequence == sequence && current.rotationSequence == sequence
+                && current.cachedTurn != null && sequence > blockedThrough;
+    }
+
     /** A rejected movement can restart only on a later physical motion. */
     public synchronized void rejectMotion(long sequence) {
         if (Thread.currentThread() != owningThread || current == null || current.lastSequence != sequence) return;
-        blockedThrough = Math.max(blockedThrough, sequence); current = null;
+        blockedThrough = Math.max(blockedThrough, sequence); current = null; taskTrajectory = null;
     }
     /** Context-query rejection may return after a newer acquisition replaced this one. */
     public synchronized void rejectMotion(AdaptiveBridgePlanner.Scope scope, Object identity, long sequence) {
@@ -222,11 +324,11 @@ public final class AdaptiveBridgeMotion {
     /** Explicit lifecycle invalidation requires a newer host generation to resume. */
     public synchronized boolean reset(AdaptiveBridgePlanner.Scope expected) {
         if (Thread.currentThread() != owningThread || highest == null || !highest.same(expected)) return false;
-        current = null; retired = true; return true;
+        current = null; taskTrajectory = null; retired = true; return true;
     }
     public synchronized void reset() {
         if (Thread.currentThread() != owningThread) return;
-        current = null; retired = true;
+        current = null; taskTrajectory = null; retired = true;
     }
 
     private Acquisition acquire(AdaptiveBridgePlanner.Scope scope, Object identity, Settings settings,
@@ -237,12 +339,13 @@ public final class AdaptiveBridgeMotion {
         if (order < 0 || order == 0 && sequence < lastSequence) return null;
         if (!authorized) { if (order == 0) rejectIfCurrent(scope, identity, sequence); return null; }
         if (order > 0) {
-            highest = new Lifetime(scope); current = null; retired = false;
+            highest = new Lifetime(scope); current = null; taskTrajectory = null; retired = false;
             lastSequence = blockedThrough = Long.MIN_VALUE;
         }
         if (retired || sequence <= blockedThrough) return null;
         if (current != null && (current.identity != identity || !current.settings.same(settings))) {
             if (sequence == current.lastSequence) { rejectMotion(sequence); return null; }
+            if (!current.settings.same(settings)) taskTrajectory = null;
             current = null;
         }
         if (current == null) {
@@ -260,7 +363,7 @@ public final class AdaptiveBridgeMotion {
         if (current != null && current.scope.same(scope) && current.identity == identity
                 && sequence >= current.lastSequence) {
             blockedThrough = Math.max(blockedThrough, sequence); lastSequence = Math.max(lastSequence, sequence);
-            current = null;
+            current = null; taskTrajectory = null;
         }
     }
     private int order(AdaptiveBridgePlanner.Scope scope) {
@@ -289,6 +392,12 @@ public final class AdaptiveBridgeMotion {
         return true;
     }
     private static boolean finite(double value) { return Double.isFinite(value); }
+    private static double wrap(double value) {
+        value %= 360;
+        if (value > 180) value -= 360;
+        if (value <= -180) value += 360;
+        return value;
+    }
     private static boolean positive(double value) { return finite(value) && value > 0; }
     private static double clamp(double value, double min, double max) {
         return Math.max(min, Math.min(max, value));

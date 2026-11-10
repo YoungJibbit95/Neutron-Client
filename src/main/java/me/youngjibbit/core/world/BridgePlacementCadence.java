@@ -142,6 +142,17 @@ public final class BridgePlacementCadence {
      */
     public synchronized Attempt tryConsume(Scope token, Settings current, long opportunity,
                                            long nowNanos, boolean eligible) {
+        return tryConsume(token, current, opportunity, nowNanos, eligible, false);
+    }
+
+    /**
+     * A newly acquired urgent placement may spend its first attempt immediately.
+     * This is one startup opportunity, not an emergency rate override: a failed
+     * controller still consumes it, and every later attempt waits a full interval.
+     * The host must have already checked its current accepted ray and task.
+     */
+    public synchronized Attempt tryConsume(Scope token, Settings current, long opportunity,
+                                           long nowNanos, boolean eligible, boolean immediateFirst) {
         if (!current(token) || opportunity < 0 || opportunity <= lastOpportunity) return null;
         if (!settings.same(current) || nowNanos < lastObservedNanos) {
             deactivate();
@@ -149,7 +160,8 @@ public final class BridgePlacementCadence {
         }
         lastOpportunity = opportunity;
         lastObservedNanos = nowNanos;
-        if (!eligible || elapsed(nowNanos, intervalStartNanos) < intervalNanos) return null;
+        if (!eligible || elapsed(nowNanos, intervalStartNanos) < intervalNanos
+                && !(immediateFirst && attempts == 0)) return null;
         Attempt result = new Attempt(opportunity, nowNanos, intervalNanos, pendingCps);
         attempts++;
         // Schedule from this actual opportunity. Missed windows create no debt.
