@@ -24,7 +24,7 @@
 
 <a name="neutron-client"></a>
 
-# ⚛️ Neutron Client
+# ⚛️ [ALPHA] Neutron Client
 
 A Minecraft **1.8.9** hacked client with a focus on modern and customizable visuals, a good user experience and good performing simple bypasses for most servers.
 
