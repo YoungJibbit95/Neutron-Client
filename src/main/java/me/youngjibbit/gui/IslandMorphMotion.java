@@ -18,6 +18,10 @@ public final class IslandMorphMotion {
 
     public IslandLayout.Frame sample(IslandLayout.Frame desired, float seconds,
                                      boolean enabled, boolean reduced, String intensity) {
+        return sample(desired,seconds,enabled,reduced,intensity,null);
+    }
+    public IslandLayout.Frame sample(IslandLayout.Frame desired,float seconds,boolean enabled,boolean reduced,
+                                     String intensity,me.youngjibbit.module.impl.client.island.IslandStateMachine.State kind){
         MenuMotion preset = "Calm".equals(intensity) ? MenuMotion.CALM
                 : "Expressive".equals(intensity) ? MenuMotion.EXPRESSIVE : MenuMotion.BALANCED;
         // A freshly entered world/viewport starts in a complete readable state.
@@ -35,7 +39,12 @@ public final class IslandMorphMotion {
         // Reduced Motion is an immediately readable static presentation.
         boolean animate = enabled && !reduced;
         float w = width.step(desired.width, dt, animate, false, preset);
-        float h = height.step(desired.height, dt, animate, false, preset);
+        boolean notification=kind==me.youngjibbit.module.impl.client.island.IslandStateMachine.State.NOTIFICATION
+                ||kind==me.youngjibbit.module.impl.client.island.IslandStateMachine.State.POSSIBLE_SETBACK;
+        boolean target=kind==me.youngjibbit.module.impl.client.island.IslandStateMachine.State.TARGET;
+        // The same physical spring retains velocity; downward sheets settle more softly than target acquisition.
+        MenuMotion vertical=notification?MenuMotion.CALM:target&&preset!=MenuMotion.CALM?MenuMotion.EXPRESSIVE:preset;
+        float h = height.step(desired.height,dt*(kind==null?1:notification?.82f:target?1.08f:1.15f),animate,false,vertical);
         float r = radius.step(desired.radius, dt, animate, false, preset);
         float a = opacity.step(desired.opacity, dt, animate, false, preset);
         contentAlpha = content.step(1, dt, animate, false, preset);

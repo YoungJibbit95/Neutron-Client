@@ -22,6 +22,9 @@ import me.youngjibbit.module.impl.client.island.IslandWidget;
 import me.youngjibbit.module.impl.client.island.IslandWidgetLayout;
 import me.youngjibbit.module.impl.client.island.IslandContentKey;
 import me.youngjibbit.module.impl.client.island.IslandExploitGlyph;
+import me.youngjibbit.module.impl.client.island.IslandAttachmentLayout;
+import me.youngjibbit.core.activity.WidgetIncident;
+import me.youngjibbit.core.activity.WidgetIncidentJournal;
 import me.youngjibbit.core.activity.InputClickJournal;
 import me.youngjibbit.notifications.NotificationManager;
 import me.youngjibbit.clickgui.utils.ClipRect;
@@ -76,6 +79,10 @@ public class WatermarkHUDModule extends Module {
     private final IslandPlacementMetrics islandPlacements=new IslandPlacementMetrics();
     private final IslandNoticeFlow islandNotices=new IslandNoticeFlow();
     private final IslandMorphMotion islandMotion=new IslandMorphMotion();
+    private final HudSpring[] islandWidgetOpen={new HudSpring(),new HudSpring(),new HudSpring()};
+    private final HudSpring islandTargetTrail=new HudSpring();
+    private int islandTrailTarget=Integer.MIN_VALUE;
+    private IslandStateMachine.State islandAttachmentKind;
     // Creative N-morph: pulsed by the existing HudSpring oscillator, no parallel motion engine.
     private final HudSpring islandNMorph=new HudSpring();
     private float islandNMorphAmount=0;
@@ -114,15 +121,26 @@ public class WatermarkHUDModule extends Module {
         return "Dynamic Island".equals(m)||"Modern".equals(m)||"Creative".equals(m)||
                 (ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())&&"Glass".equals(m));
     }
-    /** NotificationManager keeps the single queue and falls back immediately if this surface is hidden. */
+    /** The chosen Island route remains exclusive; visibility controls when its one queue may advance. */
     public boolean routesNotificationsToIsland(){
-        return isToggled()&&islandSelected()&&islandNotifications.getValue()&&HUD.visible()
+        return islandNotifications.getValue();
+    }
+    public boolean canPresentIslandNotifications(){
+        return routesNotificationsToIsland()&&isToggled()&&islandSelected()&&HUD.visible()
                 &&mc!=null&&mc.theWorld!=null&&mc.thePlayer!=null&&!mc.skipRenderWorld
                 &&mc.gameSettings!=null&&!mc.gameSettings.hideGUI&&!mc.gameSettings.showDebugInfo
                 &&(mc.currentScreen==null||mc.currentScreen instanceof net.minecraft.client.gui.GuiChat);
     }
     @Subscribe private final Listener<Event2D> onRender2D=new Listener<>(event->{if(!mc.gameSettings.showDebugInfo)renderWatermark();else if(islandActive){resetIsland();surface.close();}});
     @Subscribe private final Listener<me.youngjibbit.event.world.WorldEvent> islandWorldChanged=new Listener<>(event->resetIsland());
+    @Subscribe private final Listener<me.youngjibbit.event.update.EventUpdate> islandVisibility=new Listener<>(event->{
+        if(!canSampleIslandFrames())WidgetIncidentJournal.global().suspendFrames();
+    });
+    private boolean canSampleIslandFrames(){
+        return islandSelected()&&HUD.visible()&&mc.theWorld!=null&&mc.thePlayer!=null&&!mc.skipRenderWorld
+                &&mc.gameSettings!=null&&!mc.gameSettings.hideGUI&&!mc.gameSettings.showDebugInfo
+                &&mc.inGameHasFocus&&mc.currentScreen==null&&!mc.isGamePaused();
+    }
     @Override public void onDisable(){resetIsland();surface.close();textEffects.close();super.onDisable();}
     void renderWatermark(){
         if(!HUD.visible()){resetIsland();surface.close();textEffects.close();return;}
@@ -215,11 +233,19 @@ public class WatermarkHUDModule extends Module {
 
     private void renderIsland(){
         long now=System.nanoTime();
+        WidgetIncidentJournal incidentsJournal=WidgetIncidentJournal.global();
+        me.youngjibbit.core.network.PacketPipeline packetContext=mc.getNetHandler()==null?null:
+                mc.getNetHandler().getNetworkManager().getClientPackets();
+        incidentsJournal.context(mc.theWorld,packetContext,packetContext==null?0:packetContext.getContextVersion());
+        if(islandFpsWidget.getValue()&&canSampleIslandFrames())
+            incidentsJournal.observeFrame(now);else incidentsJournal.suspendFrames();
         if(!islandActive)islandNotices.reset(now,ModuleToggleJournal.currentSequence());
         islandActive=true;
         // World object identity is a scene epoch: entity-id reuse cannot leak old content.
         if(islandWorld!=mc.theWorld){
             islandWorld=mc.theWorld;islandEpoch++;islandState.reset();islandMotion.reset();islandPlacements.reset();
+            islandAttachmentKind=null;islandTargetTrail.reset();islandTrailTarget=Integer.MIN_VALUE;
+            for(HudSpring spring:islandWidgetOpen)spring.reset();
             islandLastSelection=islandPrevious=null;islandLastKey=null;islandLastFrameNanos=0;
             inventoryFixture=null;inventoryFixtureUntil=0;
             islandNotices.reset(now,ModuleToggleJournal.currentSequence());
@@ -247,7 +273,7 @@ public class WatermarkHUDModule extends Module {
         IslandStateMachine.Scaffold scaffoldView=islandScaffoldSnapshot(now);
         final IslandPlacementMetrics.Snapshot placementMetrics=islandPlacements.sample(
                 scaffoldView==null?-1:scaffoldView.placementCount,now);
-        NotificationManager.IslandNotification notification=routesNotificationsToIsland()
+        NotificationManager.IslandNotification notification=canPresentIslandNotifications()
                 ?NotificationManager.islandNotification():null;
         IslandStateMachine.Selection selected=islandState.resolve(islandEpoch,System.nanoTime(),
                 islandTargetSnapshot(),scaffoldView,clockRem,islandInventorySnapshot(now),
@@ -274,15 +300,37 @@ public class WatermarkHUDModule extends Module {
         final boolean creative=designCreative;
         final String paintDesign=creative?"Creative":modern?"Modern":design;
         final boolean outsideWidgets="Outside".equals(islandWidgetPlacement.getValue());
-        final int widgetCount=selected.state==IslandStateMachine.State.IDLE
+        final boolean attached=IslandAttachmentLayout.attached(selected.state);
+        if(attached)islandAttachmentKind=selected.state;
+        final boolean showWidgets=IslandWidgetLayout.visible(selected.state,outsideWidgets);
+        final float islandSeconds=UiEffects.time();
+        final boolean glyphMotion=animations&&!reduced&&UiEffects.motion();
+        final IslandWidget[] widgets=islandWidgets(now,islandSeconds,glyphMotion);
+        final WidgetIncident[] incidents=new WidgetIncident[widgets.length];
+        float[] widgetWidths=new float[widgets.length];
+        for(int i=0;i<widgets.length;i++){
+            IslandWidget.Kind kind=widgets[i].kind;
+            incidents[i]=kind==IslandWidget.Kind.CPS?null:incidentsJournal.latest(
+                    kind==IslandWidget.Kind.FPS?WidgetIncident.Kind.FPS:WidgetIncident.Kind.EXPLOIT,System.nanoTime());
+            float open=islandWidgetOpen[kind.ordinal()].step(incidents[i]==null?0:1,dt,
+                    animations,reduced,kind==IslandWidget.Kind.FPS?"Calm":intensity);
+            if(incidents[i]==null&&Math.abs(open)<.002f)open=islandWidgetOpen[kind.ordinal()].snap(0);
+            widgetWidths[i]=34+Math.max(0,Math.min(1.06f,open))*(kind==IslandWidget.Kind.FPS?158:186);
+        }
+        final int widgetCount=showWidgets
                 ?(islandCpsWidget.getValue()?1:0)+(islandFpsWidget.getValue()?1:0)+(islandExploitWidget.getValue()?1:0):0;
+        final float baseLogicalWidth=IslandWidgetLayout.idleWidth(modern,widgetCount,outsideWidgets);
         IslandLayout.Frame desired=IslandLayout.forState(selected.state,sr.getScaledWidth(),sr.getScaledHeight(),modern);
         if(selected.state==IslandStateMachine.State.IDLE)
-            desired=desired.withGeometry(IslandWidgetLayout.idleWidth(modern,widgetCount,outsideWidgets),
+            desired=desired.withGeometry(baseLogicalWidth,
                     desired.height,desired.radius,desired.opacity);
+        else if(attached)desired=desired.withGeometry(Math.max(desired.width,baseLogicalWidth),desired.height,17,desired.opacity);
         final IslandWidgetLayout widgetLayout=IslandWidgetLayout.capture(
-                islandMotion.sample(desired,dt,animations,reduced,intensity),widgetCount,outsideWidgets);
+                islandMotion.sample(desired,dt,animations,reduced,intensity,selected.state),widgetCount,outsideWidgets,widgetWidths);
         final IslandLayout.Frame frame=widgetLayout.frame;
+        if(!attached&&frame.height<=34.25f)islandAttachmentKind=null;
+        final IslandAttachmentLayout attachment=attached||selected.state==IslandStateMachine.State.IDLE&&islandAttachmentKind!=null
+                ?new IslandAttachmentLayout(frame,baseLogicalWidth,attached?selected.state:islandAttachmentKind,widgetLayout.scale):null;
         // Creative N-morph: driven by the existing HudSpring oscillator.
         islandNMorphAmount=islandNMorph.step(creative?1f:0f,dt,animations&&!reduced,reduced,intensity);
         float mix=islandMotion.contentAlpha();
@@ -304,26 +352,33 @@ public class WatermarkHUDModule extends Module {
         float designOutlineAlpha=(designCreative?.22f:modern?.14f:.48f)*frame.opacity;
         final IslandPresentation present=IslandPresentation.from(selected,clientName,clientVersion,clockText,
                 showName,showVersion,showClock).withClockFace(liveClock);
+        final IslandPresentation basePresent=IslandPresentation.from(null,clientName,clientVersion,clockText,
+                showName,showVersion,showClock).withClockFace(liveClock);
         final IslandPresentation fading=previous==null?null:IslandPresentation.from(previous,
                 clientName,clientVersion,clockText,showName,showVersion,showClock).withClockFace(liveClock);
-        final float islandSeconds=UiEffects.time();
-        final boolean glyphMotion=animations&&!reduced&&UiEffects.motion();
-        final IslandWidget[] widgets=islandWidgets(now,islandSeconds,glyphMotion);
         final IslandScaffoldIndicator scaffoldIndicator=IslandScaffoldIndicator.capture(present.scaffold,
                 islandSeconds,glyphMotion);
         final IslandTargetComposition targetComposition=IslandTargetComposition.capture(present,islandSeconds,glyphMotion);
+        if(selected.target==null){islandTargetTrail.reset();islandTrailTarget=Integer.MIN_VALUE;}
+        else if(islandTrailTarget!=selected.target.entityId){
+            islandTrailTarget=selected.target.entityId;islandTargetTrail.snap(selected.target.fraction());
+        }
+        final float targetTrail=selected.target==null?0:Math.max(selected.target.fraction(),Math.min(1,
+                islandTargetTrail.step(selected.target.fraction(),dt,animations,reduced,"Calm")));
         final float clipInset=Math.min(2,Math.min(frame.width,frame.height)*.08f);
         // A queued bloom pass may outlive a world/mode/visibility change: fence it.
         final long passEpoch=islandEpoch;
         final Object passWorld=mc.theWorld,passPlayer=mc.thePlayer;
         // Reuse the single existing surface and shared halo/blur/RenderState pools.
-        final Runnable drawIsland=()->surface.designedPanel(frame.x,frame.y,frame.width,frame.height,
-                frame.radius,theme,panel,useBlur,useGlow,designBlurRadius,
-                designFillAlpha,designOutlineAlpha,false,
+        final ArrayListSurface.Shape silhouette=attachment!=null
+                ?attachment.silhouette()
+                :ArrayListSurface.Shape.roundedRectangle(frame.x,frame.y,frame.width,frame.height,frame.radius);
+        final Runnable drawIsland=()->surface.islandContour(silhouette,theme,panel,useBlur,useGlow,designBlurRadius,
+                designFillAlpha,designOutlineAlpha,
                 ()->{
                     try(GuiClip clip=GuiClip.push(new ClipRect(frame.x+clipInset,frame.y+clipInset,
                             Math.max(.01f,frame.width-2*clipInset),Math.max(.01f,frame.height-2*clipInset)))){
-                        if(modern&&panel&&present.state!=IslandStateMachine.State.CLOCK_REMINDER
+                        if(attachment==null&&modern&&panel&&present.state!=IslandStateMachine.State.CLOCK_REMINDER
                                 &&present.notice==null&&present.notification==null){
                             // A quiet graphite ink plate: blur/world color remains perceptible,
                             // but high-contrast glyphs no longer blend with bright terrain.
@@ -341,6 +396,24 @@ public class WatermarkHUDModule extends Module {
                                         tint(theme.getSecondaryGradientColor(),.62f*frame.opacity));
                             }
                         }
+                        if(attachment!=null){
+                            paintIslandIdle(basePresent,attachment.base,font,wordmark,theme,frame.opacity,paintDesign,
+                                    widgets,outsideWidgets,modernClock);
+                            float bodyHeight=frame.y+frame.height-attachment.detail.y;
+                            if(attached&&bodyHeight>.01f)try(GuiClip body=GuiClip.push(new ClipRect(attachment.detail.x,
+                                    attachment.detail.y,attachment.detail.width,bodyHeight))){
+                                try(RenderState slide=new RenderState()){
+                                    glTranslatef(0,(1-attachment.reveal)*7,0);
+                                    if(targetComposition!=null)paintIslandTarget(targetComposition,attachment.detail,font,theme,
+                                            frame.opacity*attachment.reveal,targetTrail);
+                                    else if(present.notification!=null)
+                                        paintIslandNotification(present,attachment.detail,font,theme,frame.opacity*attachment.reveal);
+                                    else if(present.notice!=null)
+                                        paintIslandNotice(present,attachment.detail,font,frame.opacity*attachment.reveal);
+                                }
+                            }
+                            return;
+                        }
                         if(fading!=null&&mix<1)paintIsland(fading,frame,font,wordmark,theme,
                                 (1-mix)*frame.opacity,paintDesign,null,null,placementMetrics,widgets,outsideWidgets,modernClock);
                         paintIsland(present,frame,font,wordmark,theme,mix*frame.opacity,paintDesign,scaffoldIndicator,
@@ -353,14 +426,15 @@ public class WatermarkHUDModule extends Module {
             // One captured scene is shared by the capsule and all detached circles.
             surface.withScene(theme,panel,useBlur,designBlurRadius,()->{
                 drawIsland.run();
-                if(outsideWidgets&&present.state==IslandStateMachine.State.IDLE)
+                if(outsideWidgets&&widgetCount>0)
                     for(int i=0;i<widgetLayout.count;i++){
                         final int index=i;
                         float diameter=widgetLayout.diameter;
-                        surface.designedPanel(widgetLayout.x(i),widgetLayout.y,diameter,diameter,diameter/2,
-                                theme,panel,useBlur,useGlow,designBlurRadius,designFillAlpha,designOutlineAlpha,false,
-                                ()->paintIslandWidget(widgets[index],widgetLayout.x(index),widgetLayout.y,
-                                        diameter,theme,mix*frame.opacity,true));
+                        surface.islandContour(ArrayListSurface.Shape.roundedRectangle(widgetLayout.x(i),widgetLayout.y,
+                                        widgetLayout.width(i),diameter,diameter/2),
+                                theme,panel,useBlur,useGlow,designBlurRadius,designFillAlpha,designOutlineAlpha,
+                                ()->paintIslandWidgetBar(widgets[index],incidents[index],widgetLayout.x(index),widgetLayout.y,
+                                        widgetLayout.width(index),diameter,theme,frame.opacity));
                     }
             });
         });
@@ -450,7 +524,10 @@ public class WatermarkHUDModule extends Module {
                 observations[1]=lagRange==null?null:lagRange.getActivitySnapshot();
                 observations[2]=tickbase==null?null:tickbase.getActivitySnapshot();
             }
-            result.add(IslandWidget.exploit(observations,System.nanoTime(),seconds,motion));
+            long capturedAt=System.nanoTime();
+            for(me.youngjibbit.core.activity.ExploitActivitySnapshot observation:observations)
+                WidgetIncidentJournal.global().observeActivity(observation,capturedAt);
+            result.add(IslandWidget.exploit(observations,capturedAt,seconds,motion));
         }
         return result.toArray(new IslandWidget[0]);
     }
@@ -513,7 +590,26 @@ public class WatermarkHUDModule extends Module {
         }
     }
 
+    private void paintIslandWidgetBar(IslandWidget widget,WidgetIncident incident,float x,float y,float width,
+                                      float diameter,Theme theme,float alpha){
+        paintIslandWidget(widget,x,y,diameter,theme,alpha,true);
+        if(incident==null||width<=diameter+4)return;
+        float scale=diameter/34;
+        TTFFontRenderer tiny=Pulsar.INSTANCE.getFontManager().getFont("DmSansMedium 12");
+        try(GuiClip clip=GuiClip.push(new ClipRect(x+diameter,y+2,Math.max(.01f,width-diameter-5),Math.max(.01f,diameter-4)))){
+            try(RenderState state=new RenderState()){
+                glTranslatef(x+diameter+2*scale,y,0);glScalef(scale,scale,1);
+                float available=(width-diameter)/scale-10;
+                int accent=incident.kind==WidgetIncident.Kind.FPS?0xffffcd78:theme.getPrimaryGradientRGB();
+                tiny.drawString(fitIsland(incident.headline+" · "+incident.value,tiny,available),0,5,ink(accent,alpha));
+                String[] detail=wrapIsland(incident.detail,tiny,available,2);
+                for(int i=0;i<detail.length;i++)tiny.drawString(detail[i],0,14+i*8,ink(0xffc5cedc,alpha));
+            }
+        }
+    }
+
     private void paintIslandNotification(IslandPresentation view,IslandLayout.Frame frame,TTFFontRenderer font,Theme theme,float alpha){
+        if(view==null||view.notification==null)return;
         IslandContentLayout canvas=IslandContentLayout.forFrame(frame,view.state);
         me.youngjibbit.notifications.NotificationType type=view.notification.type;
         boolean warning=type==me.youngjibbit.notifications.NotificationType.WARNING;
@@ -593,6 +689,10 @@ public class WatermarkHUDModule extends Module {
     /** Frozen target facts get their own reticle, exact health arcs and separate absorption rail. */
     private void paintIslandTarget(IslandTargetComposition target,IslandLayout.Frame frame,
                                    TTFFontRenderer font,Theme theme,float alpha){
+        paintIslandTarget(target,frame,font,theme,alpha,target.healthFraction);
+    }
+    private void paintIslandTarget(IslandTargetComposition target,IslandLayout.Frame frame,
+                                   TTFFontRenderer font,Theme theme,float alpha,float trailingHealth){
         IslandTargetComposition.Layout layout=new IslandTargetComposition.Layout(frame);
         int health=theme.getPrimaryGradientRGB(),absorption=0xffffcd69;
         try(RenderState state=new RenderState()){
@@ -626,6 +726,9 @@ public class WatermarkHUDModule extends Module {
             float healthY=IslandTargetComposition.Layout.HEALTH_Y,healthHeight=IslandTargetComposition.Layout.HEALTH_HEIGHT;
             UIUtils.drawDecorationRound(x,healthY,width,healthHeight,healthHeight/2,
                     new Color(163,175,192,Math.round(alpha*38)));
+            float trail=Math.max(target.healthWidth,Math.min(width,width*trailingHealth));
+            if(trail>target.healthWidth+.1f)UIUtils.drawDecorationRound(x,healthY,trail,healthHeight,healthHeight/2,
+                    new Color(255,177,112,Math.round(alpha*120)));
             if(target.healthWidth>0)UIUtils.drawGradientHorizontal(x,healthY,target.healthWidth,healthHeight,
                     Math.min(healthHeight/2,target.healthWidth/2),tint(theme.getPrimaryGradientColor(),alpha),
                     tint(theme.getSecondaryGradientColor(),alpha));
@@ -913,6 +1016,9 @@ public class WatermarkHUDModule extends Module {
     }
     private void resetIsland(){
         islandState.reset();islandMotion.reset();islandNMorph.reset();islandPlacements.reset();islandWorld=null;islandEpoch++;
+        islandAttachmentKind=null;islandTargetTrail.reset();islandTrailTarget=Integer.MIN_VALUE;
+        for(HudSpring spring:islandWidgetOpen)spring.reset();
+        WidgetIncidentJournal.global().clear();
         islandNotices.reset(System.nanoTime(),ModuleToggleJournal.currentSequence());
         islandLastFrameNanos=0;islandLastKey=null;islandLastSelection=islandPrevious=null;
         islandActive=false;inventoryFixture=null;inventoryFixtureUntil=0;

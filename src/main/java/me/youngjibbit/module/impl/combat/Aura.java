@@ -150,6 +150,8 @@ public class Aura extends Module {
         rotationSettings.adaptiveSpeedPreset.reset();
         rotationSettings.adaptiveHitpointPreset.reset();
         rotationSettings.adaptiveVariationStrength.reset();
+        rotationSettings.adaptiveAimPoint.reset();
+        rotationSettings.adaptiveKeepAim.reset();
         if(rotationSettings.arsenic() || rotationSettings.adaptive() || rotationSettings.aiLearned())
             rotationSettings.mode.reset();
     }

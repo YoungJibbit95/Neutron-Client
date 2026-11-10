@@ -72,6 +72,9 @@ public final class ArrayListSurface implements AutoCloseable {
         }
         private static float[] lefts(float value,int count){float[] result=new float[count];java.util.Arrays.fill(result,value);return result;}
         public Shape(float[] lefts,float[] tops,float[] bottoms,float[] rights,float radius) {
+            this(lefts,tops,bottoms,rights,radius,.45f);
+        }
+        private Shape(float[] lefts,float[] tops,float[] bottoms,float[] rights,float radius,float cornerLimit) {
             if (tops.length == 0 || tops.length != bottoms.length || tops.length != rights.length || tops.length != lefts.length) throw new IllegalArgumentException("Empty/mismatched bands");
             float min=lefts[0];for(float l:lefts)min=Math.min(min,l);this.left=min;top=tops[0];bottom=bottoms[bottoms.length-1];
             float max=min;
@@ -102,7 +105,7 @@ public final class ArrayListSurface implements AutoCloseable {
                 float[] a=points.get((i+points.size()-1)%points.size()), b=points.get(i), c=points.get((i+1)%points.size());
                 float ax=a[0]-b[0], ay=a[1]-b[1], bx=c[0]-b[0], by=c[1]-b[1];
                 float al=(float)Math.hypot(ax,ay), bl=(float)Math.hypot(bx,by);
-                float r=Math.min(radius,Math.min(al,bl)*0.45f);
+                float r=Math.min(radius,Math.min(al,bl)*cornerLimit);
                 float cx=b[0]+(ax/al+bx/bl)*r, cy=b[1]+(ay/al+by/bl)*r;
                 float qx=b[0]-cx, qy=b[1]-cy;
                 int q=qx>=0 ? (qy>=0?0:3) : (qy>=0?1:2);
@@ -110,6 +113,13 @@ public final class ArrayListSurface implements AutoCloseable {
                 corners[i*4+2]=(-ax*by+ay*bx)>0?r:-r;
                 corners[i*4+3]=q;
             }
+        }
+        /** Exact circular arcs for an isolated Island circle/capsule; legacy band contours keep .45. */
+        public static Shape roundedRectangle(float x,float y,float width,float height,float radius){
+            if(!(width>0)||!(height>0)||!Float.isFinite(width)||!Float.isFinite(height))
+                throw new IllegalArgumentException("positive finite silhouette required");
+            return new Shape(new float[]{x},new float[]{y},new float[]{y+height},new float[]{x+width},
+                    Math.max(0,Math.min(radius,Math.min(width,height)/2)),.5f);
         }
         private Shape(Shape source,float dx,float dy) {
             left=source.left+dx;right=source.right+dx;top=source.top+dy;bottom=source.bottom+dy;
@@ -164,6 +174,11 @@ public final class ArrayListSurface implements AutoCloseable {
         boolean blur,boolean glow,float blurRadius,float fillAlpha,float outlineAlpha,boolean gradientFill,Runnable content){
         if(width<=0||height<=0)return;
         render(new Shape(x,new float[]{y},new float[]{y+height},new float[]{x+width},Math.max(0,Math.min(radius,Math.min(width,height)/2))),theme,background,blur,glow,.75f,blurRadius,fillAlpha,outlineAlpha,gradientFill,content);
+    }
+    /** A single connected Island contour, with the same owned surface/effects as ordinary panels. */
+    public void islandContour(Shape shape,Theme theme,boolean background,boolean blur,boolean glow,
+                              float blurRadius,float fillAlpha,float outlineAlpha,Runnable content){
+        render(shape,theme,background,blur,glow,.75f,blurRadius,fillAlpha,outlineAlpha,false,content);
     }
     private void render(Shape shape,Theme theme,boolean background,boolean blur,boolean glow,float glowAlpha,
                         float blurRadius,float fillAlpha,float outlineAlpha,boolean gradientFill,Runnable text) {

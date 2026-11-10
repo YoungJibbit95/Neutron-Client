@@ -40,6 +40,30 @@ public class IslandNotificationRoutingTest {
         t.advance(Collections.emptyList(),2*SECOND+1,.05f,1,8,1,true,type->false);
         assertNull(t.islandSnapshot());assertTrue(t.pending.isEmpty());
     }
+    @Test public void hiddenIslandFreezesLiveLifetimeAndDoesNotStartPendingMessages(){
+        NotificationManager.Timeline t=new NotificationManager.Timeline();t.route(true,0);
+        t.advance(Arrays.asList(message("A"),message("B")),0,0,1,8,5,false,type->true);
+        long first=t.visible.get(0).id;
+        t.pause(true,SECOND);
+        t.advance(Collections.singletonList(message("C")),40*SECOND,.05f,1,8,5,true,type->true);
+        assertNull(t.islandSnapshot());assertEquals(1,t.visible.size());assertEquals(2,t.pending.size());
+        assertEquals("hidden messages retain four seconds",5*SECOND,t.visible.get(0).expires);
+        t.pause(false,41*SECOND);advance(t,41*SECOND,1);
+        assertEquals(first,t.islandSnapshot().id);assertEquals(45*SECOND,t.islandSnapshot().expiresAtNanos);
+        advance(t,45*SECOND,1);assertEquals("B",t.islandSnapshot().title);
+        assertEquals(50*SECOND,t.islandSnapshot().expiresAtNanos);
+    }
+    @Test public void hiddenIslandStillBoundsCoalescesAndFiltersItsQueue(){
+        NotificationManager.Timeline t=new NotificationManager.Timeline();t.route(true,0);t.pause(true,0);
+        t.advance(Arrays.asList(message("A"),message("B"),message("B"),message("C")),20*SECOND,0,1,2,5,false,type->true);
+        assertTrue(t.visible.isEmpty());assertEquals(2,t.pending.size());assertEquals(2,t.pending.peekFirst().count);
+        t.advance(Collections.emptyList(),25*SECOND,0,1,2,5,false,type->false);
+        assertTrue(t.pending.isEmpty());assertNull(t.islandSnapshot());
+        t.advance(Collections.singletonList(message("D")),30*SECOND,0,1,2,5,false,type->true);
+        t.route(false,40*SECOND);t.pause(false,40*SECOND);advance(t,40*SECOND,3);
+        assertNull(t.islandSnapshot());assertEquals("D",t.visible.get(0).notification.title);
+        assertEquals(45*SECOND,t.visible.get(0).expires);
+    }
     @Test public void producerExpiryIsNotRestartedByIslandEpochOrRepeatedSelection(){
         NotificationManager.IslandNotification n=new NotificationManager.IslandNotification(9,
                 new Notification(NotificationType.WARNING,"Warning","Something happened",0),1,0,5*SECOND,SECOND);

@@ -1434,6 +1434,7 @@ public class EntityRenderer implements IResourceManagerReloadListener
         me.youngjibbit.gui.GuiTransitions.draw();
         // One notification owner after world HUD and the current screen, before frame completion.
         if(!this.mc.skipRenderWorld)me.youngjibbit.notifications.NotificationManager.render();
+        else me.youngjibbit.notifications.NotificationManager.update();
         this.frameFinish();
         this.waitForServerThread();
         Lagometer.updateLagometer();

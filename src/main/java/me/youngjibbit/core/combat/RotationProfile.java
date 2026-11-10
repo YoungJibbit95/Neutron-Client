@@ -15,6 +15,8 @@ public final class RotationProfile {
     public AdaptivePresetMotion.Speed adaptiveSpeed = AdaptivePresetMotion.Speed.BALANCED;
     public AdaptivePresetMotion.Hitpoint adaptiveHitpoint = AdaptivePresetMotion.Hitpoint.STABLE;
     public float adaptiveVariation = .5f;
+    public AdaptivePresetMotion.AimPoint adaptiveAimPoint = AdaptivePresetMotion.AimPoint.STRAIGHT;
+    public boolean adaptiveKeepAim = true;
     public boolean softArsenicMotion;
     public enum HitpointNoise {
         CALM(.45, .25), BALANCED(.85, .48), DYNAMIC(1.4, .8);

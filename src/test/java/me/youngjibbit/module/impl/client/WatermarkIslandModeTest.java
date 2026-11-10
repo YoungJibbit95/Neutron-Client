@@ -7,6 +7,22 @@ import java.lang.reflect.Field;
 import static org.junit.Assert.*;
 
 public class WatermarkIslandModeTest {
+    @Test public void sanitizedEmptyTargetNeverEntersTheNotificationRenderer() throws Exception {
+        me.youngjibbit.module.impl.client.island.IslandStateMachine model=new me.youngjibbit.module.impl.client.island.IslandStateMachine();
+        me.youngjibbit.module.impl.client.island.IslandPresentation target=
+                me.youngjibbit.module.impl.client.island.IslandPresentation.from(model.resolve(1,1,
+                        new me.youngjibbit.module.impl.client.island.IslandStateMachine.Target(2,"§a",10,20,0),
+                        null,true,false),"Neutron","Dev","",true,true,false);
+        assertNull(me.youngjibbit.module.impl.client.island.IslandTargetComposition.capture(target,0,false));
+        assertNull(target.notification);
+        java.lang.reflect.Method render=WatermarkHUDModule.class.getDeclaredMethod("paintIslandNotification",
+                me.youngjibbit.module.impl.client.island.IslandPresentation.class,
+                me.youngjibbit.module.impl.client.island.IslandLayout.Frame.class,
+                me.youngjibbit.utils.font.TTFFontRenderer.class,me.youngjibbit.utils.Theme.class,float.class);
+        render.setAccessible(true);
+        // No frame, font, theme or GL context exists: a non-notification must return before using them.
+        render.invoke(new WatermarkHUDModule(),target,null,null,null,1f);
+    }
     @Test public void appendsModernAndCreativeAfterLegacyChoicesAndRetainsGlassDefault() throws Exception {
         WatermarkHUDModule module = new WatermarkHUDModule();
         Field mode = WatermarkHUDModule.class.getDeclaredField("mode");

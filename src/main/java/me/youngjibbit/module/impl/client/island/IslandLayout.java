@@ -21,9 +21,16 @@ public final class IslandLayout {
         }
 
         private Frame(Frame frame, float left) {
+            this(frame,left,frame.y);
+        }
+        private Frame(Frame frame,float left,float top){
+            this(frame,left,top,true);
+        }
+        private Frame(Frame frame,float left,float top,boolean clipPosition){
             viewportWidth=frame.viewportWidth;viewportHeight=frame.viewportHeight;
             width=frame.width;height=frame.height;radius=frame.radius;opacity=frame.opacity;
-            x=clamp(left,0,viewportWidth-width);y=frame.y;
+            x=clipPosition?clamp(left,0,viewportWidth-width):left;
+            y=clipPosition?clamp(top,0,viewportHeight-height):top;
         }
 
         /** Retargetable geometry centered at the same safe-area anchor. */
@@ -35,12 +42,15 @@ public final class IslandLayout {
         public Frame shiftHorizontally(float delta) {
             return new Frame(this,x+finite(delta,0));
         }
+        public Frame region(float left,float top,float width,float height,float radius){
+            return new Frame(withGeometry(width,height,radius,opacity),left,top,false);
+        }
     }
 
     public static Frame forState(IslandStateMachine.State state, int width, int height) {
         if (state == null) state = IslandStateMachine.State.IDLE;
         switch (state) {
-            case TARGET: return new Frame(width, height, 280, 56, 20, 1);
+            case TARGET: return new Frame(width, height, 280, 90, 17, 1);
             case SCAFFOLD: return new Frame(width, height, 224, 46, 17, .98f);
             case MODULE_TOAST: case POSSIBLE_SETBACK: case NOTIFICATION: return noticeFrame(state,width,height);
             case CLOCK_REMINDER: return clockFrame(width,height);
@@ -59,7 +69,7 @@ public final class IslandLayout {
         if(!modern)return forState(state,width,height);
         if(state==null)state=IslandStateMachine.State.IDLE;
         switch(state){
-            case TARGET:return new Frame(width,height,266,52,17,1);
+            case TARGET:return new Frame(width,height,266,86,17,1);
             case SCAFFOLD:return new Frame(width,height,224,46,17,1);
             case MODULE_TOAST:case POSSIBLE_SETBACK:case NOTIFICATION:return noticeFrame(state,width,height);
             case CLOCK_REMINDER:return clockFrame(width,height);
@@ -77,7 +87,8 @@ public final class IslandLayout {
     }
 
     private static Frame noticeFrame(IslandStateMachine.State state,int width,int height){
-        return new Frame(width,height,IslandContentLayout.width(state),IslandContentLayout.height(state),
+        return new Frame(width,height,IslandContentLayout.width(state),IslandContentLayout.height(state)
+                +(IslandAttachmentLayout.attached(state)?34:0),
                 state==IslandStateMachine.State.POSSIBLE_SETBACK?14:19,1);
     }
 

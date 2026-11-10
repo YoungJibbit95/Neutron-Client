@@ -1131,7 +1131,7 @@ public final class RotationManager {
         state.softVisible = visible && profile.arsenic != RotationProfile.ArsenicMode.OFF && profile.softArsenicMotion;
         AxisAlignedBB box=target.getEntityBoundingBox();
         Vec3 feet=new Vec3(mc.thePlayer.posX,mc.thePlayer.posY,mc.thePlayer.posZ);
-        if(!visible && (profile.arsenic!=RotationProfile.ArsenicMode.OFF || profile.smartAim || profile.stopOnTarget || profile.heuristics))feet=mc.thePlayer.getPlannedMovementPosition(feet.xCoord,feet.yCoord,feet.zCoord);
+        if(!visible && (profile.adaptive || profile.arsenic!=RotationProfile.ArsenicMode.OFF || profile.smartAim || profile.stopOnTarget || profile.heuristics))feet=mc.thePlayer.getPlannedMovementPosition(feet.xCoord,feet.yCoord,feet.zCoord);
         Vec3 eyes=feet.addVector(0,mc.thePlayer.getEyeHeight(),0);
         float fromYaw=visible?cameraYaw:collecting?baseYaw:state.active?state.yaw:cameraYaw;
         float fromPitch=visible?cameraPitch:collecting?basePitch:state.active?state.pitch:cameraPitch;
@@ -1139,7 +1139,7 @@ public final class RotationManager {
             if(!"aura".equals(source) || visible) {state.invalidateAi();return null;}
             return aiRotations(state,target,box,eyes,profile,fromYaw,fromPitch);
         }
-        if(profile.stopOnTarget && rays.canHitFrom(feet,target,fromYaw,fromPitch,profile.reach,profile.throughWalls)) {
+        if(!profile.adaptive && profile.stopOnTarget && rays.canHitFrom(feet,target,fromYaw,fromPitch,profile.reach,profile.throughWalls)) {
             state.invalidateAdaptive();
             state.arsenic.reset();
             if(profile.speedCurve==RotationProfile.SpeedCurve.BEZIER) {
@@ -1336,23 +1336,36 @@ public final class RotationManager {
             state.invalidateAdaptive();
             return new float[]{fromYaw,fromPitch};
         }
+        final long suspension=observation.getObservedSuspensionRevision();
+        final boolean acquire=state.adaptiveToken==null || state.adaptiveTarget.get()!=target
+                || state.adaptiveScene==null || !state.adaptiveScene.sameSceneAs(scene)
+                || state.adaptiveSuspension!=suspension;
+        // A target change cannot perform another aim search or acquisition after
+        // this physical sequence has already spent its motion budget.
+        if(acquire && state.adaptiveLastSequence==sequence) {
+            state.invalidateAdaptive();
+            state.adaptiveBlockedSequence=sequence;
+            return new float[]{fromYaw,fromPitch};
+        }
+        // Demise's update-on-miss idea is bound to this exact target, current
+        // scene and the existing range/obstruction checks. Holding still consumes
+        // the normal motion clock below; it cannot accumulate a later turn burst.
+        boolean keepAim=(profile.adaptiveKeepAim || profile.stopOnTarget)
+                && rays.canHitFrom(feet,target,fromYaw,fromPitch,profile.reach,profile.throughWalls);
         Vec3 point=baseAimPoint(target,bestHitVec,box);
-        if(profile.smartAim || profile.heuristics)
+        if(!keepAim && profile.adaptiveAimPoint!=AdaptivePresetMotion.AimPoint.LEGACY) {
+            double[] anchor=AdaptivePresetMotion.aimPoint(profile.adaptiveAimPoint,
+                    eyes.xCoord,eyes.yCoord,eyes.zCoord,box.minX,box.minY,box.minZ,box.maxX,box.maxY,box.maxZ);
+            if(anchor!=null)point=new Vec3(anchor[0],anchor[1],anchor[2]);
+        }
+        if(!keepAim && (profile.smartAim || profile.heuristics || !hitsPoint(rays,feet,target,point,profile)))
             point=visibleAimPoint(target,box,point,feet,fromYaw,fromPitch,profile,rays);
         if(point==null || !observation.isCurrent(scene)) {
             state.invalidateAdaptive();
             return null;
         }
         final long now=curveMotionTime();
-        final long suspension=observation.getObservedSuspensionRevision();
-        if(state.adaptiveToken==null || state.adaptiveTarget.get()!=target
-                || state.adaptiveScene==null || !state.adaptiveScene.sameSceneAs(scene)
-                || state.adaptiveSuspension!=suspension) {
-            if(state.adaptiveLastSequence==sequence) {
-                state.invalidateAdaptive();
-                state.adaptiveBlockedSequence=sequence;
-                return new float[]{fromYaw,fromPitch};
-            }
+        if(acquire) {
             state.invalidateAdaptive();
             if(state.adaptive==null) {
                 state.adaptive=new AdaptiveMotionController(state.adaptiveSeed, preset.limits());
@@ -1377,12 +1390,12 @@ public final class RotationManager {
                 box.minX,box.minY,box.minZ,box.maxX,box.maxY,box.maxZ,
                 elapsed * 1e-9);
         if(hit==null) { state.invalidateAdaptive(); return null; }
-        if(preset.hitpoint!=AdaptivePresetMotion.Hitpoint.STABLE) {
+        if(!keepAim && preset.hitpoint!=AdaptivePresetMotion.Hitpoint.STABLE) {
             Vec3 candidate=new Vec3(hit[0],hit[1],hit[2]);
             // Preserve the original raycast/visibility policy: an invalid point is never sent.
             if(hitsPoint(rays,feet,target,candidate,profile)) point=candidate;
         }
-        final float[] desired=angles(eyes,point);
+        final float[] desired=keepAim?new float[]{fromYaw,fromPitch}:angles(eyes,point);
         AdaptiveMotionController.Result result=state.adaptive.advance(state.adaptiveToken,sequence,
                 elapsed,fromYaw,fromPitch,desired[0],desired[1],true);
         state.adaptiveLastSequence=sequence;

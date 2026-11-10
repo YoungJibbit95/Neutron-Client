@@ -136,12 +136,17 @@ public final class PacketPipeline {
             try {
                 me.youngjibbit.module.impl.render.Diagnostics.CorrectionProbe receivedCorrection = packet instanceof S08PacketPlayerPosLook
                         ? me.youngjibbit.module.impl.render.Diagnostics.captureCorrection((S08PacketPlayerPosLook)packet,this,silent) : null;
+                me.youngjibbit.core.activity.WidgetIncidentObservations.CorrectionProbe receivedWidgetCorrection = packet instanceof S08PacketPlayerPosLook
+                        ? me.youngjibbit.core.activity.WidgetIncidentObservations.captureCorrection(this,silent) : null;
                 // Corrections/lifecycle must discard obsolete movement before callbacks can release it.
                 if (packet instanceof S08PacketPlayerPosLook || packet instanceof S40PacketDisconnect
                         || packet instanceof S06PacketUpdateHealth && ((S06PacketUpdateHealth)packet).getHealth() <= 0) discardDelayed();
                 long attemptedScene = appliedScene;
                 Packet<?> selected = select(packet, EventFlow.INBOUND, silent);
                 if (selected == null || !isActive() || !handlerValid.getAsBoolean() || attemptedScene != appliedScene) return;
+                final me.youngjibbit.core.activity.WidgetIncidentObservations.CorrectionProbe widgetCorrection = selected == packet
+                        ? receivedWidgetCorrection : selected instanceof S08PacketPlayerPosLook
+                        ? me.youngjibbit.core.activity.WidgetIncidentObservations.captureCorrection(this,silent) : null;
                 // Listeners may replace a movement packet with a correction/lifecycle packet.
                 if (selected instanceof S08PacketPlayerPosLook || selected instanceof S40PacketDisconnect
                         || selected instanceof S01PacketJoinGame || selected instanceof S07PacketRespawn
@@ -174,6 +179,7 @@ public final class PacketPipeline {
                                 && applicationScene == appliedScene, () -> {
                             positionApplied.run();
                             me.youngjibbit.module.impl.render.Diagnostics.appliedCorrection(diagnosticCorrection);
+                            me.youngjibbit.core.activity.WidgetIncidentObservations.appliedCorrection(widgetCorrection);
                             appliedInbound.accept(selected);
                             if (!silent) post(selected, EventFlow.INBOUND, EventPhase.POST);
                         });

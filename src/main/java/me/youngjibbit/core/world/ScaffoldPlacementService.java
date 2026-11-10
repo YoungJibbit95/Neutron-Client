@@ -262,6 +262,25 @@ public final class ScaffoldPlacementService {
         return fallback!=null?fallback:isValid(target)?target:null;
     }
 
+    /** Acquire the movement-relative diagonal pose once; later frames retain the accepted ray. */
+    public PlacementTarget movementGodbridgeHit(PlacementTarget target,Vec3 eyes,
+            AdaptiveBridgePlanner.Frame frame,float referenceYaw,float referencePitch,float sensitivity) {
+        if(frame==null || eyes==null || !isValid(target))return null;
+        double heading=ScaffoldRotationPlan.godbridgeMovementYaw(frame.feetX,frame.feetZ,
+                frame.yaw,frame.forward,frame.strafe);
+        AxisAlignedBB bounds=access.supportBounds(target.getBlockPos());
+        Vec3 point=ScaffoldRotationPlan.godbridgeFacePoint(bounds,target.getFacing(),eyes,heading,75.7,75.7);
+        if(point!=null) {
+            PlacementTarget candidate=target.withHit(point);
+            if(isValid(candidate)) {
+                PlacementTarget grid=gridSafeBridgeHit(candidate,eyes,referenceYaw,referencePitch,sensitivity);
+                if(grid!=null)return grid;
+            }
+        }
+        // Unusual supports and recovery retain the existing checked geometric fallback.
+        return stabilizeBridgeHit(target,eyes,referenceYaw,referencePitch,true,sensitivity);
+    }
+
     /**
      * A near-corner point can round onto the top face at steep pitch. Check the
      * actual mouse grid before offering that point. At most nine adjacent counts

@@ -25,6 +25,24 @@ public final class AdaptivePresetMotion {
         }
     }
 
+    public enum AimPoint { STRAIGHT, NEAREST, LEGACY }
+
+    /**
+     * Demise's Straight anchor keeps horizontal box centre and a useful torso-to-eye
+     * height. Nearest minimizes the correction distance. Neither expands the hitbox.
+     */
+    public static double[] aimPoint(AimPoint style,double eyeX,double eyeY,double eyeZ,
+            double minX,double minY,double minZ,double maxX,double maxY,double maxZ) {
+        if(style==null || style==AimPoint.LEGACY || !Double.isFinite(eyeX) || !Double.isFinite(eyeY)
+                || !Double.isFinite(eyeZ) || !finiteBox(minX,maxX) || !finiteBox(minY,maxY)
+                || !finiteBox(minZ,maxZ))return null;
+        double ix=(maxX-minX)*.001,iy=(maxY-minY)*.001,iz=(maxZ-minZ)*.001;
+        if(style==AimPoint.STRAIGHT)return new double[]{minX+(maxX-minX)*.5,
+                clamp(eyeY,minY+(maxY-minY)*.45,maxY-iy),minZ+(maxZ-minZ)*.5};
+        return new double[]{clamp(eyeX,minX+ix,maxX-ix),clamp(eyeY,minY+iy,maxY-iy),
+                clamp(eyeZ,minZ+iz,maxZ-iz)};
+    }
+
     /** A snapshot; changing it requires a fresh rotation acquisition. */
     public static final class Configuration {
         public final Speed speed;

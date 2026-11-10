@@ -41,10 +41,15 @@ public final class NotificationManager {
         WatermarkHUDModule watermark=Pulsar.INSTANCE.getMm()==null?null:
                 (WatermarkHUDModule)Pulsar.INSTANCE.getMm().getModule(WatermarkHUDModule.class);
         islandRoute=watermark!=null&&watermark.routesNotificationsToIsland();
-        ScaledResolution sr=new ScaledResolution(mc);
-        int visible=islandRoute?1:Math.min(c==null?3:c.notificationVisible.getValue().intValue(),Math.max(1,(sr.getScaledHeight()-16)/84));
-        // Switching presentation preserves live cards and their remaining display time.
+        int visible=1;
+        if(!islandRoute){
+            ScaledResolution sr=new ScaledResolution(mc);
+            visible=Math.min(c==null?3:c.notificationVisible.getValue().intValue(),Math.max(1,(sr.getScaledHeight()-16)/84));
+        }
+        // The selected destination and its temporary visibility are separate. Hidden Island
+        // messages retain their remaining display time instead of leaking into ordinary cards.
         timeline.route(islandRoute,now);
+        timeline.pause(islandRoute&&!watermark.canPresentIslandNotifications(),now);
         timeline.advance(drain(),now,dt,visible,c==null?32:c.notificationQueue.getValue().intValue(),c==null?5:c.notificationDuration.getValue().floatValue(),UiEffects.motion(),type->allowed(c,type));
     }
     /** One immutable copy of the ordinary-card timeline: no second inbox or expiry clock. */
@@ -149,8 +154,9 @@ public final class NotificationManager {
     static final class Timeline {
         final List<Entry> visible=new ArrayList<>();final Deque<Entry> pending=new ArrayDeque<>();long now;float dt;
         private long nextId;
-        private boolean island;
-        void clear(){visible.clear();pending.clear();island=false;}
+        private boolean island,paused;
+        private long pausedAt;
+        void clear(){visible.clear();pending.clear();island=false;paused=false;pausedAt=0;}
         void route(boolean toIsland,long now){
             if(island==toIsland)return;
             island=toIsland;
@@ -161,24 +167,33 @@ public final class NotificationManager {
                 if(entry.parkedRemaining>0)pending.addFirst(entry);
             }
         }
+        void pause(boolean value,long now){
+            if(paused==value)return;
+            if(value){paused=true;pausedAt=now;return;}
+            long elapsed=Math.max(0,now-pausedAt);
+            for(Entry entry:visible){entry.started+=elapsed;entry.expires+=elapsed;}
+            paused=false;pausedAt=0;
+        }
         IslandNotification islandSnapshot(){
-            if(!island||visible.isEmpty())return null;
+            if(!island||paused||visible.isEmpty())return null;
             Entry entry=visible.get(0);
             return now>=entry.expires?null:new IslandNotification(entry.id,entry.notification,entry.count,entry.started,entry.expires,now);
         }
         void advance(List<Message> messages,long now,float dt,int maxVisible,int maxPending,float duration,boolean motion,Predicate<NotificationType> allowed){
-            this.now=now;this.dt=dt;
+            final long at=paused?pausedAt:now;
+            this.now=at;this.dt=dt;
             for(Message message:messages){
                 if(!allowed.test(message.notification.type))continue;
                 Entry match=null;for(Entry e:visible)if(e.notification.key().equals(message.notification.key()))match=e;
                 if(match==null)for(Entry e:pending)if(e.notification.key().equals(message.notification.key()))match=e;
-                if(match!=null){match.count=Math.min(999,match.count+message.count);if(visible.contains(match))match.expires=Math.min(match.started+30000000000L,now+seconds(match,duration));}
+                if(match!=null){match.count=Math.min(999,match.count+message.count);if(visible.contains(match))match.expires=Math.min(match.started+30000000000L,at+seconds(match,duration));}
                 else{if(pending.size()>=maxPending)pending.removeFirst();Entry entry=new Entry(message);entry.id=++nextId;pending.addLast(entry);}
             }
             pending.removeIf(e->!allowed.test(e.notification.type));while(pending.size()>maxPending)pending.removeFirst();
-            for(int i=0;i<visible.size();i++){Entry e=visible.get(i);if(i>=maxVisible||!allowed.test(e.notification.type))e.expires=Math.min(now,e.expires);boolean leaving=now>=e.expires;float target=leaving?0:1;e.alpha+=(target-e.alpha)*(motion&&!island?1-(float)Math.exp(-dt*16):1);}
-            visible.removeIf(e->now>=e.expires&&e.alpha<.01f);
-            while(visible.size()<maxVisible&&!pending.isEmpty()){Entry e=pending.removeFirst();e.started=now;e.expires=now+(e.parkedRemaining>=0?e.parkedRemaining:seconds(e,duration));e.parkedRemaining=-1;e.alpha=motion&&!island?0:1;visible.add(e);}
+            if(paused){visible.removeIf(e->!allowed.test(e.notification.type));return;}
+            for(int i=0;i<visible.size();i++){Entry e=visible.get(i);if(i>=maxVisible||!allowed.test(e.notification.type))e.expires=Math.min(at,e.expires);boolean leaving=at>=e.expires;float target=leaving?0:1;e.alpha+=(target-e.alpha)*(motion&&!island?1-(float)Math.exp(-dt*16):1);}
+            visible.removeIf(e->at>=e.expires&&e.alpha<.01f);
+            while(visible.size()<maxVisible&&!pending.isEmpty()){Entry e=pending.removeFirst();e.started=at;e.expires=at+(e.parkedRemaining>=0?e.parkedRemaining:seconds(e,duration));e.parkedRemaining=-1;e.alpha=motion&&!island?0:1;visible.add(e);}
         }
         private long seconds(Entry e,float duration){return (long)((e.notification.seconds>0?e.notification.seconds:duration)*1000000000L);}
     }
