@@ -3,7 +3,6 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.OpenGlHelper;
-import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.*;
 import java.nio.*;
 import static org.lwjgl.opengl.GL11.*;
@@ -13,20 +12,22 @@ public final class RenderState implements AutoCloseable {
         final boolean fog=glIsEnabled(GL_FOG);
         final boolean stencil=glIsEnabled(GL_STENCIL_TEST);
         final boolean scissor=glIsEnabled(GL_SCISSOR_TEST);
-        final IntBuffer scissorBox=BufferUtils.createIntBuffer(16);
         final int matrix=glGetInteger(GL_MATRIX_MODE), active=glGetInteger(GL13.GL_ACTIVE_TEXTURE);
         final boolean blend=glIsEnabled(GL_BLEND), depth=glIsEnabled(GL_DEPTH_TEST), alpha=glIsEnabled(GL_ALPHA_TEST), lighting=glIsEnabled(GL_LIGHTING);
         final boolean rescale=glIsEnabled(GL12.GL_RESCALE_NORMAL), normalize=glIsEnabled(GL_NORMALIZE), material=glIsEnabled(GL_COLOR_MATERIAL), cull=glIsEnabled(GL_CULL_FACE), depthWrite=glGetBoolean(GL_DEPTH_WRITEMASK);
-        final boolean[] lights=new boolean[8];
         final int depthFunction=glGetInteger(GL_DEPTH_FUNC), alphaFunction=glGetInteger(GL_ALPHA_TEST_FUNC), shade=glGetInteger(GL_SHADE_MODEL), materialFace=glGetInteger(GL_COLOR_MATERIAL_FACE), materialMode=glGetInteger(GL_COLOR_MATERIAL_PARAMETER);
         final float alphaReference=glGetFloat(GL_ALPHA_TEST_REF);
         final int src=glGetInteger(GL14.GL_BLEND_SRC_RGB), dst=glGetInteger(GL14.GL_BLEND_DST_RGB), srcA=glGetInteger(GL14.GL_BLEND_SRC_ALPHA), dstA=glGetInteger(GL14.GL_BLEND_DST_ALPHA);
         // Vanilla living brightness uses unit 2, menu samplers use 3, bloom exclusion uses 16.
-        final int[] units={GL13.GL_TEXTURE0,GL13.GL_TEXTURE1,GL13.GL_TEXTURE2,GL13.GL_TEXTURE3,GL13.GL_TEXTURE16};
-        final int[] binding=new int[units.length]; final boolean[] texture=new boolean[units.length];
-        final FloatBuffer savedProjection=BufferUtils.createFloatBuffer(16), savedModel=BufferUtils.createFloatBuffer(16);
-        final FloatBuffer color=BufferUtils.createFloatBuffer(16), clear=BufferUtils.createFloatBuffer(16);
-        final ByteBuffer mask=BufferUtils.createByteBuffer(16);
+        private static final int[] units={GL13.GL_TEXTURE0,GL13.GL_TEXTURE1,GL13.GL_TEXTURE2,GL13.GL_TEXTURE3,GL13.GL_TEXTURE16};
+        private final RenderStateBuffers buffers=RenderStateBuffers.acquire();
+        final IntBuffer scissorBox=buffers.scissor;
+        final boolean[] lights=buffers.lights;
+        final int[] binding=buffers.bindings; final boolean[] texture=buffers.textures;
+        final FloatBuffer savedProjection=buffers.projection, savedModel=buffers.model;
+        final FloatBuffer color=buffers.color, clear=buffers.clear;
+        final ByteBuffer mask=buffers.mask;
+        private boolean closed;
         public RenderState() {
             for(int i=0;i<8;i++)lights[i]=glIsEnabled(GL_LIGHT0+i);
             glGetInteger(GL_SCISSOR_BOX,scissorBox);
@@ -49,8 +50,21 @@ public final class RenderState implements AutoCloseable {
             switch(api){case 0:return GL30.glIsFramebuffer(id);case 1:return ARBFramebufferObject.glIsFramebuffer(id);case 2:return EXTFramebufferObject.glIsFramebufferEXT(id);default:return false;}
         }
         @Override public void close() {
+            if(closed)return;
+            closed=true;
+            try {
+                restore();
+            } finally {
+                RenderStateBuffers.release(buffers);
+            }
+        }
+        private void restore() {
             glMatrixMode(GL_MODELVIEW);glLoadMatrix(savedModel);glMatrixMode(GL_PROJECTION);glLoadMatrix(savedProjection);glMatrixMode(matrix);
             int target=validFramebuffer();
+            // Some compatibility drivers recreate a deleted texture name while
+            // popping GL_TEXTURE_BIT. Check before that pop can make it look alive.
+            int deletedTextures=0;
+            for(int i=0;i<units.length;i++)if(binding[i]!=0&&!glIsTexture(binding[i]))deletedTextures|=1<<i;
             // A deleted offscreen target may have saved COLOR_ATTACHMENT draw/read buffers.
             // Those cannot be popped onto the default framebuffer. Use a fresh temporary
             // object for that pop rather than implicitly recreating the stale name.
@@ -59,6 +73,9 @@ public final class RenderState implements AutoCloseable {
                 OpenGlHelper.glBindFramebuffer(OpenGlHelper.GL_FRAMEBUFFER,scratch!=0?scratch:target);
                 GL20.glUseProgram(program==0||GL20.glIsProgram(program)?program:0);
                 glPopAttrib();
+                if(deletedTextures!=0)for(int i=0;i<units.length;i++)if((deletedTextures&(1<<i))!=0){
+                    GlStateManager.deleteTexture(binding[i]);binding[i]=0;
+                }
             } finally {
                 OpenGlHelper.glBindFramebuffer(OpenGlHelper.GL_FRAMEBUFFER,target);
                 if(scratch!=0)OpenGlHelper.glDeleteFramebuffers(scratch);
@@ -81,7 +98,7 @@ public final class RenderState implements AutoCloseable {
             GlStateManager.clearColor(clear.get(0),clear.get(1),clear.get(2),clear.get(3));
             for (int i=0;i<units.length;i++) {
                 GlStateManager.setActiveTexture(units[i]); GL13.glActiveTexture(units[i]);
-                int saved=binding[i]==0||glIsTexture(binding[i])?binding[i]:0;GlStateManager.bindTexture(saved); glBindTexture(GL_TEXTURE_2D,saved);
+                int saved=binding[i];GlStateManager.bindTexture(saved); glBindTexture(GL_TEXTURE_2D,saved);
                 if (texture[i]) GlStateManager.enableTexture2D(); else GlStateManager.disableTexture2D();
             }
             GlStateManager.setActiveTexture(active); GL13.glActiveTexture(active);

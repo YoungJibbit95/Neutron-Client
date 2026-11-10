@@ -1,0 +1,106 @@
+name: Native render performance
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - 'src/main/java/me/youngjibbit/utils/**'
+      - 'src/main/java/me/youngjibbit/theme/ThemeCatalog.java'
+      - 'src/main/java/net/minecraft/client/shader/Framebuffer.java'
+      - 'src/test/java/me/youngjibbit/module/impl/render/**'
+      - 'src/test/java/me/youngjibbit/utils/font/**'
+      - '.github/scripts/*render_performance.py'
+      - '.github/workflows/render-performance.yml'
+  workflow_dispatch:
+    inputs:
+      baseline:
+        description: Full baseline commit SHA with unchanged resources and dependencies
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: render-performance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-render:
+    name: Native render / exact pixels and performance evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.baseline }}
+      LIBGL_ALWAYS_SOFTWARE: '1'
+      GALLIUM_DRIVER: llvmpipe
+      LP_NUM_THREADS: '2'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - name: Checkout tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Fetch the exact comparison baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$BASE_SHA" =~ ^[0-9a-fA-F]{40}$ ]] && [[ "$BASE_SHA" != 0000000000000000000000000000000000000000 ]]
+          git fetch --no-tags --depth=1 origin "$BASE_SHA"
+
+      - name: Temurin 8u482
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '8.0.482+8'
+          architecture: x64
+          check-latest: false
+
+      - name: Maven 3.9.15 (verified Apache archive)
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/apache-maven-3.9.15-bin.zip"
+          curl --fail --location --retry 2 --max-time 120 'https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.15/apache-maven-3.9.15-bin.zip' --output "$archive"
+          printf '%s  %s\n' '251c676eb88684d6dd86c666817979d256a335c31ad34ab0e1df17eeca1cd504a6c890e906a46d04e51cc7a4fb02f33a75971ef750558034e0a81c257be02267' "$archive" | sha512sum --check -
+          unzip -q "$archive" -d "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/apache-maven-3.9.15/bin" >> "$GITHUB_PATH"
+
+      - name: Install offscreen OpenGL and font dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -q
+          # LWJGL 2 starts `xrandr -q` during Display class initialization, even
+          # for Pbuffers; the libxrandr2 shared library does not provide that CLI.
+          sudo apt-get install -y --no-install-recommends xvfb xauth x11-xserver-utils mesa-utils libgl1-mesa-dri libxrandr2 libxcursor1 libxinerama1 libxi6 libxxf86vm1 fonts-dejavu-core
+
+      - name: Compile production and native regression harnesses
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p target/render-performance
+          java -version
+          mvn -B -ntp -Dstyle.color=never -DskipTests test-compile org.apache.maven.plugins:maven-dependency-plugin:3.11.0:build-classpath -Dmdep.outputFile=target/render-classpath.txt 2>&1 | tee target/render-performance/maven-compile.log
+
+      - name: Compare four balanced baseline and current JVM pairs
+        shell: bash
+        run: |
+          set -euo pipefail
+          xvfb-run -a -s '-screen 0 1280x960x24 +extension GLX +render -noreset' \
+            python3 -B .github/scripts/check_render_performance.py --base "$BASE_SHA" --classpath target/render-classpath.txt --output target/render-performance \
+              --pairs 4 --warmup 60 --samples 90
+
+      - name: Retain pixel, timing and native regression evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: render-performance-${{ github.event.pull_request.number || github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/render-performance/**/*.json
+            target/render-performance/**/*.log
+            target/render-performance/**/*.png
+            target/render-performance/**/*.rgba
+          if-no-files-found: warn
+          retention-days: 14

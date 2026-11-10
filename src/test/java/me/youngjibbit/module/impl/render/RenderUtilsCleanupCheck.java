@@ -218,7 +218,7 @@ public final class RenderUtilsCleanupCheck {
   RenderDiagnostics.reset();Stream bad=new Stream("not GLSL"),good=new Stream("#version 120\nvoid main(){gl_Position=ftransform();}");
   try{new ShaderUtil(bad,good);throw new AssertionError("Invalid shader accepted");}catch(IllegalStateException expected){}
   SessionInfoRenderCheck.require(bad.closed&&good.closed&&RenderDiagnostics.programCreates==RenderDiagnostics.programDeletes&&RenderDiagnostics.shaderCompiles==RenderDiagnostics.shaderDeletes,"Failed shader ownership leak");
-  checkMenuResources();checkGaussian();checkSceneBatch();checkMaskGlow();checkStencil();BloomMaskBatchCheck.run();
+  checkMenuResources();checkGaussian();checkSceneBatch();checkMaskGlow();checkStencil();BloomMaskBatchCheck.run();ShaderPerformanceCheck.run();
   RenderDiagnostics.enabled=false;SessionInfoRenderCheck.require(glGetError()==GL_NO_ERROR,"Shader cleanup GL error");System.out.println("PASS: shader UV/dimensions, stream/program ownership, native/six menu resources and warm reuse, shared Gaussian state, stencil masks/resize/release");
  }
 }

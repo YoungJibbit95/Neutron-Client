@@ -7,17 +7,12 @@ import me.youngjibbit.utils.render.Roundedutil;
 import me.youngjibbit.utils.render.UIUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.client.renderer.WorldRenderer;
 import net.minecraft.client.shader.Framebuffer;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL14;
 
 import java.awt.*;
-import java.awt.geom.Area;
-import java.awt.geom.PathIterator;
-import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -50,6 +45,8 @@ public class KawaseBloom {
             }
             framebufferList.clear();
             framebuffer = null;
+            // Retain the legacy depth attachments and allocation state. Mask capture and
+            // the final composite inherit depth state, including on the first allocation.
             framebufferList.add(framebuffer = RenderUtil.createFrameBuffer(null));
         }
 
@@ -95,8 +92,7 @@ public class KawaseBloom {
         }
 
         Framebuffer lastBuffer = framebufferList.get(0);
-        lastBuffer.framebufferClear();
-        lastBuffer.bindFramebuffer(false);
+        lastBuffer.bindAndClear();
         if(me.youngjibbit.utils.render.RenderDiagnostics.enabled)me.youngjibbit.utils.render.RenderDiagnostics.blurPasses++;
         kawaseUp.init();
         me.youngjibbit.utils.Theme theme=me.youngjibbit.utils.render.UiEffects.theme(me.youngjibbit.utils.Theme.getDefaultTheme());
@@ -144,8 +140,7 @@ public class KawaseBloom {
         if(me.youngjibbit.utils.render.RenderDiagnostics.enabled)me.youngjibbit.utils.render.RenderDiagnostics.maskPasses++;
         ensureBloomFramebuffer(); // Ensure it's created and matches screen size
 
-        bloomFramebuffer.framebufferClear();
-        bloomFramebuffer.bindFramebuffer(false);
+        bloomFramebuffer.bindAndClear();
 
         // Setup OpenGL state for 2D rendering
         GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
@@ -178,8 +173,7 @@ public class KawaseBloom {
         if(me.youngjibbit.utils.render.RenderDiagnostics.enabled)me.youngjibbit.utils.render.RenderDiagnostics.maskPasses++;
         ensureBloomFramebuffer(); // Ensure it's created and matches screen size
 
-        bloomFramebuffer.framebufferClear();
-        bloomFramebuffer.bindFramebuffer(false);
+        bloomFramebuffer.bindAndClear();
 
         // Setup OpenGL state for 2D rendering
         GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
@@ -215,8 +209,7 @@ public class KawaseBloom {
 
         ensureBloomFramebuffer(); // Make sure framebuffer exists and matches screen size
 
-        bloomFramebuffer.framebufferClear();
-        bloomFramebuffer.bindFramebuffer(false);
+        bloomFramebuffer.bindAndClear();
 
         // Setup OpenGL state for 2D rendering
         GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);

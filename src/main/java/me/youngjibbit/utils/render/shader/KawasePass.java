@@ -11,8 +11,7 @@ public final class KawasePass {
 
     public static void draw(Framebuffer target, int inputTexture, ShaderUtil shader, float offset) {
         if (RenderDiagnostics.enabled) RenderDiagnostics.blurPasses++;
-        target.framebufferClear();
-        target.bindFramebuffer(false);
+        target.bindAndClear();
         shader.init();
         shader.setUniformi("uiEnabled", 0);
         shader.setUniformf("lastPass", 0);

@@ -23,6 +23,7 @@ public class UIUtils
     private static ShaderUtil roundedTexturedShader = new ShaderUtil("roundRectTexture");
     private static ShaderUtil roundedGradientShader = new ShaderUtil("roundedRectGradient");
     private static final ScreenRect.Projection bloomProjection = new ScreenRect.Projection();
+    private static final float[] projectedRect = new float[4];
 
 
     private static void ensureShaders(){if(roundedShader==null)roundedShader=new ShaderUtil("roundedRect");if(roundedOutlineShader==null)roundedOutlineShader=new ShaderUtil("roundRectOutline");if(roundedTexturedShader==null)roundedTexturedShader=new ShaderUtil("roundRectTexture");if(roundedGradientShader==null)roundedGradientShader=new ShaderUtil("roundedRectGradient");}
@@ -127,7 +128,7 @@ public class UIUtils
             // This render-thread-only list has no callbacks or intervening transform changes.
             ScreenRect.Projection projection = bloomProjection;
             projection.capture();
-            ScaledResolution resolution = new ScaledResolution(Minecraft.getMinecraft());
+            ScaledResolution resolution = GuiResolution.current();
             for (float[] rect : rects) {
                 if (rect.length > 6 && rect[6] > 0) {
                     glEnable(GL_SCISSOR_TEST);
@@ -159,13 +160,14 @@ public class UIUtils
         RenderUiUtils.setAlphaLimit(0);
         roundedOutlineShader.init();UiEffects.uploadMaterial(roundedOutlineShader,material(width,height,radius,color));
 
-        ScaledResolution sr = new ScaledResolution(Minecraft.getMinecraft());
+        ScaledResolution sr = GuiResolution.current();
         setupRoundedRectUniforms(x, y, width, height, radius, roundedOutlineShader);
         roundedOutlineShader.setUniformf("uiAccent",Math.max(0,Math.min(1,themeAccent)));
         roundedOutlineShader.setUniformf("outlineThickness", outlineThickness * sr.getScaleFactor());
         roundedOutlineShader.setUniformf("color", color.getRed() / 255f, color.getGreen() / 255f, color.getBlue() / 255f, (Blur.isCapturing()?1f:color.getAlpha() / 255f));
-        UiEffects.upload(roundedOutlineShader,UiEffects.theme(me.youngjibbit.utils.Theme.getDefaultTheme()));
-        java.awt.Color f=UiEffects.theme(me.youngjibbit.utils.Theme.getDefaultTheme()).getPrimaryGradientColor(),g=UiEffects.theme(me.youngjibbit.utils.Theme.getDefaultTheme()).getSecondaryGradientColor();
+        me.youngjibbit.utils.Theme theme=UiEffects.theme(me.youngjibbit.utils.Theme.getDefaultTheme());
+        UiEffects.upload(roundedOutlineShader,theme);
+        java.awt.Color f=theme.getPrimaryGradientColor(),g=theme.getSecondaryGradientColor();
         roundedOutlineShader.setUniformf("uiFirst",f.getRed()/255f,f.getGreen()/255f,f.getBlue()/255f,f.getAlpha()/255f);roundedOutlineShader.setUniformf("uiSecond",g.getRed()/255f,g.getGreen()/255f,g.getBlue()/255f,g.getAlpha()/255f);
         roundedOutlineShader.setUniformf("outlineColor", outlineColor.getRed() / 255f, outlineColor.getGreen() / 255f, outlineColor.getBlue() / 255f, (UiEffects.options().border?outlineColor.getAlpha()/255f*UiEffects.options().borderOpacity:0));
 
@@ -215,13 +217,16 @@ public class UIUtils
     private static void setupRoundedRectUniforms(float x, float y, float width, float height, float radius,
                                                  ShaderUtil roundedTexturedShader, ScreenRect.Projection projection,
                                                  ScaledResolution resolution) {
-        ScaledResolution sr = resolution == null ? new ScaledResolution(Minecraft.getMinecraft()) : resolution;
+        ScaledResolution sr = resolution == null ? GuiResolution.current() : resolution;
         radius=exactGeometry==0?UiEffects.radius(radius,width,height):Math.max(0,Math.min(radius,Math.min(width,height)/2));
-        float[] rect=projection == null ? ScreenRect.project(x,y,width,height) : projection.project(x,y,width,height);
+        float[] rect=projection == null ? ScreenRect.project(x,y,width,height,projectedRect) : projection.project(x,y,width,height,projectedRect);
+        // Public shader fields can be subclasses. Copy before the first uniform callback so a
+        // nested draw cannot overwrite the outer primitive's projection scratch.
+        float screenX=rect[0],screenY=rect[1],screenWidth=rect[2],screenHeight=rect[3];
         float scale=sr.getScaleFactor();
-        roundedTexturedShader.setUniformf("location",rect[0]*scale,Minecraft.getMinecraft().displayHeight-(rect[1]+rect[3])*scale);
-        roundedTexturedShader.setUniformf("rectSize",rect[2]*scale,rect[3]*scale);
-        roundedTexturedShader.setUniformf("radius",radius*scale*Math.min(rect[2]/Math.max(0.001f,width),rect[3]/Math.max(0.001f,height)));
+        roundedTexturedShader.setUniformf("location",screenX*scale,Minecraft.getMinecraft().displayHeight-(screenY+screenHeight)*scale);
+        roundedTexturedShader.setUniformf("rectSize",screenWidth*scale,screenHeight*scale);
+        roundedTexturedShader.setUniformf("radius",radius*scale*Math.min(screenWidth/Math.max(0.001f,width),screenHeight/Math.max(0.001f,height)));
 
     }
 

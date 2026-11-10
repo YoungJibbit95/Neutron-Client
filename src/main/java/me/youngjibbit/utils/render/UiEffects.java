@@ -55,6 +55,22 @@ public final class UiEffects {
     }
 
     public enum Channel { TEXT, BORDER, GLOW }
+    private static final Channel[] CHANNELS = Channel.values();
+    // Themes are immutable. A bounded identity-equivalent LRU also supports transient editor
+    // previews without retaining every historical theme or rebuilding every shape's gradient.
+    private static final java.util.Map<Theme, GradientSnapshot> gradientCache =
+            new java.util.LinkedHashMap<Theme, GradientSnapshot>(16, .75f, true) {
+                @Override protected boolean removeEldestEntry(java.util.Map.Entry<Theme, GradientSnapshot> entry) {
+                    return size() > 16;
+                }
+            };
+    private static final class GradientSnapshot {
+        Options options;
+        Theme globalTheme;
+        double time;
+        final double[] phases = new double[3];
+        final Gradient[] channels = new Gradient[3];
+    }
     private static LongSupplier clock=System::nanoTime;
     private static long previous=-1;
     private static boolean clockStarted;
@@ -63,16 +79,16 @@ public final class UiEffects {
     private static boolean lastSync=true;
     private static ClientSettings cachedOwner;
     private static Options cached;
-    public static void invalidate(){cached=null;}
-    public static Options options(){ClientSettings c=ClientSettings.current();if(cached==null||cachedOwner!=c){cachedOwner=c;cached=new Options(c);}return cached;}
+    public static void invalidate(){cached=null;gradientCache.clear();}
+    public static Options options(){ClientSettings c=ClientSettings.current();if(cached==null||cachedOwner!=c){cachedOwner=c;cached=new Options(c);gradientCache.clear();}return cached;}
     public static void beginFrame(){
         Options o=options();long now=clock.getAsLong();double dt=0;
         if(!clockStarted){previous=now;clockStarted=true;}
         else if(now>=previous){dt=Math.max(0,Math.min(.1,(now-previous)/1e9));previous=now;}
         if(lastSync!=o.sync){phases[1]=phases[2]=phases[0];lastSync=o.sync;}
-        if(o.motion&&!o.reduced&&o.ambient){elapsed+=dt;Theme theme=Theme.getDefaultTheme();for(Channel c:Channel.values()){int i=c.ordinal();Gradient g=gradient(theme,c);if(g.mode>=2)phases[i]=(phases[i]+dt*g.speed)%1;}}
+        if(o.motion&&!o.reduced&&o.ambient){elapsed+=dt;Theme theme=Theme.getDefaultTheme();for(Channel c:CHANNELS){int i=c.ordinal();Gradient g=gradient(theme,c);if(g.mode>=2)phases[i]=(phases[i]+dt*g.speed)%1;}}
     }
-    static void timeSource(LongSupplier source){clock=source;previous=-1;clockStarted=false;elapsed=0;java.util.Arrays.fill(phases,0);lastSync=true;}
+    static void timeSource(LongSupplier source){clock=source;previous=-1;clockStarted=false;elapsed=0;java.util.Arrays.fill(phases,0);lastSync=true;gradientCache.clear();}
     public static float time(){return (float)elapsed;}
     public static boolean motion(){Options o=options();return o.motion&&!o.reduced;}
     public enum SemanticRole { INFO, WARNING, ERROR, SUCCESS }
@@ -100,7 +116,22 @@ public final class UiEffects {
     public static float blurRadius(float local){return options().configured?options().blurStrength:local;}
     public static boolean glass(){return options().glass;}
     public static Gradient gradient(Theme theme,Channel channel){
-        Options o=options();ClientSettings c=cachedOwner;int i=o.sync?0:channel.ordinal();
+        Options o=options();
+        Theme globalTheme=Theme.getDefaultTheme();
+        GradientSnapshot snapshot=gradientCache.get(theme);
+        if(snapshot==null){snapshot=new GradientSnapshot();gradientCache.put(theme,snapshot);}
+        if(snapshot.options!=o||snapshot.globalTheme!=globalTheme||snapshot.time!=elapsed){
+            java.util.Arrays.fill(snapshot.channels,null);
+            snapshot.options=o;snapshot.globalTheme=globalTheme;snapshot.time=elapsed;
+        }
+        int i=o.sync?0:channel.ordinal();
+        if(snapshot.channels[i]==null||snapshot.phases[i]!=phases[i]){
+            snapshot.channels[i]=resolveGradient(theme,channel,o,cachedOwner,i,globalTheme);
+            snapshot.phases[i]=phases[i];
+        }
+        return snapshot.channels[i];
+    }
+    private static Gradient resolveGradient(Theme theme,Channel channel,Options o,ClientSettings c,int i,Theme globalTheme){
         String direction=c==null?"Theme":o.sync?c.direction.getValue():channel==Channel.TEXT?c.textDirection.getValue():channel==Channel.BORDER?c.borderDirection.getValue():c.glowDirection.getValue();
         String motion=c==null?"Theme":o.sync?c.gradientMotion.getValue():channel==Channel.TEXT?c.textMotion.getValue():channel==Channel.BORDER?c.borderMotion.getValue():c.glowMotion.getValue();
         float speed=c==null?theme.getAnimationSpeed():o.sync?c.gradientSpeed.getValue().floatValue():channel==Channel.TEXT?c.textSpeed.getValue().floatValue():channel==Channel.BORDER?c.borderSpeed.getValue().floatValue():c.glowSpeed.getValue().floatValue();
@@ -122,7 +153,7 @@ public final class UiEffects {
         }
         float phase=(float)phases[i];
         // A Local custom theme can animate even when the selected Global preset is static.
-        if(motion.equals("Theme")&&theme!=Theme.getDefaultTheme())phase=(float)((elapsed*speed)%1);
+        if(motion.equals("Theme")&&theme!=globalTheme)phase=(float)((elapsed*speed)%1);
         // Set param2 for Flame/Neon/Lines modes.
         float param2=0;
         if(c!=null){
@@ -137,32 +168,34 @@ public final class UiEffects {
     public static void upload(ShaderUtil shader,Theme theme){upload(shader,theme,scene()==null?null:scene().policy.gradient);}
     public static Theme theme(Theme requested){return scene()==null?Theme.resolve(requested):scene().theme;}
     public static void upload(ShaderUtil shader,Theme theme,Gradient override){
-        options();theme=Theme.resolve(theme);
+        Options o=options();theme=Theme.resolve(theme);
         palette(shader,"uiAccentColor",theme.getAccentColor());
         shader.setUniformi("uiAccentBorder",cachedOwner!=null&&cachedOwner.borderColor.getValue().equals("Accent")?1:0);
         net.minecraft.client.Minecraft mc=net.minecraft.client.Minecraft.getMinecraft();
-        shader.setUniformi("uiEnabled",options().configured?1:0);
+        shader.setUniformi("uiEnabled",o.configured?1:0);
         shader.setUniformf("uiResolution",mc.displayWidth,mc.displayHeight);
         GradientSpace space=gradientSpace();
-        float scale=new net.minecraft.client.gui.ScaledResolution(mc).getScaleFactor();
+        float scale=GuiResolution.current().getScaleFactor();
         shader.setUniformf("uiGradientBounds",space==null?0:space.x*scale,space==null?0:space.y*scale,
                 space==null?mc.displayWidth:space.width*scale,space==null?mc.displayHeight:space.height*scale);
         GradientSpace orbit=gradientSpace(true);
         shader.setUniformf("uiOrbitBounds",orbit==null?0:orbit.x*scale,orbit==null?0:orbit.y*scale,
                 orbit==null?mc.displayWidth:orbit.width*scale,orbit==null?mc.displayHeight:orbit.height*scale);
-        for(Channel channel:Channel.values()){
+        Gradient textGradient=null;
+        for(Channel channel:CHANNELS){
             Gradient g=override==null?gradient(theme,channel):override;String n=channel==Channel.TEXT?"uiText":channel==Channel.BORDER?"uiBorder":"uiGlow";
-            shader.setUniformf(n,g.axis,options().gradients?g.mode:0,g.phase);
+            shader.setUniformf(n,g.axis,o.gradients?g.mode:0,g.phase);
+            if(channel==Channel.TEXT)textGradient=g;
         }
         // Extra shader parameter for Flame/Neon/Lines modes (passed via TEXT channel).
-        Gradient tg=override==null?gradient(theme,Channel.TEXT):override;
+        Gradient tg=textGradient;
         shader.setUniformf("uiShaderParam2",tg.param2);
         shader.setUniformf("uiShaderSpeed",tg.speed);
-        shader.setUniformf("uiGradientRadius",gradientRadius(orbit,options().roundness)*scale);
+        shader.setUniformf("uiGradientRadius",gradientRadius(orbit,o.roundness)*scale);
     }
     public static int gradientColor(Theme theme,Channel channel,float x,float y){
         theme=theme(theme);
-        net.minecraft.client.gui.ScaledResolution sr=new net.minecraft.client.gui.ScaledResolution(net.minecraft.client.Minecraft.getMinecraft());
+        net.minecraft.client.gui.ScaledResolution sr=GuiResolution.current();
         Gradient g=scene()!=null&&scene().policy.gradient!=null?scene().policy.gradient:gradient(theme,channel);
         float radius=UiEffects.radius(UiEffects.options().roundness,sr.getScaledWidth(),sr.getScaledHeight());
         return Theme.interpolateRGB(theme.getPrimaryGradientRGB(),theme.getSecondaryGradientRGB(),options().gradients?gradientPosition(g,x,y,sr.getScaledWidth(),sr.getScaledHeight(),radius):0);
@@ -283,7 +316,7 @@ public final class UiEffects {
         SceneContext c=scene();boolean active=eligible&&material();shader.setUniformi("uiMaterialEnabled",active?1:0);if(!active)return;
         net.minecraft.client.Minecraft mc=net.minecraft.client.Minecraft.getMinecraft();
         shader.setUniformi("uiCleanScene",3);shader.setUniformi("uiSoftScene",2);shader.setUniformi("uiSubstance",c.policy.style);shader.setUniformf("uiSceneResolution",mc.displayWidth,mc.displayHeight);
-        shader.setUniformf("uiSceneScale",new net.minecraft.client.gui.ScaledResolution(mc).getScaleFactor());shader.setUniformf("uiOpacity",c.policy.opacity);shader.setUniformf("uiGradientStrength",c.policy.fillStrength);shader.setUniformf("uiGlass",options().refraction,options().tint,options().edge);shader.setUniformi("uiSceneBlurred",c.blurred?1:0);shader.setUniformi("uiGlassClear",options().glassClear?1:0);shader.setUniformf("uiGlassInk",ink(c.theme));
+        shader.setUniformf("uiSceneScale",GuiResolution.current().getScaleFactor());shader.setUniformf("uiOpacity",c.policy.opacity);shader.setUniformf("uiGradientStrength",c.policy.fillStrength);shader.setUniformf("uiGlass",options().refraction,options().tint,options().edge);shader.setUniformi("uiSceneBlurred",c.blurred?1:0);shader.setUniformi("uiGlassClear",options().glassClear?1:0);shader.setUniformf("uiGlassInk",ink(c.theme));
         palette(shader,"uiFillFirst",c.theme.getPrimaryGradientColor());palette(shader,"uiFillSecond",c.theme.getSecondaryGradientColor());palette(shader,"uiFillBackground",c.theme.getBackground());
         bindScene(3,c.clean);bindScene(2,c.soft);net.minecraft.client.renderer.GlStateManager.setActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0);org.lwjgl.opengl.GL13.glActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0);
     }
