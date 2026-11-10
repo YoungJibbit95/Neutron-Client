@@ -92,12 +92,9 @@ public final class GaussianBlur {
         if(glow){if(halo==null)halo=new ShaderUtil("Flauxy/Shaders/glow.frag");shader=halo;}
         else{if(scene==null)scene=new ShaderUtil("Flauxy/Shaders/gaussian.frag");shader=scene;}
         shader.init();shader.setUniformi("textureIn",0);shader.setUniformf("texelSize",1f/output.framebufferWidth,1f/output.framebufferHeight);shader.setUniformf("direction",dx,dy);shader.setUniformf("radius",radius);
-        // Uniform values belong to the linked program, not to a framebuffer or draw call.
-        // The second direction and subsequent frames reuse the exact uploaded kernel.
-        if((glow?haloKernelRadius:sceneKernelRadius)!=radius){
-            GL20.glUniform1(shader.getUniform("weights"),kernels.get(radius));
-            if(glow)haloKernelRadius=radius;else sceneKernelRadius=radius;
-        }
+        // Diagnostic ablation: upload the unchanged cached weights for every pass.
+        GL20.glUniform1(shader.getUniform("weights"),kernels.get(radius));
+        if(glow)haloKernelRadius=radius;else sceneKernelRadius=radius;
         if(glow){shader.setUniformi("avoidTexture",0);shader.setUniformf("color",1,1,1);shader.setUniformf("exposure",exposure);}
         ShaderUtil.drawQuads();shader.unload();if(RenderDiagnostics.enabled)RenderDiagnostics.blurPasses++;
 

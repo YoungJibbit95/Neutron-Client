@@ -1,6 +1,9 @@
 name: Native render performance
+run-name: "Native diagnostic — ${{ github.ref_name }}"
 
 on:
+  push:
+    branches: ["codex/render-ablation-gaussian-20261110"]
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -31,7 +34,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
-      BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.baseline }}
+      BASE_SHA: f7acee8b4a0c52c0e6f1c628fef0180c206a4952
       LIBGL_ALWAYS_SOFTWARE: '1'
       GALLIUM_DRIVER: llvmpipe
       LP_NUM_THREADS: '2'
