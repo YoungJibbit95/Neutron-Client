@@ -15,6 +15,8 @@ public final class RotationSettings {
     public final CheckBoxValue softArsenicMotion, hitpointVariation;
     public final ComboValue adaptiveSpeedPreset, adaptiveHitpointPreset;
     public final SliderValue adaptiveVariationStrength;
+    public final ComboValue adaptiveAimPoint;
+    public final CheckBoxValue adaptiveKeepAim;
     private final ComboValue hitpointProfile;
     private final SliderValue hitpointSpeed, hitpointStrength;
     private final boolean placement;
@@ -122,10 +124,15 @@ public final class RotationSettings {
                 new String[]{"Stable","Organic","Dynamic"}, 0) : null;
         adaptiveVariationStrength = auraOnly ? new SliderValue("Adaptive Variation Strength",
                 parent, .5D, 0, 1, false) : null;
+        adaptiveAimPoint = auraOnly ? new ComboValue("Adaptive Aim Point",parent,
+                new String[]{"Straight","Nearest","Legacy"},0) : null;
+        adaptiveKeepAim = auraOnly ? new CheckBoxValue("Adaptive Keep Valid Aim",parent,true) : null;
         if (auraOnly) {
             adaptiveSpeedPreset.setVisibility(m -> adaptive());
             adaptiveHitpointPreset.setVisibility(m -> adaptive());
             adaptiveVariationStrength.setVisibility(m -> adaptive());
+            adaptiveAimPoint.setVisibility(m -> adaptive());
+            adaptiveKeepAim.setVisibility(m -> adaptive());
         }
     }
     public boolean arsenic() { return !placement && mode.getValue().startsWith("Arsenic "); }
@@ -149,6 +156,8 @@ public final class RotationSettings {
             p.adaptiveSpeed=AdaptivePresetMotion.Speed.values()[adaptiveSpeedPreset.getSelectedIndex()];
             p.adaptiveHitpoint=AdaptivePresetMotion.Hitpoint.values()[adaptiveHitpointPreset.getSelectedIndex()];
             p.adaptiveVariation=adaptiveVariationStrength.getValue().floatValue();
+            p.adaptiveAimPoint=AdaptivePresetMotion.AimPoint.values()[adaptiveAimPoint.getSelectedIndex()];
+            p.adaptiveKeepAim=adaptiveKeepAim.getValue();
         }
         p.mode=basic()?RotationProfile.Mode.BASIC:advanced()?RotationProfile.Mode.ADVANCED:RotationProfile.Mode.SMOOTH;
         p.yawSpeed=f(yawSpeed);p.pitchSpeed=f(pitchSpeed);p.jitter=f(jitter);p.minSpeed=f(minSpeed);p.maxSpeed=f(maxSpeed);p.interpolation=f(interpolation);

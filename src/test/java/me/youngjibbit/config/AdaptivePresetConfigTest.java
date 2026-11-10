@@ -24,12 +24,16 @@ public class AdaptivePresetConfigTest {
         assertEquals("Basic", a.getModeSetting("Rot Mode").getValue());
         assertEquals("Balanced", a.getModeSetting("Adaptive Speed").getValue());
         assertEquals("Stable", a.getModeSetting("Adaptive Hitpoint").getValue());
+        assertEquals("Straight",a.getModeSetting("Adaptive Aim Point").getValue());
+        assertTrue(a.getBooleanSetting("Adaptive Keep Valid Aim").getValue());
         assertEquals(.5, a.getNumberSetting("Adaptive Variation Strength").getValue(), 0);
         assertFalse(a.getValueByName("Adaptive Speed").isVisible());
         a.getModeSetting("Rot Mode").setValue("Adaptive");
         assertTrue(a.getValueByName("Adaptive Speed").isVisible());
         assertTrue(a.getValueByName("Adaptive Hitpoint").isVisible());
         assertTrue(a.getValueByName("Adaptive Variation Strength").isVisible());
+        assertTrue(a.getValueByName("Adaptive Aim Point").isVisible());
+        assertTrue(a.getValueByName("Adaptive Keep Valid Aim").isVisible());
         a.getModeSetting("Rot Mode").setValue("Arsenic Heuristics");
         assertFalse(a.getValueByName("Adaptive Hitpoint").isVisible());
     }
@@ -42,6 +46,8 @@ public class AdaptivePresetConfigTest {
         a.getModeSetting("Adaptive Speed").setValue("Swift");
         a.getModeSetting("Adaptive Hitpoint").setValue("Dynamic");
         a.getNumberSetting("Adaptive Variation Strength").setValue(.75);
+        a.getModeSetting("Adaptive Aim Point").setValue("Nearest");
+        a.getBooleanSetting("Adaptive Keep Valid Aim").setValue(false);
         assertTrue(c.getLastError(), c.saveConfig("Preset"));
         String serialized = c.serialize();
         com.google.gson.JsonObject values = new JsonParser().parse(serialized).getAsJsonObject()
@@ -50,6 +56,8 @@ public class AdaptivePresetConfigTest {
         assertEquals("Swift", values.get("adaptive_speed").getAsString());
         assertEquals("Dynamic", values.get("adaptive_hitpoint").getAsString());
         assertEquals(.75, values.get("adaptive_variation_strength").getAsDouble(), 1e-9);
+        assertEquals("Nearest",values.get("adaptive_aim_point").getAsString());
+        assertFalse(values.get("adaptive_keep_valid_aim").getAsBoolean());
         a.getModeSetting("Rot Mode").setValue("Basic");
         a.getModeSetting("Adaptive Speed").setValue("Calm");
         a.getModeSetting("Adaptive Hitpoint").setValue("Stable");
@@ -59,6 +67,8 @@ public class AdaptivePresetConfigTest {
         assertEquals("Swift", a.getModeSetting("Adaptive Speed").getValue());
         assertEquals("Dynamic", a.getModeSetting("Adaptive Hitpoint").getValue());
         assertEquals(.75, a.getNumberSetting("Adaptive Variation Strength").getValue(), 1e-9);
+        assertEquals("Nearest",a.getModeSetting("Adaptive Aim Point").getValue());
+        assertFalse(a.getBooleanSetting("Adaptive Keep Valid Aim").getValue());
         assertEquals(serialized, c.serialize());
     }
 
@@ -71,6 +81,8 @@ public class AdaptivePresetConfigTest {
         a.getModeSetting("Adaptive Speed").setValue("Swift");
         a.getModeSetting("Adaptive Hitpoint").setValue("Dynamic");
         a.getNumberSetting("Adaptive Variation Strength").setValue(1D);
+        a.getModeSetting("Adaptive Aim Point").setValue("Nearest");
+        a.getBooleanSetting("Adaptive Keep Valid Aim").setValue(false);
         String original="{\"version\":2,\"modules\":{\"aura\":{\"rotationVersion\":2,"
                 +"\"settings\":{\"rot_mode\":\"Adaptive\"}}}}";
         Path saved=directory.resolve("Older.json");
@@ -80,6 +92,8 @@ public class AdaptivePresetConfigTest {
         assertEquals("Balanced",a.getModeSetting("Adaptive Speed").getValue());
         assertEquals("Stable",a.getModeSetting("Adaptive Hitpoint").getValue());
         assertEquals(.5,a.getNumberSetting("Adaptive Variation Strength").getValue(),0);
+        assertEquals("Straight",a.getModeSetting("Adaptive Aim Point").getValue());
+        assertTrue(a.getBooleanSetting("Adaptive Keep Valid Aim").getValue());
         assertEquals(original,new String(Files.readAllBytes(saved),StandardCharsets.UTF_8));
     }
 

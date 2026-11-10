@@ -49,8 +49,29 @@ public final class ScaffoldRotationPlan {
      */
     public static Vec3 godbridgeFacePoint(AxisAlignedBB box, EnumFacing face, Vec3 eyes,
             double referenceYaw, double referencePitch) {
+        return godbridgeFacePoint(box,face,eyes,referenceYaw,referencePitch,83.52);
+    }
+
+    /** Movement-relative Godbridge geometry adapted from the authorized Demise reference. */
+    public static double godbridgeMovementYaw(double feetX,double feetZ,double cameraYaw,
+            double forward,double strafe) {
+        if(!finite(feetX) || !finite(feetZ) || !finite(cameraYaw) || !finite(forward) || !finite(strafe))
+            return Double.NaN;
+        double movingYaw=wrap(cameraYaw)-(Math.hypot(forward,strafe)>1e-5?Math.toDegrees(Math.atan2(strafe,forward)):0)-180;
+        long octant=Math.round(movingYaw/45);
+        if((octant&1)==0) {
+            double radians=Math.toRadians(movingYaw);
+            boolean right=Math.floor(feetX+Math.cos(radians)*.5)!=Math.floor(feetX)
+                    || Math.floor(feetZ+Math.sin(radians)*.5)!=Math.floor(feetZ);
+            movingYaw+=right?45:-45;
+        }
+        return wrap(Math.round(movingYaw/45)*45);
+    }
+
+    public static Vec3 godbridgeFacePoint(AxisAlignedBB box, EnumFacing face, Vec3 eyes,
+            double referenceYaw, double referencePitch,double preferredPitch) {
         if (!validBox(box) || face == null || eyes == null || !finite(referenceYaw)
-                || !finite(referencePitch)) return null;
+                || !finite(referencePitch) || !finite(preferredPitch) || preferredPitch<=0 || preferredPitch>=90) return null;
         Vec3 centre = new Vec3((box.minX + box.maxX) / 2, (box.minY + box.maxY) / 2,
                 (box.minZ + box.maxZ) / 2);
         ScaffoldRotationPlan desired = build("Back", eyes, centre);
@@ -58,12 +79,12 @@ public final class ScaffoldRotationPlan {
         double reference = referencePitch >= 60 ? referenceYaw : desired.yaw;
         Vec3 best = null; double bestScore = Double.POSITIVE_INFINITY;
         for (int heading = -180; heading < 180; heading += 45) {
-            Vec3 point = stableFacePoint(box, face, eyes, heading, 83.52);
+            Vec3 point = stableFacePoint(box, face, eyes, heading, preferredPitch);
             ScaffoldRotationPlan actual = build("Back", eyes, point);
             if (actual == null) continue;
             double correction = Math.abs(wrap(actual.yaw - heading));
             double score = Math.abs(wrap(heading - reference)) + correction * 2
-                    + Math.abs(actual.pitch - 83.52) * .35;
+                    + Math.abs(actual.pitch - preferredPitch) * .35;
             if (score < bestScore) { bestScore = score; best = point; }
         }
         return best;

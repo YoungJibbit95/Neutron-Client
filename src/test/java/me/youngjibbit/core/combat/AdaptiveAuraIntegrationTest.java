@@ -133,6 +133,41 @@ public class AdaptiveAuraIntegrationTest {
         }
     }
 
+    @Test public void validTargetRayHoldsWithoutNoiseDriftAndMovingTargetResumesTheSameScopedEngine() throws Exception {
+        try(Harness h=new Harness()) {
+            h.f.aura.getModeSetting("Adaptive Hitpoint").setValue("Dynamic");
+            h.f.aura.getNumberSetting("Adaptive Variation Strength").setValue(1D);
+            RaycastService rays=h.f.runtime.getRaycastService();
+            int tick=0;boolean hit=false;
+            net.minecraft.util.Vec3 feet=new net.minecraft.util.Vec3(h.f.player.posX,h.f.player.posY,h.f.player.posZ);
+            for(;tick<80;tick++) {
+                h.walk(tick);
+                if(rays.canHitFrom(feet,h.first,h.rotation.getEffectiveYaw(),h.rotation.getEffectivePitch(),3.2f,false)) {
+                    hit=true;tick++;break;
+                }
+            }
+            assertTrue("Adaptive must acquire an actual entity ray",hit);
+            float yaw=h.rotation.getEffectiveYaw(),pitch=h.rotation.getEffectivePitch();
+            for(int held=0;held<20;held++,tick++) {
+                h.walk(tick);
+                assertEquals("useful yaw survives strong hitpoint variation",yaw,h.rotation.getEffectiveYaw(),0);
+                assertEquals("useful pitch survives strong hitpoint variation",pitch,h.rotation.getEffectivePitch(),0);
+                assertEquals("aura",h.rotation.getConfirmedOwner());
+            }
+            h.first.posX=h.first.lastTickPosX=2.5;
+            h.first.posZ=h.first.lastTickPosZ=2;
+            h.first.setEntityBoundingBox(new AxisAlignedBB(2.2,64,1.7,2.8,65.8,2.3));
+            assertFalse(rays.canHitFrom(feet,h.first,yaw,pitch,3.2f,false));
+            boolean corrected=false;
+            for(int miss=0;miss<24;miss++,tick++) {
+                h.walk(tick);
+                corrected|=Math.abs(net.minecraft.util.MathHelper.wrapAngleTo180_float(h.rotation.getEffectiveYaw()-yaw))>1;
+            }
+            assertTrue("losing the current target ray resumes correction",corrected);
+            assertSame(h.first,h.f.aura.getActiveTarget());
+        }
+    }
+
     private static final class CancelC03 implements Subscriber {
         @Subscribe final Listener<EventPacket> packets = new Listener<>(event -> {
             if(event.isOutbound() && event.isPre() && event.getPacket() instanceof C03PacketPlayer)

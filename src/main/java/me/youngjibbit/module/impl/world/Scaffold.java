@@ -1060,7 +1060,9 @@ public class Scaffold extends Module {
                     contextRotation.getEffectiveYaw(),contextRotation.getEffectivePitch());
             if(!bridgeCurrent(sequence,generation,acquisition))return;
             PlacementTarget stable=retained!=null?retained:godbridge && !bridgeHasAim && kept?anchor
-                    :service.stabilizeBridgeHit(anchor,eyes,
+                    :godbridge && !bridgeHasAim?service.movementGodbridgeHit(anchor,eyes,frame,
+                    contextRotation.getEffectiveYaw(),contextRotation.getEffectivePitch(),
+                    client.gameSettings==null?.5f:client.gameSettings.mouseSensitivity):service.stabilizeBridgeHit(anchor,eyes,
                     contextRotation.getEffectiveYaw(),contextRotation.getEffectivePitch(),godbridge && !bridgeHasAim,
                     client.gameSettings==null?.5f:client.gameSettings.mouseSensitivity);
             if(!bridgeCurrent(sequence,generation,acquisition))return;

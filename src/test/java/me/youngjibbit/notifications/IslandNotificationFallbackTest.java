@@ -22,15 +22,15 @@ import static org.junit.Assert.*;
 
 /** The real routing predicate and shared queue, without drawing or requiring OpenGL. */
 public class IslandNotificationFallbackTest {
-    @Test public void invisibleIslandAlwaysLeavesTheMessageInTheOrdinaryTimeline()throws Exception{
-        Wave2IsolatedCase.run(Checks.class,"invisibleIslandAlwaysLeavesTheMessageInTheOrdinaryTimeline");
+    @Test public void invisibleIslandKeepsAnExclusivePausedMessageUntilItsSurfaceReturns()throws Exception{
+        Wave2IsolatedCase.run(Checks.class,"invisibleIslandKeepsAnExclusivePausedMessageUntilItsSurfaceReturns");
     }
     private static Field field(Class<?> owner,String name)throws Exception{
         Field f=owner.getDeclaredField(name);f.setAccessible(true);return f;
     }
     public static final class Checks {
         @Test @SuppressWarnings("unchecked")
-        public void invisibleIslandAlwaysLeavesTheMessageInTheOrdinaryTimeline()throws Exception{
+        public void invisibleIslandKeepsAnExclusivePausedMessageUntilItsSurfaceReturns()throws Exception{
             try(RotationBehaviorHookTest.Fixture f=new RotationBehaviorHookTest.Fixture()){
                 f.mc.gameSettings=RotationBehaviorHookTest.bare(GameSettings.class);
                 f.mc.gameSettings.guiScale=1;f.mc.displayWidth=854;f.mc.displayHeight=480;
@@ -47,32 +47,37 @@ public class IslandNotificationFallbackTest {
                     NotificationManager.IslandNotification first=NotificationManager.islandNotification();assertNotNull(first);
                     NotificationManager.Timeline timeline=(NotificationManager.Timeline)field(NotificationManager.class,"timeline").get(null);
                     WorldClient world=f.mc.theWorld;
-                    f.mc.theWorld=null;fallback(watermark,timeline,first);f.mc.theWorld=world;
-                    f.mc.gameSettings.hideGUI=true;fallback(watermark,timeline,first);f.mc.gameSettings.hideGUI=false;
-                    f.mc.gameSettings.showDebugInfo=true;fallback(watermark,timeline,first);f.mc.gameSettings.showDebugInfo=false;
-                    f.mc.skipRenderWorld=true;fallback(watermark,timeline,first);f.mc.skipRenderWorld=false;
-                    f.mc.currentScreen=new GuiScreen(){};fallback(watermark,timeline,first);
+                    f.mc.theWorld=null;paused(watermark,timeline,first);f.mc.theWorld=world;
+                    f.mc.gameSettings.hideGUI=true;paused(watermark,timeline,first);f.mc.gameSettings.hideGUI=false;
+                    f.mc.gameSettings.showDebugInfo=true;paused(watermark,timeline,first);f.mc.gameSettings.showDebugInfo=false;
+                    f.mc.skipRenderWorld=true;paused(watermark,timeline,first);f.mc.skipRenderWorld=false;
+                    f.mc.currentScreen=new GuiScreen(){};paused(watermark,timeline,first);
                     f.mc.currentScreen=new GuiChat();assertNotNull("chat leaves the Island visible",NotificationManager.islandNotification());
-                    f.mc.currentScreen=null;hud.visible.setValue(false);fallback(watermark,timeline,first);hud.visible.setValue(true);
-                    watermark.getModeSetting("Mode").setValue("Simple");fallback(watermark,timeline,first);
+                    f.mc.currentScreen=null;hud.visible.setValue(false);paused(watermark,timeline,first);hud.visible.setValue(true);
+                    watermark.getModeSetting("Mode").setValue("Simple");paused(watermark,timeline,first);
                     watermark.getModeSetting("Mode").setValue("Modern");
-                    watermark.getBooleanSetting("Island Notifications").setValue(false);fallback(watermark,timeline,first);
+                    watermark.getBooleanSetting("Island Notifications").setValue(false);
+                    assertFalse(watermark.routesNotificationsToIsland());assertNull(NotificationManager.islandNotification());
+                    assertFalse("only an explicit option change permits ordinary cards",field(NotificationManager.class,"islandRoute").getBoolean(null));
+                    assertEquals(first.id,timeline.visible.get(0).id);
                     watermark.getBooleanSetting("Island Notifications").setValue(true);
-                    field(Module.class,"toggled").set(watermark,false);fallback(watermark,timeline,first);
+                    field(Module.class,"toggled").set(watermark,false);paused(watermark,timeline,first);
                     field(Module.class,"toggled").set(watermark,true);
                     NotificationManager.IslandNotification restored=NotificationManager.islandNotification();
-                    assertNotNull(restored);assertEquals(first.id,restored.id);assertEquals(first.expiresAtNanos,restored.expiresAtNanos);
+                    assertNotNull(restored);assertEquals(first.id,restored.id);
+                    assertTrue("hidden intervals are restored, never consumed",restored.expiresAtNanos>=first.expiresAtNanos);
                     settings.notifications.setValue(false);assertNull(NotificationManager.islandNotification());
                     assertTrue(timeline.visible.isEmpty());assertTrue(timeline.pending.isEmpty());
                 }finally{NotificationManager.releaseResources();UiEffects.invalidate();}
             }
         }
-        private static void fallback(WatermarkHUDModule watermark,NotificationManager.Timeline timeline,
-                                     NotificationManager.IslandNotification original){
-            assertFalse(watermark.routesNotificationsToIsland());assertNull(NotificationManager.islandNotification());
-            assertEquals("ordinary cards retain the single live message",1,timeline.visible.size());
+        private static void paused(WatermarkHUDModule watermark,NotificationManager.Timeline timeline,
+                                     NotificationManager.IslandNotification original)throws Exception{
+            assertTrue(watermark.routesNotificationsToIsland());assertFalse(watermark.canPresentIslandNotifications());
+            assertNull(NotificationManager.islandNotification());
+            assertTrue("normal renderer stays suppressed",field(NotificationManager.class,"islandRoute").getBoolean(null));
+            assertEquals("the single timeline retains the paused message",1,timeline.visible.size());
             assertEquals(original.id,timeline.visible.get(0).id);
-            assertEquals("route changes never restart its lifetime",original.expiresAtNanos,timeline.visible.get(0).expires);
         }
     }
 }
