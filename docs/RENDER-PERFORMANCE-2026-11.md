@@ -2,20 +2,28 @@
 
 **Stand:** 10.11.2026
 
-**Geprüfter PR-Head:** `05cddf43c69ab981c56e64437ad9b4224cabc205` ([PR 176](https://github.com/YoungJibbit95/Neutron-Client/pull/176))
+**Gemessener und geprüfter Quellstand (PR-Head):** `a786a0cb7b477426ea92e1802b16556bc2f923dc` ([PR 176](https://github.com/YoungJibbit95/Neutron-Client/pull/176))
 
 **Integrierte native Vergleichsbasis:** `ff11e9746521e65ab67d5e70789684d06c7c1edd`
 
-**Tatsächlich ausgeführter GitHub-Merge:** `dc51651a6e94ba94d96af9595d4bdbc61ba57217`
+**Tatsächlich ausgeführter GitHub-Merge:** `1474bf35592f9c13ecfa1fa560dc60de0380a444`
 
 **Historische CPU-Vergleichsbasis:** `2508562100a66480c639e2c01dfdffb004d98008` (vor der Main-Integration)
 
 **Stack:** Minecraft 1.8.9 / OptiFine, LWJGL 2, Temurin 8u482, Maven 3.9.15
 
-**Abnahmestand auf dieser Revision:** 82 lokale Fokustests, beide vollständigen
-Windows-/Release-Regressionen, isolierte JAR-Prüfung, 16/16 native RGBA-Vergleiche
-und vier Legacy-UI-Suites erfolgreich. Die kontrollierte Wiederholung der nativen
-Zeitmessungen mit vier JVM-Paaren ist eine laufende Vertiefung und noch **PENDING**.
+**Abnahmestand dieses Quellstands:** Beide vollständigen Windows-/Release-Regressionen,
+die isolierte JAR-Prüfung, vier native JVM-Messpaare mit **64/64 bytegleichen RGBA-Vergleichen**
+und vier Legacy-UI-Suites sind erfolgreich. Die unveränderten Java-Quellen wurden
+zuvor zusätzlich mit 82 lokalen Fokustests geprüft.
+
+**Gemessenes Ergebnis:** Die Java-Heap-Allokation der acht nativen Szenen sinkt
+um 86,4–95,3 % im Median der gepaarten Vergleiche. Ein allgemeiner Zeitgewinn
+ist nicht belegt: Die getrennten Blur-/Bloom-Phasen bleiben weitgehend gleich,
+UI/Text bei 960×640 und der Gaussian-Mischmedian bei 854×480 sind in allen vier
+Paaren langsamer. Zusätzlich verschlechtern sich die langsamen Frames in diesen
+Szenen; UI-p99 und Radius-7-p95 liegen jeweils in allen vier Paaren höher.
+Gesamt-FPS, Spielframe-Stabilität und Ladezeiten wurden nicht gemessen.
 
 Dieser Lauf reduziert wiederholte CPU-Arbeit, Allokationen und redundante
 Framebuffer-Bindungen im vorhandenen Renderer. Blur-/Glow-Algorithmen, UI-Design
@@ -25,9 +33,12 @@ ihre damaligen Quellenbefunde und Teststände gelten nicht automatisch für dies
 
 Bei der Integration des zwischenzeitlich weiterentwickelten `main` blieben die
 38 Dateien der Legacy-UI-Arbeit bytegenau zum integrierten Main-Stand erhalten.
-Die nachfolgenden CI-Ergebnisse gehören zum oben genannten PR-Head und seiner
-GitHub-Merge-Revision. Die früheren CPU-Mikrobenchmarks verwenden weiterhin ihre
-ursprüngliche Basis und werden separat ausgewiesen.
+Die aktuelle Abnahmetabelle gehört zum oben genannten PR-Head und seiner
+GitHub-Merge-Revision. Gegenüber dem ersten integrierten Stand `05cddf43` wurden
+nur der Performance-Runner, seine Tests, sein Workflow und die Dokumentation
+geändert; Production-Java, Java-Harness und Legacy-UI-Gate blieben bytegleich.
+Die früheren CPU-Mikrobenchmarks und der erste native Einzelvergleich bleiben
+mit ihren ursprünglichen Revisionen als historische Evidenz erhalten.
 
 ## Befunde und Umsetzung
 
@@ -81,6 +92,181 @@ kein Bestandteil des verbleibenden Performancegewinns.
 
 Die nativen Tests prüfen diese Verträge für ihre isolierten Szenen. Eine vollständige
 Display-/Shaderpack-Abnahme ist davon getrennt und wird nicht durch statische Analyse ersetzt.
+
+## Abschließender nativer Vergleich: vier balancierte JVM-Paare
+
+[Native-CI-Run 42905778062](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42905778062)
+vergleicht die Basis `ff11e9746521e65ab67d5e70789684d06c7c1edd` mit dem getesteten
+Merge `1474bf35592f9c13ecfa1fa560dc60de0380a444` zum PR-Head `a786a0cb`.
+Die [vollständigen Vierpaar-Rohdaten](performance/2026-11-10-native-four-pairs.json)
+erhalten jedes Feld und sämtliche Samples des ursprünglichen `comparison.json`.
+Provenienz sowie ergänzende Font- und Tail-Auswertungen sind separat gekennzeichnet.
+Das 20.668.487 Byte große CI-Archiv wurde gegen seinen GitHub-SHA-256-Digest geprüft.
+
+Je Variante liefen vier frische JVMs mit **60 Warmup- und 90 Messframes je Szene**.
+Die vier Startreihenfolgen waren **A→B, B→A, A→B, B→A**; A bezeichnet die Baseline,
+B die Änderung. Jedes Paar bestand seine 16 exakten RGBA-Vergleiche, insgesamt
+**64/64**. Beide zusätzlichen Native-Contracts und beide Font-Probes bestanden.
+Alle acht Render-JVMs melden dieselbe Umgebung: Temurin `1.8.0_482-b08`, Linux amd64,
+Mesa 25.2.8, llvmpipe mit LLVM 20.1.2 und OpenGL 4.5 Compatibility. Der Runner setzt
+`LP_NUM_THREADS=2`. 960×640 verwendet GUI-Scale 2, 854×480 GUI-Scale 1.
+
+### Definition der Messwerte
+
+`submission` misst die CPU-Abgabe an den Treiber; `completed` schließt `glFinish()`
+ein. Hintergrundaufbau, Readback und Dateiausgabe liegen außerhalb dieser Zeiten.
+Innerhalb jeder JVM werden p50/p95/p99 mit nearest rank aus den unveränderten
+Samples bestimmt. Anschließend werden die vier JVM-p50 je Variante mit Median
+und Min/Max beschrieben. Frames verschiedener JVMs werden nicht zusammengeworfen.
+
+Die Zeitpfeile zeigen die Mediane A→B. Die vier Prozentwerte gehören zu Paar
+1/2/3/4 und berechnen `100 × (B/A − 1)` innerhalb desselben Paares; ein Plus
+bedeutet längere Zeit. Ein „gepaarter Median“ ist der Median dieser vier Änderungen,
+nicht der Quotient der beiden Variantenmediane. Spannweiten beschreiben die vier
+beobachteten JVMs und sind keine Konfidenzintervalle. Es gibt kein Geschwindigkeits-Gate.
+
+### Gesamtszenen: beide Zeitmetriken und alle vier Paare
+
+**Zwei beobachtete Verluste bleiben bestehen:** UI/Text bei 960×640 hat einen
+gepaarten Completed-Median von **+2,07 %**, Gaussian bei 854×480 von **+14,18 %**.
+Beide sind in allen vier Paaren langsamer. UI/Text bei 854×480 ist im gepaarten
+Completed-Median **3,95 % schneller**, aber in einem Paar langsamer. Die übrigen
+Gesamtszenen wechseln teilweise die Richtung oder zeigen nur kleine Abweichungen.
+Eine allgemeine Verbesserung der Renderzeit ist damit nicht belegt.
+
+| Szene | Submission-p50 A → B, ms | Submission-Δ Paar 1/2/3/4, % | Completed-p50 A → B, ms | Completed-Δ Paar 1/2/3/4, % |
+| --- | ---: | ---: | ---: | ---: |
+| UI/Text, 960×640 | 1,688 → 1,675 | -1,15 / +5,51 / -5,92 / +3,29 | 7,513 → 7,657 | +1,02 / +10,23 / +2,05 / +2,10 |
+| Geclipptes Bloom, 960×640 | 44,297 → 44,257 | +0,09 / +0,29 / -0,14 / -1,11 | 45,987 → 45,946 | +0,04 / +0,31 / -0,06 / -1,18 |
+| Gaussian Blur, 960×640 | 30,797 → 30,452 | +2,27 / -5,51 / +6,72 / -4,74 | 32,629 → 32,104 | +2,26 / -7,99 / +6,24 / -5,60 |
+| Glasfläche, 960×640 | 74,327 → 74,141 | +0,01 / -0,64 / -0,40 / -0,16 | 92,860 → 92,615 | +0,02 / -0,91 / -0,31 / -0,22 |
+| UI/Text, 854×480 | 1,519 → 1,418 | -5,14 / -8,91 / -11,41 / +0,94 | 3,405 → 3,257 | -3,39 / -4,52 / -6,98 / +0,35 |
+| Geclipptes Bloom, 854×480 | 29,552 → 29,455 | -0,01 / -2,68 / +0,45 / -0,17 | 30,679 → 30,571 | +0,08 / -2,46 / +0,41 / -0,29 |
+| Gaussian Blur, 854×480 | 17,180 → 20,100 | +20,37 / +7,89 / +29,83 / +5,50 | 18,323 → 21,476 | +20,30 / +8,05 / +27,70 / +6,63 |
+| Glasfläche, 854×480 | 29,680 → 29,663 | -0,30 / -0,21 / -0,16 / +0,42 | 34,656 → 34,646 | -0,31 / -0,17 / -0,13 / +0,39 |
+
+Die Spannweiten der einzelnen JVM-p50 werden zusätzlich ausgewiesen:
+
+| Szene | Submission A: Min–Max, ms | Submission B: Min–Max, ms | Completed A: Min–Max, ms | Completed B: Min–Max, ms |
+| --- | ---: | ---: | ---: | ---: |
+| UI/Text, 960×640 | 1,627–1,706 | 1,588–1,800 | 7,409–7,576 | 7,564–8,288 |
+| Geclipptes Bloom, 960×640 | 44,139–44,390 | 43,897–44,321 | 45,836–46,123 | 45,579–46,051 |
+| Gaussian Blur, 960×640 | 25,509–33,324 | 26,088–32,779 | 27,118–36,052 | 27,732–34,400 |
+| Glasfläche, 960×640 | 74,171–74,592 | 74,073–74,175 | 92,689–93,422 | 92,571–92,708 |
+| UI/Text, 854×480 | 1,418–1,579 | 1,380–1,438 | 3,255–3,469 | 3,227–3,293 |
+| Geclipptes Bloom, 854×480 | 29,358–29,644 | 28,851–29,632 | 30,486–30,742 | 29,985–30,764 |
+| Gaussian Blur, 854×480 | 17,092–18,602 | 18,531–22,310 | 18,217–19,729 | 19,759–23,443 |
+| Glasfläche, 854×480 | 29,582–29,771 | 29,604–29,706 | 34,545–34,770 | 34,581–34,679 |
+
+### Gleiche Arbeitsphasen: Gaussian-Radien und Bloom-Iterationen
+
+Gaussian alterniert zwischen Radius 7 und 11, Bloom zwischen zwei und drei
+Iterationen. Die ursprüngliche Reihenfolge wird nach geradem und ungeradem
+Frameindex **vor** jeder Sortierung getrennt; jede Phase besitzt 45 Samples je JVM.
+Der Gesamt-p50 einer gleich großen Mischung liegt am oberen Rand der schnelleren
+Hälfte. Langsame Frames dieser Hälfte können ihn verschieben, obwohl sich die
+Phasenmediane kaum ändern. Die Gesamtergebnisse bleiben deshalb daneben erhalten.
+
+| Szene und Phase | Submission-p50 A → B, ms | Gepaarter Submission-Δ-Median, % | Completed-p50 A → B, ms | Completed-Δ Paar 1/2/3/4, % |
+| --- | ---: | ---: | ---: | ---: |
+| Geclipptes Bloom, 960×640, Iterationen 2 | 42,293 → 42,243 | -0,18 | 43,982 → 43,916 | -0,31 / -0,09 / +0,64 / -0,78 |
+| Geclipptes Bloom, 960×640, Iterationen 3 | 44,524 → 44,526 | +0,03 | 46,235 → 46,270 | +0,08 / +0,09 / +0,32 / -0,80 |
+| Gaussian Blur, 960×640, Radius 7 | 25,109 → 25,064 | -0,02 | 26,733 → 26,692 | 0,00 / -0,45 / -0,08 / +0,13 |
+| Gaussian Blur, 960×640, Radius 11 | 35,143 → 35,151 | +0,04 | 36,793 → 36,797 | +0,22 / -0,30 / -0,13 / +0,29 |
+| Geclipptes Bloom, 854×480, Iterationen 2 | 28,206 → 28,178 | +0,03 | 29,325 → 29,302 | +0,16 / +0,33 / -0,17 / -1,09 |
+| Geclipptes Bloom, 854×480, Iterationen 3 | 29,818 → 29,793 | -0,01 | 30,949 → 30,933 | -0,05 / +0,28 / -0,07 / -1,05 |
+| Gaussian Blur, 854×480, Radius 7 | 16,855 → 16,879 | +0,19 | 17,951 → 17,990 | -0,52 / +0,69 / -0,18 / +0,72 |
+| Gaussian Blur, 854×480, Radius 11 | 23,648 → 23,642 | -0,02 | 24,768 → 24,768 | -0,72 / +0,27 / -0,26 / +0,50 |
+
+Die gepaarten Completed-Phasenmediane liegen zwischen −0,20 % und +0,25 %.
+Das beschreibt weitgehend unveränderte typische Blur-/Bloom-Zeiten in dieser
+Umgebung. **Die langsamsten Frames sind damit nicht entlastet:** Die folgenden
+Tail-Verluste sind tatsächlich gemessen. Die schlechteren Gaussian-Gesamtwerte
+sind daher nicht allein als rechnerischer Medianeffekt abzutun.
+
+### Langsame Frames: p95/p99 und Ausreißerhäufigkeit
+
+UI/Text bei 960×640 hat in **allen vier Paaren höhere Completed-p99**
+(+5,75 % bis +14,36 %, gepaarter Median **+8,36 %**). Gaussian bei 854×480 und
+Radius 7 hat in **allen vier Paaren höhere Completed-p95** (+1,33 % bis +13,78 %)
+und höhere p99 (+6,63 % bis +27,70 %). Die gepaarten Mediane sind dort
+**+1,40 % für p95 und +14,18 % für p99**. Dies ist eine materielle Abnahmegrenze.
+
+Die folgende Aufschlüsselung verwendet ausschließlich die vorhandenen Rohsamples.
+UI hat 90 Samples je JVM, jede Gaussian-Phase 45. p99 ist bei diesen kleinen
+Stichproben jeweils das Maximum; p95 der Gaussian-Phase ist der 43. sortierte Wert.
+Es werden keine Frames ausgeschlossen oder Perzentile über JVMs gepoolt.
+
+| Szene/Phase, Completed-Perzentil | Δ in Paar 1/2/3/4, % | Gepaarter Δ-Median, % |
+| --- | ---: | ---: |
+| UI/Text, 960×640, p95 | +0,72 / +5,74 / -7,18 / +1,79 | +1,25 |
+| UI/Text, 960×640, p99 | +9,01 / +7,71 / +5,75 / +14,36 | +8,36 |
+| Gaussian Blur, 960×640, Radius 7, p95 | +0,24 / -17,79 / -0,16 / -11,45 | -5,80 |
+| Gaussian Blur, 960×640, Radius 7, p99 | +2,26 / -7,99 / +6,24 / -5,60 | -1,67 |
+| Gaussian Blur, 960×640, Radius 11, p95 | +13,66 / -3,06 / +0,68 / -7,07 | -1,19 |
+| Gaussian Blur, 960×640, Radius 11, p99 | +4,40 / -0,49 / +7,92 / -10,11 | +1,96 |
+| Gaussian Blur, 854×480, Radius 7, p95 | +1,42 / +1,33 / +1,39 / +13,78 | +1,40 |
+| Gaussian Blur, 854×480, Radius 7, p99 | +20,30 / +8,05 / +27,70 / +6,63 | +14,18 |
+| Gaussian Blur, 854×480, Radius 11, p95 | -0,49 / +0,26 / +0,22 / -6,18 | -0,13 |
+| Gaussian Blur, 854×480, Radius 11, p99 | +17,64 / -20,92 / +35,18 / +9,65 | +13,65 |
+
+Die Zahl langsamer Radius-7-Frames bei 854×480 oberhalb des 1,10-Fachen des
+jeweiligen Baseline-Phasen-p50 steigt von **1 auf 8 von 180 Samples**; pro Paar
+von `[0, 0, 0, 1]` auf `[2, 1, 1, 4]`. Oberhalb des jeweiligen Baseline-p95
+steigt sie von 8 auf 30. UI/Text bei 960×640 überschreitet das 1,25-Fache des
+jeweiligen Baseline-p50 in **69 gegenüber 98 von 360 Samples**. Diese nachträglich
+gewählten Schwellen dienen der Beschreibung; sie sind keine vorab festgelegten Gates.
+
+Bei Gaussian 854×480 entspricht der gemischte Gesamt-p50 in jedem Paar dem
+langsamsten Radius-7-Sample. Das erklärt seine Empfindlichkeit und verbindet ihn
+hier zugleich mit einem realen Tail-Verlust. Stabile Phasenmediane belegen daher
+keine stabileren Frametimes. Die Ursache wird durch vier Cloud-/Software-Mesa-Paare
+nicht isoliert. Die ohnehin erforderlichen Gates des anschließenden reinen
+Dokumentationscommits liefern vier weitere Paare auf einem neuen Runner;
+dort werden diese Tails erneut betrachtet. Ihr Ergebnis wird hier nicht vorweggenommen.
+
+### Java-Heap-Allokation über vier JVM-Paare
+
+Alle acht Szenen allokieren in **jedem** der vier Paare weniger auf dem Renderthread.
+Die gepaarten Medianreduktionen betragen **86,4–95,3 %**. A zeigt den Median seiner
+vier JVM-p50 mit Spannweite; der B-p50 ist je Szene über alle vier JVMs identisch.
+Gemessen werden Byte pro synthetischem Frame auf dem Java-Heap. Direkter, nativer
+und GPU-Speicher sind ausgeschlossen.
+
+| Szene | A: Byte/Frame, Median [Min–Max] | B: Byte/Frame, alle vier JVM-p50 | Gepaarter Δ-Median |
+| --- | ---: | ---: | ---: |
+| UI/Text, 960×640 | 66.528 [66.528–66.528] | 5.568 | -91,6 % |
+| Geclipptes Bloom, 960×640 | 48.984 [48.984–51.288] | 6.680 | -86,4 % |
+| Gaussian Blur, 960×640 | 3.240 [3.240–3.240] | 336 | -89,6 % |
+| Glasfläche, 960×640 | 18.760 [18.760–18.832] | 1.968 | -89,5 % |
+| UI/Text, 854×480 | 86.496 [86.496–88.992] | 4.032 | -95,3 % |
+| Geclipptes Bloom, 854×480 | 46.728 [46.728–49.032] | 4.504 | -90,4 % |
+| Gaussian Blur, 854×480 | 3.240 [3.240–3.240] | 336 | -89,6 % |
+| Glasfläche, 854×480 | 17.168 [17.168–17.240] | 816 | -95,2 % |
+
+Dies ist ein klarer gemessener Gewinn der untersuchten UI-Pfade. Es ist kein
+Nachweis entsprechend kürzerer Frames, geringerer GC-Pausen oder eines vergleichbaren
+Rückgangs der Gesamtclient-Allokation. Der erste Einzelrun hatte kürzeres Warmup
+und weniger Samples; Unterschiede zu ihm sind kein zusätzlicher Codegewinn.
+
+### Zusätzliche Fontprobe dieses CI-Laufs
+
+Der Runner startet unabhängig von den vier Renderpaaren je **eine** weitere JVM
+für `FontMetricsBenchmark`. Die Werte sind Mediane aus sieben Runden, keine neue
+Serie aus vier Font-JVM-Paaren. Die Originalausgaben sind in den ergänzenden
+Rohdaten erhalten; beide Checksummen lauten `1142745105.229`.
+
+| Szenario | Baseline → Änderung, ns/Aufruf | Beobachtung |
+| --- | ---: | --- |
+| 24 wiederholte UI-Labels | 148,444 → 10,000 | schneller |
+| 192 wechselnde HUD-Labels | 195,585 → 133,675 | schneller |
+| 512 Labels über Cachekapazität | 207,459 → 248,733 | **langsamer** |
+| Langer Text ohne Cacheaufnahme | 2.171,353 → 2.654,090 | **langsamer** |
+
+Die Änderung misst in allen vier Szenarien 0 Byte/Aufruf. Die Baseline misst bei
+wiederholten Labels 6,667 Byte, sonst ebenfalls 0. Die beiden Zeitverluste bleiben
+neben den früheren fünf JVM-Paaren sichtbar; ein universeller Font-Zeitgewinn
+wird auch aus diesem aktuellen Einzelpaar nicht abgeleitet.
 
 ## Historische CPU-Messung: UI-Vorbereitung
 
@@ -155,7 +341,7 @@ Vorab erzeugte Strings, Fontkonstruktion sowie nativer und GPU-Speicher sind
 ausgeschlossen. Alle zehn Checksummen sind identisch (`1060823331.548`).
 Es werden ausschließlich Messungen der finalen Cachekonstruktion berichtet.
 
-## Erster nativer Vergleich auf dem integrierten Stand
+## Historische Evidenz: erster nativer Vergleich
 
 [Native-CI-Run 42901400853](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42901400853)
 vergleicht die integrierte Basis `ff11e9746521e65ab67d5e70789684d06c7c1edd`
@@ -217,45 +403,44 @@ kürzeren Framezeit oder einer solchen Einsparung im gesamten Client.
 | Gaussian Blur, 854×480, Scale 1 | 3.240 → 336 | -89,6 % |
 | Glasfläche, 854×480, Scale 1 | 17.240 → 816 | -95,3 % |
 
-### Laufende Vertiefung der Zeitmessung
-
-Die gemischten Zeiten und besonders der empfindliche Gaussian-Mischmedian sind
-Anlass für **vier frische JVM-Paare in balancierter Reihenfolge AB/BA/AB/BA**, mit
-60 Warmup-Frames und 90 Messframes pro Szene. A bezeichnet die Baseline, B die Änderung.
-Die Auswertung soll Median und Spannweite der vier JVM-p50 getrennt von den
-innerhalb einer JVM bestimmten p95/p99 ausgeben; alle Rohwerte, Paarverhältnisse
-und langsameren Versuche bleiben sichtbar. Gaussian wird zusätzlich nach Radius
-7/11 und Bloom nach zwei/drei Iterationen aufgeteilt. Bildparität bleibt für jedes
-Paar verpflichtend; aus Zeitmessrauschen wird kein Geschwindigkeits-Gate.
-
-**Stand: PENDING.** Aus diesen Wiederholungen liegt hier noch keine Schlussfolgerung
-vor. Bereits der erste Lauf zeigt keine durchgängige Zeitverbesserung. Gesamt-FPS,
-Spielframe-Stabilität und Client-/Welt-Ladezeiten wurden nicht gemessen.
+Der erste Lauf war Anlass für die oben vollständig dokumentierten vier
+balancierten JVM-Paare mit längerem Warmup. Seine ursprünglichen positiven und
+negativen Messwerte bleiben erhalten; die Wiederholung verwendet identischen
+Java-Code und einen erweiterten Messrunner.
 
 ## Teststand und verbleibende Nachweise
 
-| Prüfung | Ergebnis und Beleg auf dem integrierten Stand |
+| Prüfung | Ergebnis und Beleg zum gemessenen Quellstand |
 | --- | --- |
-| Lokale Source-/Test-Kompilation und fokussierte Regression | **82/82 PASS**, 0 Failures, 0 Errors, 0 Skips; Temurin 8u482, Maven 3.9.15, einschließlich der integrierten UI-Tests. |
-| Vollständige Java-8-/Windows-Regression | **1.991 Tests in 347 Suites, 0 Failures, 0 Errors, 3 vorgesehene Skips**; [Run 42901400874](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42901400874). |
-| Vollständige Regression beim Release-Package | **Erneut 1.991 / 0 / 0 / 3**; [Run 42901400993](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42901400993). |
-| Gepacktes JAR und Release-Werkzeuge | **6/6 isolierte JAR-Prüfungen und 36 Python-Tests PASS** im selben Release-Run; Paket-/Linkage-Prüfung, keine gemessene Client-Startzeit. |
-| Native Bildparität | **16/16 bytegleich**, einschließlich erster und warmer Bloom-Aufnahmen bei beiden Auflösungen; [Run 42901400853](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42901400853). |
+| Lokale Source-/Test-Kompilation und fokussierte Regression | **82/82 PASS**, 0 Failures, 0 Errors, 0 Skips auf dem vorherigen integrierten Stand `05cddf43`; Production-Java und Java-Tests sind zu `a786a0cb` bytegleich. |
+| Vollständige Java-8-/Windows-Regression | **1.991 Tests in 347 Suites, 0 Failures, 0 Errors, 3 vorgesehene Skips**; [Run 42905777842](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42905777842), XML-Summen unabhängig geprüft. |
+| Vollständige Regression beim Release-Package | **Erneut 1.991 / 0 / 0 / 3**; [Run 42905778025](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42905778025). |
+| Gepacktes JAR und Release-Werkzeuge | **6/6 isolierte JAR-Prüfungen und 45 Python-Tests PASS** im selben Release-Run; Paket-/Linkage-Prüfung, keine gemessene Client-Startzeit. |
+| Native Bildparität | **64/64 bytegleich über vier Paare**, einschließlich erster und warmer Aufnahmen bei beiden Auflösungen; [Run 42905778062](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42905778062). |
 | Native GL-State-, Font-, Shader- und Ressourcenverträge | **PASS** im selben Native-Run: Uniform-Overloads/Subclasses, Gaussian-Referenzpixel, verschachtelte Zustände, Fehlerpfade, FBO-APIs 0/1/2, Komposition und Legacy-Facades. |
 | Freigabe und Wiederöffnung gemeinsamer Ressourcen | **Zwei Zyklen bestanden**, jeweils 17 FBOs erstellt / 17 gelöscht und 11 Programme erstellt / 11 gelöscht; keine wiederbelebten gelöschten Texturen. |
-| Integrierte Legacy-UI-Abnahme | **Vier unabhängige JVM-Suites PASS, 114 PNGs**: Panel 20, Dropdown 48, ArrayList 8, Session/Theme/Settings/Library 38; [Run 42901400954](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42901400954). |
+| Integrierte Legacy-UI-Abnahme | **Vier unabhängige JVM-Suites PASS**, alle vorgeschriebenen Bildgruppen geprüft; 128 Bild-/Logdateien veröffentlicht. [Run 42905777886](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42905777886). |
 | Gaussian-Koeffizienten | **PASS:** 8.255 Koeffizienten aller 127 Radien bitidentisch zur bisherigen Formel; Bereichs- und Buffer-Reuse-Prüfung erfolgreich. |
-| Native Zeit-/Allokationsmessung | Erster JVM-Paarlauf vollständig dokumentiert; **vier balancierte Wiederholungen PENDING**, siehe oben. |
+| Native Zeit-/Allokationsmessung | **Vier vollständige Paare ausgewertet**, alle Rohwerte erhalten; 86,4–95,3 % geringere Heap-Allokation im gepaarten Median, gemischte Zeiten und die oben beschriebenen höheren Tail-Latenzen. Kein allgemeiner Zeitgewinn. |
 | Reale Gesamt-FPS, Welt-/Client-Ladezeit, Fullscreen und Shaderpacks | **Nicht gemessen** in diesem Lauf. |
 
-Die beiden Windows-Läufe gehören zum PR-Head `05cddf43c69ab981c56e64437ad9b4224cabc205`
-und testen jeweils die Merge-Revision `dc51651a6e94ba94d96af9595d4bdbc61ba57217`.
+Die aktuellen Windows- und Release-Läufe gehören zum PR-Head
+`a786a0cb7b477426ea92e1802b16556bc2f923dc` und testen jeweils die Merge-Revision
+`1474bf35592f9c13ecfa1fa560dc60de0380a444` mit Temurin 8u482 und Maven 3.9.15.
 1.991 zählt die drei Skips mit; **1.988 Tests wurden pro Lauf ausgeführt und bestanden**.
 Die beiden Ausführungen werden nicht addiert. Die bestehenden Opt-in-Skips betreffen
 `WorldOverlayContractTest.nativeDispatchWhenRequested`,
 `GuiChatInputTest.nativeInputAndDrawingWhenRequested` und
 `GuiOverlayDebugGlStringsTest.realOffscreenContextRecreationRefreshesDriverStrings`.
 Die nativen Workflows besitzen ihre eigenen ausgeführten GL-Prüfungen.
+Der normale Draft-Release-Job ist bei dieser PR erwartungsgemäß übersprungen;
+Build, Paketprüfung und Artefaktveröffentlichung sind erfolgreich.
+
+Die frühere vollständige Bildinventur des bytegleichen Legacy-UI-Harness ergab
+114 PNGs: Panel 20, Dropdown 48, ArrayList 8 und Session/Theme/Settings/Library 38
+([Run 42901400954](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42901400954)).
+Beim aktuellen erfolgreichen Lauf wurden sämtliche Suite- und Bildgruppen-Gates
+sowie der 128-Dateien-Upload geprüft; seine PNGs wurden nicht erneut lokal materialisiert.
 
 Für die integrierte native Baseline wurden **alle 2.391 ursprünglichen Java-Quellen**
 neu kompiliert; nur 15 geänderte Originaldateien mussten als Quelloverlay materialisiert
@@ -300,8 +485,8 @@ Baseline-Quelloverlay aus Git und verwendet denselben Benchmark für beide Fassu
 Dabei müssen auch die ursprünglichen Aufrufer neu kompiliert werden, damit neue
 Uniform-Overloads nicht gegen alte Klassen gelinkt werden. Der
 [Workflow](../.github/workflows/render-performance.yml) hält Einrichtung und Aufruf fest.
-Das folgende Beispiel gilt für die neue balancierte Vertiefung mit dem erweiterten
-Runner. Zur historischen Reproduktion des ersten Laufs ist dessen getestete Revision
+Das folgende Beispiel reproduziert den Vierpaarvergleich mit dem erweiterten
+Runner am oben genannten gemessenen Quellstand. Zur historischen Reproduktion des ersten Laufs ist dessen getestete Revision
 `dc51651a6e94ba94d96af9595d4bdbc61ba57217` mit dem damaligen Runner und
 `--warmup 20 --samples 60` maßgeblich; dieser kannte noch keine Option `--pairs`.
 
@@ -317,7 +502,8 @@ xvfb-run -a -s '-screen 0 1280x960x24 +extension GLX +render -noreset' \
 Verglichen werden feste Text-/UI-, geclippte Theme-/Fixfarben-Bloom-, Gaussian-
 und Glass-Szenen bei 960×640 mit GUI-Scale 2 sowie 854×480 mit GUI-Scale 1.
 Vier Szenen, zwei Auflösungen und jeweils erster sowie warmer Capture ergeben
-**16 exakte RGBA-Vergleichspaare**. Jeder Capture muss sich vom unmittelbar zuvor
+**16 exakte RGBA-Vergleichspaare je JVM-Paar, insgesamt 64 bei vier Paaren**.
+Jeder Capture muss sich vom unmittelbar zuvor
 gerenderten Hintergrund unterscheiden. Szenenabhängige Blur-, Masken-, Composite-
 und Glyphbatch-Zähler müssen tatsächlich ausgeführte Arbeit bestätigen; warme
 Glyphuploads dürfen null sein. Das verhindert eine scheinbare Bildparität durch
