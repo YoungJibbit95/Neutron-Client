@@ -14,10 +14,6 @@ import static org.lwjgl.opengl.GL20.*;
 public class ShaderUtil implements Utils, AutoCloseable {
     private final int programID;
     private final Map<String,Integer> uniforms=new HashMap<>();
-    // Preserve virtual varargs overrides on legacy/custom subclasses. The two concrete
-    // shipped implementations have no such overrides and can use allocation-free calls.
-    private final boolean directUniforms=getClass()==ShaderUtil.class
-            ||getClass()==me.youngjibbit.utils.render.shader.ShaderUtil.class;
     private boolean closed;
     public ShaderUtil(String fragment,String vertex){this(fragmentSource(fragment),resource(vertex),0);}
     public ShaderUtil(String fragment){this(fragment,"Flauxy/Shaders/vertex.vsh");}
@@ -89,36 +85,9 @@ public class ShaderUtil implements Utils, AutoCloseable {
     public void unload(){glUseProgram(0);}
     private void ensureOpen(){if(closed)throw new IllegalStateException("Shader is closed");}
     public int getProgramId(){ensureOpen();return programID;}
-    public int getUniform(String name){
-        ensureOpen();
-        Integer location=uniforms.get(name);
-        if(location==null){location=glGetUniformLocation(programID,name);uniforms.put(name,location);}
-        return location;
-    }
-    // Fixed arities avoid a temporary primitive array for every UI uniform upload.
-    // Keep the array overloads for existing callers that assemble values dynamically.
-    public void setUniformf(String name,float x){if(directUniforms)glUniform1f(getUniform(name),x);else setUniformf(name,new float[]{x});}
-    public void setUniformf(String name,float x,float y){if(directUniforms)glUniform2f(getUniform(name),x,y);else setUniformf(name,new float[]{x,y});}
-    public void setUniformf(String name,float x,float y,float z){if(directUniforms)glUniform3f(getUniform(name),x,y,z);else setUniformf(name,new float[]{x,y,z});}
-    public void setUniformf(String name,float x,float y,float z,float w){if(directUniforms)glUniform4f(getUniform(name),x,y,z,w);else setUniformf(name,new float[]{x,y,z,w});}
-    public void setUniformi(String name,int x){if(directUniforms)glUniform1i(getUniform(name),x);else setUniformi(name,new int[]{x});}
-    public void setUniformi(String name,int x,int y){if(directUniforms)glUniform2i(getUniform(name),x,y);else setUniformi(name,new int[]{x,y});}
-    public void setUniformf(String name,float...v){
-        int loc=getUniform(name);
-        switch(v.length){
-            case 1:glUniform1f(loc,v[0]);break;
-            case 2:glUniform2f(loc,v[0],v[1]);break;
-            case 3:glUniform3f(loc,v[0],v[1],v[2]);break;
-            case 4:glUniform4f(loc,v[0],v[1],v[2],v[3]);break;
-            default:throw new IllegalArgumentException("Float uniform needs 1-4 values");
-        }
-    }
-    public void setUniformi(String name,int...v){
-        int loc=getUniform(name);
-        if(v.length==2)glUniform2i(loc,v[0],v[1]);
-        else if(v.length==1)glUniform1i(loc,v[0]);
-        else throw new IllegalArgumentException("Integer uniform needs 1-2 values");
-    }
+    public int getUniform(String name){ensureOpen();return uniforms.computeIfAbsent(name,key->glGetUniformLocation(programID,key));}
+    public void setUniformf(String name,float...v){int loc=getUniform(name);switch(v.length){case 1:glUniform1f(loc,v[0]);break;case 2:glUniform2f(loc,v[0],v[1]);break;case 3:glUniform3f(loc,v[0],v[1],v[2]);break;case 4:glUniform4f(loc,v[0],v[1],v[2],v[3]);break;default:throw new IllegalArgumentException("Float uniform needs 1-4 values");}}
+    public void setUniformi(String name,int...v){int loc=getUniform(name);if(v.length==2)glUniform2i(loc,v[0],v[1]);else if(v.length==1)glUniform1i(loc,v[0]);else throw new IllegalArgumentException("Integer uniform needs 1-2 values");}
     /** Rectangle dimensions, top-left texture UV origin (not endpoint coordinates). */
     public static void drawQuads(float x,float y,float width,float height){
         if(RenderDiagnostics.enabled)RenderDiagnostics.shaderDraws++;
