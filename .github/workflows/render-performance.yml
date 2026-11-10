@@ -1,6 +1,9 @@
 name: Native render performance
+run-name: "Native diagnostic — ${{ github.ref_name }}"
 
 on:
+  push:
+    branches: ["codex/render-ablation-warmup-20261110"]
   pull_request:
     types: [opened, synchronize, reopened]
     paths:
@@ -31,7 +34,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
-      BASE_SHA: ${{ github.event.pull_request.base.sha || inputs.baseline }}
+      BASE_SHA: ff11e9746521e65ab67d5e70789684d06c7c1edd
       LIBGL_ALWAYS_SOFTWARE: '1'
       GALLIUM_DRIVER: llvmpipe
       LP_NUM_THREADS: '2'
@@ -90,7 +93,7 @@ jobs:
           set -euo pipefail
           xvfb-run -a -s '-screen 0 1280x960x24 +extension GLX +render -noreset' \
             python3 -B .github/scripts/check_render_performance.py --base "$BASE_SHA" --classpath target/render-classpath.txt --output target/render-performance \
-              --pairs 4 --warmup 60 --samples 90
+              --pairs 4 --warmup 200 --samples 90
 
       - name: Retain pixel, timing and native regression evidence
         if: always()
