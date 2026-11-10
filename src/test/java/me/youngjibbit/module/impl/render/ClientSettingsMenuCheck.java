@@ -22,6 +22,7 @@ public final class ClientSettingsMenuCheck {
   @Override protected void open(GuiScreen screen){destination=screen;}
   void section(int index)throws Exception{ClipRect r=categoryBounds(index);click(r.x+10,r.y+12,0);release();}
   ClipRect row(int i){return controlBounds(i);}ClipRect action(int i){return actionBounds(i);}void actionClick(int id)throws Exception{ClipRect r=action(id);click(r.x+r.width/2,r.y+r.height/2,0);release();}
+  ClipRect category(int i){return categoryBounds(i);}ClipRect viewport(){return view();}
   void exact(int row,String number)throws Exception{ClipRect r=row(row);click(r.x+4,r.y+8,1);control=true;key('a',Keyboard.KEY_A);control=false;for(char c:number.toCharArray())key(c,Keyboard.KEY_NONE);key('\n',Keyboard.KEY_RETURN);}
  }
  public static void run()throws Exception {
@@ -58,6 +59,11 @@ public final class ClientSettingsMenuCheck {
    menu.key(' ',Keyboard.KEY_RETURN);menu.drawScreen(-1,-1,0);
    ImageIO.write(SessionInfoRenderCheck.capture(),"png",new File(out,"settings-font-options-small.png"));
    menu.key(' ',Keyboard.KEY_ESCAPE);
+   mc.displayWidth=580;mc.displayHeight=342;mc.gameSettings.guiScale=1;mc.getFramebuffer().createBindFramebuffer(580,342);
+   menu.setWorldAndResolution(mc,580,342);menu.section(0);SessionInfoRenderCheck.backdrop();menu.drawScreen(-1,-1,0);
+   int sectionCount=settings.groups().size()+(me.youngjibbit.module.impl.client.HUD.current()==null?0:1);
+   for(int i=0;i<sectionCount;i++){ClipRect category=menu.category(i);SessionInfoRenderCheck.require(category.y+category.height<=menu.action(2).y-6&&category.x+category.width<menu.viewport().x,"Compact settings rail overlaps footer or form");}
+   ImageIO.write(SessionInfoRenderCheck.capture(),"png",new File(out,"settings-short-rail.png"));
    menu.actionClick(4);SessionInfoRenderCheck.require(menu.destination instanceof GuiOptions,"Vanilla game options lost");
    SessionInfoRenderCheck.require(glGetError()==GL_NO_ERROR,"Settings menu GL error");System.out.println("PASS: real client settings exact/invalid/cancel/reset, conditional groups, scrolling, mouse and keyboard footer navigation, global Values, responsive actions and cached resources");
   }finally{menu.onGuiClosed();SessionInfoRenderCheck.set(Pulsar.INSTANCE,"mm",old);UiEffects.invalidate();}

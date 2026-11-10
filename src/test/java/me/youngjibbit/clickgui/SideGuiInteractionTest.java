@@ -1,82 +1,70 @@
 package me.youngjibbit.clickgui;
 
-import me.youngjibbit.Pulsar;
-import me.youngjibbit.module.*;
-import me.youngjibbit.module.Module;
-import me.youngjibbit.module.impl.client.ClientSettings;
-import me.youngjibbit.value.impl.CheckBoxValue;
 import me.youngjibbit.clickgui.utils.ClipRect;
 import net.minecraft.client.gui.GuiScreen;
 import org.junit.*;
 import org.lwjgl.input.Keyboard;
-import java.lang.reflect.Field;
 import java.util.*;
 import static org.junit.Assert.*;
 
+/** The Library is a navigation hub; editing and binding modules stays in the ClickGUI. */
 public class SideGuiInteractionTest {
-    @ModuleInfo(name="Alpha",description="First searchable module",category=Category.Render)
-    public static class Alpha extends Module { final CheckBoxValue setting=new CheckBoxValue("Unique setting",this,false); }
-    @ModuleInfo(name="Beta",description="Second searchable module",category=Category.Render)
-    public static class Beta extends Module {}
-    @ModuleInfo(name="Gamma",description="Third searchable module",category=Category.Render)
-    public static class Gamma extends Module {}
     static class Screen extends SideGuiScreen {
-        GuiScreen routed; boolean control;
+        GuiScreen routed;boolean shifted;final List<Integer> destinations=new ArrayList<>();
         Screen(GuiScreen parent){super(parent);}
-        @Override protected boolean ctrl(){return control;}
-        @Override protected boolean shift(){return false;}
+        @Override protected boolean shift(){return shifted;}
         @Override protected void open(GuiScreen next){routed=next;}
-        void key(int key)throws Exception{keyTyped(' ',key);}
-        void type(char c)throws Exception{keyTyped(c,Keyboard.KEY_NONE);}
-        void search(String text){query(text);}
-        void resize(int w,int h){width=w;height=h;initGui();}
-        void clickResult(int index,int button)throws Exception{ClipRect b=resultBounds(index);mouseClicked((int)(b.x+8),(int)(b.y+10),button);}
-        void wheel(int amount){ClipRect b=listBounds();scrollAt((int)b.x+4,(int)b.y+4,amount);}
+        @Override protected void activate(int id){destinations.add(id);}
+        void key(int key)throws Exception{keyTyped('\0',key);}
+        void resize(int width,int height){this.width=width;this.height=height;initGui();}
+        void click(int id,int button)throws Exception{
+            ClipRect r=tabBounds(id);mouseClicked((int)(r.x+r.width/2),(int)(r.y+r.height/2),button);
+            mouseReleased(0,0,button);
+        }
     }
-    private ModuleManager previous;
+    private final GuiScreen parent=new GuiScreen(){};
     private Screen screen;
-    private Alpha alpha;private Beta beta;private Gamma gamma;
-    private GuiScreen parent=new GuiScreen(){};
-    @Before public void setup()throws Exception{
-        previous=Pulsar.INSTANCE.getMm();alpha=new Alpha();beta=new Beta();gamma=new Gamma();
-        ClientSettings c=new ClientSettings();c.animations.setValue(false);
-        Field f=Pulsar.class.getDeclaredField("mm");f.setAccessible(true);f.set(Pulsar.INSTANCE,new ModuleManager(Arrays.asList(alpha,beta,gamma,c)));
-        screen=new Screen(parent);screen.resize(480,320);
+    @Before public void setup(){screen=new Screen(parent);screen.resize(480,320);}
+    @After public void close(){screen.onGuiClosed();}
+
+    @Test public void leftClickOpensEachDestinationAndRightClickIsInert()throws Exception{
+        for(int id=1;id<=5;id++)screen.click(id,1);
+        assertTrue(screen.destinations.isEmpty());
+        for(int id=1;id<=5;id++)screen.click(id,0);
+        assertEquals(Arrays.asList(1,2,3,4,5),screen.destinations);
+        assertTrue("Removed module browser must not retain an invisible hit target",screen.tabBounds(0).isEmpty());
     }
-    @After public void restore()throws Exception{
-        screen.onGuiClosed();for(Module m:Arrays.asList(alpha,beta,gamma))if(m.isToggled())m.setToggled(false);
-        Field f=Pulsar.class.getDeclaredField("mm");f.setAccessible(true);f.set(Pulsar.INSTANCE,previous);
+    @Test public void tabAndShiftTabReachAllDestinationsInBothDirections()throws Exception{
+        for(int i=0;i<5;i++){screen.key(Keyboard.KEY_RETURN);screen.key(Keyboard.KEY_TAB);}
+        assertEquals(Arrays.asList(1,2,3,4,5),screen.destinations);
+        screen.destinations.clear();screen.shifted=true;
+        for(int i=0;i<5;i++){screen.key(Keyboard.KEY_TAB);screen.key(Keyboard.KEY_NUMPADENTER);}
+        assertEquals(Arrays.asList(5,4,3,2,1),screen.destinations);
     }
-    private Object field(String name)throws Exception{Field f=SideGuiScreen.class.getDeclaredField(name);f.setAccessible(true);return f.get(screen);}
-    @Test public void searchesValueNamesAndHandlesEmptyResults()throws Exception{
-        screen.search("unique setting");assertEquals(Collections.singletonList(alpha),field("results"));
-        screen.search("no such module");assertTrue(((List<?>)field("results")).isEmpty());assertNull(field("editor"));
-        screen.key(Keyboard.KEY_DOWN);screen.key(Keyboard.KEY_RETURN);screen.key(Keyboard.KEY_SPACE);
+    @Test public void arrowNavigationFollowsTheResponsiveCardGrid()throws Exception{
+        screen.key(Keyboard.KEY_DOWN);screen.key(Keyboard.KEY_SPACE);
+        screen.key(Keyboard.KEY_RIGHT);screen.key(Keyboard.KEY_RETURN);
+        screen.key(Keyboard.KEY_UP);screen.key(Keyboard.KEY_RETURN);
+        assertEquals(Arrays.asList(3,4,2),screen.destinations);
+        screen.resize(280,320);screen.destinations.clear();
+        screen.key(Keyboard.KEY_DOWN);screen.key(Keyboard.KEY_RETURN);
+        assertEquals(Collections.singletonList(3),screen.destinations);
     }
-    @Test public void arrowsSelectResultsWithoutTogglingAndEnterOpensEditor()throws Exception{
-        screen.search("render");screen.key(Keyboard.KEY_DOWN);screen.key(Keyboard.KEY_DOWN);assertSame(beta,field("selected"));
-        assertFalse(alpha.isToggled());assertFalse(beta.isToggled());screen.key(Keyboard.KEY_RETURN);
-        assertSame(field("editor"),field("focus"));screen.key(Keyboard.KEY_SPACE);assertTrue(beta.isToggled());
-    }
-    @Test public void tabVisitsSearchResultsBeforeSettings()throws Exception{
-        screen.key(Keyboard.KEY_TAB);assertEquals(true,field("listFocus"));screen.key(Keyboard.KEY_TAB);assertSame(field("editor"),field("focus"));
-    }
-    @Test public void mouseSelectAndBindingRespectCancelDeleteAndSearchFocus()throws Exception{
-        screen.search("render");screen.clickResult(1,0);assertSame(beta,field("selected"));assertFalse(beta.isToggled());
-        screen.key(Keyboard.KEY_K);screen.key(Keyboard.KEY_G);assertEquals(Keyboard.KEY_G,beta.getKey());
-        screen.key(Keyboard.KEY_K);screen.key(Keyboard.KEY_ESCAPE);assertEquals(Keyboard.KEY_G,beta.getKey());
-        screen.key(Keyboard.KEY_K);screen.key(Keyboard.KEY_DELETE);assertEquals(0,beta.getKey());
-        screen.control=true;screen.key(Keyboard.KEY_F);screen.control=false;screen.type('x');assertEquals("renderx",field("query"));
-    }
-    @Test public void escapeClearsSearchBeforeReturningToParent()throws Exception{
-        screen.search("query");screen.key(Keyboard.KEY_ESCAPE);assertEquals("",field("query"));assertNull(screen.routed);
+    @Test public void escapeReturnsImmediatelyToItsParent()throws Exception{
+        screen.key(Keyboard.KEY_K);screen.key(Keyboard.KEY_DELETE);screen.key(Keyboard.KEY_A);
+        assertTrue("Typing must not bind or edit a module from the Library",screen.destinations.isEmpty());
         screen.key(Keyboard.KEY_ESCAPE);assertSame(parent,screen.routed);
     }
-    @Test public void listScrollClampsAndKeyboardRevealsSelectedRowAtSmallSize()throws Exception{
-        screen.resize(320,180);screen.search("render");screen.wheel(-120);screen.wheel(-120);
-        float max=3*30-screen.listBounds().height;assertEquals(max,(Float)field("targetScroll"),.01f);
-        screen.key(Keyboard.KEY_DOWN);ClipRect first=screen.resultBounds(0);assertTrue(first.y>=screen.listBounds().y);
-        screen.key(Keyboard.KEY_DOWN);screen.key(Keyboard.KEY_DOWN);ClipRect third=screen.resultBounds(2);
-        assertTrue(third.y+third.height<=screen.listBounds().y+screen.listBounds().height+.01f);
+    @Test public void cardsAndBackRemainSeparateInsideCompactAndWideWindows(){
+        for(int[] size:new int[][]{{320,180},{280,320},{480,320},{800,500}}){
+            screen.resize(size[0],size[1]);ClipRect window=screen.window();
+            for(int id=1;id<=5;id++){
+                ClipRect a=screen.tabBounds(id);
+                assertTrue("Destination has a usable hit area",a.width>=36&&a.height>=18);
+                assertEquals(a.width,a.intersect(window).width,.01f);
+                assertEquals(a.height,a.intersect(window).height,.01f);
+                for(int next=id+1;next<=5;next++)assertTrue(a.intersect(screen.tabBounds(next)).isEmpty());
+            }
+        }
     }
 }

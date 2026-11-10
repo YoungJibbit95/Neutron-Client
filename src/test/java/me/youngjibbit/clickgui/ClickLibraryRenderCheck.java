@@ -52,6 +52,7 @@ public final class ClickLibraryRenderCheck {
         ThemeCatalog.install(catalog);catalog.select("Neutron");
         ConfigManager manager=new ConfigManager(data.resolve("configs"),Pulsar.INSTANCE.getMm().getAllModules(),()->false,message->{});
         try{
+            boolean repeatBefore=Keyboard.isCreated()&&Keyboard.areRepeatEventsEnabled();
             Library screen=new Library(manager,catalog);resize(screen,854,480,1);frame(screen);snapshot("12-configs-empty.png");
             screen.name("Practice");screen.click(0);
             Path profile=data.resolve("configs/Practice.json");require(Files.isRegularFile(profile),"Save as must reach ConfigManager");
@@ -66,6 +67,18 @@ public final class ClickLibraryRenderCheck {
             require(Files.exists(data.resolve("configs/Throwaway.json")),"Delete cancellation");
             screen.click(2);screen.key(Keyboard.KEY_RETURN);require(!Files.exists(data.resolve("configs/Throwaway.json")),"Delete confirmation");
             screen.select(0);frame(screen);snapshot("14-configs-saved.png");
+            byte[] beforeRename=Files.readAllBytes(profile);
+            screen.click(4);screen.type("Practice renamed");resize(screen,320,224,1);frame(screen);snapshot("14-config-rename-small.png");
+            require(Boolean.TRUE.equals(field(screen,"renaming"))&&"Practice renamed".equals(field(screen,"renameBuffer")),"Config rename draft survives compact resize");
+            require(Arrays.equals(beforeRename,Files.readAllBytes(profile)),"Resize committed a rename draft");
+            resize(screen,854,480,1);screen.key(Keyboard.KEY_RETURN);
+            require(actions.pending()==ConfigLibrary.Pending.RENAME&&actions.target().equals("Practice renamed"),"Rename edits the selected name and waits for confirmation");
+            frame(screen);snapshot("14-config-rename.png");screen.key(Keyboard.KEY_ESCAPE);
+            require(Files.exists(profile)&&Arrays.equals(beforeRename,Files.readAllBytes(profile)),"Cancel rename preserves original file");
+            screen.click(4);screen.type("Practice renamed");screen.key(Keyboard.KEY_NUMPADENTER);screen.key(Keyboard.KEY_NUMPADENTER);
+            Path renamed=data.resolve("configs/Practice renamed.json");
+            require(!Files.exists(profile)&&Arrays.equals(beforeRename,Files.readAllBytes(renamed)),"Confirmed rename preserves config bytes");
+            require(field(screen,"name").equals("Practice renamed"),"Save name follows a confirmed rename");
             configLayouts(screen,actions,mc,catalog);
             screen.click(7);frame(screen);snapshot("15-themes.png");
             ClipRect firstSwatch=screen.itemBounds(0);int swatch=sample(firstSwatch.x+13,firstSwatch.y+12);
@@ -73,6 +86,11 @@ public final class ClickLibraryRenderCheck {
             ClientSettings.current().gradients.setValue(false);ThemeRuntime.select("Neon");frame(screen);
             require(swatch==sample(firstSwatch.x+13,firstSwatch.y+12),"Preset swatches must keep literal colors when global theme/gradients change");
             ClientSettings.current().gradients.setValue(gradients);ThemeRuntime.select(active);
+            catalog.preview(Theme.custom("custom:00000000-0000-0000-0000-000000000009","Dark ink fixture",
+                    Arrays.asList(new java.awt.Color(30,50,90),new java.awt.Color(70,30,100)),false,false,.18f,
+                    new java.awt.Color(10,14,21,220),new java.awt.Color(0,0,0,0),java.awt.Color.CYAN,.1f,5,.4f,1));
+            frame(screen);require(brightControlText(screen.actionBounds(0))>8,"Theme browser chrome stays readable with transparent black theme text");
+            snapshot("15b-themes-dark-text.png");catalog.cancelPreview();
             screen.select(1);screen.click(0);require(catalog.selectedReference().equals("Cotton_candy"),"Theme selection must reach runtime");
             screen.click(1);require(screen.opened instanceof ThemeEditorScreen,"Edit opens the real editor");
             screen.opened.onGuiClosed();require(!catalog.isPreviewing(),"Unused editor closes draft preview");
@@ -83,6 +101,7 @@ public final class ClickLibraryRenderCheck {
                 for(int id:new int[]{0,1,2,3,6,7,8}){ClipRect r=screen.actionBounds(id);require(r.x>=0&&r.y>=0&&r.x+r.width<=screen.width&&r.y+r.height<=screen.height,"Library action bounds");}
             }
             snapshot("16-library-small.png");screen.onGuiClosed();
+            if(Keyboard.isCreated())require(Keyboard.areRepeatEventsEnabled()==repeatBefore,"Library restores keyboard repeat after resized sessions");
             Editor editor=new Editor(catalog);editor.editTheme(Theme.Neutron,true);resize(editor,854,480,1);frame(editor);snapshot("17-theme-editor.png");
             editor.swatch(10);frame(editor);snapshot("18-color-picker.png");
             ThemeColorPicker picker=(ThemeColorPicker)field(editor,"picker");ClipRect hue=picker.control(1),alpha=picker.control(2);
@@ -108,21 +127,27 @@ public final class ClickLibraryRenderCheck {
         for(int[] size:new int[][]{{854,480,1},{854,480,2},{1101,733,3},{320,224,1}}){
             resize(screen,size[0],size[1],size[2]);frame(screen);
             List<ClipRect> controls=new ArrayList<>();controls.add(screen.listBounds());controls.add(screen.searchBounds());controls.add(screen.nameBounds());
-            for(int id:new int[]{0,1,2,3,6,7,8})controls.add(screen.actionBounds(id));
+            for(int id:new int[]{0,1,2,3,4,6,7,8})controls.add(screen.actionBounds(id));
             require(screen.listBounds().height>=26,"Compact configs retain a full list row");
             for(int i=0;i<controls.size();i++){
                 ClipRect a=controls.get(i);require(a.width>0&&a.height>0&&a.x>=0&&a.y>=0&&a.x+a.width<=screen.width&&a.y+a.height<=screen.height,"Config control inside viewport");
                 for(int j=i+1;j<controls.size();j++)require(a.intersect(controls.get(j)).isEmpty(),"Config list/fields/actions must not overlap");
             }
+            if(ThemeMode.LEGACY.equals(ThemeMode.selected())) {
+                require(screen.actionBounds(0).y>screen.nameBounds().y+screen.nameBounds().height,"Legacy toolbar sits below the editable name");
+                if(screen.listBounds().width>=328)require(screen.itemBounds(0).y==screen.itemBounds(1).y,"Wide configs use a horizontal card grid");
+            }
+            screen.search("");screen.key(Keyboard.KEY_DOWN);frame(screen);
+            snapshot("configs-grid-"+size[0]+"-scale"+size[2]+".png");
             screen.search("Long profile");screen.key(Keyboard.KEY_DOWN);frame(screen);
             require(actions.selected().equals(longName),"Keyboard selects long result without loading");
             snapshot("configs-layout-"+size[0]+"-scale"+size[2]+".png");
             screen.search("No matching config");frame(screen);snapshot("configs-no-match-"+size[0]+"-scale"+size[2]+".png");
             screen.search("");screen.key(Keyboard.KEY_TAB);require(((Integer)field(screen,"focus"))==3,"Search tabs to Refresh");
             screen.key(Keyboard.KEY_TAB);require(((Integer)field(screen,"focus"))==-2,"Refresh tabs to list");
-            for(int id:new int[]{1,2,-3,0,8,6,7,-1}){screen.key(Keyboard.KEY_TAB);require(((Integer)field(screen,"focus"))==id,"Config focus order "+id);}
+            for(int id:new int[]{1,2,-3,4,0,8,6,7,-1}){screen.key(Keyboard.KEY_TAB);require(((Integer)field(screen,"focus"))==id,"Config focus order "+id);}
             screen.shift=true;
-            for(int id:new int[]{7,6,8,0,-3,2,1,-2,3,-1}){screen.key(Keyboard.KEY_TAB);require(((Integer)field(screen,"focus"))==id,"Reverse config focus order "+id);}
+            for(int id:new int[]{7,6,8,0,4,-3,2,1,-2,3,-1}){screen.key(Keyboard.KEY_TAB);require(((Integer)field(screen,"focus"))==id,"Reverse config focus order "+id);}
             screen.shift=false;
             screen.key(Keyboard.KEY_DOWN);for(int i=0;i<30;i++)screen.key(Keyboard.KEY_DOWN);
             int index=actions.entries().size()-1;ClipRect row=screen.itemBounds(index),list=screen.listBounds();
@@ -151,6 +176,14 @@ public final class ClickLibraryRenderCheck {
         int scale=new ScaledResolution(mc).getScaleFactor();java.nio.ByteBuffer p=org.lwjgl.BufferUtils.createByteBuffer(4);
         glReadPixels((int)(x*scale),mc.displayHeight-1-(int)(y*scale),1,1,GL_RGBA,GL_UNSIGNED_BYTE,p);
         return (p.get(0)&255)<<16|(p.get(1)&255)<<8|(p.get(2)&255);
+    }
+    private static int brightControlText(ClipRect control){
+        int scale=new ScaledResolution(mc).getScaleFactor();
+        int x=(int)((control.x+5)*scale),top=(int)((control.y+4)*scale),width=Math.max(1,(int)((control.width-10)*scale)),height=16*scale;
+        java.nio.ByteBuffer pixels=org.lwjgl.BufferUtils.createByteBuffer(width*height*4);
+        glReadPixels(x,mc.displayHeight-top-height,width,height,GL_RGBA,GL_UNSIGNED_BYTE,pixels);
+        int bright=0;for(int i=0;i<width*height;i++)if((pixels.get(i*4)&255)>175&&(pixels.get(i*4+1)&255)>175&&(pixels.get(i*4+2)&255)>175)bright++;
+        return bright;
     }
     private static void snapshot(String file)throws Exception{
         java.nio.ByteBuffer pixels=org.lwjgl.BufferUtils.createByteBuffer(mc.displayWidth*mc.displayHeight*4);

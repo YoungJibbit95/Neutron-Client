@@ -110,7 +110,7 @@ public class DropdownGui extends GuiScreen {
             for (DropdownModule row : panel.rows) {
                 row.setWidth(panel.width - 2);
                 if(modern)row.updateCompactMotion(dt);
-                else row.updateAnimation();
+                else row.updateLegacyAnimation(dt);
                 content += row.getHeight();
             }
             panel.x = Math.max(MARGIN, Math.min(panel.x, width - panel.width - MARGIN));
@@ -137,7 +137,12 @@ public class DropdownGui extends GuiScreen {
                 rowY += row.getHeight();
             }
         }
-        if (focus != null && !focusables().contains(focus)) setFocus(null);
+        if (focus != null && !focusables().contains(focus)) {
+            Component replacement=null;
+            for(CategoryPanel panel:panels)if(panel.open||!search.trim().isEmpty())for(DropdownModule row:panel.rows)
+                if(row.ownsComponent(focus)){replacement=row.focusParent(focus);break;}
+            setFocus(replacement);
+        }
     }
 
     @Override public void drawScreen(int mouseX, int mouseY, float partialTicks) {
@@ -153,8 +158,9 @@ public class DropdownGui extends GuiScreen {
             boolean available = shown && dragging == null && scrolling == null && binding == null;
             row.advanceMotion(dt, panel == top ? mouseX : -1, panel == top ? mouseY : -1, focus == row, pressed == row,
                     available && !panel.viewport.intersect(row.presentationBounds()).isEmpty());
+            List<Component.Sub<?>> focusable = row.focusableValues();
             for (Component.Sub<?> value : row.presentationValues()) {
-                boolean visible = available && row.focusableValues().contains(value) && value.getClip() != null
+                boolean visible = available && focusable.contains(value) && value.getClip() != null
                         && !value.getClip().intersect(value.presentationBounds()).isEmpty();
                 value.advanceMotion(dt, panel == top ? mouseX : -1, panel == top ? mouseY : -1,
                         focus == value, pressed == value, visible);
@@ -396,6 +402,10 @@ public class DropdownGui extends GuiScreen {
             return;
         }
         if (key == Keyboard.KEY_ESCAPE && focus instanceof ClickCombo && ((ClickCombo)focus).isOpen()) { ((ClickCombo)focus).close(); return; }
+        if(key==Keyboard.KEY_ESCAPE&&focus instanceof me.youngjibbit.clickgui.component.impl.ClickSubcategory
+                &&((me.youngjibbit.clickgui.component.impl.ClickSubcategory)focus).isOpen()){
+            ((me.youngjibbit.clickgui.component.impl.ClickSubcategory)focus).setOpen(false);layout(0);return;
+        }
         if (key == Keyboard.KEY_ESCAPE) {
             Module owner = Pulsar.INSTANCE.getMm().getModule(ClickGUI.class);
             if (owner != null && owner.isToggled()) owner.setToggled(false);
@@ -495,6 +505,8 @@ public class DropdownGui extends GuiScreen {
         String description;
         if(target instanceof DropdownModule) {
             Module module=((DropdownModule)target).getModule();description=module.getName()+": "+module.getDescription();
+        } else if(target instanceof me.youngjibbit.clickgui.component.impl.ClickSubcategory) {
+            description=((me.youngjibbit.clickgui.component.impl.ClickSubcategory)target).getValue().description()+" | Right click to expand / Left, Right: collapse, expand";
         } else if(target instanceof Component.Sub) {
             me.youngjibbit.value.Value<?> value=(me.youngjibbit.value.Value<?>)((Component.Sub<?>)target).getValue();
             description=value.getName()+": "+UiEffects.settingOption(value,String.valueOf(value.getValue()));

@@ -25,14 +25,20 @@ public final class PbufferTestContext implements AutoCloseable {
         boolean ready=false;
         try {
             require(!Display.isCreated(),"Each render check requires its own JVM without a native Display");
-            // Do not leave color channels unspecified: LWJGL 2 re-selects the
-            // Pbuffer FBConfig by ID with the GLX window-format defaults.
-            buffer=new Pbuffer(1280,960,new PixelFormat().withBitsPerPixel(24).withAlphaBits(8).withDepthBits(24).withStencilBits(8),null,null);
+            // The fixture reads 8-bit RGBA images. Do not leave color precision at
+            // PixelFormat's zero-bit minimum: GLX may select an unrelated format.
+            buffer=new Pbuffer(1280,960,new PixelFormat().withBitsPerPixel(24).withAlphaBits(8)
+                    .withDepthBits(24).withStencilBits(8),null,null);
             buffer.makeCurrent();
-            int red=glGetInteger(GL_RED_BITS),green=glGetInteger(GL_GREEN_BITS),blue=glGetInteger(GL_BLUE_BITS),alpha=glGetInteger(GL_ALPHA_BITS);
-            int depth=glGetInteger(GL_DEPTH_BITS),stencil=glGetInteger(GL_STENCIL_BITS);
-            require(red>=8&&green>=8&&blue>=8&&alpha>=8&&depth>=24&&stencil>=8,"Pbuffer must provide RGBA8, depth24 and stencil8 storage");
-            System.out.println("CONTEXT: Pbuffer RGBA="+red+"/"+green+"/"+blue+"/"+alpha+", depth="+depth+", stencil="+stencil);
+            require(glGetInteger(GL_RED_BITS)>=8 && glGetInteger(GL_GREEN_BITS)>=8
+                    && glGetInteger(GL_BLUE_BITS)>=8 && glGetInteger(GL_ALPHA_BITS)>=8,
+                    "Pbuffer requires at least 8 bits per RGBA channel");
+            require(glGetInteger(GL_DEPTH_BITS)>=24 && glGetInteger(GL_STENCIL_BITS)>=8,
+                    "Pbuffer requires 24-bit depth and 8-bit stencil");
+            System.out.println("Pbuffer format: RGBA="+glGetInteger(GL_RED_BITS)+"/"
+                    +glGetInteger(GL_GREEN_BITS)+"/"+glGetInteger(GL_BLUE_BITS)+"/"
+                    +glGetInteger(GL_ALPHA_BITS)+", depth="+glGetInteger(GL_DEPTH_BITS)
+                    +", stencil="+glGetInteger(GL_STENCIL_BITS));
             ready=true;
         } finally {if(!ready)close();}
     }
