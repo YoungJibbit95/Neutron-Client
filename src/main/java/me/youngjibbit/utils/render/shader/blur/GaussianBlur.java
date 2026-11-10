@@ -3,16 +3,14 @@ package me.youngjibbit.utils.render.shader.blur;
 import me.youngjibbit.utils.render.*;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.shader.Framebuffer;
-import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.*;
-import java.nio.FloatBuffer;
 import static org.lwjgl.opengl.GL11.*;
 
 /** Shared separable pass. Callers own scene snapshots, masks and framebuffers; this class owns only two programs. */
 public final class GaussianBlur {
     private static ShaderUtil scene,halo,kawase;
-    private static final FloatBuffer weights=BufferUtils.createFloatBuffer(256);
-    private static int kernelRadius=-1;
+    private static final GaussianKernelCache kernels=new GaussianKernelCache();
+    private static int sceneKernelRadius=-1,haloKernelRadius=-1;
     private GaussianBlur(){}
     /** Scene-only selection. Caller retains snapshot and two full-size ping-pong targets. */
     public static void renderScene(Framebuffer scratch,Framebuffer result,int input,float radius){
@@ -94,11 +92,15 @@ public final class GaussianBlur {
         if(glow){if(halo==null)halo=new ShaderUtil("Flauxy/Shaders/glow.frag");shader=halo;}
         else{if(scene==null)scene=new ShaderUtil("Flauxy/Shaders/gaussian.frag");shader=scene;}
         shader.init();shader.setUniformi("textureIn",0);shader.setUniformf("texelSize",1f/output.framebufferWidth,1f/output.framebufferHeight);shader.setUniformf("direction",dx,dy);shader.setUniformf("radius",radius);
-        if(kernelRadius!=radius){weights.clear();float sum=0;for(int i=0;i<=radius;i++){float value=(float)Math.exp(-i*i/(2f*(radius/2f)*(radius/2f)));weights.put(value);sum+=i==0?value:2*value;}for(int i=0;i<=radius;i++)weights.put(i,weights.get(i)/sum);weights.flip();kernelRadius=radius;}
-        weights.rewind();GL20.glUniform1(shader.getUniform("weights"),weights);
+        // Uniform values belong to the linked program, not to a framebuffer or draw call.
+        // The second direction and subsequent frames reuse the exact uploaded kernel.
+        if((glow?haloKernelRadius:sceneKernelRadius)!=radius){
+            GL20.glUniform1(shader.getUniform("weights"),kernels.get(radius));
+            if(glow)haloKernelRadius=radius;else sceneKernelRadius=radius;
+        }
         if(glow){shader.setUniformi("avoidTexture",0);shader.setUniformf("color",1,1,1);shader.setUniformf("exposure",exposure);}
         ShaderUtil.drawQuads();shader.unload();if(RenderDiagnostics.enabled)RenderDiagnostics.blurPasses++;
 
     }
-    public static void releaseResources(){if(scene!=null){scene.close();scene=null;}if(halo!=null){halo.close();halo=null;}if(kawase!=null){kawase.close();kawase=null;}kernelRadius=-1;}
+    public static void releaseResources(){if(scene!=null){scene.close();scene=null;}if(halo!=null){halo.close();halo=null;}if(kawase!=null){kawase.close();kawase=null;}sceneKernelRadius=haloKernelRadius=-1;}
 }

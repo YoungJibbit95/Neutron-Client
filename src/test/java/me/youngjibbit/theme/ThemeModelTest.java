@@ -56,5 +56,26 @@ public class ThemeModelTest {
   Path p=file();ThemeStore store=new ThemeStore(p){@Override protected void replace(Path from,Path to)throws IOException{throw new IOException("Injected replace failure");}};ThemeCatalog c=new ThemeCatalog(store);Theme t=custom(id(),"Failure");try{c.save(t);fail();}catch(IOException expected){}assertNull(c.find(t.name()));assertFalse(Files.exists(p));try(java.util.stream.Stream<Path> files=Files.list(p.getParent())){assertEquals(0,files.count());}
  }
  @Test public void unknownCustomReferenceIsRetainedWhileDisplayingFallback(){ThemeCatalog c=new ThemeCatalog(null);String id=id();c.select(id);assertEquals(id,c.selectedReference());assertSame(Theme.PinkLemonade,c.current());}
+ @Test public void resolvedSelectionTracksSavePreviewReplacementAndDeletionImmediately()throws Exception{
+  ThemeCatalog catalog=new ThemeCatalog(new ThemeStore(file()));Theme first=custom(id(),"First");
+  catalog.select(first.name());assertSame(Theme.PinkLemonade,catalog.current());
+  catalog.save(first);assertSame(first,catalog.current());assertSame(first,catalog.current());
+  Theme preview=custom(id(),"Preview");catalog.preview(preview);assertSame(preview,catalog.current());
+  Theme replacement=custom(first.name(),"Replacement");catalog.save(replacement);
+  assertSame(preview,catalog.current());catalog.cancelPreview();assertSame(replacement,catalog.current());
+  catalog.preview(preview);catalog.select("sYnThWaVe");assertSame(Theme.SynthWave,catalog.current());
+  catalog.select(replacement.name());assertSame(replacement,catalog.current());
+  catalog.preview(preview);catalog.delete(replacement.name());assertSame(Theme.PinkLemonade,catalog.current());assertFalse(catalog.isPreviewing());
+ }
+ @Test public void failedReplacementKeepsTheResolvedSelectionAndPreview()throws Exception{
+  final boolean[] fail={false};
+  ThemeStore store=new ThemeStore(file()){@Override protected void replace(Path from,Path to)throws IOException{if(fail[0])throw new IOException("Injected replace failure");super.replace(from,to);}};
+  ThemeCatalog catalog=new ThemeCatalog(store);Theme original=custom(id(),"Original");catalog.save(original);catalog.select(original.name());
+  Theme preview=custom(id(),"Preview");catalog.preview(preview);fail[0]=true;
+  try{catalog.save(custom(original.name(),"Rejected"));fail();}catch(IOException expected){}
+  assertSame(preview,catalog.current());catalog.cancelPreview();assertSame(original,catalog.current());
+  try{catalog.delete(original.name());fail();}catch(IOException expected){}
+  assertSame(original,catalog.current());
+ }
  @Test public void invalidPropertiesCannotEnterModel(){for(String name:new String[]{"","bad\nname"})try{custom(id(),name);fail();}catch(IllegalArgumentException expected){}try{custom("custom:bad","Name");fail();}catch(IllegalArgumentException expected){}try{Theme.custom(id(),"Name",Arrays.asList(Color.RED,Color.BLUE),false,false,Float.NaN,Color.BLACK,Color.WHITE,Color.RED,1,3,1,1);fail();}catch(IllegalArgumentException expected){}}
 }

@@ -7,17 +7,12 @@ import me.youngjibbit.utils.render.Roundedutil;
 import me.youngjibbit.utils.render.UIUtils;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.client.renderer.Tessellator;
-import net.minecraft.client.renderer.WorldRenderer;
 import net.minecraft.client.shader.Framebuffer;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL14;
 
 import java.awt.*;
-import java.awt.geom.Area;
-import java.awt.geom.PathIterator;
-import java.awt.geom.Rectangle2D;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -50,12 +45,14 @@ public class KawaseBloom {
             }
             framebufferList.clear();
             framebuffer = null;
-            framebufferList.add(framebuffer = RenderUtil.createFrameBuffer(null));
+            // These targets contain only fullscreen 2D filter results. A depth attachment
+            // would consume GPU memory and be cleared on every pass without being read.
+            framebufferList.add(framebuffer = new Framebuffer(mc.displayWidth, mc.displayHeight, false));
         }
 
         // Each pass clears its output, so smaller requests can reuse this pyramid's prefix.
         for (int i = framebufferList.size(); i <= iterations; i++) {
-            Framebuffer currentBuffer = new Framebuffer(Math.max(1, mc.displayWidth >> i), Math.max(1, mc.displayHeight >> i), true);
+            Framebuffer currentBuffer = new Framebuffer(Math.max(1, mc.displayWidth >> i), Math.max(1, mc.displayHeight >> i), false);
             currentBuffer.setFramebufferFilter(GL_LINEAR);
 
             GlStateManager.bindTexture(currentBuffer.framebufferTexture);
@@ -77,6 +74,9 @@ public class KawaseBloom {
     public static void renderBlur(int framebufferTexture,int iterations,int offset,boolean themed){
         GlStateManager.setActiveTexture(GL13.GL_TEXTURE0);
         ensureFramebuffers(iterations);
+        // Framebuffer allocation enables depth through Minecraft's state cache. Establish
+        // the 2D filter invariant for both a new pyramid and its warm reuse.
+        GlStateManager.disableDepth();GL11.glDisable(GL11.GL_DEPTH_TEST);
 
         RenderUtil.setAlphaLimit(0);
         // Filter passes replace their targets; never accumulate straight-alpha RGB.
@@ -95,8 +95,7 @@ public class KawaseBloom {
         }
 
         Framebuffer lastBuffer = framebufferList.get(0);
-        lastBuffer.framebufferClear();
-        lastBuffer.bindFramebuffer(false);
+        lastBuffer.bindAndClear();
         if(me.youngjibbit.utils.render.RenderDiagnostics.enabled)me.youngjibbit.utils.render.RenderDiagnostics.blurPasses++;
         kawaseUp.init();
         me.youngjibbit.utils.Theme theme=me.youngjibbit.utils.render.UiEffects.theme(me.youngjibbit.utils.Theme.getDefaultTheme());
@@ -144,8 +143,7 @@ public class KawaseBloom {
         if(me.youngjibbit.utils.render.RenderDiagnostics.enabled)me.youngjibbit.utils.render.RenderDiagnostics.maskPasses++;
         ensureBloomFramebuffer(); // Ensure it's created and matches screen size
 
-        bloomFramebuffer.framebufferClear();
-        bloomFramebuffer.bindFramebuffer(false);
+        bloomFramebuffer.bindAndClear();
 
         // Setup OpenGL state for 2D rendering
         GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
@@ -178,8 +176,7 @@ public class KawaseBloom {
         if(me.youngjibbit.utils.render.RenderDiagnostics.enabled)me.youngjibbit.utils.render.RenderDiagnostics.maskPasses++;
         ensureBloomFramebuffer(); // Ensure it's created and matches screen size
 
-        bloomFramebuffer.framebufferClear();
-        bloomFramebuffer.bindFramebuffer(false);
+        bloomFramebuffer.bindAndClear();
 
         // Setup OpenGL state for 2D rendering
         GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
@@ -215,8 +212,7 @@ public class KawaseBloom {
 
         ensureBloomFramebuffer(); // Make sure framebuffer exists and matches screen size
 
-        bloomFramebuffer.framebufferClear();
-        bloomFramebuffer.bindFramebuffer(false);
+        bloomFramebuffer.bindAndClear();
 
         // Setup OpenGL state for 2D rendering
         GL11.glPushAttrib(GL11.GL_ALL_ATTRIB_BITS);
@@ -254,7 +250,7 @@ public class KawaseBloom {
             }
 
             // Create a new framebuffer with the current screen dimensions
-            bloomFramebuffer = new Framebuffer(mc.displayWidth, mc.displayHeight, true);
+            bloomFramebuffer = new Framebuffer(mc.displayWidth, mc.displayHeight, false);
             bloomFramebuffer.setFramebufferFilter(GL_LINEAR);  // Set the filter for the framebuffer texture (you can adjust as needed)
 
             // Optionally, you can adjust texture wrap parameters here if needed

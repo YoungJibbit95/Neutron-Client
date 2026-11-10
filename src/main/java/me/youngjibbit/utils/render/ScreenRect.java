@@ -3,7 +3,6 @@ package me.youngjibbit.utils.render;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.ScaledResolution;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.util.glu.GLU;
@@ -15,8 +14,13 @@ public final class ScreenRect {
     private ScreenRect() { }
 
     public static float[] project(float x, float y, float width, float height) {
+        return project(x, y, width, height, new float[4]);
+    }
+
+    /** The caller owns the result; projection buffers are used only until this method returns. */
+    static float[] project(float x, float y, float width, float height, float[] result) {
         single.capture();
-        return single.project(x, y, width, height);
+        return single.project(x, y, width, height, result);
     }
 
     /** A transform shared only by consecutive draws with unchanged matrices and viewport. */
@@ -33,11 +37,15 @@ public final class ScreenRect {
             GL11.glGetFloat(GL11.GL_PROJECTION_MATRIX, projection);
             GL11.glGetInteger(GL11.GL_VIEWPORT, viewport);
             Minecraft mc = Minecraft.getMinecraft();
-            guiScale = new ScaledResolution(mc).getScaleFactor();
+            guiScale = GuiResolution.current().getScaleFactor();
             displayHeight = mc.displayHeight;
         }
 
         public float[] project(float x, float y, float width, float height) {
+            return project(x, y, width, height, new float[4]);
+        }
+
+        float[] project(float x, float y, float width, float height, float[] result) {
             float minX = Float.POSITIVE_INFINITY;
             float minY = Float.POSITIVE_INFINITY;
             float maxX = Float.NEGATIVE_INFINITY;
@@ -53,8 +61,11 @@ public final class ScreenRect {
                 minY = Math.min(minY, projectedY);
                 maxY = Math.max(maxY, projectedY);
             }
-            return new float[]{minX / guiScale, (displayHeight - maxY) / guiScale,
-                    (maxX - minX) / guiScale, (maxY - minY) / guiScale};
+            result[0] = minX / guiScale;
+            result[1] = (displayHeight - maxY) / guiScale;
+            result[2] = (maxX - minX) / guiScale;
+            result[3] = (maxY - minY) / guiScale;
+            return result;
         }
     }
 }

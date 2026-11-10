@@ -4,6 +4,7 @@ import me.youngjibbit.utils.render.shader.KawaseBloom;
 import net.minecraft.client.shader.Framebuffer;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public final class GuiShaderBloom {
@@ -43,18 +44,23 @@ public final class GuiShaderBloom {
             beginBatch();queueRect(x,y,width,height,radius,color,fixedColor,exactGeometry);flushBatch(2,2);return;
         }
 
-        float[] bounds=ScreenRect.project(x,y,width,height);
+        float[] rect=new float[13];
+        ScreenRect.project(x,y,width,height,rect);
         boolean clipped=org.lwjgl.opengl.GL11.glIsEnabled(org.lwjgl.opengl.GL11.GL_SCISSOR_TEST);
         if(clipped)org.lwjgl.opengl.GL11.glGetInteger(org.lwjgl.opengl.GL11.GL_SCISSOR_BOX,clip);
-        queuedRects.add(new float[]{bounds[0],bounds[1],bounds[2],bounds[3],
-                radius*Math.min(bounds[2]/width,bounds[3]/height),Float.intBitsToFloat(color),
-                clipped?1:0,
-                clipped?clip.get(0):0,clipped?clip.get(1):0,clipped?clip.get(2):0,clipped?clip.get(3):0,fixedColor?1:0,exactGeometry?1:0});
+        rect[4]=radius*Math.min(rect[2]/width,rect[3]/height);
+        rect[5]=Float.intBitsToFloat(color);
+        rect[6]=clipped?1:0;
+        for(int i=0;i<4;i++)rect[7+i]=clipped?clip.get(i):0;
+        rect[11]=fixedColor?1:0;
+        rect[12]=exactGeometry?1:0;
+        queuedRects.add(rect);
     }
 
     public static void flushBatch(int iterations, int offset) {
         if (batchDepth > 0 && --batchDepth > 0) return;
-        List<Runnable> composites = new ArrayList<>(afterBatch);
+        List<Runnable> composites = afterBatch.isEmpty()
+                ? Collections.emptyList() : new ArrayList<>(afterBatch);
         afterBatch.clear();
         try {
             if (UiEffects.effectsSupported() && UiEffects.glowEnabled() && !queuedRects.isEmpty()) {

@@ -266,6 +266,13 @@ public class Framebuffer
 
     public void framebufferClear()
     {
+        this.bindAndClear();
+        this.unbindFramebuffer();
+    }
+
+    /** Clears this attachment and leaves it bound for an immediately following render pass. */
+    public void bindAndClear()
+    {
         this.bindFramebuffer(true);
         GlStateManager.clearColor(this.framebufferColor[0], this.framebufferColor[1], this.framebufferColor[2], this.framebufferColor[3]);
         int i = 16384;
@@ -277,6 +284,5 @@ public class Framebuffer
         }
 
         GlStateManager.clear(i);
-        this.unbindFramebuffer();
     }
 }

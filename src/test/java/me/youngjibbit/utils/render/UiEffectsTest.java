@@ -38,6 +38,59 @@ public class UiEffectsTest {
   settings.reducedMotion.setValue(true);clock.set(5000000000L);UiEffects.beginFrame();assertEquals(.3f,local.phase(),.00001);
  }
 
+ @Test public void warmedGradientIsSharedUntilItsActualInputsChange(){
+  UiEffects.Gradient first=UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.TEXT);
+  assertSame(first,UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.TEXT));
+  assertSame(first,UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.BORDER));
+  assertSame(first,UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.GLOW));
+  settings.direction.setValue("Up");
+  UiEffects.Gradient changed=UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.TEXT);
+  assertNotSame(first,changed);assertEquals(-2,changed.axis);
+  advanceTo(100000000L);
+  UiEffects.Gradient next=UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.TEXT);
+  assertNotSame(changed,next);assertEquals(.025f,next.phase,.000001f);
+  settings.reducedMotion.setValue(true);
+  UiEffects.Gradient frozen=UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.TEXT);
+  advanceTo(1000000000L);
+  assertSame(frozen,UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.TEXT));
+ }
+
+ @Test public void cachedLocalThemeSwitchesToGlobalPhaseImmediatelyDuringPreview(){
+  me.youngjibbit.theme.ThemeCatalog previousCatalog=me.youngjibbit.theme.ThemeCatalog.global();
+  me.youngjibbit.theme.ThemeCatalog catalog=new me.youngjibbit.theme.ThemeCatalog(null);
+  me.youngjibbit.theme.ThemeCatalog.install(catalog);
+  try{
+   Theme local=Theme.custom("custom:00000000-0000-0000-0000-000000000023","Preview clock",java.util.Arrays.asList(java.awt.Color.RED,java.awt.Color.BLUE),false,true,.3f,java.awt.Color.BLACK,java.awt.Color.WHITE,java.awt.Color.GREEN,.75f,9,.8f,1);
+   settings.gradientMotion.setValue("Theme");advanceTo(1000000000L);
+   UiEffects.Gradient inherited=UiEffects.gradient(local,UiEffects.Channel.TEXT);
+   assertEquals(.3f,inherited.phase,.00001);
+   catalog.preview(local);
+   UiEffects.Gradient preview=UiEffects.gradient(local,UiEffects.Channel.TEXT);
+   assertNotSame(inherited,preview);assertEquals(0,preview.phase,0);
+   catalog.cancelPreview();
+   assertEquals(.3f,UiEffects.gradient(local,UiEffects.Channel.TEXT).phase,.00001);
+  }finally{me.youngjibbit.theme.ThemeCatalog.install(previousCatalog);}
+ }
+
+ @Test public void separateChannelsAndSameIdThemeReplacementsKeepTheirOwnValues()throws Exception{
+  settings.synchronize.setValue(false);settings.textMotion.setValue("Solid");settings.glowMotion.setValue("Animated");settings.glowSpeed.setValue(.5);
+  assertEquals(0,UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.TEXT).mode);
+  advanceTo(1000000000L);
+  assertEquals(.5f,UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.GLOW).phase,.00001);
+  settings.synchronize.setValue(true);settings.gradientMotion.setValue("Theme");
+  String id="custom:00000000-0000-0000-0000-000000000024";
+  Theme first=Theme.custom(id,"First",java.util.Arrays.asList(java.awt.Color.RED,java.awt.Color.BLUE),false,true,.3f,java.awt.Color.BLACK,java.awt.Color.WHITE,java.awt.Color.GREEN,.75f,9,.8f,1);
+  Theme replacement=Theme.custom(id,"Replacement",java.util.Arrays.asList(java.awt.Color.RED,java.awt.Color.BLUE),true,true,.7f,java.awt.Color.BLACK,java.awt.Color.WHITE,java.awt.Color.GREEN,.75f,9,.8f,1);
+  assertEquals(.3f,UiEffects.gradient(first,UiEffects.Channel.TEXT).phase,.00001);
+  assertEquals(.7f,UiEffects.gradient(replacement,UiEffects.Channel.TEXT).phase,.00001);
+  settings.direction.setValue("Theme");
+  assertEquals(1,UiEffects.gradient(first,UiEffects.Channel.TEXT).axis);
+  assertEquals(2,UiEffects.gradient(replacement,UiEffects.Channel.TEXT).axis);
+  for(Theme theme:Theme.values())UiEffects.gradient(theme,UiEffects.Channel.TEXT);
+  Field cache=UiEffects.class.getDeclaredField("gradientCache");cache.setAccessible(true);
+  assertTrue(((java.util.Map<?,?>)cache.get(null)).size()<=16);
+ }
+
 
  @Test public void categoryCoordinateDomainIsSharedAndRestoresAfterClose(){
   settings.direction.setValue("Vertical");settings.gradientMotion.setValue("Static");
