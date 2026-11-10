@@ -130,9 +130,10 @@ def bundle(jar, output, tag, repository):
         for path in sorted(folder.iterdir()):
             zipped.write(path, path.relative_to(output).as_posix())
     checksummed = [*sorted(folder.iterdir()), archive]
-    (output / "SHA256SUMS.txt").write_text("".join(
+    # Keep the checksum interchange format LF-only on Windows as well.
+    (output / "SHA256SUMS.txt").write_bytes("".join(
         hashlib.sha256(p.read_bytes()).hexdigest() + "  " + p.relative_to(output).as_posix() + "\n"
-        for p in checksummed), encoding="utf-8")
+        for p in checksummed).encode("utf-8"))
     summary = {"version": identifier, "commit": head, "previousTag": previous,
                "minecraftMetadataSha1": METADATA_SHA1,
                "jar": (folder / (identifier + ".jar")).as_posix(),
