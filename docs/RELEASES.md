@@ -17,9 +17,10 @@ from the downloaded artifact directory.
 ## Build a candidate
 
 Open **Actions → Release bundle → Run workflow**, select the source branch and enter
-a version such as `v1.0.0-alpha.1`. Download `neutron-release-bundle` from the completed
-run. This creates an Actions artifact; it does not publish a release or create a tag.
-Pull requests changing the release tooling also build a candidate automatically.
+a version such as `v1.0.0-alpha.1`. Leave **prepare_release** unchecked (the default).
+Download `neutron-release-bundle` from the completed run. This creates an Actions
+artifact; it does not publish a release or create a tag. Pull requests changing the
+release tooling and pushes to `main` also build candidates automatically.
 
 Locally, with Temurin 8u482, Maven 3.9.15 and Python 3:
 
@@ -38,6 +39,23 @@ tag on the chosen `main` commit and push that tag. Prerelease names such as
 `v1.0.0-alpha.1` work too. The workflow checks that the tagged commit belongs to
 `main`, runs the Java 8 tests, builds the bundle and checks the packaged runtime
 without the development dependency classpath. A failure prevents a release draft.
+
+Alternatively, select **main** in **Run workflow**, enter the intended version (for
+example `v0.3.0-alpha.1`) and enable **prepare_release**. This runs the same complete
+build and packaged-runtime gates before preparing a draft with all assets. The
+draft targets the exact workflow source SHA; no Git tag is required beforehand.
+Draft preparation from other branches is rejected. Ordinary `main` pushes and
+manual runs without this option cannot create releases.
+
+Both preparation paths verify the bundle version, source SHA, matching JAR/JSON
+identity and SHA256 checksums before any release change. An existing tag must
+resolve to that source SHA; an untagged existing draft must already target it.
+Use a new version for a different source commit. Tags with a prerelease suffix are
+marked as prereleases automatically. Review every asset and the notes in the draft
+before manually publishing it; GitHub creates a pending tag at the pinned source
+when that draft is published. The subsequent tag-triggered job preserves an already
+published release unchanged. A manual preparation request for a published version
+fails instead of replacing it.
 
 The Action creates a **draft GitHub Release** with the files attached. Review the
 bundle in the official launcher with a separate game directory, including account
@@ -77,7 +95,8 @@ remain required for any platform advertised as supported.
 
 Release tags cannot be updated or deleted. Future published releases are immutable;
 prepare all files in the draft before publishing and use a new version for fixes.
-The tagged-release job attests the bundle ZIP through GitHub OIDC. Verify it with:
+Both tag-triggered and explicitly requested manual draft preparation attest the
+exact bundle ZIP through GitHub OIDC. Verify it with:
 
 ```shell
 gh attestation verify Neutron-<version>-bundle.zip --repo YoungJibbit95/Neutron-Client
