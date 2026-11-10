@@ -2,7 +2,7 @@ package me.youngjibbit.core.combat;
 
 import me.youngjibbit.utils.math.FastNoiseLite;
 
-/** Per-call settings snapshot; speeds are degrees per 50 ms, offsets degrees, radius blocks, frequency Hz. */
+/** Per-call snapshot. Legacy speeds use degrees/50 ms; explicit Adaptive Aim Speed uses degrees/second. */
 public final class RotationProfile {
     public enum Mode { BASIC, SMOOTH, ADVANCED }
     public enum ArsenicMode { OFF, LAZY, HEURISTICS }
@@ -11,12 +11,16 @@ public final class RotationProfile {
     public boolean adaptive;
     /** Optional Aura-only neural candidate; no implicit model or old-mode fallback. */
     public boolean aiLearned;
-    /** Used only when adaptive=true; all old modes ignore these three values. */
+    /** Used only when adaptive=true; all other approaches ignore these fields. */
     public AdaptivePresetMotion.Speed adaptiveSpeed = AdaptivePresetMotion.Speed.BALANCED;
     public AdaptivePresetMotion.Hitpoint adaptiveHitpoint = AdaptivePresetMotion.Hitpoint.STABLE;
     public float adaptiveVariation = .5f;
     public AdaptivePresetMotion.AimPoint adaptiveAimPoint = AdaptivePresetMotion.AimPoint.STRAIGHT;
     public boolean adaptiveKeepAim = true;
+    public boolean adaptiveExplicitControls;
+    public float adaptiveMinAimSpeed=360, adaptiveMaxAimSpeed=560, adaptiveYawScale=1, adaptivePitchScale=1, adaptiveNoiseTempo=1;
+    public AdaptiveMotionController.Curve adaptiveCurve=AdaptiveMotionController.Curve.ADAPTIVE;
+    public AdaptivePresetMotion.Noise adaptiveNoise=AdaptivePresetMotion.Noise.SOFT;
     public boolean softArsenicMotion;
     public enum HitpointNoise {
         CALM(.45, .25), BALANCED(.85, .48), DYNAMIC(1.4, .8);

@@ -34,6 +34,12 @@ public final class AttackScheduler {
     public boolean hasAttackThisTick() { return lastAttackTick == tick || lastAutoTick == tick; }
     private boolean hasSpentClickBudget() { return hasAttackThisTick() || lastClickTick == tick; }
 
+    /** Read-only preparation hint. The actual click still reserves and rechecks this budget. */
+    public boolean isClickDue(long motion) {
+        return !controllerInFlight && !automatic && attemptedMotion != motion && !hasSpentClickBudget()
+                && cadenceReady(clock.getAsLong());
+    }
+
     public boolean allowControllerAttack(boolean auraEnabled) {
         if (automatic) {
             if (controllerUsed) return false;

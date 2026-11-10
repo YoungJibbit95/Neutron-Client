@@ -70,6 +70,12 @@ public class ItemRenderer
         return (Animations) Pulsar.INSTANCE.getMm().getModule(Animations.class);
     }
 
+    private boolean renderAdaptiveBlock() {
+        me.youngjibbit.module.impl.combat.Aura aura = Pulsar.INSTANCE.getMm() == null ? null
+                : (me.youngjibbit.module.impl.combat.Aura) Pulsar.INSTANCE.getMm().getModule(me.youngjibbit.module.impl.combat.Aura.class);
+        return aura != null && aura.shouldRenderAdaptiveBlock(itemToRender);
+    }
+
     public void renderItem(EntityLivingBase entityIn, ItemStack heldStack, ItemCameraTransforms.TransformType transform)
     {
         if (heldStack != null)
@@ -388,7 +394,7 @@ public class ItemRenderer
             if (this.itemToRender != null) {
                 if (this.itemToRender.getItem() instanceof ItemMap) {
                     this.renderItemMap(abstractclientplayer, f2, f, swingProgress);
-                } else if (abstractclientplayer.getItemInUseCount() > 0) {
+                } else if (abstractclientplayer.getItemInUseCount() > 0 || renderAdaptiveBlock()) {
                     EnumAction enumaction = this.itemToRender.getItemUseAction();
                     float var15 = MathHelper.sin(swingProgress * swingProgress * 3.1415927F);
                     float var16 = MathHelper.sin(MathHelper.sqrt_float(swingProgress) * 3.1415927F);

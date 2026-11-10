@@ -48,4 +48,64 @@ public class TickbaseConfigTest {
         Files.write(dir.resolve("Synthetic.json"), "{\"Tickbase\":{\"Release On\":\"invalid\",\"Charge Range\":4.0}}".getBytes(StandardCharsets.UTF_8));
         assertFalse(config.loadConfig("Synthetic")); assertEquals(before, config.serialize());
     }
+
+    @Test public void legacyWarmImportClearsPreviouslySelectedPacketModeAndWindow() throws Exception {
+        for (String previous : new String[]{"Demise Pulse", "Demise Approach"}) {
+            Tickbase tick = new Tickbase(); Path dir = temporary.newFolder().toPath();
+            ConfigManager config = new ConfigManager(dir, Collections.<Module>singletonList(tick), () -> false, message -> { });
+            tick.getModeSetting("Mode").setValue(previous);
+            tick.getNumberSetting("Packet Hold MS").setValue(240D);
+            tick.getNumberSetting("Pulse Gap MS").setValue(700D);
+            Files.write(dir.resolve("Legacy.json"), "{\"Tickbase\":{\"Charge Ticks\":4}}".getBytes(StandardCharsets.UTF_8));
+
+            assertTrue(config.getLastError(), config.loadConfig("Legacy"));
+            assertEquals("Player Steps", tick.getModeSetting("Mode").getValue());
+            assertEquals(200, tick.getNumberSetting("Packet Hold MS").getValue(), 0);
+            assertEquals(60, tick.getNumberSetting("Pulse Gap MS").getValue(), 0);
+            assertEquals(4, tick.getNumberSetting("Charge Ticks").getValue(), 0);
+        }
+    }
+
+    @Test public void explicitPacketModesAndWindowsSurviveModernRoundTrip() throws Exception {
+        Tickbase tick = new Tickbase(); Path dir = temporary.newFolder().toPath();
+        ConfigManager config = new ConfigManager(dir, Collections.<Module>singletonList(tick), () -> false, message -> { });
+        for (String mode : new String[]{"Demise Pulse", "Demise Approach"}) {
+            tick.getModeSetting("Mode").setValue(mode);
+            tick.getNumberSetting("Packet Hold MS").setValue(150D);
+            tick.getNumberSetting("Pulse Gap MS").setValue(90D);
+            assertTrue(config.saveConfig("Modern"));
+            tick.getModeSetting("Mode").setValue("Player Steps");
+            tick.getNumberSetting("Packet Hold MS").setValue(250D);
+            tick.getNumberSetting("Pulse Gap MS").setValue(1000D);
+
+            assertTrue(config.getLastError(), config.loadConfig("Modern"));
+            assertEquals(mode, tick.getModeSetting("Mode").getValue());
+            assertEquals(150, tick.getNumberSetting("Packet Hold MS").getValue(), 0);
+            assertEquals(90, tick.getNumberSetting("Pulse Gap MS").getValue(), 0);
+        }
+    }
+
+    @Test public void directSettingsEditDoesNotApplyFullImportDefaults() {
+        Tickbase tick = new Tickbase();
+        tick.getModeSetting("Mode").setValue("Demise Approach");
+        tick.getNumberSetting("Packet Hold MS").setValue(150D);
+        tick.getNumberSetting("Pulse Gap MS").setValue(90D);
+        tick.beginSettingsUpdate();
+        tick.getNumberSetting("Charge Ticks").setValue(4D);
+        tick.endConfigUpdate();
+        assertEquals("Demise Approach", tick.getModeSetting("Mode").getValue());
+        assertEquals(150, tick.getNumberSetting("Packet Hold MS").getValue(), 0);
+        assertEquals(90, tick.getNumberSetting("Pulse Gap MS").getValue(), 0);
+    }
+
+    @Test public void invalidPacketModeImportDoesNotPartiallyResetWarmState() throws Exception {
+        Tickbase tick = new Tickbase(); Path dir = temporary.newFolder().toPath();
+        ConfigManager config = new ConfigManager(dir, Collections.<Module>singletonList(tick), () -> false, message -> { });
+        tick.getModeSetting("Mode").setValue("Demise Pulse");
+        tick.getNumberSetting("Packet Hold MS").setValue(150D);
+        String before = config.serialize();
+        Files.write(dir.resolve("Invalid.json"), "{\"Tickbase\":{\"Mode\":\"missing\",\"Pulse Gap MS\":90}}".getBytes(StandardCharsets.UTF_8));
+        assertFalse(config.loadConfig("Invalid"));
+        assertEquals(before, config.serialize());
+    }
 }

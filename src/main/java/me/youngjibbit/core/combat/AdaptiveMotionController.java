@@ -12,6 +12,28 @@ public final class AdaptiveMotionController {
     private static final double MAX_DT_SECONDS = 0.075;
     private static final double EPSILON_DEGREES = 1.0e-7;
 
+    public enum Curve { ADAPTIVE, LINEAR, RELATIVE }
+
+    /** Optional Aura controls. Null retains the original controller used by Scaffold. */
+    public static final class Control {
+        public final double minSpeedFraction, noiseAmount, noiseTempo, maxTravelSpeed;
+        public final Curve curve;
+
+        public Control(double minSpeedFraction, Curve curve, double noiseAmount, double noiseTempo) {
+            this(minSpeedFraction,curve,noiseAmount,noiseTempo,Double.MAX_VALUE);
+        }
+        public Control(double minSpeedFraction, Curve curve, double noiseAmount, double noiseTempo, double maxTravelSpeed) {
+            if (!Double.isFinite(minSpeedFraction) || minSpeedFraction <= 0 || minSpeedFraction > 1
+                    || curve == null || !Double.isFinite(noiseAmount) || noiseAmount < 0 || noiseAmount > 1
+                    || !positive(noiseTempo) || !positive(maxTravelSpeed)) throw new IllegalArgumentException("invalid Adaptive controls");
+            this.minSpeedFraction = minSpeedFraction;
+            this.curve = curve;
+            this.noiseAmount = noiseAmount;
+            this.noiseTempo = noiseTempo;
+            this.maxTravelSpeed=maxTravelSpeed;
+        }
+    }
+
     /** Tokens are compared by object identity, never by an entity's reusable numeric ID. */
     public static final class Acquisition {
         public final Object owner, scene, target;
@@ -43,6 +65,7 @@ public final class AdaptiveMotionController {
         public final double variation, curvature;
         /** Optional calmer keeping phase. NaN keeps the uniform legacy limits byte for byte. */
         public final double keepYawSpeed, keepPitchSpeed, keepEnterProgress;
+        public final Control control;
 
         public Limits(double maxYawSpeed, double maxPitchSpeed, double maxAcceleration,
                       double maxJerk, double variation, double curvature) {
@@ -53,6 +76,19 @@ public final class AdaptiveMotionController {
         public Limits(double maxYawSpeed, double maxPitchSpeed, double maxAcceleration,
                       double maxJerk, double variation, double curvature,
                       double keepYawSpeed, double keepPitchSpeed, double keepEnterProgress) {
+            this(maxYawSpeed,maxPitchSpeed,maxAcceleration,maxJerk,variation,curvature,
+                    keepYawSpeed,keepPitchSpeed,keepEnterProgress,null);
+        }
+
+        public Limits(double maxYawSpeed, double maxPitchSpeed, double maxAcceleration,
+                      double maxJerk, double variation, double curvature, Control control) {
+            this(maxYawSpeed,maxPitchSpeed,maxAcceleration,maxJerk,variation,curvature,
+                    Double.NaN,Double.NaN,Double.NaN,control);
+        }
+
+        private Limits(double maxYawSpeed, double maxPitchSpeed, double maxAcceleration,
+                      double maxJerk, double variation, double curvature,
+                      double keepYawSpeed, double keepPitchSpeed, double keepEnterProgress, Control control) {
             if (!positive(maxYawSpeed) || !positive(maxPitchSpeed)
                     || !positive(maxAcceleration) || !positive(maxJerk)
                     || !Double.isFinite(variation) || variation < 0 || variation > 0.3
@@ -78,6 +114,7 @@ public final class AdaptiveMotionController {
             this.keepYawSpeed = keepYawSpeed;
             this.keepPitchSpeed = keepPitchSpeed;
             this.keepEnterProgress = keepEnterProgress;
+            this.control = control;
         }
 
         double yawSpeedCap(double progress) {
@@ -101,11 +138,12 @@ public final class AdaptiveMotionController {
     public static final class Profile {
         public final double speedScale, accelerationScale, brakingScale, lateralBias;
 
-        private Profile(Random random, double curvature) {
-            speedScale = 0.85 + random.nextDouble() * 0.30;
-            accelerationScale = 0.82 + random.nextDouble() * 0.36;
-            brakingScale = 0.78 + random.nextDouble() * 0.44;
-            lateralBias = (random.nextDouble() * 2 - 1) * curvature;
+        private Profile(Random random, double curvature, Control control) {
+            speedScale = control == null ? 0.85 + random.nextDouble() * 0.30 : 1;
+            accelerationScale = control == null ? 0.82 + random.nextDouble() * 0.36 : 1;
+            brakingScale = control == null ? 0.78 + random.nextDouble() * 0.44 : 1;
+            lateralBias = control == null ? (random.nextDouble() * 2 - 1) * curvature
+                    : control.noiseAmount == 0 ? 0 : (random.nextDouble() * 2 - 1) * curvature * control.noiseAmount;
         }
     }
 
@@ -114,10 +152,11 @@ public final class AdaptiveMotionController {
         public final double yaw, pitch;
         public final boolean candidate;
         public final double yawVelocity, pitchVelocity, yawAcceleration, pitchAcceleration, noise;
+        public final double elapsedSeconds;
 
         private Result(double yaw, double pitch, boolean candidate,
                        double yawVelocity, double pitchVelocity,
-                       double yawAcceleration, double pitchAcceleration, double noise) {
+                       double yawAcceleration, double pitchAcceleration, double noise, double elapsedSeconds) {
             this.yaw = yaw;
             this.pitch = pitch;
             this.candidate = candidate;
@@ -126,6 +165,7 @@ public final class AdaptiveMotionController {
             this.yawAcceleration = yawAcceleration;
             this.pitchAcceleration = pitchAcceleration;
             this.noise = noise;
+            this.elapsedSeconds=elapsedSeconds;
         }
     }
 
@@ -133,16 +173,21 @@ public final class AdaptiveMotionController {
         final Acquisition acquisition;
         final Random random;
         final Profile profile;
+        final AdaptiveAimNoise coherentNoise;
+        final long startNanos;
         long lastSequence, lastNanos;
         double yawVelocity, pitchVelocity, yawAcceleration, pitchAcceleration;
         double noise, initialDistance;
         Result cached;
 
-        State(Acquisition acquisition, long seed, double curvature, long sequence, long nanos,
+        State(Acquisition acquisition, long seed, Limits limits, long sequence, long nanos,
               Result initial) {
             this.acquisition = acquisition;
             this.random = new Random(seed);
-            this.profile = new Profile(random, curvature);
+            this.profile = new Profile(random, limits.curvature, limits.control);
+            this.coherentNoise = limits.control == null || limits.control.noiseAmount == 0 ? null
+                    : new AdaptiveAimNoise(seed, limits.control.noiseTempo);
+            this.startNanos = nanos;
             this.lastSequence = sequence;
             this.lastNanos = nanos;
             this.cached = initial;
@@ -189,7 +234,7 @@ public final class AdaptiveMotionController {
             lastEpoch = acquisition.connectionEpoch;
             lastOrdinal = acquisition.ordinal;
             current = new State(acquisition, mixSeed(seed, lastEpoch, lastOrdinal),
-                    limits.curvature, sequence, nanos, hold);
+                    limits, sequence, nanos, hold);
             return hold;
         }
         State state = current;
@@ -222,15 +267,21 @@ public final class AdaptiveMotionController {
         // Moving target: broaden the progress reference, but never redraw the profile.
         state.initialDistance = Math.max(state.initialDistance, distance);
         double progress = clamp(1 - distance / state.initialDistance, 0, 1);
-        double sideways = state.profile.lateralBias * 4 * progress * (1 - progress);        double x = yawError / distance - sideways * pitchError / distance;
+        double sideways = state.profile.lateralBias * 4 * progress * (1 - progress);
+        double x = yawError / distance - sideways * pitchError / distance;
         double y = pitchError / distance + sideways * yawError / distance;
         double norm = Math.hypot(x, y);
         x /= norm;
         y /= norm;
 
-        // Stable, bounded first-order correlated noise; a draw occurs only per motion ID.
-        double alpha = Math.exp(-dt / 0.22);
-        state.noise = alpha * state.noise + (1 - alpha) * (state.random.nextDouble() * 2 - 1);
+        if (limits.control == null) {
+            // Preserve the original caller contract for Scaffold and legacy acquisitions.
+            double alpha = Math.exp(-dt / 0.22);
+            state.noise = alpha * state.noise + (1 - alpha) * (state.random.nextDouble() * 2 - 1);
+        } else {
+            state.noise = state.coherentNoise == null ? 0
+                    : state.coherentNoise.sample((nanos - state.startNanos) * 1e-9, 0) * limits.control.noiseAmount;
+        }
         double yawCap = limits.yawSpeedCap(progress);
         double pitchCap = limits.pitchSpeedCap(progress);
         double directionalCap = Math.min(yawCap / Math.max(Math.abs(x), 1e-9),
@@ -240,6 +291,19 @@ public final class AdaptiveMotionController {
         double speed = Math.min(directionalCap * state.profile.speedScale
                         * (1 + limits.variation * state.noise),
                 Math.sqrt(2 * brakeCap * distance) * 0.88);
+        if (limits.control != null) {
+            Control control = limits.control;
+            directionalCap=Math.min(directionalCap,control.maxTravelSpeed);
+            // The range chooses travel speed, never a minimum step near the target.
+            double preference = control.minSpeedFraction
+                    + (1 - control.minSpeedFraction) * (.5 + .5 * state.noise);
+            speed = directionalCap * preference;
+            if (control.curve == Curve.RELATIVE)
+                speed = Math.min(speed, distance * (1 - Math.exp(-6 * dt)) / dt);
+            else if (control.curve == Curve.ADAPTIVE)
+                speed = Math.min(speed, Math.sqrt(2 * brakeCap * distance) * .88);
+            // Linear still uses the shared acceleration/jerk and residual-distance guards.
+        }
         // Every axis shares the same dt, phase, acquisition profile and noise state.
         state.yawAcceleration = evolveAcceleration(state.yawAcceleration, state.yawVelocity,
                 speed * x, accelCap, limits.maxJerk, dt);
@@ -247,6 +311,13 @@ public final class AdaptiveMotionController {
                 speed * y, accelCap, limits.maxJerk, dt);
         state.yawVelocity = clamp(state.yawVelocity + state.yawAcceleration * dt, -yawCap, yawCap);
         state.pitchVelocity = clamp(state.pitchVelocity + state.pitchAcceleration * dt, -pitchCap, pitchCap);
+        if(limits.control!=null) {
+            double combined=Math.hypot(state.yawVelocity,state.pitchVelocity);
+            if(combined>limits.control.maxTravelSpeed) {
+                double scale=limits.control.maxTravelSpeed/combined;
+                state.yawVelocity*=scale;state.pitchVelocity*=scale;
+            }
+        }
         double yawStep = boundStep(state.yawVelocity * dt, yawError);
         double pitchStep = boundStep(state.pitchVelocity * dt, pitchError);
         // Respect actual emitted displacement when the residual-distance clamp engages.
@@ -257,7 +328,7 @@ public final class AdaptiveMotionController {
         state.cached = new Result(yaw, pitch, Math.abs(yawStep) > EPSILON_DEGREES
                 || Math.abs(pitchStep) > EPSILON_DEGREES,
                 state.yawVelocity, state.pitchVelocity,
-                state.yawAcceleration, state.pitchAcceleration, state.noise);
+                state.yawAcceleration, state.pitchAcceleration, state.noise, dt);
         return state.cached;
     }
 
@@ -282,7 +353,7 @@ public final class AdaptiveMotionController {
     private static Result hold(double yaw, double pitch) {
         return new Result(Double.isFinite(yaw) ? wrap(yaw) : 0,
                 Double.isFinite(pitch) ? clamp(pitch, -90, 90) : 0,
-                false, 0, 0, 0, 0, 0);
+                false, 0, 0, 0, 0, 0, 0);
     }
 
     private static double evolveAcceleration(double previous, double velocity, double desired,

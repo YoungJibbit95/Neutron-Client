@@ -249,10 +249,17 @@ public class NetworkManager extends SimpleChannelInboundHandler<Packet>
     }
 
     public Packet<?> sendPacketGuarded(Packet packet, boolean silent, java.util.function.Predicate<Packet<?>> validAction) {
+        return sendPacketGuarded(packet, silent, validAction, accepted -> { });
+    }
+
+    public Packet<?> sendPacketGuarded(Packet packet, boolean silent, java.util.function.Predicate<Packet<?>> validAction,
+                                       java.util.function.Consumer<Packet<?>> onAccepted) {
         PacketPipeline pipeline = clientPackets;
-        if (pipeline != null) return pipeline.outboundSelected(packet, silent, selected -> sendTransport((Packet) selected, null), validAction);
+        if (pipeline != null) return pipeline.outboundSelected(packet, silent, selected -> sendTransport((Packet) selected, null), validAction, onAccepted);
         if (!validAction.test(packet) || !isChannelOpen()) return null;
-        return sendTransport(packet, null) ? packet : null;
+        if (!sendTransport(packet, null)) return null;
+        onAccepted.accept(packet);
+        return packet;
     }
 
     private Packet<?> sendPacketTracked(Packet packet, boolean silent,

@@ -25,6 +25,49 @@ import static org.junit.Assert.*;
 
 /** Real Aura + patched walking/packet hook plus controlled RotationManager PRE negative fixtures. */
 public class AdaptiveAuraIntegrationTest {
+    // The fixture replaces static-final Minecraft references with Unsafe. Isolate cases
+    // under the ordinary Java 8 JIT so a previous fixture cannot be constant-folded.
+    @Test public void actualAuraWalkingHookEmitsOnlyExistingC03AndAcceptedGcdGrid() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "actualAuraWalkingHookEmitsOnlyExistingC03AndAcceptedGcdGrid");
+    }
+    @Test public void relativeNearestAtLowSpeedReachesARealRayOnEverySensitivityGrid() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "relativeNearestAtLowSpeedReachesARealRayOnEverySensitivityGrid");
+    }
+    @Test public void subCountAndMixedMotionIntervalsEarnBoundedMouseCountCredit() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "subCountAndMixedMotionIntervalsEarnBoundedMouseCountCredit");
+    }
+    @Test public void targetSwitchLosesOldAcquisitionAndDoesNotReplayItsTurn() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "targetSwitchLosesOldAcquisitionAndDoesNotReplayItsTurn");
+    }
+    @Test public void validTargetRayHoldsWithoutNoiseDriftAndMovingTargetResumesTheSameScopedEngine() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "validTargetRayHoldsWithoutNoiseDriftAndMovingTargetResumesTheSameScopedEngine");
+    }
+    @Test public void cancelledRealC03RevokesOwnershipAndRestartsWithoutCatchup() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "cancelledRealC03RevokesOwnershipAndRestartsWithoutCatchup");
+    }
+    @Test public void sameSequencePreReentryAndDifferentRenderCadenceDoNotConsumeExtraMotion() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "sameSequencePreReentryAndDifferentRenderCadenceDoNotConsumeExtraMotion");
+    }
+    @Test public void targetFlappingInsideOneMotionSequenceCannotReacquireRepeatedly() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "targetFlappingInsideOneMotionSequenceCannotReacquireRepeatedly");
+    }
+    @Test public void sensitivityChangeCannotReuseThePreviousGridOrSpendTheSameMotionTwice() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "sensitivityChangeCannotReuseThePreviousGridOrSpendTheSameMotionTwice");
+    }
+    @Test public void rejectedC03AndForeignOwnerCannotRetainAdaptiveAuthority() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "rejectedC03AndForeignOwnerCannotRetainAdaptiveAuthority");
+    }
+    @Test public void adaptivePresetThroughRealWalkingHookKeepsAcceptedC03AndNoC02() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "adaptivePresetThroughRealWalkingHookKeepsAcceptedC03AndNoC02");
+    }
+    @Test public void dynamicHitpointTargetSwitchAndDisableStartFreshMotion() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "dynamicHitpointTargetSwitchAndDisableStartFreshMotion");
+    }
+    @Test public void guiFocusDisableAndConnectionBoundaryInvalidateWithoutGhostAcquisition() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "guiFocusDisableAndConnectionBoundaryInvalidateWithoutGhostAcquisition");
+    }
+
+    public static class Checks {
     private static final class Harness implements AutoCloseable {
         final RotationBehaviorHookTest.Fixture f;
         final ScaffoldClientFlowTest.Scene scene;
@@ -73,7 +116,11 @@ public class AdaptiveAuraIntegrationTest {
         }
 
         void walk(int tick) {
-            scene.motionTime.set(tick * 50_000_000L);
+            walkAt(tick * 50_000_000L);
+        }
+
+        void walkAt(long nanos) {
+            scene.motionTime.set(nanos);
             ScaffoldClientFlowTest.ordinaryWalking(f);
             drain();
         }
@@ -105,6 +152,64 @@ public class AdaptiveAuraIntegrationTest {
             }
             assertTrue(h.sawC03);
             assertTrue("Adaptive candidate must reach live Aura consumer", changed);
+        }
+    }
+
+    @Test public void relativeNearestAtLowSpeedReachesARealRayOnEverySensitivityGrid() throws Exception {
+        for(float sensitivity:new float[]{0,.5f,1}) {
+            try(Harness h=new Harness()) {
+                h.f.mc.gameSettings.mouseSensitivity=sensitivity;
+                h.f.aura.getModeSetting("Adaptive Aim Point").setValue("Nearest");
+                h.f.aura.getModeSetting("Adaptive Curve").setValue("Relative");
+                h.f.aura.getModeSetting("Adaptive Noise Profile").setValue("Off");
+                h.f.aura.getNumberSetting("adaptive_min_aim_speed").setValue(20D);
+                h.f.aura.getNumberSetting("adaptive_max_aim_speed").setValue(20D);
+                h.f.aura.getBooleanSetting("Adaptive Keep Valid Aim").setValue(false);
+                float yaw=0,pitch=0;boolean hit=false;
+                net.minecraft.util.Vec3 feet=new net.minecraft.util.Vec3(h.f.player.posX,h.f.player.posY,h.f.player.posZ);
+                for(int tick=0;tick<220;tick++) {
+                    h.walk(tick);
+                    float nextYaw=h.rotation.getEffectiveYaw(),nextPitch=h.rotation.getEffectivePitch();
+                    double dy=net.minecraft.util.MathHelper.wrapAngleTo180_float(nextYaw-yaw),dp=nextPitch-pitch;
+                    assertTrue("global cap includes final mouse-count rounding",Math.hypot(dy,dp)<=1.0001);
+                    hit|=h.f.runtime.getRaycastService().canHitFrom(feet,h.first,nextYaw,nextPitch,3.2f,false);
+                    yaw=nextYaw;pitch=nextPitch;
+                }
+                assertTrue("low-speed Relative must not stall at a hitbox edge; sensitivity="+sensitivity,hit);
+                assertTrue(h.f.runtime.getRaycastService().canHitFrom(feet,h.first,yaw,pitch,3.2f,false));
+            }
+        }
+    }
+
+    @Test public void subCountAndMixedMotionIntervalsEarnBoundedMouseCountCredit() throws Exception {
+        for(int[] intervals:new int[][]{{25},{25,50,25,75},{10,25,50}}) {
+            try(Harness h=new Harness()) {
+                h.f.mc.gameSettings.mouseSensitivity=1;
+                h.f.aura.getModeSetting("Adaptive Aim Point").setValue("Nearest");
+                h.f.aura.getModeSetting("Adaptive Curve").setValue("Relative");
+                h.f.aura.getModeSetting("Adaptive Noise Profile").setValue("Off");
+                h.f.aura.getNumberSetting("adaptive_min_aim_speed").setValue(20D);
+                h.f.aura.getNumberSetting("adaptive_max_aim_speed").setValue(20D);
+                h.f.aura.getBooleanSetting("Adaptive Keep Valid Aim").setValue(false);
+                double total=0;long now=0;float yaw=0,pitch=0;
+                h.walkAt(0);
+                for(int tick=0;tick<240;tick++) {
+                    int millis=intervals[tick%intervals.length];now+=millis*1_000_000L;h.walkAt(now);
+                    float nextYaw=h.rotation.getEffectiveYaw(),nextPitch=h.rotation.getEffectivePitch();
+                    double delta=Math.hypot(net.minecraft.util.MathHelper.wrapAngleTo180_float(nextYaw-yaw),nextPitch-pitch);
+                    total+=delta;
+                    assertTrue("sub-count credit never borrows future time",total<=now*1e-9*20+.001);
+                    if(millis>=50)assertTrue("representable motion retains the strict cap",delta<=millis*.02+.0001);
+                    yaw=nextYaw;pitch=nextPitch;
+                }
+                net.minecraft.util.Vec3 feet=new net.minecraft.util.Vec3(h.f.player.posX,h.f.player.posY,h.f.player.posZ);
+                assertTrue("short intervals must not stall",h.f.runtime.getRaycastService().canHitFrom(feet,h.first,yaw,pitch,3.2f,false));
+                h.f.aura.getBooleanSetting("Adaptive Keep Valid Aim").setValue(true);
+                for(int tick=0;tick<8;tick++) {
+                    now+=25_000_000L;h.walkAt(now);
+                    assertEquals(yaw,h.rotation.getEffectiveYaw(),0);assertEquals(pitch,h.rotation.getEffectivePitch(),0);
+                }
+            }
         }
     }
 
@@ -280,6 +385,28 @@ public class AdaptiveAuraIntegrationTest {
         }
     }
 
+    @Test public void sensitivityChangeCannotReuseThePreviousGridOrSpendTheSameMotionTwice() throws Exception {
+        try(Harness h=new Harness()) {
+            RuntimeObservation observed=h.f.runtime.getObservation();observed.beginOuterTick();
+            try {
+                h.rotation.bindConnection(h.f.network.getClientPackets());
+                h.rotation.beginMotion(h.f.player,h.scene,0,0);
+                RotationProfile p=profile();p.adaptiveExplicitControls=true;
+                float[] first=h.rotation.calculateRotations("aura",0,0,h.first,false,p,false);
+                assertNotNull(first);
+                h.f.mc.gameSettings.mouseSensitivity=1;
+                assertArrayEquals(new float[]{0,0},h.rotation.calculateRotations("aura",0,0,h.first,false,p,false),0);
+                h.f.mc.gameSettings.mouseSensitivity=.5f;
+                assertArrayEquals(new float[]{0,0},h.rotation.calculateRotations("aura",0,0,h.first,false,p,false),0);
+                java.lang.reflect.Field states=RotationManager.class.getDeclaredField("states");states.setAccessible(true);
+                Object state=((java.util.Map<?,?>)states.get(h.rotation)).get("aura");
+                java.lang.reflect.Field ordinal=state.getClass().getDeclaredField("adaptiveOrdinal");ordinal.setAccessible(true);
+                java.lang.reflect.Field credit=state.getClass().getDeclaredField("adaptiveCountCredit");credit.setAccessible(true);
+                assertEquals(1,ordinal.getLong(state));assertEquals(0,credit.getDouble(state),0);
+            } finally { observed.endOuterTick(); }
+        }
+    }
+
     @Test public void rejectedC03AndForeignOwnerCannotRetainAdaptiveAuthority() throws Exception {
         try (Harness h = new Harness()) {
             RuntimeObservation observed = h.f.runtime.getObservation();
@@ -390,5 +517,7 @@ public class AdaptiveAuraIntegrationTest {
             h.walk(6);
             assertTrue("fresh Aura still uses the manager's transport", h.rotation.isMotionAccepted());
         }
+    }
+
     }
 }

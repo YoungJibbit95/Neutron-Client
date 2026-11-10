@@ -65,7 +65,7 @@ public class ClickModule extends Component {
         openAnimation.timerUtil.setTime(System.currentTimeMillis() - 220);
         toggleAnimation.setDirection(module.isToggled() ? Direction.FORWARDS : Direction.BACKWARDS);
         toggleAnimation.timerUtil.setTime(System.currentTimeMillis() - 180);
-        for (Value<?> value : module.getValues()) {
+        for (Value<?> value : me.youngjibbit.clickgui.utils.SettingDisplayOrder.values(module)) {
             if (value instanceof CheckBoxValue) values.add(new ClickCheckBox((CheckBoxValue) value, 0, 0, width, 24));
             if (value instanceof ComboValue) values.add(new ClickCombo((ComboValue) value, 0, 0, width, 24));
             if (value instanceof SliderValue) values.add(new ClickSlider((SliderValue) value, 0, 0, width, 24));

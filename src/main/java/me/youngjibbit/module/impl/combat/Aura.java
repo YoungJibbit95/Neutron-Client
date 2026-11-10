@@ -4,6 +4,8 @@ import me.youngjibbit.core.bootstrap.RuntimeServices;
 import me.youngjibbit.core.contract.AutomationEligibility.ModuleAction;
 import me.youngjibbit.core.observation.AutomatedActionAdmission;
 import me.youngjibbit.core.combat.AutoblockController;
+import me.youngjibbit.core.combat.AdaptiveAutoblockController;
+import me.youngjibbit.core.combat.AdaptiveTargetPolicy;
 import me.youngjibbit.core.combat.ClickTimingSettings;
 import me.youngjibbit.core.combat.ClickRandomizer;
 import me.youngjibbit.core.combat.CombatTargetTracker;
@@ -79,6 +81,8 @@ public class Aura extends Module {
     private final List<EntityLivingBase> targets = new ArrayList<>();
 
     private final AutoblockController autoblockController = new AutoblockController();
+    private AdaptiveAutoblockController adaptiveAutoblock;
+    private AdaptiveTargetPolicy adaptiveSelection;
 
     private final CheckBoxValue players = new CheckBoxValue("Players", this, true);
     private final CheckBoxValue animals = new CheckBoxValue("Animals", this, false);
@@ -87,8 +91,8 @@ public class Aura extends Module {
     private final CheckBoxValue teams = new CheckBoxValue("Teams", this, false);
     private final CheckBoxValue throughWalls = new CheckBoxValue("Through Walls", this, false);
 
-    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Single", "Multi"}, 0);
-    private final ComboValue sortMode = new ComboValue("Sort Mode", this, new String[]{"Range", "Hurt Time", "Health", "Armor"}, 0);
+    private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Single", "Multi", "Switch"}, 0);
+    private final ComboValue sortMode = new ComboValue("Sort Mode", this, new String[]{"Range", "Hurt Time", "Health", "Armor", "Angle"}, 0);
 
     private final SliderValue minCps = new SliderValue("Min CPS", this, 10.0, 1.0, 20.0, true);
     private final SliderValue maxCps = new SliderValue("Max CPS", this, 12.0, 1.0, 20.0, true);
@@ -113,15 +117,31 @@ public class Aura extends Module {
     private final RotationReturnSettings rotationReturn = new RotationReturnSettings(this);
 
     private final CheckBoxValue autoblock = new CheckBoxValue("Autoblock", this, false);
-    private final ComboValue autoblockMode = new ComboValue("Autoblock Mode", this, new String[]{"Watchdog", "Verus", "Fake", "Intave"}, 0);
+    private final ComboValue autoblockMode = new ComboValue("Autoblock Mode", this, new String[]{"Watchdog", "Verus", "Fake", "Intave", "Vanilla", "Release", "Force"}, 0);
     private final CheckBoxValue customBlockFrequency = new CheckBoxValue("Custom Block Frequency", this, false);
     private final SliderValue blockFrequency = new SliderValue("Block Frequency", this, 4D, 0, 10, true);
+    // Append new settings without changing historical serialized indices.
+    private final ComboValue attackMode = new ComboValue("Attack Mode", this, new String[]{"PlayerController", "Legit", "Packet"}, 0);
+    private final CheckBoxValue failSwing = new CheckBoxValue("Fail Swing", this, false);
+    private final SliderValue switchDelay = new SliderValue("Switch Delay MS", this, 500D, 0, 2000, true);
+    private final SliderValue blockRange = new SliderValue("Block Range", this, 3D, 1, 6, false);
+    private final SliderValue reblockDelay = new SliderValue("Reblock Delay", this, 1D, 0, 10, true);
 
     public Aura() {
         this.setKey(Keyboard.KEY_R);
-        bestHitVec.setVisibility(m->!rotationSettings.arsenic());
+        bestHitVec.setVisibility(m->!rotationSettings.arsenic() && (!rotationSettings.adaptive()
+                || "Legacy".equals(rotationSettings.adaptiveAimPoint.getValue())));
+        raycast.setVisibility(m -> !rotationSettings.adaptive());
+        attackMode.setVisibility(m -> rotationSettings.adaptive());
+        failSwing.setVisibility(m -> rotationSettings.adaptive());
+        clickWhileAiming.setVisibility(m -> !rotationSettings.adaptive());
+        switchDelay.setVisibility(m -> "Switch".equals(mode.getValue()));
+        multiTargets.setVisibility(m -> "Multi".equals(mode.getValue()));
+        blockRange.setVisibility(m -> adaptiveBlockEnabled() && autoblock.getValue());
+        reblockDelay.setVisibility(m -> adaptiveBlockEnabled() && autoblock.getValue()
+                && !"Force".equals(autoblockMode.getValue()) && !"Fake".equals(autoblockMode.getValue()));
         aimRangeMargin.setVisibility(m -> rotations.getValue());
-        customBlockFrequency.setVisibility(m -> autoblock.getValue() && !"Fake".equals(autoblockMode.getValue())
+        customBlockFrequency.setVisibility(m -> !adaptiveBlockEnabled() && autoblock.getValue() && !"Fake".equals(autoblockMode.getValue())
                 && !"Intave".equals(autoblockMode.getValue()));
         blockFrequency.setVisibility(m -> customBlockFrequency.isVisible() && customBlockFrequency.getValue());
     }
@@ -152,14 +172,29 @@ public class Aura extends Module {
         rotationSettings.adaptiveVariationStrength.reset();
         rotationSettings.adaptiveAimPoint.reset();
         rotationSettings.adaptiveKeepAim.reset();
+        rotationSettings.beginAdaptiveConfigUpdate();
+        attackMode.reset(); failSwing.reset(); switchDelay.reset(); blockRange.reset(); reblockDelay.reset();
+        if ("Switch".equals(mode.getValue())) mode.reset();
+        if ("Angle".equals(sortMode.getValue())) sortMode.reset();
+        if ("Vanilla".equals(autoblockMode.getValue()) || "Release".equals(autoblockMode.getValue())
+                || "Force".equals(autoblockMode.getValue())) autoblockMode.reset();
         if(rotationSettings.arsenic() || rotationSettings.adaptive() || rotationSettings.aiLearned())
             rotationSettings.mode.reset();
+    }
+
+    @Override public void endConfigUpdate() {
+        rotationSettings.endAdaptiveConfigUpdate();
+        super.endConfigUpdate();
     }
 
     @Override public void onValueChange() {
         blockAfterHit = null;
         if (rotationReturn == null) return;
         final long generation = ++lifecycleGeneration;
+        if (autoblockController != null) autoblockController.release();
+        if (adaptiveAutoblock != null) adaptiveAutoblock.release();
+        if (adaptiveSelection != null) adaptiveSelection.reset();
+        if (generation != lifecycleGeneration) return;
         final RotationManager manager = RuntimeServices.rotation();
         boolean adaptive=rotationSettings.adaptive(),ai=rotationSettings.aiLearned();
         if(adaptive || previousAdaptiveApproach || ai || previousAiApproach)
@@ -197,6 +232,7 @@ public class Aura extends Module {
         targets.clear();
         attacking = false;
         advanceTarget = false;
+        if (adaptiveSelection != null) adaptiveSelection.reset();
         // A target loss is not a world transition. Keep the scene identity while returning.
         if (worldChanged) worldContext = playerContext = null;
         manager.reset(ROTATION_SOURCE);
@@ -205,6 +241,9 @@ public class Aura extends Module {
         RuntimeServices.attackScheduler().reset();
         if (worldChanged) autoblockController.reset();
         else autoblockController.release();
+        if (adaptiveAutoblock != null) {
+            if (worldChanged) adaptiveAutoblock.reset(); else adaptiveAutoblock.release();
+        }
     }
 
     private boolean usable() {
@@ -256,7 +295,11 @@ public class Aura extends Module {
     private final Listener<WorldEvent> onWorld = new Listener<>(event -> clearCombat(true));
 
     @Subscribe
-    private final Listener<AttackEvent> onAttack = new Listener<>(event -> autoblockController.beforeAttack());
+    private final Listener<AttackEvent> onAttack = new Listener<>(event -> {
+        autoblockController.beforeAttack();
+        if (adaptiveAutoblock != null && adaptiveAutoblock.ownsUse()
+                && !adaptiveAutoblock.prepareAttack(() -> usable())) event.cancel();
+    });
 
     @Subscribe private final Listener<MovementInputEvent> blockInput = new Listener<>(event -> {
         PendingBlock pending = blockAfterHit;
@@ -312,7 +355,19 @@ public class Aura extends Module {
             if (generation != lifecycleGeneration || !usable()) return;
             targets.clear();
             targets.addAll(collected);
-            target = TargetingService.selectTarget(targets, target, "Multi".equalsIgnoreCase(mode.getValue()), multiTargets.getValue().intValue(), advanceTarget);
+            EntityLivingBase previous = target;
+            if ((rotationSettings.adaptive() && !"Multi".equals(mode.getValue())) || "Switch".equals(mode.getValue())) {
+                if (adaptiveSelection == null) adaptiveSelection = new AdaptiveTargetPolicy();
+                target = adaptiveSelection.select(targets, target, "Switch".equals(mode.getValue()),
+                        switchDelay.getValue().longValue(), System.nanoTime() / 1_000_000L);
+            } else {
+                target = TargetingService.selectTarget(targets, target, "Multi".equalsIgnoreCase(mode.getValue()), multiTargets.getValue().intValue(), advanceTarget);
+            }
+            if (target != previous) {
+                blockAfterHit = null;
+                if (adaptiveAutoblock != null) adaptiveAutoblock.release();
+                if (generation != lifecycleGeneration || !usable()) return;
+            }
             advanceTarget = false;
             attacking = target != null;
             if (target != null) {
@@ -362,10 +417,21 @@ public class Aura extends Module {
                 RotationManager rotationManager = RuntimeServices.rotation();
                 float yaw = rotationManager.getEffectiveYaw(), pitch = rotationManager.getEffectivePitch();
                 EntityLivingBase selected = target;
+                final long opportunityGeneration = lifecycleGeneration;
                 boolean owns = rotations.getValue() ? rotationManager.isOwner(ROTATION_SOURCE)
                         : !rotationManager.isOwner("scaffold") && rotationManager.getRotationRelease() == null;
                 boolean aiAccepted=!rotationSettings.aiLearned() || rotationManager.isAiAuraMotionAccepted();
-                boolean hit = rotationManager.isMotionAccepted() && owns && aiAccepted
+                boolean executionReady = !rotationSettings.adaptive() || !"Legit".equals(attackMode.getValue())
+                        || mc.playerController.canNativeEntityClick(selected);
+                if (adaptiveBlockEnabled() && executionReady && owns && rotationManager.isMotionAccepted()
+                        && RuntimeServices.attackScheduler().isClickDue(rotationManager.getMotionSequence())
+                        && validTargetRay(selected, yaw, pitch, reach.getValue())) {
+                    adaptiveBlock().prepareAttack(() -> opportunityGeneration == lifecycleGeneration
+                            && getActiveTarget() == selected && RuntimeServices.rotation() == rotationManager
+                            && rotationManager.isMotionAccepted() && validTargetRay(selected, yaw, pitch, reach.getValue()));
+                    if (opportunityGeneration != lifecycleGeneration || !usable()) return;
+                }
+                boolean hit = rotationManager.isMotionAccepted() && owns && aiAccepted && executionReady
                         && validHit(selected,yaw,pitch) && !mc.thePlayer.isUsingItem();
                 CombatDiagnostics.opportunityResult(opportunity,Stage.HIT_CHECK,hit);
                 // Capture before callbacks: an accepted send can reconfigure or replace this lifecycle.
@@ -377,7 +443,8 @@ public class Aura extends Module {
                         && !mc.thePlayer.isUsingItem() && selected != null && getActiveTarget()==selected
                         // Camera-only off-target swings require explicit opt-in; only a
                         // validated hit may progress to actual controller attack.
-                        && (rotations.getValue() || hit || clickWhileAiming.getValue());
+                        && (rotations.getValue() || hit || clickWhileAiming.getValue())
+                        && (!rotationSettings.adaptive() || hit || failSwing.getValue());
                 final long clickGeneration=lifecycleGeneration;
                 // The legacy overload's false eligibility preserves the old
                 // attempted-motion tombstone without spending any click or RNG.
@@ -407,7 +474,7 @@ public class Aura extends Module {
                         try {
                             attackingPlayer.rotationYaw=yaw;
                             attackingPlayer.rotationPitch=pitch;
-                            boolean attacked=attackingController.tryAttackEntity(attackingPlayer,selected,
+                            boolean attacked=attackingController.tryAttackEntity(attackingPlayer,selected, attackExecution(),
                                     () -> clickGeneration==lifecycleGeneration && validHit(selected,yaw,pitch));
                             if (attacked) {
                                 advanceTarget=true;
@@ -430,7 +497,7 @@ public class Aura extends Module {
                         net.minecraft.client.entity.EntityPlayerSP player=mc.thePlayer;
                         if(player==null) return;
                         boolean canAttack=hit && validHit(selected,yaw,pitch);
-                        if(canAttack) autoblockController.beforeAttack();
+                        if(canAttack && !adaptiveBlockEnabled()) autoblockController.beforeAttack();
                         if(clickGeneration!=lifecycleGeneration || !usable()
                                 || mc.thePlayer!=player || getActiveTarget()!=selected
                                 || RuntimeServices.rotation()!=rotationManager
@@ -461,13 +528,24 @@ public class Aura extends Module {
                     }
                     return;
                 }
+                if (adaptiveBlockEnabled()) {
+                    adaptiveBlock().update(autoblock.getValue(), adaptiveBlockMode(), attackAccepted,
+                            reblockDelay.getValue().intValue(), () -> opportunityGeneration == lifecycleGeneration
+                                    && getActiveTarget() == selected && RuntimeServices.rotation() == rotationManager
+                                    && rotationManager.isMotionAccepted() && holdingSword()
+                                    && validTargetRay(selected, yaw, pitch, blockRange.getValue()));
+                    return;
+                }
                 autoblockController.update(autoblock.getValue() && attacking && blockOwns && rotationManager.isMotionAccepted()
                                 && validHit(selected, yaw, pitch) && PlayerUtil.isHoldingWeapon(),
                         mapAutoblock(autoblockMode.getValue()), false, true, customBlockFrequency.getValue(), blockFrequency.getValue());
             } catch (RuntimeException | Error failure) {
-                interrupted=true;throw failure;
+                interrupted=true;
+                if (adaptiveAutoblock != null) try { adaptiveAutoblock.release(); }
+                catch (RuntimeException | Error cleanup) { failure.addSuppressed(cleanup); }
+                throw failure;
             } finally { CombatDiagnostics.endOpportunity(opportunity,attackAccepted,interrupted); }
-        } else if (AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)) {
+        } else if (!adaptiveBlockEnabled() && AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)) {
             autoblockController.update(autoblock.getValue() && !"Intave".equals(autoblockMode.getValue()) && attacking && PlayerUtil.isHoldingWeapon(),
                     mapAutoblock(autoblockMode.getValue()), true, false, customBlockFrequency.getValue(), blockFrequency.getValue());
         }
@@ -478,19 +556,76 @@ public class Aura extends Module {
     public BodyRotationController.Mode bodyRotationMode() { return BodyRotationController.Mode.fromSetting(bodyRotation.getValue()); }
 
     private boolean validHit(EntityLivingBase entity, float yaw, float pitch) {
+        return mc.thePlayer != null && !mc.thePlayer.isUsingItem()
+                && (!rotationSettings.adaptive() || !manualUseHeld())
+                && validTargetRay(entity, yaw, pitch, reach.getValue());
+    }
+
+    private boolean validTargetRay(EntityLivingBase entity, float yaw, float pitch, double range) {
+        return AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK) && currentTargetRay(entity, yaw, pitch, range);
+    }
+
+    /** Read-only geometry/identity check; does not grant a new automatic action outside an ordinary step. */
+    private boolean currentTargetRay(EntityLivingBase entity, float yaw, float pitch, double range) {
         RotationManager manager = RuntimeServices.rotation();
-        return AutomatedActionAdmission.mayAttempt(ModuleAction.ATTACK)
-                && usable() && worldContext == mc.theWorld && playerContext == mc.thePlayer
-                && !mc.thePlayer.isUsingItem()
+        TargetingService.Options allowed = options(); allowed.range = range;
+        return usable() && worldContext == mc.theWorld && playerContext == mc.thePlayer
                 && manager.matchesEffective(yaw, pitch)
                 && (rotations.getValue() ? manager.isOwner(ROTATION_SOURCE)
                     : !manager.isOwner("scaffold") && manager.getRotationRelease() == null)
                 && entity != null && mc.theWorld.loadedEntityList.contains(entity)
-                && RuntimeServices.targeting().isValidTarget(entity, options())
-                && RuntimeServices.raycast().canHit(entity, yaw, pitch, reach.getValue().floatValue(), throughWalls.getValue());
+                && entity.worldObj == mc.theWorld && mc.theWorld.getEntityByID(entity.getEntityId()) == entity
+                && RuntimeServices.targeting().isValidTarget(entity, allowed)
+                && RuntimeServices.raycast().canHit(entity, yaw, pitch, (float) range, throughWalls.getValue());
+    }
+
+    private boolean adaptiveBlockEnabled() {
+        String block = autoblockMode.getValue();
+        return !"Intave".equals(block) && (rotationSettings.adaptive()
+                || "Vanilla".equals(block) || "Release".equals(block) || "Force".equals(block));
+    }
+    private AdaptiveAutoblockController adaptiveBlock() {
+        if (adaptiveAutoblock == null) adaptiveAutoblock = new AdaptiveAutoblockController();
+        return adaptiveAutoblock;
+    }
+    private boolean holdingSword() { return mc.thePlayer != null && mc.thePlayer.getHeldItem() != null
+            && mc.thePlayer.getHeldItem().getItem() instanceof net.minecraft.item.ItemSword; }
+    private boolean manualUseHeld() { return mc.gameSettings != null && mc.gameSettings.keyBindUseItem != null
+            && mc.gameSettings.keyBindUseItem.isKeyDown(); }
+    private AdaptiveAutoblockController.Mode adaptiveBlockMode() {
+        String value = autoblockMode.getValue();
+        if ("Fake".equals(value)) return AdaptiveAutoblockController.Mode.FAKE;
+        if ("Force".equals(value)) return AdaptiveAutoblockController.Mode.FORCE;
+        if ("Release".equals(value) || "Verus".equals(value)) return AdaptiveAutoblockController.Mode.RELEASE;
+        return AdaptiveAutoblockController.Mode.VANILLA;
+    }
+    private net.minecraft.client.multiplayer.PlayerControllerMP.AttackExecution attackExecution() {
+        if (rotationSettings.adaptive()) {
+            if ("Packet".equals(attackMode.getValue())) return net.minecraft.client.multiplayer.PlayerControllerMP.AttackExecution.PACKET;
+            if ("Legit".equals(attackMode.getValue())) return net.minecraft.client.multiplayer.PlayerControllerMP.AttackExecution.NATIVE_CLICK;
+        }
+        return net.minecraft.client.multiplayer.PlayerControllerMP.AttackExecution.CONTROLLER;
+    }
+
+    /** Renderer-only query. Fake never sets item use, a key binding or network ownership. */
+    public boolean shouldRenderAdaptiveBlock(net.minecraft.item.ItemStack rendered) {
+        return usable() && adaptiveBlockEnabled() && autoblock.getValue() && "Fake".equals(autoblockMode.getValue())
+                && adaptiveAutoblock != null && adaptiveAutoblock.visualBlocking() && getActiveTarget() != null
+                && rendered != null && rendered == mc.thePlayer.getHeldItem() && holdingSword()
+                && RuntimeServices.rotation().isOwner(ROTATION_SOURCE);
+    }
+
+    /** Preserve confirmed automatic use between clicks without synthesizing a physical key. */
+    public boolean keepsAdaptiveSwordUse() {
+        if (!usable() || !adaptiveBlockEnabled() || !autoblock.getValue() || adaptiveAutoblock == null
+                || !adaptiveAutoblock.ownsUse() || !holdingSword()) return false;
+        RotationManager manager = RuntimeServices.rotation();
+        return getActiveTarget() != null && manager.isMotionAccepted()
+                && currentTargetRay(target, manager.getEffectiveYaw(), manager.getEffectivePitch(), blockRange.getValue());
     }
 
     private TargetingService.SortMode mapSort(String mode) {
+        if ("Angle".equalsIgnoreCase(mode)) return TargetingService.SortMode.ANGLE;
         if ("Health".equalsIgnoreCase(mode)) {
             return TargetingService.SortMode.HEALTH;
         }
