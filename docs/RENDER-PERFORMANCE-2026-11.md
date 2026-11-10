@@ -1,44 +1,35 @@
 # Render-Performance: November 2026
 
-**Stand:** 10.11.2026
+**Diagnose-Snapshot:** 10.11.2026 — [PR 176](https://github.com/YoungJibbit95/Neutron-Client/pull/176)
 
-**Gemessener und geprüfter Quellstand (PR-Head):** `a786a0cb7b477426ea92e1802b16556bc2f923dc` ([PR 176](https://github.com/YoungJibbit95/Neutron-Client/pull/176))
+**Vollständig funktional geprüfter PR-Head:** `f7acee8b4a0c52c0e6f1c628fef0180c206a4952`,
+ausgeführt als Merge `2e8559c59e88ed82692334936bb1d5bb5a86497e`.
+Integrierte Main-Basis: `ff11e9746521e65ab67d5e70789684d06c7c1edd`.
+Historische CPU-Basis: `2508562100a66480c639e2c01dfdffb004d98008`.
+Stack: Minecraft 1.8.9 / OptiFine, LWJGL 2, Temurin 8u482, Maven 3.9.15.
 
-**Integrierte native Vergleichsbasis:** `ff11e9746521e65ab67d5e70789684d06c7c1edd`
+**Ergebnis:** Die große Java-Heap-Reduktion der untersuchten UI-Pfade ist bestätigt.
+Allgemeine FPS-, Ladezeit- oder Tail-Gewinne sind nicht belegt. Bei Warmup60 liegt
+UI960-Completed-p50 über zwei unabhängige Vierpaar-Läufe in **8/8 Paaren höher**,
+Gaussian854-Radius-7-p95 in **7/8**. Diese negativen Werte bleiben erhalten.
+Ablationen und längeres Warmup zeigen gemischte, teilweise reihenfolge- und
+abschnittsabhängige Zeiten; sie rechtfertigen keine pauschalen Reverts.
 
-**Tatsächlich ausgeführter GitHub-Merge:** `1474bf35592f9c13ecfa1fa560dc60de0380a444`
+**Nachfolgende Lookup-Verfeinerung:** Der kalte Uniform-Lookup wird aus
+`ShaderUtil.getUniform()` extrahiert. Temurin-8-`javac`/`javap` bestätigen
+**Bytecode-Länge: 33 statt 51 Byte** im Cache-Hit-Einstieg; 82 Fokustests bestehen mit
+0 Failures, 0 Errors und 0 Skips. Dies ist **kein bewiesener Timing-/Inlining-Fix**;
+auch die lokale `MaxInlineSize=35`-Heuristik garantiert kein tatsächliches Inlining.
+**Bei Erstellung dieses Diagnose-Snapshots** stehen vollständige PR-/Native-Gates
+dieses Folgestands noch aus. Endgültige Revision und abschließende Gates stehen in
+[PR 176](https://github.com/YoungJibbit95/Neutron-Client/pull/176); die f7-Ergebnisse
+werden dem Folgestand nicht vorab zugerechnet.
 
-**Historische CPU-Vergleichsbasis:** `2508562100a66480c639e2c01dfdffb004d98008` (vor der Main-Integration)
-
-**Stack:** Minecraft 1.8.9 / OptiFine, LWJGL 2, Temurin 8u482, Maven 3.9.15
-
-**Abnahmestand dieses Quellstands:** Beide vollständigen Windows-/Release-Regressionen,
-die isolierte JAR-Prüfung, vier native JVM-Messpaare mit **64/64 bytegleichen RGBA-Vergleichen**
-und vier Legacy-UI-Suites sind erfolgreich. Die unveränderten Java-Quellen wurden
-zuvor zusätzlich mit 82 lokalen Fokustests geprüft.
-
-**Gemessenes Ergebnis:** Die Java-Heap-Allokation der acht nativen Szenen sinkt
-um 86,4–95,3 % im Median der gepaarten Vergleiche. Ein allgemeiner Zeitgewinn
-ist nicht belegt: Die getrennten Blur-/Bloom-Phasen bleiben weitgehend gleich,
-UI/Text bei 960×640 und der Gaussian-Mischmedian bei 854×480 sind in allen vier
-Paaren langsamer. Zusätzlich verschlechtern sich die langsamen Frames in diesen
-Szenen; UI-p99 und Radius-7-p95 liegen jeweils in allen vier Paaren höher.
-Gesamt-FPS, Spielframe-Stabilität und Ladezeiten wurden nicht gemessen.
-
-Dieser Lauf reduziert wiederholte CPU-Arbeit, Allokationen und redundante
-Framebuffer-Bindungen im vorhandenen Renderer. Blur-/Glow-Algorithmen, UI-Design
-und Qualitätsparameter bleiben bestehen. Die ältere
-[Performance-Roadmap](PERFORMANCE-ROADMAP.md) ist historischer Planungskontext;
-ihre damaligen Quellenbefunde und Teststände gelten nicht automatisch für diese Basis.
-
-Bei der Integration des zwischenzeitlich weiterentwickelten `main` blieben die
-38 Dateien der Legacy-UI-Arbeit bytegenau zum integrierten Main-Stand erhalten.
-Die aktuelle Abnahmetabelle gehört zum oben genannten PR-Head und seiner
-GitHub-Merge-Revision. Gegenüber dem ersten integrierten Stand `05cddf43` wurden
-nur der Performance-Runner, seine Tests, sein Workflow und die Dokumentation
-geändert; Production-Java, Java-Harness und Legacy-UI-Gate blieben bytegleich.
-Die früheren CPU-Mikrobenchmarks und der erste native Einzelvergleich bleiben
-mit ihren ursprünglichen Revisionen als historische Evidenz erhalten.
+UI-Design, Effektqualität und Algorithmen bleiben erhalten. Bei der Main-Integration
+wurden die 38 Legacy-UI-Dateien bytegenau bewahrt. Die vermessene Produktion ist
+zwischen `05cddf43`, `a786a0cb` und `f7acee8b` unverändert; Runner-/Dokumentationsstände
+sind getrennt benannt. Die [Performance-Roadmap](PERFORMANCE-ROADMAP.md) sowie
+frühere CPU-/Native-Daten bleiben historischer Kontext mit ihren ursprünglichen Baselines.
 
 ## Befunde und Umsetzung
 
@@ -93,7 +84,138 @@ kein Bestandteil des verbleibenden Performancegewinns.
 Die nativen Tests prüfen diese Verträge für ihre isolierten Szenen. Eine vollständige
 Display-/Shaderpack-Abnahme ist davon getrennt und wird nicht durch statische Analyse ersetzt.
 
-## Abschließender nativer Vergleich: vier balancierte JVM-Paare
+## Diagnose nach f7: Replikation, Ablationen und Warmupkontrolle
+
+Die [kompakte Diagnose-JSON](performance/2026-11-10-native-diagnostics.json) enthält
+alle fünf unveränderten `comparison.json`-Objekte, **86.400 einzelne Rohmetriken**,
+Provenienz und verifizierte ZIP-/Quelldigests, abgeleitete Paar-/Phasen-/Tailwerte,
+UI-Zeitblöcke sowie Font-Probeausgaben. Bilder und große Logs werden nicht eingecheckt.
+Alle fünf Läufe bestehen jeweils **64/64 exakte RGBA-Vergleiche und sämtliche
+aktuellen Native-Contracts**. Frühere negative Messwerte bleiben unten und in ihren
+bisherigen Rohdateien erhalten.
+
+### Vergleichsrichtungen
+
+Jeder Versuch verwendet vier frische JVM-Paare, 90 Samples je Szene und die Folge
+**A→B / B→A / A→B / B→A**. A ist die jeweils benannte Basis.
+Bei Ablationen bedeutet ein negatives `100 × (B/A − 1)`, dass die Rücknahme gegenüber
+dem vollständigen PR schneller ist; das ist **kein PR-gegen-main-Gewinn**.
+
+| Versuch / Native Run | Basis A | Variante B | Warmup |
+| --- | --- | --- | ---: |
+| [Replikation 42909740731](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42909740731) | `ff11e974` | f7-Merge `2e8559c5` | 60 |
+| [Uniforms 42913396673](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42913396673) | `f7acee8b` | `0e5deaf1` | 60 |
+| [Fonts 42913404875](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42913404875) | `f7acee8b` | `145c18d8` | 60 |
+| [Gaussian 42913413234](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42913413234) | `f7acee8b` | `401e44a6` | 60 |
+| [Warmupkontrolle 42913422393](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42913422393) | `ff11e974` | `942eee59`, unveränderte f7-Produktion | 200 |
+
+### Zweite Replikation: die Verluste wiederholen sich teilweise
+
+UI960-Completed-p50 steigt erneut in **4/4 Paaren**: `+2,594 / +3,216 / +1,796 /
++6,738 %`, gepaarter Median **+2,905 %**. Submission-p50 steigt ebenfalls in 4/4
+Paaren, Median **+6,691 %**. UI960-p99 ist diesmal gemischt (`−0,152 / +24,888 /
++19,313 / −3,533 %`). Gaussian854-Radius-7-p95 steigt in 3/4 Paaren
+(`+12,456 / +35,632 / +6,182 / −6,172 %`, Median **+9,319 %**); Radius-7-p99 beträgt
+`+47,711 / +57,918 / +10,214 / −15,650 %`. Bei 45/90 Samples ist p99 jeweils das Maximum.
+
+| Szene | Gepaarter Completed-p50-Δ-Median gegen main | Heap-Δ-Median gegen main |
+| --- | ---: | ---: |
+| UI960 | +2,91 % | −91,63 % |
+| Bloom960 | +0,43 % | −86,98 % |
+| Gaussian960, gemischt | +7,27 % | −89,63 % |
+| Glass960 | +0,26 % | −89,55 % |
+| UI854 | +0,32 % | −95,47 % |
+| Bloom854 | +1,05 % | −90,81 % |
+| Gaussian854, gemischt | +17,20 % | −89,63 % |
+| Glass854 | −1,49 % | −95,27 % |
+
+Radius-7-Samples über `1,10 ×` dem jeweiligen Baseline-Phasen-p50 steigen von
+**4 auf 9 von 180**; UI960 über `1,25 × Baseline-p50` von **75 auf 81 von 360**.
+Diese Schwellen sind beschreibende Diagnostik, keine Speed-Gates.
+
+### Drei Produktionsablationen gegen f7
+
+**Uniforms:** Feste Overloads und direkter Uniformpfad wurden entfernt; der
+Location-Lookup verwendet wieder das bisherige `computeIfAbsent`. UI960-Completed-p50
+sinkt in 4/4 Paaren (`−2,654 / −1,005 / −0,246 / −1,900 %`, Median **−1,452 %**),
+p99 bleibt gemischt (`+9,024 / −33,997 / −4,808 / −3,297 %`). Gleichzeitig steigen
+die Heap-p50 gegenüber f7 je Szene im gepaarten Median um **100–1.495 %**, bei UI960
+um **662 %**. Die Array-Allokationen kehren zurück. Das motiviert die getrennt
+berichtete kleine Lookup-Verfeinerung; deren Wirkung ist damit noch nicht bewiesen.
+
+**Fonts:** Nur `getWidth` und `prepare` wurden auf die bisherigen Methoden gesetzt;
+Uploadbuffer-Reuse und übrige Fontarbeit bleiben. UI960-Completed-p50 ist gemischt
+(`−1,903 / +2,301 / −0,298 / +0,109 %`), p99 sinkt in 4/4 Paaren
+(`−6,995 / −24,169 / −20,453 / −12,518 %`). UI854-p50 wechselt mit der Startreihenfolge
+(`+1,420 / −0,173 / +3,724 / −1,041 %`). Die separate Fontprobe wird durch die
+Cacheentfernung bei wiederholten Labels von **12,769 auf 146,080 ns** und bei
+192 Labels von **174,868 auf 300,841 ns** langsamer. Churn wird von 347,899 auf
+319,519 ns schneller, langer ungecachter Text von 2.659,562 auf 3.423,558 ns langsamer.
+Cachezweige oder Methodengröße allein erklären diese JVM-Kontexte nicht eindeutig.
+Die nativen UI-Labels erzeugen warme Cachetreffer; Churn bleibt ein eigener Workload.
+
+**Gaussian:** Unveränderte gecachte Gewichte werden bei jedem Pass erneut
+hochgeladen. Bei Gaussian854-Radius-7 sind die gepaarten Completed-Mediane
+**−0,040 % (p50), +0,665 % (p95), +3,445 % (p99)**; p95/p99 sind jeweils in 2/4 Paaren
+höher. Überschreitungen über `1,10 × Baseline-p50` steigen von 5 auf 6 von 180.
+Radius-11-p99 sinkt in 4/4 Paaren (Median **−10,109 %**), p95 steigt aber um **+1,553 %**.
+Ein auffälliger vierter 960er-Paarlauf mit etwa −16/−17 % Radius-p50 sowie veränderte
+UI-Kontrollen ohne Blurarbeit begrenzen die Zuschreibung. Eine konsistente Behebung
+des zuvor kritischen Radius-7-Pfads ist nicht belegt.
+
+Die Einzelverbesserungen und ihre realen Allokations-/CPU-Kosten bleiben sichtbar.
+Die Ablationen rechtfertigen **keine pauschalen Reverts** und liefern ebenso wenig
+eine allgemeine Tail-Garantie für die Beibehaltung aller Optimierungen.
+
+### Warmup200: Gesamtmediane nahe null, Zeitabschnitte weiter uneinheitlich
+
+Mit unveränderter Produktion beträgt UI960-Completed-p50 `−0,222 / +0,256 / −0,980 /
+−1,061 %`, Median **−0,601 %**. Submission-p50 ist in 4/4 Paaren niedriger, Median
+**−2,651 %**. UI960-p99 bleibt in 3/4 höher (`+6,651 / +3,742 / −0,328 / +7,316 %`).
+Gaussian854-Radius-7-p95 ist gemischt (`−3,761 / +4,878 / +3,725 / −10,706 %`),
+Radius-11-p99 in 4/4 höher (`+7,443 / +8,447 / +20,977 / +0,539 %`).
+
+Die unveränderten UI960-Samples werden zusätzlich in drei aufeinanderfolgende
+30er-Blöcke geteilt. Gepaarte Completed-p50-Änderungen:
+
+| Trial / Startfolge | Frames 0–29 | Frames 30–59 | Frames 60–89 |
+| --- | ---: | ---: | ---: |
+| 1 / A→B | −0,108 % | +0,393 % | +0,057 % |
+| 2 / B→A | +0,294 % | **+13,444 %** | −0,626 % |
+| 3 / A→B | −0,894 % | −0,705 % | −4,274 % |
+| 4 / B→A | −0,885 % | **+14,635 %** | −1,617 % |
+
+Innerhalb der Current-JVMs beträgt First/Middle-p50 `0,998 / 0,877 / 1,003 / 0,873`,
+Last/Middle `0,987 / 0,867 / 0,994 / 0,858`. Die langsamen mittleren Abschnitte
+betreffen die beiden Current-first-Paare. Der Gesamtmedian bestätigt deshalb keine
+durchgehende Stationarität. Auch bei Warmup60 waren letzte Drittel teilweise
+langsamer: erster Vierpaar-Lauf `+5,934 / +11,592 / −5,093 / +10,236 %`, Replikation
+`+1,995 / −0,364 / +2,918 / +17,711 %`.
+
+Der frische Runner und längeres Warmup zeigen Messbedingungs-/Laufabhängigkeit,
+keine alleinige Warmup-/JIT-Kausalität. Die alten 60er-Beobachtungen bleiben bestehen.
+Die 200er-Heap-Reduktionen betragen **89,55–95,35 %**. Alle übrigen Szenen, Phasen,
+Blockwerte und Rohsamples sind in der Diagnose-JSON vollständig erhalten;
+es wurde kein ungünstiger Trial entfernt.
+
+### Funktionale Gates von f7 und zeitlicher Status des Folgestands
+
+| Gate | Geprüfter f7-Nachweis |
+| --- | --- |
+| [Windows 42909740650](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42909740650) | 347 XML-Suites, 1.991 Tests, 0 Failures/Errors, 3 erwartete Native-Opt-in-Skips; 1.988 ausgeführt und bestanden. |
+| [Release 42909740661](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42909740661) | Erneut 1.991/0/0/3; 45 Python-Checks und 6/6 isolierte Prüfungen am tatsächlichen JAR bestanden. |
+| [Native 42909740731](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42909740731) | 64/64 RGBA und GL-State-/Font-/Shader-/Lifecycle-/Legacy-Verträge; SharedResource zweimal 17 FBOs erzeugt/17 freigegeben, keine Resurrection. |
+| [LegacyUI 42909740653](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42909740653) | Vier Suites mit Exit 0 und allen acht Erfolgsmarkern. |
+| [Repository security 42909740977](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42909740977) / [CodeQL 42909740668](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42909740668) | Beide erfolgreich. |
+
+Diese Gates gehören zu f7 und Merge `2e8559c5`. Bei Erstellung dieses Snapshots
+besitzt die anschließende Lookup-Verfeinerung die lokalen 82 Fokustests und
+Bytecodeprüfung; ihre vollständigen Gates sind noch offen. Die endgültige Revision
+und ihre abgeschlossenen Abnahmen werden in [PR 176](https://github.com/YoungJibbit95/Neutron-Client/pull/176)
+festgehalten. Dieser historische Erstellungsstatus ist keine dauerhafte Aussage
+über den späteren Mergezustand.
+
+## Erster Vierpaar-Vergleich: a786, Warmup60
 
 [Native-CI-Run 42905778062](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42905778062)
 vergleicht die Basis `ff11e9746521e65ab67d5e70789684d06c7c1edd` mit dem getesteten
@@ -221,9 +343,8 @@ Bei Gaussian 854×480 entspricht der gemischte Gesamt-p50 in jedem Paar dem
 langsamsten Radius-7-Sample. Das erklärt seine Empfindlichkeit und verbindet ihn
 hier zugleich mit einem realen Tail-Verlust. Stabile Phasenmediane belegen daher
 keine stabileren Frametimes. Die Ursache wird durch vier Cloud-/Software-Mesa-Paare
-nicht isoliert. Die ohnehin erforderlichen Gates des anschließenden reinen
-Dokumentationscommits liefern vier weitere Paare auf einem neuen Runner;
-dort werden diese Tails erneut betrachtet. Ihr Ergebnis wird hier nicht vorweggenommen.
+nicht isoliert. Die anschließende f7-Replikation und die gezielten Diagnoseversuche sind in
+diesem Snapshot mit eigenen Baselines dokumentiert. Die ursprünglichen Werte bleiben erhalten.
 
 ### Java-Heap-Allokation über vier JVM-Paare
 
@@ -408,7 +529,7 @@ balancierten JVM-Paare mit längerem Warmup. Seine ursprünglichen positiven und
 negativen Messwerte bleiben erhalten; die Wiederholung verwendet identischen
 Java-Code und einen erweiterten Messrunner.
 
-## Teststand und verbleibende Nachweise
+## Historischer Teststand von a786 und verbleibende Nachweise
 
 | Prüfung | Ergebnis und Beleg zum gemessenen Quellstand |
 | --- | --- |
@@ -424,7 +545,7 @@ Java-Code und einen erweiterten Messrunner.
 | Native Zeit-/Allokationsmessung | **Vier vollständige Paare ausgewertet**, alle Rohwerte erhalten; 86,4–95,3 % geringere Heap-Allokation im gepaarten Median, gemischte Zeiten und die oben beschriebenen höheren Tail-Latenzen. Kein allgemeiner Zeitgewinn. |
 | Reale Gesamt-FPS, Welt-/Client-Ladezeit, Fullscreen und Shaderpacks | **Nicht gemessen** in diesem Lauf. |
 
-Die aktuellen Windows- und Release-Läufe gehören zum PR-Head
+Die in dieser historischen Tabelle genannten Windows- und Release-Läufe gehören zum PR-Head
 `a786a0cb7b477426ea92e1802b16556bc2f923dc` und testen jeweils die Merge-Revision
 `1474bf35592f9c13ecfa1fa560dc60de0380a444` mit Temurin 8u482 und Maven 3.9.15.
 1.991 zählt die drei Skips mit; **1.988 Tests wurden pro Lauf ausgeführt und bestanden**.
@@ -439,7 +560,7 @@ Build, Paketprüfung und Artefaktveröffentlichung sind erfolgreich.
 Die frühere vollständige Bildinventur des bytegleichen Legacy-UI-Harness ergab
 114 PNGs: Panel 20, Dropdown 48, ArrayList 8 und Session/Theme/Settings/Library 38
 ([Run 42901400954](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/42901400954)).
-Beim aktuellen erfolgreichen Lauf wurden sämtliche Suite- und Bildgruppen-Gates
+Beim dortigen erfolgreichen Lauf wurden sämtliche Suite- und Bildgruppen-Gates
 sowie der 128-Dateien-Upload geprüft; seine PNGs wurden nicht erneut lokal materialisiert.
 
 Für die integrierte native Baseline wurden **alle 2.391 ursprünglichen Java-Quellen**

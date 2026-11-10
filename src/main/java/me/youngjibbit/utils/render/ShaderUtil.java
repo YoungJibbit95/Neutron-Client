@@ -92,7 +92,13 @@ public class ShaderUtil implements Utils, AutoCloseable {
     public int getUniform(String name){
         ensureOpen();
         Integer location=uniforms.get(name);
-        if(location==null){location=glGetUniformLocation(programID,name);uniforms.put(name,location);}
+        // Keep frequent cache hits separate from cold GL discovery and map insertion.
+        if(location!=null)return location;
+        return resolveUniform(name);
+    }
+    private int resolveUniform(String name){
+        int location=glGetUniformLocation(programID,name);
+        uniforms.put(name,location);
         return location;
     }
     // Fixed arities avoid a temporary primitive array for every UI uniform upload.
