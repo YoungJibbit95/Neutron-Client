@@ -109,6 +109,63 @@ public class BridgePlacementCadenceTest {
         assertNull(cadence.tryConsume(scope, settings, 2, SECOND + 1, true));
     }
 
+    @Test public void urgentStartupPlacesOnceThenRespectsTheFullIntervalFromThatAttempt() {
+        BridgePlacementCadence cadence = new BridgePlacementCadence(31);
+        BridgePlacementCadence.Scope scope = scope(0, 1);
+        BridgePlacementCadence.Settings settings = fixed(10);
+        assertTrue(cadence.start(scope, settings, 0));
+        assertNull("ordinary startup still waits", cadence.tryConsume(scope, settings, 1, 10_000_000L, true));
+        assertNull("the same early opportunity cannot be upgraded", cadence.tryConsume(scope, settings, 1, 10_000_000L, true, true));
+        BridgePlacementCadence.Attempt first = cadence.tryConsume(scope, settings, 2, 20_000_000L, true, true);
+        assertNotNull(first);
+        assertEquals(20_000_000L, first.consumedAtNanos);
+        assertEquals(100_000_000L, first.intervalNanos);
+        assertEquals(1, cadence.getAttemptCount());
+        assertNull("urgent does not mean one attempt every frame", cadence.tryConsume(scope, settings, 3, 50_000_000L, true, true));
+        assertNull(cadence.tryConsume(scope, settings, 4, 119_999_999L, true, true));
+        assertNotNull(cadence.tryConsume(scope, settings, 5, 120_000_000L, true));
+        assertNull(cadence.tryConsume(scope, settings, 6, 120_000_000L, true, true));
+        assertEquals(2, cadence.getAttemptCount());
+    }
+
+    @Test public void rejectedUrgentControllerAttemptCannotRestoreStartupCredit() {
+        BridgePlacementCadence cadence = new BridgePlacementCadence(32);
+        BridgePlacementCadence.Scope scope = scope(0, 1);
+        BridgePlacementCadence.Settings settings = fixed(10);
+        cadence.start(scope, settings, 0);
+        int calls = 0;
+        for (int duplicate = 0; duplicate < 12; duplicate++) {
+            if (cadence.tryConsume(scope, settings, 1, 0, true, true) != null) {
+                calls++;
+                // The native controller rejects the click; the opportunity was still spent.
+            }
+        }
+        assertEquals(1, calls);
+        assertNull(cadence.tryConsume(scope, settings, 2, 50_000_000L, true, true));
+        assertNotNull(cadence.tryConsume(scope, settings, 3, 100_000_000L, true, true));
+        assertEquals(2, cadence.getAttemptCount());
+    }
+
+    @Test public void startupCreditCannotBypassEligibilityScopeSettingsOrMonotonicTime() {
+        BridgePlacementCadence cadence = new BridgePlacementCadence(33);
+        BridgePlacementCadence.Scope old = scope(2, 1), current = next(old);
+        BridgePlacementCadence.Settings settings = fixed(10);
+        assertTrue(cadence.start(old, settings, 0));
+        cadence.reset();
+        assertTrue(cadence.start(current, settings, SECOND));
+        assertNull(cadence.tryConsume(old, settings, 999, SECOND, true, true));
+        assertNull(cadence.tryConsume(current, settings, 1, SECOND, false, true));
+        assertNull(cadence.tryConsume(current, settings, 1, SECOND, true, true));
+        assertEquals(0, cadence.getAttemptCount());
+        assertNotNull(cadence.tryConsume(current, settings, 2, SECOND, true, true));
+        assertNull(cadence.tryConsume(current, settings, 3, SECOND - 1, true, true));
+        assertFalse(cadence.isActive());
+        BridgePlacementCadence.Scope replacement = next(current);
+        assertTrue(cadence.start(replacement, settings, 2 * SECOND));
+        assertNull(cadence.tryConsume(replacement, fixed(20), 1, 2 * SECOND, true, true));
+        assertFalse(cadence.isActive());
+    }
+
     @Test public void settingsSnapshotsDoNotRestartCadenceAndChangesRequireNewGeneration() {
         BridgePlacementCadence cadence = new BridgePlacementCadence(7);
         BridgePlacementCadence.Scope scope = scope(0, 1);

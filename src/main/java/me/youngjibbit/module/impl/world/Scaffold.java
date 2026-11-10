@@ -14,6 +14,7 @@ import me.youngjibbit.core.world.ScaffoldRotationPlan;
 import me.youngjibbit.core.world.AdaptiveBridgeScaffoldAdapter;
 import me.youngjibbit.core.world.AdaptiveBridgePlanner;
 import me.youngjibbit.core.world.AdaptiveBridgeMotion;
+import me.youngjibbit.core.world.AdaptiveBridgeLaneController;
 import me.youngjibbit.core.world.BridgePlacementCadence;
 import me.youngjibbit.core.world.AdaptiveBridgeSafetyController;
 import me.youngjibbit.core.world.TowerController;
@@ -58,7 +59,10 @@ public class Scaffold extends Module {
     private final me.youngjibbit.core.world.ArsenicScaffoldController arsenicController=new me.youngjibbit.core.world.ArsenicScaffoldController();
     private final AdaptiveBridgeScaffoldAdapter bridgeAdapter=new AdaptiveBridgeScaffoldAdapter();
     private final AdaptiveBridgeSafetyController bridgeSafety=new AdaptiveBridgeSafetyController();
+    private final AdaptiveBridgeLaneController bridgeLane=new AdaptiveBridgeLaneController();
+    private AdaptiveBridgeMotion.Task bridgeTask=AdaptiveBridgeMotion.Task.TRACKING;
     private long bridgeGeneration,bridgeLastPreSequence=Long.MIN_VALUE,bridgeLastPostSequence=Long.MIN_VALUE;
+    private long bridgeLastPreparationSequence=Long.MIN_VALUE;
     private long bridgeLastInputSequence=Long.MIN_VALUE,bridgeFreshInputSequence;
     private PlacementTarget bridgePreview;
     private PlacementTarget bridgeProfileAnchor;
@@ -371,7 +375,8 @@ public class Scaffold extends Module {
         try {
             RotationManager rotation = contextRotation;
             if (usesRotations() && rotation != null && rotation == RuntimeServices.rotation())
-                rotationReturn.begin(rotation, "scaffold", moveFixMode(), bodyRotationMode(), arsenic() && softArsenicMotion.getValue(), () -> lifecycleGeneration == generation);
+                rotationReturn.begin(rotation, "scaffold", adaptiveBridge()?MoveFixController.Mode.OFF:moveFixMode(),
+                        bodyRotationMode(), arsenic() && softArsenicMotion.getValue(), () -> lifecycleGeneration == generation);
         } finally {
             if (generation == lifecycleGeneration) {
                 try { clearState(); }
@@ -519,7 +524,7 @@ public class Scaffold extends Module {
 
     @Subscribe
     public final Listener<EventMotion> onMotionEvent = new Listener<>(event -> {
-        if (event.isPre() && RuntimeServices.rotation().hasPreparedMovement()) return;
+        if (event.isPre() && RuntimeServices.rotation().hasPreparedMovement() && !adaptiveBridge()) return;
         handleMotion(event, null);
     });
 
@@ -557,7 +562,11 @@ public class Scaffold extends Module {
             return;
         }
         if(arsenic()) { arsenicMotion(event,motionSequence,generation);return; }
-        if(adaptiveBridge()) { bridgeMotion(event,motionSequence,generation);return; }
+        if(adaptiveBridge()) {
+            if(preparation!=null)prepareBridgeMovement(event,motionSequence,generation);
+            else bridgeMotion(event,motionSequence,generation);
+            return;
+        }
         if (event.isPre()) {
             downwardsState = downwards.getValue() && mc.gameSettings.keyBindSneak.isKeyDown();
             if (mc.thePlayer.onGround) keepYCoord = Math.floor(mc.thePlayer.posY - 1);
@@ -633,10 +642,13 @@ public class Scaffold extends Module {
         bridgeProfileAnchor=null;
         bridgeScope=null;
         bridgeHasDirection=false;
+        bridgeLane.reset();
+        bridgeTask=AdaptiveBridgeMotion.Task.TRACKING;
         bridgeAdapter.reset();
         bridgeSafety.reset();
         if(sequences) {
             bridgeLastPreSequence=bridgeLastPostSequence=bridgeLastInputSequence=Long.MIN_VALUE;
+            bridgeLastPreparationSequence=Long.MIN_VALUE;
         }
     }
 
@@ -719,6 +731,20 @@ public class Scaffold extends Module {
         frame.yaw=client.thePlayer.rotationYaw;
         frame.forward=input.forward;frame.strafe=input.strafe;
         frame.velocityX=client.thePlayer.motionX;frame.velocityZ=client.thePlayer.motionZ;
+        frame.velocityY=client.thePlayer.motionY;frame.grounded=client.thePlayer.onGround;
+        frame.allowLowerRecovery=!keepY.getValue();
+        if(contextRotation!=null) {
+            frame.hasRotation=true;
+            frame.rotationYaw=contextRotation.getEffectiveYaw();
+            frame.rotationPitch=contextRotation.getEffectivePitch();
+        }
+        AdaptiveBridgeLaneController.Lane lane=moveFixMode()==MoveFixController.Mode.OFF?null:bridgeLane.current();
+        if(lane!=null) {
+            frame.hasLane=true;
+            frame.laneX=lane.projectX(frame.feetX,frame.feetZ);
+            frame.laneZ=lane.projectZ(frame.feetX,frame.feetZ);
+            frame.laneDirectionX=lane.directionX;frame.laneDirectionZ=lane.directionZ;
+        }
         frame.predictionTicks=bridgePrediction.getValue();
         frame.reach=client.playerController.getBlockReachDistance();
         frame.authorized=validContext() && sameScene()
@@ -843,7 +869,89 @@ public class Scaffold extends Module {
         AdaptiveBridgeMotion.Speed speed="Calm".equals(aim)?AdaptiveBridgeMotion.Speed.CALM
                 :"Swift".equals(aim)?AdaptiveBridgeMotion.Speed.SWIFT:AdaptiveBridgeMotion.Speed.BALANCED;
         return new AdaptiveBridgeMotion.Settings(mode,speed,bridgeRotationVariation.getValue(),
-                yawSpeed.getValue(),pitchSpeed.getValue());
+                yawSpeed.getValue(),pitchSpeed.getValue(),yawSpeed.getValue(),pitchSpeed.getValue());
+    }
+
+    /** Rotation urgency uses collision support, independently of the optional sneak guard. */
+    private AdaptiveBridgeMotion.Task bridgeRotationTask(AdaptiveBridgePlanner.Frame frame,boolean keeping,boolean cornerConnector,
+            long sequence,long generation,long acquisition) {
+        if(!bridgeCurrent(sequence,generation,acquisition))return null;
+        Minecraft client=Minecraft.getMinecraft();
+        AxisAlignedBB body=client.thePlayer.getEntityBoundingBox();
+        if(!boundedBridgeBox(body) || body.maxX-body.minX<=.002 || body.maxX-body.minX>2
+                || body.maxZ-body.minZ<=.002 || body.maxZ-body.minZ>2)return null;
+        final AxisAlignedBB feet=new AxisAlignedBB(body.minX+.001,body.minY-.05,body.minZ+.001,
+                body.maxX-.001,body.minY,body.maxZ-.001);
+        AdaptiveBridgeSafetyController.SupportProbe floor=new AdaptiveBridgeSafetyController.SupportProbe() {
+            private boolean queried,supported;
+            @Override public boolean supported(double x,double z) {
+                if(x==0 && z==0) {
+                    if(!queried) {queried=true;supported=bridgeGround(feet,sequence,generation,acquisition);}
+                    return supported;
+                }
+                return bridgeGround(feet.offset(x,0,z),sequence,generation,acquisition);
+            }
+        };
+        boolean supported=floor.supported(0,0);
+        if(!bridgeCurrent(sequence,generation,acquisition))return null;
+        if(!supported && !frame.grounded && frame.velocityY<-.03)
+            return AdaptiveBridgeMotion.Task.CLUTCH;
+        // A diagonal corner needs this connector and then the diagonal cell.
+        // Acquire the connector now so both fit the normal cadence before support ends.
+        if(cornerConnector)return AdaptiveBridgeMotion.Task.CLUTCH;
+        if(!supported)return AdaptiveBridgeMotion.Task.EDGE;
+        double scale=Math.max(1,Math.hypot(frame.forward,frame.strafe));
+        double forward=frame.forward/scale,strafe=frame.strafe/scale,yaw=Math.toRadians(frame.yaw);
+        double dx=frame.velocityX+(-Math.sin(yaw)*forward+Math.cos(yaw)*strafe)*.18;
+        double dz=frame.velocityZ+(Math.cos(yaw)*forward+Math.sin(yaw)*strafe)*.18;
+        // Probe momentum separately: opposite input is not proof that braking has happened.
+        AdaptiveBridgeSafetyController.Ground residual=AdaptiveBridgeSafetyController.probe(
+                floor,frame.velocityX,frame.velocityZ);
+        if(!bridgeCurrent(sequence,generation,acquisition))return null;
+        AdaptiveBridgeSafetyController.Ground projected=dx==frame.velocityX && dz==frame.velocityZ?residual
+                :AdaptiveBridgeSafetyController.probe(floor,dx,dz);
+        if(!bridgeCurrent(sequence,generation,acquisition))return null;
+        // The next physical step may exhaust the remaining footprint overlap.
+        // Rescue speed must engage before falling makes this level unusable.
+        if(!residual.pathSupported || !projected.pathSupported)return AdaptiveBridgeMotion.Task.CLUTCH;
+        return keeping?AdaptiveBridgeMotion.Task.TRACKING:AdaptiveBridgeMotion.Task.APPROACH;
+    }
+
+    /**
+     * Input preparation owns only the route intention and movement basis.
+     * Physics can expose a hidden face and move the ray origin: the single real
+     * planning/turn budget therefore belongs to walking PRE, after movement.
+     */
+    private void prepareBridgeMovement(EventMotion event,long sequence,long generation) {
+        if(bridgeLastPreparationSequence==sequence)return;
+        bridgeLastPreparationSequence=sequence;
+        long acquisition=bridgeGeneration;
+        if(!bridgeCurrent(sequence,generation,acquisition))return;
+        Minecraft client=Minecraft.getMinecraft();
+        BridgeInput physical=bridgeInput(client);
+        float cameraYaw=client.thePlayer.rotationYaw;
+        if(bridgeDirectionChanged(physical,cameraYaw)) {
+            acquisition=revokeBridge(sequence,generation,acquisition);
+            if(acquisition<0)return;
+        }
+        rememberBridgeDirection(physical,cameraYaw);
+        if(client.thePlayer.onGround)keepYCoord=Math.floor(client.thePlayer.posY-1);
+        PlacementTarget preview=bridgePreview;
+        if(preview!=null && !RuntimeServices.scaffoldPlacement().isValid(preview))preview=null;
+        if(!bridgeCurrent(sequence,generation,acquisition))return;
+        bridgePreview=preview;
+        frameTarget=currentTarget=preview;
+        frameSequence=sequence;framePre=false;downwardsState=false;
+        bridgeScope=new AdaptiveBridgePlanner.Scope(this,contextWorld,contextPlayer,contextPackets,
+                contextEpoch,acquisition);
+        if(!acquireBridgeCadence(bridgeScope,sequence,generation,acquisition) || bridgeCadenceBlockSlot<0)return;
+        if(!sprint.getValue()) {
+            noSprintSequence=sequence;noSprintGeneration=generation;
+            client.thePlayer.setSprinting(false);
+            if(!bridgeCurrent(sequence,generation,acquisition))return;
+        }
+        contextRotation.requestBridgeMovement(bridgeScope,
+                hasHoldBasis?holdYaw:event.getYaw(),hasHoldBasis?holdPitch:event.getPitch());
     }
 
     /** Third opt-in approach: bounded PRE proposals, original C03 and POST-only placement. */
@@ -868,13 +976,9 @@ public class Scaffold extends Module {
             me.youngjibbit.core.world.ScaffoldPlacementService service=RuntimeServices.scaffoldPlacement();
             AdaptiveBridgePlanner.Frame frame=bridgeFrame(sequence,input,true);
             if(!bridgeCurrent(sequence,generation,acquisition))return;
-            // Keep a still-needed original hitpoint; otherwise use the old checked
-            // gap search before looking ahead from an occupied foot cell.
-            PlacementTarget host=service.stillNeeded(bridgePreview,context)?bridgePreview:null;
-            if(!bridgeCurrent(sequence,generation,acquisition))return;
-            if(host==null)host=service.findTarget(context,"Back",false,null);
-            if(!bridgeCurrent(sequence,generation,acquisition))return;
-            if(host==null)host=bridgeAdapter.findEarlyTarget(service,frame,bridgeBlockLevel(context),bridgePreview);
+            // Select the needed route cell before choosing a supporting face.
+            // The legacy radial search can choose a parallel row and has no place here.
+            PlacementTarget host=bridgeAdapter.findEarlyTarget(service,frame,bridgeBlockLevel(context),bridgePreview);
             if(!bridgeCurrent(sequence,generation,acquisition))return;
             bridgeScope=frame.scope;
             bridgePreview=host;
@@ -896,7 +1000,8 @@ public class Scaffold extends Module {
             }
             if(!bridgeCurrent(sequence,generation,acquisition))return;
             AdaptiveBridgeMotion.Settings settings=bridgeRotationSettings();
-            Vec3 eyes=client.thePlayer.getPositionEyes(1);
+            Vec3 eyes=client.thePlayer.getPlannedMovementPosition(event.getX(),event.getY(),event.getZ())
+                    .addVector(0,client.thePlayer.getEyeHeight(),0);
             PlacementTarget anchor=bridgeProfileAnchor;
             boolean kept=anchor!=null && service.rotationIdentity(anchor)==service.rotationIdentity(prepared.target)
                     && service.isValid(anchor);
@@ -912,29 +1017,44 @@ public class Scaffold extends Module {
                 }
                 bridgeProfileAnchor=anchor;
             }
-            PlacementTarget aimed=service.refineBridgeHit(anchor,contextRotation,bridgeScope,settings);
+            PlacementTarget retained=service.retainBridgeHit(anchor,
+                    contextRotation.getEffectiveYaw(),contextRotation.getEffectivePitch());
+            if(!bridgeCurrent(sequence,generation,acquisition))return;
+            boolean connector=bridgeAdapter.isDiagonalConnector(frame,host,bridgeBlockLevel(context));
+            AdaptiveBridgeMotion.Task task=bridgeRotationTask(frame,kept,connector,sequence,generation,acquisition);
+            if(task==null || !bridgeCurrent(sequence,generation,acquisition))return;
+            bridgeTask=task;
+            // A still-valid ray is already a useful aim: do not displace it with
+            // variation or restart a curve merely because the player moved.
+            PlacementTarget aimed=retained!=null?retained
+                    :service.refineBridgeHit(anchor,contextRotation,bridgeScope,settings);
             if(!bridgeCurrent(sequence,generation,acquisition))return;
             if(aimed==null) {
                 bridgeSafety.observePlan(bridgeScope,sequence,false);
                 requestAcceptedHold();return;
             }
-            frameTarget=currentTarget=aimed;
             bridgePreview=aimed;
-            bridgeSafety.observePlan(bridgeScope,sequence,true);
             if(!sprint.getValue()) {
                 noSprintSequence=sequence;noSprintGeneration=generation;
                 client.thePlayer.setSprinting(false);
                 if(!bridgeCurrent(sequence,generation,acquisition))return;
             }
             ScaffoldRotationPlan desired=ScaffoldRotationPlan.build("Back",eyes,aimed.getHitVec());
-            if(desired==null)return;
-            float[] pose=contextRotation.calculateBridgePlanRotations(bridgeScope,
-                    service.rotationIdentity(aimed),desired.getYaw(),desired.getPitch(),settings);
-            if(pose==null)return;
-            if(!bridgeCurrent(sequence,generation,acquisition) || !service.isValid(frameTarget))return;
+            float[] pose=desired==null?null:contextRotation.calculateBridgePlanRotations(bridgeScope,
+                    service.rotationIdentity(aimed),desired.getYaw(),desired.getPitch(),settings,task);
             if(!bridgeCurrent(sequence,generation,acquisition))return;
-            contextRotation.request("scaffold",RotationManager.SCAFFOLD_PRIORITY,pose[0],pose[1]);
-        } else if(event.isPost() && frameSequence==sequence) {
+            if(pose==null || !service.isValid(aimed)) {
+                if(bridgeCurrent(sequence,generation,acquisition))bridgeSafety.observePlan(bridgeScope,sequence,false);
+                return;
+            }
+            if(!bridgeCurrent(sequence,generation,acquisition))return;
+            boolean finalized=contextRotation.requestBridgeFinalRotation(bridgeScope,pose[0],pose[1]);
+            if(!bridgeCurrent(sequence,generation,acquisition))return;
+            bridgeSafety.observePlan(bridgeScope,sequence,finalized);
+            // An early hold is not a substitute for this motion's checked task.
+            // Rejected/stalled turns must leave no POST placement intent behind.
+            if(finalized)frameTarget=currentTarget=aimed;
+        } else if(event.isPost() && frameSequence==sequence && bridgeLastPreSequence==sequence) {
             // Exactly one POST placement attempt per accepted physical C03 frame,
             // even when the C08 transport rejects the first action. A duplicate
             // motion callback must not turn the same C03 into multiple C08s.
@@ -947,7 +1067,9 @@ public class Scaffold extends Module {
             if(scope==null || scope.acquisitionGeneration!=acquisition)return;
             me.youngjibbit.core.world.ScaffoldPlacementService service=RuntimeServices.scaffoldPlacement();
             PlacementContext context=new PlacementContext(false,keepY.getValue(),keepYCoord);
-            boolean needed=service.stillNeeded(original,context);
+            AdaptiveBridgePlanner.Frame placementFrame=bridgeFrame(sequence,bridgeInput(client),true);
+            if(!bridgeCurrent(sequence,generation,acquisition))return;
+            boolean needed=bridgeAdapter.stillNeeded(service,original,placementFrame,bridgeBlockLevel(context));
             if(!bridgeCurrent(sequence,generation,acquisition))return;
             if(!needed) {releasePlacement();return;}
             // The locally accepted pose can refine a hit vector, but never support,
@@ -961,7 +1083,8 @@ public class Scaffold extends Module {
             long now=bridgePlacementClock.getAsLong();
             if(!bridgeCurrent(sequence,generation,acquisition))return;
             BridgePlacementCadence.Attempt attempt=bridgeCadence.tryConsume(bridgeCadenceScope,
-                    bridgePlacementSettings(),sequence,now,true);
+                    bridgePlacementSettings(),sequence,now,true,
+                    bridgeTask==AdaptiveBridgeMotion.Task.EDGE || bridgeTask==AdaptiveBridgeMotion.Task.CLUTCH);
             if(attempt==null) {updateBridgePlacementInfo();return;}
             bridgeSafety.placing(scope,sequence);
             boolean placed=tryPlace(false);
@@ -1086,7 +1209,7 @@ public class Scaffold extends Module {
             revokeBridge(sequence,generation,acquisition);
             return;
         }
-        BridgeInput physical=new BridgeInput(input.moveForward,input.moveStrafe);
+        BridgeInput physical=bridgeInput(client);
         float cameraYaw=client.thePlayer.rotationYaw;
         if(bridgeDirectionChanged(physical,cameraYaw)) {
             acquisition=revokeBridge(sequence,generation,acquisition);
@@ -1099,22 +1222,16 @@ public class Scaffold extends Module {
                 contextPackets,contextEpoch,acquisition);
         AdaptiveBridgePlanner.Scope scope=bridgeScope;
 
-        float forward=input.moveForward,strafe=input.moveStrafe,physicsYaw=cameraYaw;
-        MoveFixController.Mode correction=MoveFixController.Mode.OFF;
-        if(movement!=null) {
-            physicsYaw=movement.yaw;correction=movement.mode;
-        } else if("scaffold".equals(contextRotation.getConfirmedOwner(contextPlayer,contextWorld,contextPackets))) {
-            physicsYaw=contextRotation.getEffectiveYaw();correction=moveFixMode();
-        }
-        if(!bridgeCurrent(sequence,generation,acquisition))return;
-        if(correction!=MoveFixController.Mode.OFF) {
-            // Prediction only: moveFlying retains its sole correction claim.
-            MoveFixController.Input corrected=MoveFixController.correct(strafe,forward,cameraYaw,physicsYaw,correction);
-            strafe=corrected.strafe;forward=corrected.forward;
-        } else physicsYaw=cameraYaw;
+        AdaptiveBridgeLaneController.Input laneInput=bridgeLane.update(client.thePlayer.posX,client.thePlayer.posZ,
+                client.thePlayer.motionX,client.thePlayer.motionZ,cameraYaw,input.moveForward,input.moveStrafe,
+                moveFixMode()!=MoveFixController.Mode.OFF && "scaffold".equals(owner));
+        input.moveForward=laneInput.forward;input.moveStrafe=laneInput.strafe;
+        // Adaptive correction preserves the camera-frame world vector exactly.
+        // Repeating the legacy discrete transform here would predict a different path.
+        float forward=input.moveForward,strafe=input.moveStrafe;
         double length=Math.hypot(forward,strafe);
         if(length>1) {forward/=length;strafe/=length;}
-        double yaw=Math.toRadians(physicsYaw);
+        double yaw=Math.toRadians(cameraYaw);
         double velocityX=client.thePlayer.motionX,velocityZ=client.thePlayer.motionZ;
         // The input lead is an estimate. Probe residual velocity independently
         // so opposite keys cannot hide outward momentum by overestimating braking.
@@ -1396,6 +1513,8 @@ public class Scaffold extends Module {
 
     public boolean correctionEnabled() { return isToggled() && validContext() && usesRotations()
             && (contextPlayer == null || sameScene()); }
+    /** Adaptive Bridge keeps movement intent independent of the placement aim for every enabled mode. */
+    public boolean preservesBridgeHeading() { return adaptiveBridge(); }
     public MoveFixController.Mode moveFixMode() { return arsenic()?MoveFixController.Mode.SIMPLE:MoveFixController.Mode.fromSetting(movefix.getValue()); }
 
     /** Verified mapping: each layman preset binds exactly one reviewed Movefix value; Custom writes nothing. */

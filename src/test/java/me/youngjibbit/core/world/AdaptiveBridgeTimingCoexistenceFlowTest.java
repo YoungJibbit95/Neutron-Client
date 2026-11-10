@@ -541,18 +541,33 @@ public class AdaptiveBridgeTimingCoexistenceFlowTest {
                         attemptedBy.size());
 
                 assertEquals(0, run.tick().bodies); // Earn one actual withheld body.
-                assertEquals(1, run.tick().bodies); // Original alternation requires an ordinary body.
+                assertEquals("a withheld body cannot reacquire or retry placement", rejectedBeforePause,
+                        attemptedBy.size());
+                Step ordinaryReacquisition=run.tick(); // Original alternation requires an ordinary body.
+                assertEquals(1,ordinaryReacquisition.bodies);
+                assertEquals(1,count(ordinaryReacquisition.packets,C03PacketPlayer.class));
+                assertEquals(0,count(ordinaryReacquisition.packets,C08PacketPlayerBlockPlacement.class));
+                // A new real motion may already point at the retained, still-valid face.
+                // Its nominal first-step budget does not have to spend an idle HOLD tick.
+                assertTrue("one fresh ordinary body has at most one controller opportunity",
+                        attemptedBy.size()>=rejectedBeforePause && attemptedBy.size()<=rejectedBeforePause+1);
+                if(attemptedBy.size()>rejectedBeforePause)
+                    assertEquals(ExecutedStep.Kind.ORDINARY,attemptedBy.get(attemptedBy.size()-1));
+                int afterOrdinaryReacquisition=attemptedBy.size();
                 assertEquals(0, run.tick().bodies); // Earn the second actual withheld body.
                 assertEquals(2, run.tickbase.getDiagnostics().credit);
-                assertEquals("the first real post-stall body only reacquires its rotation", rejectedBeforePause,
+                assertEquals("the second withheld body cannot spend the ordinary body's intent", afterOrdinaryReacquisition,
                         attemptedBy.size());
 
                 // The real 300-ms gap between bodies invalidated the rotation curve.
-                // Let original ordinary bodies reacquire an actual C08 intent while
-                // the two earned credits stay untouched. Physical sneak keeps the
-                // V2 ramp cold without changing its profile or any private state.
+                // Require a fresh native C08 attempt after physically sampled sneak,
+                // whether the earlier ordinary body already reacquired its useful ray
+                // or needs more time. The two earned credits stay untouched, and the
+                // original V2 ramp stays cold without changing any private state.
                 run.input.settings.keyBindSneak.pressed = true;
-                for (int tick = 0; tick < 80 && attemptedBy.size() == rejectedBeforePause; tick++) {
+                int beforeSneakRecheck=attemptedBy.size();
+                for (int tick = 0; tick < 80 && attemptedBy.size() == beforeSneakRecheck; tick++) {
+                    int beforeBody=attemptedBy.size();
                     Step reacquiring = run.tick();
                     assertEquals(1, reacquiring.bodies);
                     assertEquals(1, reacquiring.moves.size());
@@ -567,8 +582,10 @@ public class AdaptiveBridgeTimingCoexistenceFlowTest {
                     assertEquals(0, run.input.f.scaffold.bridgePlacementCount());
                     assertEquals(64, run.input.player.inventory.mainInventory[3].stackSize);
                     assertEquals(Blocks.air, run.input.scene.getBlockState(DESTINATION).getBlock());
+                    assertTrue("elapsed time cannot mint more than one attempt for this ordinary body",
+                            attemptedBy.size()>=beforeBody && attemptedBy.size()<=beforeBody+1);
                 }
-                assertEquals("a new real rejected C08 proves post-stall rotation reacquisition", rejectedBeforePause + 1,
+                assertEquals("a new real rejected C08 proves fresh post-stall placement revalidation", beforeSneakRecheck + 1,
                         attemptedBy.size());
                 assertEquals(ExecutedStep.Kind.ORDINARY, attemptedBy.get(attemptedBy.size() - 1));
                 run.input.settings.keyBindSneak.pressed = false;

@@ -65,6 +65,7 @@ public class ScaffoldClientFlowTest {
     public static Scene prepare(RotationBehaviorHookTest.Fixture f,double localX,double wireX) throws Exception {
         Bootstrap.register();
         Scene scene=RotationBehaviorHookTest.bare(Scene.class);scene.blocks=new LinkedHashMap<>();scene.border=new WorldBorder();scene.motionTime=new java.util.concurrent.atomic.AtomicLong();
+        set(net.minecraft.world.World.class,scene,"loadedEntityList",new ArrayList<Entity>());
         scene.blocks.put(new BlockPos(-1,63,0),Blocks.stone.getDefaultState());
         f.mc.theWorld=scene;f.player.worldObj=scene;
         set(EntityPlayerSP.class,f.player,"mc",f.mc);
