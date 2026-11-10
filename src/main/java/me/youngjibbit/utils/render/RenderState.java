@@ -61,6 +61,10 @@ public final class RenderState implements AutoCloseable {
         private void restore() {
             glMatrixMode(GL_MODELVIEW);glLoadMatrix(savedModel);glMatrixMode(GL_PROJECTION);glLoadMatrix(savedProjection);glMatrixMode(matrix);
             int target=validFramebuffer();
+            // Some compatibility drivers recreate a deleted texture name while
+            // popping GL_TEXTURE_BIT. Check before that pop can make it look alive.
+            int deletedTextures=0;
+            for(int i=0;i<units.length;i++)if(binding[i]!=0&&!glIsTexture(binding[i]))deletedTextures|=1<<i;
             // A deleted offscreen target may have saved COLOR_ATTACHMENT draw/read buffers.
             // Those cannot be popped onto the default framebuffer. Use a fresh temporary
             // object for that pop rather than implicitly recreating the stale name.
@@ -69,6 +73,9 @@ public final class RenderState implements AutoCloseable {
                 OpenGlHelper.glBindFramebuffer(OpenGlHelper.GL_FRAMEBUFFER,scratch!=0?scratch:target);
                 GL20.glUseProgram(program==0||GL20.glIsProgram(program)?program:0);
                 glPopAttrib();
+                if(deletedTextures!=0)for(int i=0;i<units.length;i++)if((deletedTextures&(1<<i))!=0){
+                    GlStateManager.deleteTexture(binding[i]);binding[i]=0;
+                }
             } finally {
                 OpenGlHelper.glBindFramebuffer(OpenGlHelper.GL_FRAMEBUFFER,target);
                 if(scratch!=0)OpenGlHelper.glDeleteFramebuffers(scratch);
@@ -91,7 +98,7 @@ public final class RenderState implements AutoCloseable {
             GlStateManager.clearColor(clear.get(0),clear.get(1),clear.get(2),clear.get(3));
             for (int i=0;i<units.length;i++) {
                 GlStateManager.setActiveTexture(units[i]); GL13.glActiveTexture(units[i]);
-                int saved=binding[i]==0||glIsTexture(binding[i])?binding[i]:0;GlStateManager.bindTexture(saved); glBindTexture(GL_TEXTURE_2D,saved);
+                int saved=binding[i];GlStateManager.bindTexture(saved); glBindTexture(GL_TEXTURE_2D,saved);
                 if (texture[i]) GlStateManager.enableTexture2D(); else GlStateManager.disableTexture2D();
             }
             GlStateManager.setActiveTexture(active); GL13.glActiveTexture(active);

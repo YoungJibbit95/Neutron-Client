@@ -40,7 +40,7 @@ public final class ShaderPerformanceCheck {
             checkBloomQueue();
         }
         SessionInfoRenderCheck.require(glGetError() == GL_NO_ERROR, "Shader performance GL error");
-        System.out.println("PASS: fixed/array uniform parity and subclass overrides, bound framebuffer clear pixels/state, cached Gaussian pixels/reload, color-only bloom, nested state storage and bloom queue failure cleanup");
+        System.out.println("PASS: fixed/array uniform parity and subclass overrides, bound framebuffer clear pixels/state, cached Gaussian pixels/reload, legacy bloom depth attachments, nested state storage and bloom queue failure cleanup");
     }
 
     private static void checkUniformOverloads() {
@@ -230,10 +230,10 @@ public final class ShaderPerformanceCheck {
         try (RenderState state = new RenderState()) {
             state.screenSpace();
             KawaseBloom.renderBlur(mask.framebufferTexture, 2, 2);
-            SessionInfoRenderCheck.require(!mask.useDepth && mask.depthBuffer == -1, "Bloom mask still allocates unused depth");
+            SessionInfoRenderCheck.require(mask.useDepth && mask.depthBuffer > 0, "Bloom mask lost its legacy depth attachment");
             java.lang.reflect.Field field = KawaseBloom.class.getDeclaredField("framebufferList");field.setAccessible(true);
             for (Framebuffer target : (List<Framebuffer>)field.get(null))
-                SessionInfoRenderCheck.require(!target.useDepth && target.depthBuffer == -1, "Bloom filter still allocates unused depth");
+                SessionInfoRenderCheck.require(target.useDepth && target.depthBuffer > 0, "Bloom filter lost its legacy depth attachment");
         }
     }
 

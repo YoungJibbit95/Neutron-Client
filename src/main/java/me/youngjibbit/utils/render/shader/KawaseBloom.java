@@ -45,14 +45,14 @@ public class KawaseBloom {
             }
             framebufferList.clear();
             framebuffer = null;
-            // These targets contain only fullscreen 2D filter results. A depth attachment
-            // would consume GPU memory and be cleared on every pass without being read.
-            framebufferList.add(framebuffer = new Framebuffer(mc.displayWidth, mc.displayHeight, false));
+            // Retain the legacy depth attachments and allocation state. Mask capture and
+            // the final composite inherit depth state, including on the first allocation.
+            framebufferList.add(framebuffer = RenderUtil.createFrameBuffer(null));
         }
 
         // Each pass clears its output, so smaller requests can reuse this pyramid's prefix.
         for (int i = framebufferList.size(); i <= iterations; i++) {
-            Framebuffer currentBuffer = new Framebuffer(Math.max(1, mc.displayWidth >> i), Math.max(1, mc.displayHeight >> i), false);
+            Framebuffer currentBuffer = new Framebuffer(Math.max(1, mc.displayWidth >> i), Math.max(1, mc.displayHeight >> i), true);
             currentBuffer.setFramebufferFilter(GL_LINEAR);
 
             GlStateManager.bindTexture(currentBuffer.framebufferTexture);
@@ -74,9 +74,6 @@ public class KawaseBloom {
     public static void renderBlur(int framebufferTexture,int iterations,int offset,boolean themed){
         GlStateManager.setActiveTexture(GL13.GL_TEXTURE0);
         ensureFramebuffers(iterations);
-        // Framebuffer allocation enables depth through Minecraft's state cache. Establish
-        // the 2D filter invariant for both a new pyramid and its warm reuse.
-        GlStateManager.disableDepth();GL11.glDisable(GL11.GL_DEPTH_TEST);
 
         RenderUtil.setAlphaLimit(0);
         // Filter passes replace their targets; never accumulate straight-alpha RGB.
@@ -250,7 +247,7 @@ public class KawaseBloom {
             }
 
             // Create a new framebuffer with the current screen dimensions
-            bloomFramebuffer = new Framebuffer(mc.displayWidth, mc.displayHeight, false);
+            bloomFramebuffer = new Framebuffer(mc.displayWidth, mc.displayHeight, true);
             bloomFramebuffer.setFramebufferFilter(GL_LINEAR);  // Set the filter for the framebuffer texture (you can adjust as needed)
 
             // Optionally, you can adjust texture wrap parameters here if needed
