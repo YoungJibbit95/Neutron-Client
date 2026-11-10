@@ -74,7 +74,7 @@ public final class ArrayListRenderCheck {
                 checkMetricsCache();context.check();
                 System.out.println("PASS [Pbuffer/FBO only]: HUD metrics cache");return;
             }
-            checkMetricsCache(); checkEffects(); checkModuleLayout(); checkBatchAndState(); checkPaddingAndAnchors(); checkResizeAndModes();
+            checkMetricsCache(); checkPrefixInk(); checkEffects(); checkModuleLayout(); checkBatchAndState(); checkPaddingAndAnchors(); checkResizeAndModes();
             require(glGetError()==GL_NO_ERROR,"OpenGL errors");
             context.check();
         }
@@ -101,8 +101,10 @@ public final class ArrayListRenderCheck {
         require(Math.abs((float)get(scaled,"width")-renderer.getWidth((String)get(scaled,"label"))*(float)get(scaled,"scale"))<.0001,"Cached width differs from glyph advances");
         hud.getModeSetting("Font").setValue("Minecraft");
         require(get(rows().get(0),"metrics")!=get(rows().get(0),"metrics"),"Resource-dependent Minecraft font must be measured fresh");
-        hud.getModeSetting("Font").setValue("Poppins");a.info="\u00a7kabc";
+        hud.getModeSetting("Font").setValue("Poppins");a.info="";a.label="\u00a7kabc";
         require(get(rows().get(0),"metrics")!=get(rows().get(0),"metrics"),"Obfuscated glyphs must be measured fresh");
+        a.label="InventoryManager";a.info="\u00a7kabc";
+        require(get(rows().get(0),"metrics")==get(rows().get(0),"metrics"),"Prefix formatting must not introduce obfuscated/colored glyphs");
         a.info="";hud.getBooleanSetting("Show Module Info").setValue(false);hud.getNumberSetting("Scale").setValue(1D);
         rows();mc.gameSettings.showDebugInfo=true;render();
         require(((Map<?,?>)get(hud,"metricsCache")).isEmpty(),"Debug overlay retained metrics");
@@ -114,6 +116,51 @@ public final class ArrayListRenderCheck {
         a.setToggled(false);hud.onDisable();
         System.out.println("METRICS_CACHE: 0 new metrics in 100 stable layout passes; live label/font/scale invalidation verified");
     }
+    static void checkPrefixInk() throws Exception {
+        ModuleManager manager=Pulsar.INSTANCE.getMm();
+        me.youngjibbit.module.impl.client.ClientSettings settings=new me.youngjibbit.module.impl.client.ClientSettings();
+        manager.registerModule(settings);
+        Theme previous=Theme.getDefaultTheme();
+        boolean background=hud.getBooleanSetting("Background").getValue(),glow=hud.getBooleanSetting("Glow").getValue();
+        try {
+            settings.animations.setValue(false);settings.gradients.setValue(true);
+            settings.glow.setValue(true);settings.textGlow.setValue("On");settings.textGlowColor.setValue("Theme");
+            settings.textGlowStrength.setValue(1d);settings.glowIntensity.setValue(1d);settings.textGlowRadius.setValue(2d);
+            hud.getBooleanSetting("Background").setValue(false);hud.getBooleanSetting("Glow").setValue(false);
+            hud.getBooleanSetting("Module Prefixes").setValue(true);a.label="Aura";a.info="\u00a7cSwitch";a.setToggled(true);
+            Theme.setDefaultTheme(Theme.SynthWave);render();finishAnimations();render();
+            BufferedImage blue=capture();Object row=rows().get(0),metrics=get(row,"metrics");
+            require("| Aura".equals(get(metrics,"name"))&&" : Switch".equals(get(metrics,"prefix")),"Name/prefix split and format stripping");
+            float scale=(Float)get(metrics,"scale"),x=(Float)get(row,"textX"),y=(Float)get(row,"textY");
+            int factor=new ScaledResolution(mc).getScaleFactor();
+            int left=(int)Math.ceil((x+(Float)get(metrics,"nameWidth")*scale+9)*factor);
+            int right=(int)Math.ceil((x+(Float)get(metrics,"width"))*factor);
+            int top=(int)Math.floor(y*factor),bottom=(int)Math.ceil((y+(Float)get(metrics,"height"))*factor);
+            int grayPixels=0;
+            for(int py=top;py<bottom;py++)for(int px=left;px<right;px++) {
+                if((blue.getRGB(px,py)&0xffffff)==0xc6c6c6)grayPixels++;
+            }
+            require(grayPixels>12,"Prefix lost its opaque light-gray ink under theme gradient/glow");
+            Theme.setDefaultTheme(Theme.Neon);render();BufferedImage green=capture();
+            for(int py=top;py<bottom;py++)for(int px=left;px<right;px++)
+                require(blue.getRGB(px,py)==green.getRGB(px,py),"Theme recolored neutral prefix at "+px+","+py);
+            sheet("06-neutral-prefix.png",new String[]{"Theme gradient and halo: SynthWave","Theme gradient and halo: Neon"},blue,green);
+            FontInk.themed(Theme.Neon,()->{
+                int themed=glGetInteger(GL20.GL_CURRENT_PROGRAM);
+                require(themed!=0,"Themed shader must be active for scope check");
+                try { FontInk.plain(()->{require(glGetInteger(GL20.GL_CURRENT_PROGRAM)==0&&FontInk.begin(true,false)==-1,"Plain scope inherited glyph effects");throw new IllegalStateException("scope probe");}); }
+                catch(IllegalStateException expected) { require("scope probe".equals(expected.getMessage()),"Unexpected scope failure"); }
+                require(glGetInteger(GL20.GL_CURRENT_PROGRAM)==themed,"Plain scope failed to restore caller shader");
+            });
+            System.out.println("PREFIX_INK: live prefix is neutral gray across two palettes with global theme glow; shader scope restores on exceptions");
+        } finally {
+            a.label="InventoryManager";a.info="";a.setToggled(false);hud.onDisable();
+            hud.getBooleanSetting("Background").setValue(background);hud.getBooleanSetting("Glow").setValue(glow);
+            hud.getBooleanSetting("Module Prefixes").setValue(false);Theme.setDefaultTheme(previous);
+            manager.unregisterModule(settings);UiEffects.invalidate();
+        }
+    }
+
     static void checkEffects() throws Exception {
         ArrayListSurface surface=new ArrayListSurface();
         backdrop(); BufferedImage scene=capture();
@@ -156,7 +203,7 @@ public final class ArrayListRenderCheck {
         hud.getBooleanSetting("Show Module Info").setValue(true);
         render();
         Object detailed = get(rows().get(0), "metrics");
-        require(("| " + a.getName() + " Pulse 100ms Q2").equals(get(detailed, "label")), "Missing module info");
+        require(("| " + a.getName() + " : Pulse 100ms Q2").equals(get(detailed, "label")), "Missing module prefix");
         require((float) get(detailed, "width") > (float) get(plain, "width"), "Status must contribute to row width");
         a.info = "";
         hud.getBooleanSetting("Show Module Info").setValue(false);

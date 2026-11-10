@@ -47,7 +47,7 @@ public class ClickCombo extends Component.Sub<ComboValue> {
         disclosureBounce=Math.max(0,Math.min(.1f,response-progress));
     }
     private float fieldX(){return compact()?x+7:ClickControlStyle.right(x,width)-fieldWidth();}
-    private float fieldWidth(){return compact()?width-14:ClickControlStyle.fieldWidth(width);}
+    private float fieldWidth(){return compact()?width-14:panelStyle&&ClickControlStyle.legacy()?Math.max(60,Math.min(126,width*.41f)):ClickControlStyle.fieldWidth(width);}
     private float fieldY(){return y+(compact()?16:3);}
     private float fieldHeight(){return compact()?17:height-5;}
     private float optionHeight(){return compact()?19:24;}
@@ -58,9 +58,10 @@ public class ClickCombo extends Component.Sub<ComboValue> {
     }
     @Override public void drawScreen(int mouseX,int mouseY){
         me.youngjibbit.utils.font.TTFFontRenderer font=compact()?Pulsar.INSTANCE.fontManager.getFont("Poppins-Regular 16"):ClickControlStyle.font();
-        Theme theme=Theme.resolve(Theme.getDefaultTheme());int ink=hoverInk(theme.isCustom()?theme.getTextColor().getRGB():Color.WHITE.getRGB());
+        Theme theme=Theme.resolve(Theme.getDefaultTheme());int ink=hoverInk(ClickControlStyle.ink(theme));
+        if(panelStyle)ClickControlStyle.row(x,y,width,height,theme,isMouseOver(mouseX,mouseY)||getPresentation().keyboardFocused());
         font.drawString(ClickControlStyle.fit(font,UiEffects.settingLabel(value),compact()?width-14:fieldX()-x-(panelStyle?24:20)),x+(panelStyle?17:compact()?7:12),y+(compact()?2:6),ink);
-        if (panelStyle) ClickControlStyle.panelField(fieldX(),fieldY(),fieldWidth(),fieldHeight(),theme,open||isMouseOver(mouseX,mouseY));
+        if (panelStyle || ClickControlStyle.legacy()) ClickControlStyle.panelField(fieldX(),fieldY(),fieldWidth(),fieldHeight(),theme,open||isMouseOver(mouseX,mouseY));
         else GuiStyle.panel(fieldX(),fieldY(),fieldWidth(),fieldHeight(),3,open||isMouseOver(mouseX,mouseY)?.7f:.12f,new Color(29,31,36));
         drawFeedback();
         try(GuiClip ignored=GuiClip.push(new ClipRect(fieldX()+3,fieldY()+1,fieldWidth()-6,fieldHeight()-2))){
@@ -81,7 +82,11 @@ public class ClickCombo extends Component.Sub<ComboValue> {
             for(int i=0;i<value.getOptions().length;i++){
                 String option=value.getOptions()[i];float rowY=y+height+i*optionHeight();
                 boolean selected=option.equals(value.getValue());
-                if(selected)UIUtils.drawDecorationGradientVertical(options.x,rowY,options.width,optionHeight(),0,UiEffects.color(theme.getPrimaryGradientRGB(),.25f),UiEffects.color(theme.getSecondaryGradientRGB(),.25f));
+                if(selected){
+                    if(ClickControlStyle.legacy())UIUtils.drawDecorationRound(options.x+2,rowY+1,options.width-4,optionHeight()-2,3,
+                            me.youngjibbit.gui.LegacyUiStyle.accent(theme,.17f));
+                    else UIUtils.drawDecorationGradientVertical(options.x,rowY,options.width,optionHeight(),0,UiEffects.color(theme.getPrimaryGradientRGB(),.25f),UiEffects.color(theme.getSecondaryGradientRGB(),.25f));
+                }
                 if (selected && panelStyle)
                     UIUtils.drawDecorationRound(options.x + 2, rowY + 5, 2, optionHeight() - 10, 1, theme.getPrimaryGradientColor());
                 font.drawString(ClickControlStyle.fit(font,label(option),options.width-12),options.x+6,rowY+(optionHeight()-10)/2,ink);

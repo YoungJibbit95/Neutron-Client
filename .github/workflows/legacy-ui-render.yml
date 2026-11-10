@@ -1,0 +1,113 @@
+name: Legacy UI native render
+
+on:
+  workflow_dispatch:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths:
+      - '.github/workflows/legacy-ui-render.yml'
+      - '.github/scripts/run-ui-render-checks.sh'
+      - 'pom.xml'
+      - 'src/build/**'
+      - 'src/main/java/me/youngjibbit/clickgui/**'
+      - 'src/main/java/me/youngjibbit/gui/**'
+      - 'src/main/java/me/youngjibbit/theme/**'
+      - 'src/main/java/me/youngjibbit/value/**'
+      - 'src/main/java/me/youngjibbit/module/**'
+      - 'src/main/java/me/youngjibbit/config/**'
+      - 'src/main/java/me/youngjibbit/utils/Theme.java'
+      - 'src/main/java/me/youngjibbit/utils/render/**'
+      - 'src/main/java/me/youngjibbit/utils/font/**'
+      - 'src/main/java/me/youngjibbit/utils/animations/**'
+      - 'src/main/java/net/minecraft/client/gui/**'
+      - 'src/main/java/net/minecraft/client/renderer/**'
+      - 'src/main/java/net/minecraft/client/shader/**'
+      - 'src/main/java/net/minecraft/client/Minecraft.java'
+      - 'src/main/java/net/minecraft/client/settings/**'
+      - 'src/main/java/net/optifine/**'
+      - 'src/main/java/net/minecraft/src/Config.java'
+      - 'src/main/resources/**'
+      - 'src/test/java/me/youngjibbit/clickgui/**'
+      - 'src/test/java/me/youngjibbit/gui/**'
+      - 'src/test/java/me/youngjibbit/module/impl/render/**'
+      - 'src/test/java/me/youngjibbit/utils/render/**'
+      - 'src/test/java/me/youngjibbit/rendercheck/**'
+      - 'test_natives/linux/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: legacy-ui-render-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-render:
+    name: Legacy UI / Java 8 / Linux Pbuffer
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    env:
+      LIBGL_ALWAYS_SOFTWARE: '1'
+      GALLIUM_DRIVER: llvmpipe
+      LP_NUM_THREADS: '2'
+      LANG: C.UTF-8
+      LC_ALL: C.UTF-8
+    steps:
+      - name: Checkout tested revision
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Temurin 8u482 (required native-check toolchain)
+        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        with:
+          distribution: temurin
+          java-version: '8.0.482+8'
+          architecture: x64
+          check-latest: false
+
+      - name: Install Xvfb and Mesa GLX runtime
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install --no-install-recommends -y \
+            xvfb xauth mesa-utils libgl1-mesa-dri libglx-mesa0 libglu1-mesa \
+            libx11-6 libxext6 libxrandr2 libxxf86vm1 libxcursor1 libxinerama1 \
+            libxi6 libxtst6 libfontconfig1 libfreetype6 fonts-dejavu-core
+
+      - name: Maven 3.9.15 (verified Apache archive)
+        run: |
+          set -euo pipefail
+          archive="$RUNNER_TEMP/apache-maven-3.9.15-bin.zip"
+          curl --fail --location --retry 2 --connect-timeout 20 --max-time 180 \
+            'https://repo.maven.apache.org/maven2/org/apache/maven/apache-maven/3.9.15/apache-maven-3.9.15-bin.zip' \
+            --output "$archive"
+          expected='251c676eb88684d6dd86c666817979d256a335c31ad34ab0e1df17eeca1cd504a6c890e906a46d04e51cc7a4fb02f33a75971ef750558034e0a81c257be02267'
+          printf '%s  %s\n' "$expected" "$archive" | sha512sum --check --strict
+          unzip -q "$archive" -d "$RUNNER_TEMP"
+          chmod u+x "$RUNNER_TEMP/apache-maven-3.9.15/bin/mvn"
+          printf 'MAVEN_HOME=%s\n' "$RUNNER_TEMP/apache-maven-3.9.15" >> "$GITHUB_ENV"
+
+      - name: Compile and run production UI checks in separate JVMs
+        run: |
+          set -euo pipefail
+          mkdir -p target/legacy-ui-render
+          xvfb-run --auto-servernum \
+            --server-args='-screen 0 1280x960x24 +extension GLX +extension RENDER -noreset -nolisten tcp' \
+            --error-file=target/legacy-ui-render/xvfb.log \
+            bash .github/scripts/run-ui-render-checks.sh
+
+      - name: Retain only render images and check logs
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: legacy-ui-${{ github.event.pull_request.number || github.run_id }}-${{ github.run_attempt }}
+          path: |
+            target/legacy-ui-render/xvfb.log
+            target/legacy-ui-render/run.*/logs/*.log
+            target/legacy-ui-render/run.*/screenshots/**/*.png
+          if-no-files-found: error
+          retention-days: 14

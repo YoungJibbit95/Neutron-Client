@@ -5,6 +5,8 @@ import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.render.UIUtils;
 import me.youngjibbit.utils.render.UiEffects;
 import me.youngjibbit.utils.font.TTFFontRenderer;
+import me.youngjibbit.gui.LegacyUiStyle;
+import me.youngjibbit.theme.ThemeMode;
 
 /** Shared geometry and metric-aware text for compact, 24px settings rows. */
 public final class ClickControlStyle {
@@ -12,8 +14,23 @@ public final class ClickControlStyle {
     public static TTFFontRenderer font() { return Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 18"); }
     public static float right(float x, float width) { return x + width - 14; }
     public static float fieldWidth(float width) { return Math.max(24, Math.min(144, width * .47f)); }
+    public static boolean legacy() { return !ThemeMode.APPROACH_TWO.equals(ThemeMode.selected()); }
+    public static int ink(Theme theme) { return legacy() ? LegacyUiStyle.ink(theme) : theme.getTextColor().getRGB(); }
+    /** Settings stay visually quieter than module cards, with a stable hover/focus lane. */
+    public static void row(float x, float y, float width, float height, Theme theme, boolean active) {
+        if (!legacy() || !active) return;
+        UIUtils.drawDecorationRound(x + 10, y, Math.max(0, width - 20), height, 4,
+                LegacyUiStyle.alpha(LegacyUiStyle.ink(theme), .035f));
+    }
     /** A hairline and a tinted fill inside the stronger outer module contour. */
     public static void panelField(float x, float y, float width, float height, Theme theme, boolean active) {
+        if (legacy()) {
+            UIUtils.drawDecorationRound(x, y, width, height, 4,
+                    LegacyUiStyle.alpha(active ? theme.getPrimaryGradientRGB() : LegacyUiStyle.ink(theme), active ? .54f : .14f));
+            UIUtils.drawDecorationRound(x + .65f, y + .65f, Math.max(0, width - 1.3f),
+                    Math.max(0, height - 1.3f), 3.5f, LegacyUiStyle.control(theme, active));
+            return;
+        }
         int ink = theme.getTextColor().getRGB();
         int background = Theme.interpolateRGB(theme.getBackground().getRGB(), ink, .085f);
         float inset = 0;

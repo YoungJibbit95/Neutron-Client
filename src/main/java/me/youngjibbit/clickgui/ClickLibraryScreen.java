@@ -6,6 +6,7 @@ import me.youngjibbit.clickgui.utils.*;
 import me.youngjibbit.config.*;
 import me.youngjibbit.gui.UiSpring;
 import me.youngjibbit.gui.NeutronVisualTokens;
+import me.youngjibbit.gui.LegacyUiStyle;
 import me.youngjibbit.gui.clientsettings.SettingsMenu;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.theme.*;
@@ -27,7 +28,11 @@ public class ClickLibraryScreen extends GuiScreen {
     private final ThemeCatalog catalog;
     private final ArrayListSurface surface = new ArrayListSurface();
     private final UiSpring[] motion = new UiSpring[9];
-    private boolean themes, replace, repeatBefore, renaming;
+    private final Map<String,UiSpring> cardMotion = new HashMap<>();
+    private List<String> cachedItems = Collections.emptyList();
+    private String cachedQuery;
+    private boolean cachedThemes;
+    private boolean themes, replace, repeatBefore, ownsKeyboardRepeat, renaming;
     private String query = "", name = "", selectedTheme = "", message = "", renameBuffer = "";
     private float x, y, w, h, scroll, targetScroll;
     private int focus = -1, pressed = -99;
@@ -49,39 +54,62 @@ public class ClickLibraryScreen extends GuiScreen {
     private boolean modern(){return two()&&!creativePresentation();}
     private boolean creative(){return two()&&creativePresentation();}
     @Override public void initGui() {
-        renaming=false;renameBuffer="";
-        layout(); configs.refresh(); if(catalog.find(selectedTheme)==null)selectedTheme=catalog.selectedReference(); lastFrame = System.nanoTime(); pressed = -99;
-        if (Keyboard.isCreated()) { repeatBefore = Keyboard.areRepeatEventsEnabled(); Keyboard.enableRepeatEvents(true); }
+        // A viewport resize keeps the active rename draft. Leaving this screen
+        // clears it in onGuiClosed, including navigation into a child editor.
+        configs.refresh(); invalidateItems(); layout(); if(catalog.find(selectedTheme)==null)selectedTheme=catalog.selectedReference(); lastFrame = System.nanoTime(); pressed = -99;
+        if (Keyboard.isCreated()) {
+            if(!ownsKeyboardRepeat){repeatBefore=Keyboard.areRepeatEventsEnabled();ownsKeyboardRepeat=true;}
+            Keyboard.enableRepeatEvents(true);
+        }
     }
     private TTFFontRenderer font() { return ClickControlStyle.font(); }
     private void text(String text, float x, float y, float width, int ink) {
         font().drawString(ClickControlStyle.fit(font(), text, width), x, y, ink);
     }
     private void layout() {
-        w = Math.min(two()?780:640, Math.max(1,width-20));
-        h = Math.min(two()?460:420, Math.max(1,height-20));
+        w = Math.min(two()?780:720, Math.max(1,width-20));
+        h = Math.min(two()||!themes?460:420, Math.max(1,height-20));
         x = (width - w) / 2; y = (height - h) / 2;
         float max = Math.max(0, rowsHeight() - listBounds().height);
         targetScroll = Math.max(0, Math.min(max, targetScroll)); scroll = Math.max(0, Math.min(max, scroll));
     }
+    private boolean legacyConfigs() { return !themes && !two(); }
+    private boolean compactConfigs() { return h < 300; }
+    private boolean inlineSearch() { return w >= 520; }
     private boolean splitConfigs() { return !themes && w >= 540 && h >= 300; }
     private float configListWidth() { return splitConfigs() ? (w - 40) * (creative()?.5f:.58f) : w - 24; }
     private float detailsX() { return x + 28 + configListWidth(); }
     private float detailsWidth() { return w - 40 - configListWidth(); }
     protected ClipRect listBounds() {
+        if(legacyConfigs()) {
+            float top=compactConfigs()?94:inlineSearch()?98:126;
+            float bottom=nameBounds().y-y-(compactConfigs()?6:16);
+            return new ClipRect(x+16,y+top,w-32,Math.max(24,bottom-top));
+        }
         if (!themes) return new ClipRect(x + 12, y + (splitConfigs() ? 108 : 82), configListWidth(), Math.max(28, h - (splitConfigs() ? 140 : 170)));
         return new ClipRect(x + 12, y + 90, w - 24, Math.max(8, h - 170));
     }
     protected ClipRect searchBounds() {
+        if(legacyConfigs())return inlineSearch()?new ClipRect(x+218,y+43,w-234,25)
+                :new ClipRect(x+16,y+(compactConfigs()?62:76),w-32,25);
         if (!themes) return new ClipRect(x + 12, y + (splitConfigs() ? 82 : 56), configListWidth() - 70, 20);
         return new ClipRect(x + 12, y + 62, w - 24, 22);
     }
     protected ClipRect nameBounds() {
+        if(legacyConfigs())return new ClipRect(x+16,y+h-(compactConfigs()?74:93),w-32,compactConfigs()?22:28);
         if (!themes) return splitConfigs() ? new ClipRect(detailsX(), y + 208, detailsWidth(), 22)
                 : new ClipRect(x + 12, y + h - 44, w - 102, 22);
         return new ClipRect(x + 12, y + h - 78, w - 24, 22);
     }
     protected ClipRect actionBounds(int id) {
+        if(legacyConfigs()) {
+            if(id==6||id==7)return new ClipRect(x+16+(id-6)*92,y+(compactConfigs()?34:43),86,compactConfigs()?22:25);
+            if(id==8)return new ClipRect(x+w-66,y+10,50,24);
+            int[] order={0,1,4,2,3};int index=0;
+            for(int i=0;i<order.length;i++)if(order[i]==id)index=i;
+            float available=Math.min(548,w-32),gap=5,bw=(available-gap*4)/5;
+            return new ClipRect(x+(w-available)/2+index*(bw+gap),y+h-(compactConfigs()?45:54),bw,compactConfigs()?26:34);
+        }
         if (id == 6 || id == 7) return new ClipRect(x + 12 + (id - 6) * 88, y + (themes ? 34 : 30), 82, themes ? 22 : 20);
         if (id == 8) return new ClipRect(x + w - 50, y + 10, 38, 22);
         if (!themes) {
@@ -99,22 +127,36 @@ public class ClickLibraryScreen extends GuiScreen {
         float bw = Math.max(1,(w - 24 - 6 * (tb - 1)) / tb);
         return new ClipRect(x + 12 + id * (bw + 6), y + h - 50, bw, 24);
     }
-    private int columns() { return themes ? Math.max(1, Math.min(creative()?4:3, (int)((w - 18) / 150))) : 1; }
+    private int columns() {
+        if(legacyConfigs())return Math.max(1,Math.min(4,(int)((listBounds().width+8)/168)));
+        return themes ? Math.max(1, Math.min(creative()?4:3, (int)((w - 18) / 150))) : 1;
+    }
     private boolean compactList() { return h < 300; }
-    private float rowHeight() { return themes ? compactList() ? 36 : creative()?82:56 : splitConfigs() ? creative()?40:34 : 28; }
+    private float rowHeight() {
+        if(legacyConfigs())return Math.min(compactConfigs()?68:84,Math.max(30,listBounds().height))+6;
+        return themes ? compactList() ? 36 : creative()?82:56 : splitConfigs() ? creative()?40:34 : 28;
+    }
     private float rowsHeight() { return ((items().size() + columns() - 1) / columns()) * rowHeight(); }
     protected ClipRect itemBounds(int index) {
+        if(legacyConfigs()) {
+            ClipRect list=listBounds();int cols=columns();float cell=(list.width-8*(cols-1))/cols;
+            return new ClipRect(list.x+index%cols*(cell+8),list.y+index/cols*rowHeight()-scroll,cell,rowHeight()-6);
+        }
         ClipRect list = listBounds(); float cell = list.width / columns();
         return new ClipRect(list.x + index % columns() * cell, list.y + index / columns() * rowHeight() - scroll,
                 cell - (themes ? 6 : 0), rowHeight() - (themes ? 5 : 2));
     }
     private List<String> items() {
+        if(query.equals(cachedQuery)&&themes==cachedThemes)return cachedItems;
         List<String> names = new ArrayList<>(); String q = query.toLowerCase(Locale.ROOT);
         if (themes) {
             for (Theme theme : catalog.all()) if (theme.getDisplayName().toLowerCase(Locale.ROOT).contains(q)) names.add(theme.name());
         } else for (LocalConfig config : configs.entries()) if (config.getName().toLowerCase(Locale.ROOT).contains(q)) names.add(config.getName());
-        return names;
+        cachedItems=Collections.unmodifiableList(names);cachedQuery=query;cachedThemes=themes;
+        cardMotion.keySet().retainAll(names);
+        return cachedItems;
     }
+    private void invalidateItems(){cachedQuery=null;}
     private String selected() { return themes ? selectedTheme : configs.selected(); }
     private String visibleConfigSelection() {
         String selected = configs.selected();
@@ -137,14 +179,14 @@ public class ClickLibraryScreen extends GuiScreen {
     @Override public void drawScreen(int mx, int my, float partialTicks) {
         layout(); long now = System.nanoTime(); float dt = Math.min(.05f, Math.max(0, (now - lastFrame) / 1e9f)); lastFrame = now;
         scroll += (targetScroll - scroll) * UiEffects.response(dt, 22);
+        if(legacyConfigs()){drawLegacyConfigs(mx,my,dt);return;}
         Theme theme=Theme.getDefaultTheme();
-        int ink=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())?
-                NeutronVisualTokens.ink(theme):theme.getTextColor().getRGB();
+        int ink=two()?NeutronVisualTokens.ink(theme):LegacyUiStyle.ink(theme);
         boolean modern=two()&&!creativePresentation();
         boolean creative=two()&&creativePresentation();
         try (RenderState state = new RenderState()) {
             state.screenSpace();
-            if(mc.theWorld==null)me.youngjibbit.gui.MainMenu.drawBackdrop(theme);else UIUtils.drawDecorationRound(0, 0, width, height, 0, new Color(5, 7, 12, 115));
+            if(mc.theWorld==null)me.youngjibbit.gui.MainMenu.drawBackdrop(theme);
             surface.panel(x,y,w,h,two()?14:6,theme,true,true,!two(),
                     two()?4:8,two()?.98f:.92f,two()?.2f:.8f,()->{
                 try(GuiClip clip=GuiClip.push(new ClipRect(x+2,y+2,w-4,h-4))){
@@ -288,6 +330,103 @@ public class ClickLibraryScreen extends GuiScreen {
             });
         }
     }
+    private void drawLegacyConfigs(int mx,int my,float dt) {
+        UiEffects.beginFrame();
+        Theme theme=Theme.resolve(Theme.getDefaultTheme());int ink=LegacyUiStyle.ink(theme);
+        try(RenderState state=new RenderState()) {
+            state.screenSpace();
+            if(mc.theWorld==null)me.youngjibbit.gui.MainMenu.drawBackdrop(theme);
+            surface.panel(x,y,w,h,9,theme,true,true,true,6,.94f,.65f,()->{
+                try(GuiClip root=GuiClip.push(new ClipRect(x+2,y+2,w-4,h-4))) {
+                    LegacyUiStyle.icon("save",x+16,y+13,16,theme.getPrimaryGradientRGB());
+                    TTFFontRenderer title=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Bold 28");
+                    title.drawString(ClickControlStyle.fit(title,"Configurations",w-116),x+42,y+13,ink);
+                    for(int id:new int[]{6,7,8})legacyAction(id,mx,my,dt,theme,ink);
+                    legacyField(searchBounds(),query.isEmpty()&&focus!=-1?"Search configs":query+(focus==-1?"_":""),focus==-1,"search",theme,ink);
+                    ClipRect list=listBounds();
+                    if(!compactConfigs()) {
+                        String count=items().size()==configs.entries().size()?items().size()+" saved configs":items().size()+" matching configs";
+                        text(count,list.x,list.y-16,list.width,LegacyUiStyle.MUTED);
+                    }
+                    String hover="";
+                    try(GuiClip content=GuiClip.push(list)) {
+                        List<String> names=items();
+                        for(int i=0;i<names.size();i++) {
+                            ClipRect hit=itemBounds(i);if(hit.intersect(list).isEmpty())continue;
+                            String ref=names.get(i);boolean selected=ref.equals(configs.selected());
+                            boolean hovered=list.contains(mx,my)&&hit.contains(mx,my);
+                            if(hovered)hover=ref;
+                            UiSpring animation=cardMotion.computeIfAbsent(ref,k->new UiSpring());
+                            animation.stepForInput(dt,hovered,selected&&focus==-2,false,true,ClientSettings.current());
+                            // Selection and hover only move the local card; grid geometry stays stable.
+                            float lift=UiEffects.motion()?Math.min(1.5f,Math.max(0,animation.lift())):0;
+                            ClipRect r=new ClipRect(hit.x,hit.y-lift,hit.width,hit.height);
+                            LegacyUiStyle.card(r.x,r.y,r.width,r.height,theme,selected,hovered);
+                            GuiStyle.feedback(r,animation);
+                            if(r.height>=60) {
+                                LegacyUiStyle.icon("settings",r.x+12,r.y+12,17,theme.getPrimaryGradientRGB());
+                                text("LOCAL PROFILE",r.x+38,r.y+14,r.width-65,LegacyUiStyle.FAINT);
+                                if(selected)LegacyUiStyle.icon("check",r.x+r.width-22,r.y+14,10,theme.getPrimaryGradientRGB());
+                                text(ref,r.x+12,r.y+r.height-28,r.width-24,ink);
+                                text(selected?"Selected · Enter to load":"Saved client setup",r.x+12,r.y+r.height-14,r.width-24,LegacyUiStyle.MUTED);
+                            } else {
+                                LegacyUiStyle.icon("settings",r.x+10,r.y+(r.height-12)/2,12,selected?theme.getPrimaryGradientRGB():LegacyUiStyle.MUTED);
+                                text(ref,r.x+30,r.y+(r.height-10)/2,r.width-42,ink);
+                            }
+                        }
+                        if(names.isEmpty()) {
+                            String empty=query.isEmpty()?configs.available()?"Save your first configuration below.":"Config storage unavailable.":"No configs match your search.";
+                            text(empty,list.x+8,list.y+Math.min(20,Math.max(6,(list.height-10)/2)),list.width-16,LegacyUiStyle.MUTED);
+                        }
+                    }
+                    float contentHeight=rowsHeight();
+                    if(contentHeight>list.height) {
+                        float thumb=Math.max(10,list.height*list.height/contentHeight);
+                        UIUtils.drawDecorationRound(list.x+list.width-2,list.y+scroll/(contentHeight-list.height)*(list.height-thumb),2,thumb,1,LegacyUiStyle.alpha(ink,.35f));
+                    }
+                    if(!compactConfigs())text(renaming?"Rename selected config":"Save current setup as",nameBounds().x,nameBounds().y-12,nameBounds().width,LegacyUiStyle.MUTED);
+                    String editable=renaming?renameBuffer:name;
+                    int fieldFocus=renaming?-4:-3;
+                    String fieldText=editable.isEmpty()&&focus!=fieldFocus?(renaming?"New config name":"Config name"):editable+(focus==fieldFocus?"_":"");
+                    legacyField(nameBounds(),fieldText,focus==fieldFocus,renaming?"rename":"plus",theme,ink);
+                    ClipRect first=actionBounds(0),last=actionBounds(3);
+                    UIUtils.drawDecorationRound(first.x-5,first.y-4,last.x+last.width-first.x+10,first.height+8,8,LegacyUiStyle.alpha(LegacyUiStyle.panel(theme).getRGB(),.9f));
+                    for(int id:new int[]{0,1,4,2,3})legacyAction(id,mx,my,dt,theme,ink);
+                    String status=!message.isEmpty()?message:!configs.status().isEmpty()?configs.status():!hover.isEmpty()?hover:"Select a card · Enter loads · Tab moves focus";
+                    text(status,x+16,y+h-13,w-32,LegacyUiStyle.FAINT);
+                    if(configs.pending()!=ConfigLibrary.Pending.NONE)confirmation(ink);
+                }
+            });
+        }
+    }
+    private void legacyAction(int id,int mx,int my,float dt,Theme theme,int ink) {
+        ClipRect hit=actionBounds(id);boolean active=enabled(id);
+        motion[id].stepForInput(dt,hit.contains(mx,my),focus==id,pressed==id,active,ClientSettings.current());
+        ClipRect r=GuiStyle.buttonBounds(hit,motion[id]);
+        boolean selected=id==6;
+        LegacyUiStyle.card(r.x,r.y,r.width,r.height,theme,selected,active&&hit.contains(mx,my));
+        GuiStyle.feedback(r,motion[id]);
+        String[] names={"Save","Load","Delete","Refresh","Rename"};
+        String title=id<5?names[id]:id==6?"Configs":id==7?"Themes":"Back";
+        String[] icons={"save","load","delete","refresh","rename"};
+        String icon=id<5?icons[id]:id==6?"save":id==7?"palette":"back";
+        int color=UiEffects.alpha(id==2?0xffe8a5a9:ink,active?1:.38f);
+        if(r.width>=72) {
+            LegacyUiStyle.icon(icon,r.x+10,r.y+(r.height-12)/2,12,color);
+            text(title,r.x+29,r.y+(r.height-10)/2,r.width-35,color);
+        } else if(r.width>=44) {
+            float textWidth=Math.min(font().getWidth(title),r.width-8);
+            text(title,r.x+(r.width-textWidth)/2,r.y+(r.height-10)/2,r.width-8,color);
+        } else LegacyUiStyle.icon(icon,r.x+(r.width-13)/2,r.y+(r.height-13)/2,13,color);
+    }
+    private void legacyField(ClipRect r,String value,boolean focused,String icon,Theme theme,int ink) {
+        LegacyUiStyle.card(r.x,r.y,r.width,r.height,theme,focused&&showsKeyboardFocus(),false);
+        LegacyUiStyle.icon(icon,r.x+9,r.y+(r.height-12)/2,12,focused?theme.getPrimaryGradientRGB():LegacyUiStyle.FAINT);
+        try(GuiClip field=GuiClip.push(new ClipRect(r.x+28,r.y+2,r.width-36,r.height-4))) {
+            if(focused)while(value.length()>1&&font().getWidth(value)>r.width-42)value=value.substring(value.offsetByCodePoints(0,1));
+            text(value,r.x+29,r.y+(r.height-10)/2,r.width-40,ink);
+        }
+    }
     private void configSections(int ink) {
         if (splitConfigs()) {
             text("Saved configs · " + configs.entries().size(),x+12,y+65,configListWidth(),ink);
@@ -308,7 +447,7 @@ public class ClickLibraryScreen extends GuiScreen {
         }else GuiStyle.panel(r.x,r.y,r.width,r.height,3,
                 focused&&showsKeyboardFocus()?1:.12f,new Color(15,18,24));
         try(GuiClip clip=GuiClip.push(new ClipRect(r.x+5,r.y+2,r.width-10,r.height-4))) {
-            if(focused)while(value.length()>1&&font().getWidth(value)>r.width-14)value=value.substring(1);
+            if(focused)while(value.length()>1&&font().getWidth(value)>r.width-14)value=value.substring(value.offsetByCodePoints(0,1));
             text(value,r.x+7,r.y+6,r.width-14,ink);
         }
     }
@@ -336,7 +475,7 @@ public class ClickLibraryScreen extends GuiScreen {
         message="";
         if(id!=4){renaming=false;renameBuffer="";}
         if(id==8){open(parent);return;}
-        if(id==6||id==7){themes=id==7;query="";scroll=targetScroll=0;configs.cancel();focus=-1;return;}
+        if(id==6||id==7){themes=id==7;query="";scroll=targetScroll=0;configs.cancel();invalidateItems();focus=-1;layout();return;}
         if(themes) {
             if(id==4){
                 // The editor changes the display name and preserves the stable custom ID.
@@ -348,13 +487,13 @@ public class ClickLibraryScreen extends GuiScreen {
             else if(id==1||id==2)open(new ThemeEditorScreen(this,catalog,ThemeRuntime::select).editTheme(theme,id==2||!theme.isCustom()));
             else if(id==3)open(new SettingsMenu(this));
         } else {
-            if(id==4){renaming=true;renameBuffer=configs.selected();focus=-4;message="";layout();return;}
+            if(id==4){renaming=true;renameBuffer=configs.selected();replace=true;focus=-4;message="";layout();return;}
             if(id==0)configs.save(name);
             else if(id==1){configs.load();if(mc.currentScreen!=this)open(this);}
             else if(id==2)configs.requestDelete();
             else if(id==3)configs.refresh();
         }
-        layout();
+        invalidateItems();layout();
     }
     private void select(int index) {
         renaming=false;renameBuffer="";
@@ -394,11 +533,12 @@ public class ClickLibraryScreen extends GuiScreen {
     }
     private void finishConfirmation(boolean confirm) {
         ConfigLibrary.Pending action=configs.pending();
-        if(confirm)configs.confirm();else configs.cancel();
+        if(confirm){if(configs.confirm()&&action==ConfigLibrary.Pending.RENAME)name=configs.selected();}
+        else configs.cancel();
         renaming=false;renameBuffer="";
         // Return to the originating action. A fresh Enter must open a new dialog.
         focus=action==ConfigLibrary.Pending.DELETE?2:action==ConfigLibrary.Pending.RENAME?4:0;
-        layout();
+        invalidateItems();layout();
     }
     protected boolean ctrlDown(){return Keyboard.isCreated()&&isCtrlKeyDown();}
     protected boolean shiftDown(){return Keyboard.isCreated()&&isShiftKeyDown();}
@@ -412,6 +552,7 @@ public class ClickLibraryScreen extends GuiScreen {
         }
         if(key==Keyboard.KEY_ESCAPE){if(renaming){renaming=false;renameBuffer="";focus=-1;return;}open(parent);return;}
         if(key==Keyboard.KEY_TAB) {
+            if(renaming){renaming=false;renameBuffer="";focus=4;}
             int[] order=themes?new int[]{6,7,-1,-2,0,1,2,3,4,8}:new int[]{6,7,-1,3,-2,1,2,-3,4,0,8};
             int current=0;for(int i=0;i<order.length;i++)if(order[i]==focus)current=i;
             focus=order[(current+(shiftDown()?order.length-1:1))%order.length];replace=false;
@@ -421,7 +562,7 @@ public class ClickLibraryScreen extends GuiScreen {
         if(focus==-1||focus==-3) {
             if(ctrlDown()&&key==Keyboard.KEY_A){replace=true;return;}
             String value=focus==-1?query:name;
-            if(key==Keyboard.KEY_BACK){value=replace?"":value.substring(0,Math.max(0,value.length()-1));replace=false;}
+            if(key==Keyboard.KEY_BACK){value=replace?"":value.substring(0,value.offsetByCodePoints(value.length(),value.isEmpty()?0:-1));replace=false;}
             else if (enter || key == Keyboard.KEY_DOWN) {
                 if (focus == -1) {
                     if (!items().isEmpty()) select(0);
@@ -438,9 +579,10 @@ public class ClickLibraryScreen extends GuiScreen {
         }
         if(focus==-4 && renaming && !themes) {
             if(key==Keyboard.KEY_ESCAPE){renaming=false;renameBuffer="";focus=-1;return;}
-            if(enter){renaming=false;if(configs.rename(renameBuffer)){message="Renamed "+renameBuffer;}renameBuffer="";focus=-1;layout();return;}
-            if(key==Keyboard.KEY_BACK){renameBuffer=renameBuffer.substring(0,Math.max(0,renameBuffer.length()-1));return;}
-            else if(c>=32&&c!=127&&renameBuffer.length()<64){renameBuffer=renameBuffer+c;return;}
+            if(enter){renaming=false;if(configs.rename(renameBuffer)){message="Renamed "+renameBuffer;}renameBuffer="";focus=-1;invalidateItems();layout();return;}
+            if(ctrlDown()&&key==Keyboard.KEY_A){replace=true;return;}
+            if(key==Keyboard.KEY_BACK){renameBuffer=replace?"":renameBuffer.substring(0,renameBuffer.offsetByCodePoints(renameBuffer.length(),renameBuffer.isEmpty()?0:-1));replace=false;return;}
+            else if(c>=32&&c!=127&&(replace||renameBuffer.length()<64)){renameBuffer=replace?String.valueOf(c):renameBuffer+c;replace=false;return;}
             else return;
         }
         if(focus==-2) {
@@ -454,8 +596,9 @@ public class ClickLibraryScreen extends GuiScreen {
         if(enter||key==Keyboard.KEY_SPACE)activate(focus);
     }
     @Override public void onGuiClosed() {
-        pressed=-99;configs.cancel();renaming=false;renameBuffer="";surface.close();for(UiSpring state:motion)state.reset();
-        if(Keyboard.isCreated())Keyboard.enableRepeatEvents(repeatBefore);
+        pressed=-99;configs.cancel();renaming=false;renameBuffer="";surface.close();for(UiSpring state:motion)state.reset();cardMotion.clear();
+        if(Keyboard.isCreated()&&ownsKeyboardRepeat)Keyboard.enableRepeatEvents(repeatBefore);
+        ownsKeyboardRepeat=false;
     }
     @Override public boolean doesGuiPauseGame(){return false;}
 }

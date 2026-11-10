@@ -12,6 +12,7 @@ import org.lwjgl.opengl.GL20;
 public final class FontInk {
     private static ShaderUtil shader;
     private static boolean directActive;
+    private static boolean plainActive;
     private FontInk() {}
 
     public static boolean enabled() {
@@ -30,6 +31,17 @@ public final class FontInk {
         }finally{directActive=previous;}
     }
 
+    /** Semantic detail text keeps its supplied ink, including when global text glow follows the palette. */
+    public static void plain(Runnable glyphs) {
+        if (!OpenGlHelper.shadersSupported) { glyphs.run(); return; }
+        boolean previous = plainActive;
+        try (RenderState state = new RenderState()) {
+            plainActive = true;
+            GL20.glUseProgram(0);
+            glyphs.run();
+        } finally { plainActive = previous; }
+    }
+
     private static void bind(Theme theme,boolean gradient){
         if(shader==null)shader=new ShaderUtil("Flauxy/Shaders/fontInk.frag","Flauxy/Shaders/fontInk.vsh");
         shader.init();
@@ -43,7 +55,7 @@ public final class FontInk {
 
     /** Called outside glBegin; unknown caller programs remain untouched. */
     public static int begin(boolean eligible,boolean shadow) {
-        if(!OpenGlHelper.shadersSupported)return -1;
+        if(!OpenGlHelper.shadersSupported || plainActive)return -1;
         boolean glow=eligible && !shadow && !TextEffects.isCapturing() && enabled();
         if(!glow&&!directActive)return -1;
         int previous=org.lwjgl.opengl.GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM);
@@ -71,5 +83,6 @@ public final class FontInk {
     public static void releaseResources(){
         if(shader!=null){shader.close();shader=null;}
         directActive=false;
+        plainActive=false;
     }
 }

@@ -101,7 +101,7 @@ public class ClickGui extends GuiScreen {
             boolean visible=present&&!viewport.intersect(row.presentationBounds()).isEmpty();
             row.advanceMotion(dt,mx,my,focus==row,visualControl==row,visible);
             for(Component.Sub<?> value:row.presentationValues()){
-                boolean shown=present&&row.isOpen()&&((Value<?>)value.getValue()).isVisible()&&value.getClip()!=null&&!value.getClip().intersect(value.presentationBounds()).isEmpty();
+                boolean shown=present&&row.isOpen()&&row.inputVisible(value)&&value.getClip()!=null&&!value.getClip().intersect(value.presentationBounds()).isEmpty();
                 value.advanceMotion(dt,mx,my,focus==value,visualControl==value,shown);
             }
         }
@@ -170,7 +170,7 @@ public class ClickGui extends GuiScreen {
         boolean modern=two()&&!creativePresentation();
         boolean creative=two()&&creativePresentation();
         // Only the Approach-2 paint changes; all hit/drag/resize rectangles stay fixed.
-        themedSurface.panel(x,y,width,height,two()?NeutronVisualTokens.RADIUS_FRAME:5,
+        themedSurface.panel(x,y,width,height,two()?NeutronVisualTokens.RADIUS_FRAME:me.youngjibbit.gui.LegacyUiStyle.FRAME_RADIUS,
                 theme,true,true,!two(),two()?4:8,two()?.98f:.72f,
                 two()?.22f:1,()->{
         // The legacy bloom helper restores raw GL attributes, bypassing Minecraft's state cache.
@@ -232,11 +232,16 @@ public class ClickGui extends GuiScreen {
                             NeutronVisualTokens.accent(theme,(int)(120+60*Math.abs((float)Math.sin(orbit*0.3f)))));
                 }
             }else{
-                UIUtils.drawRound(x+1,y+1,sidebarWidth()-2,height-2,4,new Color(8,8,9));
-                UIUtils.drawRound(x+1,y+1,width-2,headerHeight()-1,4,new Color(13,13,14));
-                drawClientName(Pulsar.INSTANCE.getName(),(int)(x+9),(int)(y+10),theme);
+                UIUtils.drawRound(x+1,y+1,width-2,height-2,8,me.youngjibbit.gui.LegacyUiStyle.panel(theme));
+                UIUtils.drawDecorationRound(x+5,y+headerHeight()+3,sidebarWidth()-10,
+                        height-headerHeight()-9,6,new Color(18,24,34));
+                UIUtils.drawDecorationRound(x+sidebarWidth()+3,y+headerHeight()+3,
+                        width-sidebarWidth()-9,height-headerHeight()-9,6,new Color(13,19,28,180));
+                me.youngjibbit.gui.LegacyUiStyle.rule(x+10,y+headerHeight()-1,width-20,theme);
+                UIUtils.drawDecorationRound(x+10,y+10,2,14,1,me.youngjibbit.gui.LegacyUiStyle.accent(theme,.85f));
+                drawClientName(Pulsar.INSTANCE.getName(),(int)(x+17),(int)(y+10),theme);
                 Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString(
-                        "o",x+width-21,y+13,theme.getSecondaryGradientRGB());
+                        "o",x+width-21,y+13,me.youngjibbit.gui.LegacyUiStyle.MUTED);
             }
             ClipRect searchBox=searchBounds();
             if(two()){
@@ -262,8 +267,8 @@ public class ClickGui extends GuiScreen {
                             NeutronVisualTokens.RADIUS_CONTROL+4f,
                             me.youngjibbit.utils.render.UiEffects.accent(theme.getSecondaryGradientRGB(), .04f*sGlow));
                 }
-            }else GuiStyle.panel(searchBox.x,searchBox.y,searchBox.width,searchBox.height,
-                    3,searchFocus&&showsKeyboardFocus()?1:0,new Color(22,22,24));
+            }else me.youngjibbit.clickgui.utils.ClickControlStyle.panelField(searchBox.x,searchBox.y,
+                    searchBox.width,searchBox.height,theme,searchFocus&&showsKeyboardFocus());
             GuiStyle.feedback(searchBox,chromeMotion[0]);
             try(GuiClip ignored=GuiClip.push(new ClipRect(searchBox.x+8,searchBox.y,searchBox.width-28,searchBox.height))){
                 String shown=search.isEmpty()&&!searchFocus?width<380?"Search...":"Search modules...":search+(searchFocus?"_":"");
@@ -275,8 +280,8 @@ public class ClickGui extends GuiScreen {
             float tLift = themeSpring.lift();
             float tGlow = themeSpring.glow();
             UIUtils.drawRound(themes.x,themes.y,themes.width,themes.height,
-                    two()?NeutronVisualTokens.RADIUS_CONTROL:3,
-                    two()?(creative?NeutronVisualTokens.alpha(NeutronVisualTokens.CONTROL.getRGB(),245):NeutronVisualTokens.CONTROL):new Color(22,22,24));
+                    two()?NeutronVisualTokens.RADIUS_CONTROL:5,
+                    two()?(creative?NeutronVisualTokens.alpha(NeutronVisualTokens.CONTROL.getRGB(),245):NeutronVisualTokens.CONTROL):me.youngjibbit.gui.LegacyUiStyle.control(theme,false));
             if (tGlow > .02f) {
                 UIUtils.drawDecorationRound(themes.x-tLift*2f, themes.y-tLift*2f,
                         themes.width+tLift*4f, themes.height+tLift*4f,
@@ -303,8 +308,12 @@ public class ClickGui extends GuiScreen {
                     float floatY=selectedY+(float)Math.sin(UiEffects.time()*2f)*1.5f;
                     UIUtils.drawRound(x+12,floatY+2,6,6,3,NeutronVisualTokens.accent(theme,220));
                 }
-            }else UIUtils.drawDecorationRound(x+5,selectedY,sidebarWidth()-10,step-4,6,
-                    me.youngjibbit.utils.render.UiEffects.accent(theme.getPrimaryGradientRGB(),.18f));
+            }else{
+                UIUtils.drawDecorationRound(x+8,selectedY,sidebarWidth()-16,step-4,5,
+                        me.youngjibbit.gui.LegacyUiStyle.accent(theme,.14f));
+                UIUtils.drawDecorationRound(x+8,selectedY+5,2,Math.max(0,step-14),1,
+                        me.youngjibbit.gui.LegacyUiStyle.accent(theme,.85f));
+            }
             String[] icons = {"c", "f", "d", "d", "e", "t", "f", "a"};
             for (int i = 0; i < CATEGORIES.length; i++) {
                 float rowY = y + headerHeight() + 4 + i * step;
@@ -339,12 +348,11 @@ public class ClickGui extends GuiScreen {
                     float pulse=.5f+.5f*(float)Math.sin(UiEffects.time()*3f+i*.7f);
                     UIUtils.drawRound(x+14, catY+catH/2-2, 4, 4, 2,
                             NeutronVisualTokens.accent(theme,(int)(100+100*pulse)));
-                } else {
-                    UIUtils.drawDecorationRound(x+5, selectedY, sidebarWidth()-10, step-4, 6,
-                            me.youngjibbit.utils.render.UiEffects.accent(theme.getPrimaryGradientRGB(), .18f));
-                }
+                } else if(i!=selectedCategory.ordinal()&&hover>.02f)
+                    UIUtils.drawDecorationRound(x+8,rowY,sidebarWidth()-16,step-4,5,
+                            me.youngjibbit.gui.LegacyUiStyle.alpha(me.youngjibbit.gui.LegacyUiStyle.INK,.04f*hover));
                 String font = i == 2 || i == 4 || i == 6 ? "icon1 21" : "icon 21";
-                float textX = x + (two() ? 20 + lift*2f : 10);
+                float textX = x + (two() ? 20 + lift*2f : 14);
                 float textY = rowY + (step-14)/2 - (two() ? lift*1.5f : 0);
                 Pulsar.INSTANCE.getFontManager().getFont(font).drawString(
                         icons[i], textX, textY,
@@ -352,7 +360,7 @@ public class ClickGui extends GuiScreen {
                                 me.youngjibbit.utils.render.UiEffects.accent(NeutronVisualTokens.MUTED, .55f + .45f*hover).getRGB() :
                                 i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffc4cad5);
                 Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString(
-                        CATEGORIES[i].name(), x + (two() ? 43 + lift*2f : 26), textY,
+                        CATEGORIES[i].name(), x + (two() ? 43 + lift*2f : 30), textY,
                         two() ? i==selectedCategory.ordinal()?NeutronVisualTokens.INK:
                                 me.youngjibbit.utils.render.UiEffects.accent(NeutronVisualTokens.MUTED, .55f + .45f*hover).getRGB() :
                                 i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffc4cad5);
@@ -449,7 +457,7 @@ public class ClickGui extends GuiScreen {
         }
         if(focus!=null&&!focusables().contains(focus)){
             Component replacement=null;
-            if(focus instanceof Component.Sub){Object v=((Component.Sub<?>)focus).getValue();if(v instanceof Value)for(ClickModule row:modules)if(row.getModule()==((Value<?>)v).getParent())replacement=row;}
+            for(ClickModule row:modules)if(row.ownsComponent(focus)){replacement=row.focusParent(focus);break;}
             setFocus(replacement);
         }
     }
@@ -582,6 +590,10 @@ public class ClickGui extends GuiScreen {
             cancelInputs();search="";selectedCategory=CATEGORIES[index];targetScrollOffset=scrollOffset=0;setupModules();layoutModules(0);return;
         }
         if(keyCode==Keyboard.KEY_ESCAPE&&focus instanceof ClickCombo&&((ClickCombo)focus).isOpen()){((ClickCombo)focus).close();return;}
+        if(keyCode==Keyboard.KEY_ESCAPE&&focus instanceof me.youngjibbit.clickgui.component.impl.ClickSubcategory
+                &&((me.youngjibbit.clickgui.component.impl.ClickSubcategory)focus).isOpen()){
+            ((me.youngjibbit.clickgui.component.impl.ClickSubcategory)focus).setOpen(false);layoutModules(0);return;
+        }
         if(keyCode==Keyboard.KEY_ESCAPE){
             for(ClickModule row:modules)row.cancelInputs();
             Module owner=Pulsar.INSTANCE.getMm().getModule(ClickGUI.class);
@@ -642,7 +654,9 @@ public class ClickGui extends GuiScreen {
         String text;
         if(target instanceof ClickModule){Module m=((ClickModule)target).getModule();int count=0;for(Module other:Pulsar.INSTANCE.getMm().getAllModules())if(other!=m&&m.getKey()!=0&&other.getKey()==m.getKey())count++;
             text=m.getDescription()+"  |  Space: toggle / Right: settings / K or middle click: bind"+(count>0?"  |  Shared key: "+count+" other module(s)":"");
-        }else if(target instanceof ClickSlider)text="Arrows: adjust / Enter or right click: exact number / Esc: cancel";
+        }else if(target instanceof me.youngjibbit.clickgui.component.impl.ClickSubcategory)
+            text=((me.youngjibbit.clickgui.component.impl.ClickSubcategory)target).getValue().description()+" | Right click: expand / Left, Right: collapse, expand";
+        else if(target instanceof ClickSlider)text="Arrows: adjust / Enter or right click: exact number / Esc: cancel";
         else text="Tab: focus / Space or Enter: activate / Arrows: choose";
         float w=Math.min(250,width-16);List<String> lines=new ArrayList<>();String line="";
         for(String word:text.split(" ")){String next=line.isEmpty()?word:line+" "+word;if(font().getWidth(next)>w-16&&!line.isEmpty()){lines.add(line);line=word;}else line=next;}if(!line.isEmpty())lines.add(line);

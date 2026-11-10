@@ -100,6 +100,7 @@ public final class ClickGuiRenderCheck {
             panel.click(firstX, firstY, 1);
             settle(panel);
             snapshot("03-settings.png");
+            checkSubcategory(panel, first);
             checkLabelFit();
             checkControls(panel);
             checkScroll(panel, "05");
@@ -152,6 +153,11 @@ public final class ClickGuiRenderCheck {
         panel.click((int)row.getX()+20,(int)row.getY()+12,2);panel.key(' ',org.lwjgl.input.Keyboard.KEY_F8);require(module.getKey()==org.lwjgl.input.Keyboard.KEY_F8&&other.getKey()==org.lwjgl.input.Keyboard.KEY_F8,"Duplicate key deleted another binding");
         panel.key('k',org.lwjgl.input.Keyboard.KEY_K);settle(panel);snapshot("14-keybind-conflict.png");panel.key(' ',org.lwjgl.input.Keyboard.KEY_DELETE);require(module.getKey()==0,"Remove keybind");module.setKey(oldKey);other.setKey(otherKey);
         panel.key(' ',org.lwjgl.input.Keyboard.KEY_RIGHT);settle(panel);panel.key(' ',org.lwjgl.input.Keyboard.KEY_TAB);
+        require(get(panel,"focus") instanceof ClickSubcategory,"Tab reaches semantic disclosure first");
+        ClickSubcategory section=(ClickSubcategory)get(panel,"focus");
+        panel.key(' ',org.lwjgl.input.Keyboard.KEY_LEFT);settle(panel);
+        require(!section.isOpen()&&row.focusableValues().stream().noneMatch(v->section.children().contains(v)),"Collapsed section excludes its controls from keyboard navigation");
+        panel.key(' ',org.lwjgl.input.Keyboard.KEY_RIGHT);settle(panel);panel.key(' ',org.lwjgl.input.Keyboard.KEY_TAB);
         require(get(panel,"focus") instanceof ClickSlider,"Tab into settings");ClickSlider slider=(ClickSlider)get(panel,"focus");double original=slider.getValue().getValue();
         panel.key(' ',org.lwjgl.input.Keyboard.KEY_RETURN);panel.type("3.25");panel.key(' ',org.lwjgl.input.Keyboard.KEY_RETURN);require(slider.getValue().getValue()==3.25&&!slider.isEditing(),"Exact numeric commit");
         panel.key(' ',org.lwjgl.input.Keyboard.KEY_LEFT);double adjusted=slider.getValue().getValue();require(adjusted<3.25,"Slider arrow input");
@@ -172,8 +178,13 @@ public final class ClickGuiRenderCheck {
         for(int i=0;i<subs.indexOf(checkbox)-subs.indexOf(slider);i++)panel.key(' ',org.lwjgl.input.Keyboard.KEY_UP);require(get(panel,"focus")==slider,"Reverse setting navigation");
         // Focus is attached to the control identity, and falls back to its row when collapsed.
         set(panel,"targetScrollOffset",-30f);set(panel,"scrollOffset",-30f);settle(panel);require(get(panel,"focus")==slider,"Scroll lost focus identity");
+        panel.key(' ',org.lwjgl.input.Keyboard.KEY_UP);require(get(panel,"focus")==section,"Up reaches setting section");
         panel.key(' ',org.lwjgl.input.Keyboard.KEY_UP);require(get(panel,"focus")==row,"Up focus/reveal");panel.key(' ',org.lwjgl.input.Keyboard.KEY_LEFT);settle(panel);require(!row.isOpen(),"Keyboard collapse");panel.key(' ',org.lwjgl.input.Keyboard.KEY_RIGHT);settle(panel);
-        panel.key(' ',org.lwjgl.input.Keyboard.KEY_TAB);require(get(panel,"focus")==slider,"Reopen focus order");panel.shift=true;panel.key(' ',org.lwjgl.input.Keyboard.KEY_TAB);panel.shift=false;require(get(panel,"focus")==row,"Reverse Tab");panel.key(' ',org.lwjgl.input.Keyboard.KEY_TAB);
+        panel.key(' ',org.lwjgl.input.Keyboard.KEY_TAB);require(get(panel,"focus")==section,"Reopen preserves section focus order");
+        panel.key(' ',org.lwjgl.input.Keyboard.KEY_TAB);require(get(panel,"focus")==slider,"Reopen focus order");
+        panel.shift=true;panel.key(' ',org.lwjgl.input.Keyboard.KEY_TAB);require(get(panel,"focus")==section,"Reverse Tab to section");
+        panel.key(' ',org.lwjgl.input.Keyboard.KEY_TAB);panel.shift=false;require(get(panel,"focus")==row,"Reverse Tab");
+        panel.key(' ',org.lwjgl.input.Keyboard.KEY_TAB);panel.key(' ',org.lwjgl.input.Keyboard.KEY_TAB);
         // Tooltip uses the actual delayed hover entry, with no synthetic wall-clock sleep.
         frame(panel,(int)row.getX()+20,(int)row.getY()+12);require(get(panel,"hoverTarget")==row,"Hover target");set(panel,"hoverStarted",System.nanoTime()-600_000_000L);frame(panel,(int)row.getX()+20,(int)row.getY()+12);snapshot("16-tooltip.png");
         panel.key(' ',org.lwjgl.input.Keyboard.KEY_RETURN);panel.type("4.0");panel.onGuiClosed();require(!slider.isEditing()&&get(panel,"binding")==null&&get(panel,"focus")==null&&!(Boolean)get(panel,"dragging"),"Close left input capture");slider.getValue().setValue(original);
@@ -321,6 +332,23 @@ public final class ClickGuiRenderCheck {
         settle(panel);
     }
 
+    private static void checkSubcategory(Panel panel,ClickModule row)throws Exception{
+        require(!row.subcategories().isEmpty(),"Dense modules expose semantic sections");
+        ClickSubcategory section=row.subcategories().get(0);
+        require(section.isOpen(),"Main section starts expanded");
+        ClickSlider slider=control(row.focusableValues(),"range",ClickSlider.class);
+        double before=slider.getValue().getValue();
+        panel.click((int)methodNumber(slider,"valueX")+4,(int)methodNumber(slider,"badgeY")+6,0);
+        require(slider.isEditing(),"Section child supports exact numeric capture");
+        panel.click((int)section.getX()+20,(int)section.getY()+11,1);
+        require(!section.isOpen()&&!slider.isEditing(),"Right-click disclosure revokes child editing immediately");
+        panel.click((int)slider.getX()+40,(int)methodNumber(slider,"trackY"),0);
+        require(slider.getValue().getValue()==before,"Closing section rejects stale child geometry");
+        settle(panel);snapshot("03a-subcategory-collapsed.png");
+        panel.click((int)section.getX()+20,(int)section.getY()+11,1);settle(panel);
+        require(section.isOpen()&&row.focusableValues().contains(slider),"Right-click disclosure restores original controls");
+    }
+
     private static boolean brightPixel(float x,float y) {
         int scale=new ScaledResolution(mc).getScaleFactor();
         ByteBuffer pixel=BufferUtils.createByteBuffer(4);
@@ -339,12 +367,19 @@ public final class ClickGuiRenderCheck {
     }
 
     private static void checkScroll(Panel panel, String prefix) throws Exception {
+        ClickModule first = ((List<ClickModule>) get(panel, "modules")).get(0);
+        // Expand each section through its actual focusable header before exercising deep scrolling.
+        for(ClickSubcategory section:first.subcategories())if(!section.isOpen()&&section.getValue().isVisible()){
+            set(panel,"focus",section);
+            java.lang.reflect.Method reveal=ClickGui.class.getDeclaredMethod("reveal",Component.class);
+            reveal.setAccessible(true);reveal.invoke(panel,section);
+            panel.key(' ',org.lwjgl.input.Keyboard.KEY_RIGHT);settle(panel);
+        }
         set(panel, "targetScrollOffset", -100000f);
         settle(panel);
         float max = number(panel, "maxScroll");
         require(Math.abs(number(panel, "scrollOffset") + max) < 1, "Bottom scroll clamp");
         snapshot(prefix + "-scroll-bottom.png");
-        ClickModule first = ((List<ClickModule>) get(panel, "modules")).get(0);
         List<Component.Sub<?>> values = (List<Component.Sub<?>>) get(first, "values");
         ClickCheckBox checkbox = lastVisibleCheckbox(values);
         boolean before = checkbox.getValue().getValue();

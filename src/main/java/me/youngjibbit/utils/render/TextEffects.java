@@ -77,5 +77,8 @@ public final class TextEffects implements AutoCloseable {
     private static void target(Framebuffer f){f.bindFramebuffer(true);GlStateManager.disableDepth();GlStateManager.disableAlpha();GlStateManager.disableLighting();GlStateManager.disableCull();GlStateManager.disableBlend();glDisable(GL_STENCIL_TEST);glDisable(GL_SCISSOR_TEST);GlStateManager.colorMask(true,true,true,true);GlStateManager.clearColor(0,0,0,0);glClearColor(0,0,0,0);glClear(GL_COLOR_BUFFER_BIT);GlStateManager.enableTexture2D();GlStateManager.color(1,1,1,1);}
     private static void texture(int unit,int id){GlStateManager.setActiveTexture(GL13.GL_TEXTURE0+unit);GL13.glActiveTexture(GL13.GL_TEXTURE0+unit);GlStateManager.bindTexture(id);glBindTexture(GL_TEXTURE_2D,id);}
     private static void color(ShaderUtil s,String name,int rgb){s.setUniformf(name,(rgb>>16&255)/255f,(rgb>>8&255)/255f,(rgb&255)/255f,(rgb>>>24)/255f);}
-    @Override public void close(){try(RenderState state=new RenderState()){for(int i=0;i<3;i++)if(buffers[i]!=null){buffers[i].deleteFramebuffer();buffers[i]=null;}}}
+    @Override public void close(){
+        if(buffers[0]==null&&buffers[1]==null&&buffers[2]==null)return;
+        try(RenderState state=new RenderState()){for(int i=0;i<3;i++)if(buffers[i]!=null){buffers[i].deleteFramebuffer();buffers[i]=null;}}
+    }
 }
