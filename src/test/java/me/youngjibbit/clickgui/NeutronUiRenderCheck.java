@@ -38,6 +38,9 @@ public final class NeutronUiRenderCheck {
             for(int[] size:new int[][]{{960,640,2},{640,360,2},{1101,733,3}}){
                 mc.displayWidth=size[0];mc.displayHeight=size[1];mc.gameSettings.guiScale=size[2];mc.getFramebuffer().createBindFramebuffer(size[0],size[1]);
                 ScaledResolution sr=new ScaledResolution(mc);Library library=new Library();library.setWorldAndResolution(mc,sr.getScaledWidth(),sr.getScaledHeight());
+                // Minecraft's resize helper unbinds the new FBO. A real GUI frame
+                // starts on that main target, not on the context's default drawable.
+                clear(.05f,.06f,.08f);
                 library.drawScreen(-1,-1,0);save(mc,"library-"+size[0]+".png");
                 if(size[0]==960){
                     library.key(org.lwjgl.input.Keyboard.KEY_DOWN);library.drawScreen(-1,-1,0);save(mc,"library-keyboard-settings.png");
@@ -95,7 +98,7 @@ public final class NeutronUiRenderCheck {
             System.out.println("PASS: Library hub layout/navigation; continuous forward/back slide pixels, first/end frames, interruption, input guard, hostile GL state, reduced motion, resize, two-texture release, actual Library/Config/Settings composites");
         }finally{GuiTransitions.releaseResources();Pulsar.INSTANCE.fontManager.close();Pulsar.INSTANCE.fontManager=oldFonts;set(Pulsar.INSTANCE,"mm",old);Theme.setDefaultTheme(oldTheme);}
     }
-    private static void clear(float r,float g,float b){glDisable(GL_SCISSOR_TEST);glColorMask(true,true,true,true);glClearColor(r,g,b,1);glClear(GL_COLOR_BUFFER_BIT);}
+    private static void clear(float r,float g,float b){Minecraft.getMinecraft().getFramebuffer().bindFramebuffer(true);glDisable(GL_SCISSOR_TEST);glColorMask(true,true,true,true);glClearColor(r,g,b,1);glClear(GL_COLOR_BUFFER_BIT);}
     private static void checkUndimmedWorldNavigation(Minecraft mc,Method drawAt,ClientSettings settings)throws Exception {
         // Only world presence is supplied; no world simulation, networking or player is invoked.
         Field unsafe=sun.misc.Unsafe.class.getDeclaredField("theUnsafe");unsafe.setAccessible(true);
@@ -156,7 +159,7 @@ public final class NeutronUiRenderCheck {
     }
     static Object get(Class<?> type,String name)throws Exception{Field f=type.getDeclaredField(name);f.setAccessible(true);return f.get(null);}
     static void set(Object owner,String name,Object value)throws Exception{Field f=owner.getClass().getDeclaredField(name);f.setAccessible(true);f.set(owner,value);}
-    static BufferedImage capture(Minecraft mc){glFinish();ByteBuffer bytes=BufferUtils.createByteBuffer(mc.displayWidth*mc.displayHeight*4);glReadPixels(0,0,mc.displayWidth,mc.displayHeight,GL_RGBA,GL_UNSIGNED_BYTE,bytes);BufferedImage image=new BufferedImage(mc.displayWidth,mc.displayHeight,BufferedImage.TYPE_INT_RGB);for(int y=0;y<mc.displayHeight;y++)for(int x=0;x<mc.displayWidth;x++){int i=(y*mc.displayWidth+x)*4;image.setRGB(x,mc.displayHeight-y-1,(bytes.get(i)&255)<<16|(bytes.get(i+1)&255)<<8|(bytes.get(i+2)&255));}return image;}
+    static BufferedImage capture(Minecraft mc){require(glGetInteger(org.lwjgl.opengl.EXTFramebufferObject.GL_FRAMEBUFFER_BINDING_EXT)==mc.getFramebuffer().framebufferObject,"UI capture must read the actual Minecraft framebuffer");glFinish();ByteBuffer bytes=BufferUtils.createByteBuffer(mc.displayWidth*mc.displayHeight*4);glReadPixels(0,0,mc.displayWidth,mc.displayHeight,GL_RGBA,GL_UNSIGNED_BYTE,bytes);BufferedImage image=new BufferedImage(mc.displayWidth,mc.displayHeight,BufferedImage.TYPE_INT_RGB);for(int y=0;y<mc.displayHeight;y++)for(int x=0;x<mc.displayWidth;x++){int i=(y*mc.displayWidth+x)*4;image.setRGB(x,mc.displayHeight-y-1,(bytes.get(i)&255)<<16|(bytes.get(i+1)&255)<<8|(bytes.get(i+2)&255));}return image;}
     static void save(Minecraft mc,String name)throws Exception{ImageIO.write(capture(mc),"png",new File(OUT,name));}
     static void require(boolean ok,String message){if(!ok)throw new AssertionError(message);}
 }
