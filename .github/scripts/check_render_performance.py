@@ -137,13 +137,18 @@ def main():
     dependency_classpath = (ROOT / args.classpath).read_text(encoding="utf-8").strip()
     if not dependency_classpath:
         raise RuntimeError("Empty dependency classpath; run Maven test-compile and dependency:build-classpath first")
+    environment = dict(os.environ, LIBGL_ALWAYS_SOFTWARE="1", GALLIUM_DRIVER="llvmpipe", LP_NUM_THREADS="2")
+    # The pinned LWJGL 2 XRandR implementation executes this CLI. Validate the
+    # real X/GL environment before compiling the baseline, retaining diagnostics
+    # instead of disabling RandR or substituting desktop state in the harness.
+    run(["xrandr", "--query"], output / "xrandr.log", timeout=30, env=environment)
+    run(["glxinfo", "-B"], output / "glxinfo.log", timeout=30, env=environment)
     baseline, materialized, source_count = baseline_classes(args.base, dependency_classpath, output, javac)
     natives = ROOT / "target/render-native-libraries"
     native_libraries(natives)
     classpath = os.pathsep.join([str(ROOT / "target/test-classes"), str(ROOT / "target/classes"), dependency_classpath])
     common = [java, "-Xms256m", "-Xmx1024m", "-Djava.awt.headless=true",
               "-Dorg.lwjgl.librarypath=" + str(natives), "-Djava.library.path=" + str(natives)]
-    environment = dict(os.environ, LIBGL_ALWAYS_SOFTWARE="1", GALLIUM_DRIVER="llvmpipe", LP_NUM_THREADS="2")
     for name, prefix in (("baseline", str(baseline) + os.pathsep), ("current", "")):
         directory = output / name
         directory.mkdir(exist_ok=True)
