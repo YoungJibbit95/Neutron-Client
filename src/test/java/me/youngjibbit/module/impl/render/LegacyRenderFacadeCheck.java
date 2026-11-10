@@ -54,12 +54,36 @@ public final class LegacyRenderFacadeCheck {
                 && !RenderUtil.hover(5,8,16,18,10,10),"Legacy integer hover boundaries changed");
         SessionInfoRenderCheck.require(RenderUtil.interpolate(10,2,.25)==4
                 && RenderUtil.interpolateFloat(10,2,.25f)==4,"Legacy interpolation argument order changed");
+        checkGlFacade();
         SessionInfoRenderCheck.require(glGetError()==GL_NO_ERROR,"Legacy render facade GL error");
         System.out.println("PASS: legacy render facade RGBA, dimensions/endpoints, integer overloads and all rounding modes");
     }
 
     private static void compare(String name,Runnable canonical,Runnable facade) {
         SessionInfoRenderCheck.require(Arrays.equals(draw(canonical),draw(facade)),"Legacy renderer differs: "+name);
+    }
+
+    private static void checkGlFacade() {
+        int[] previous=me.youngjibbit.utils.render.GLUtils.enabledCaps;
+        int[] canonical=me.youngjibbit.utils.GLUtil.enabledCaps;
+        try(RenderState state=new RenderState()) {
+            me.youngjibbit.utils.render.GLUtils.disableDepth();
+            SessionInfoRenderCheck.require(!glIsEnabled(GL_DEPTH_TEST)&&!glGetBoolean(GL_DEPTH_WRITEMASK),"Legacy depth disable");
+            me.youngjibbit.utils.render.GLUtils.enableDepth();
+            SessionInfoRenderCheck.require(glIsEnabled(GL_DEPTH_TEST)&&glGetBoolean(GL_DEPTH_WRITEMASK),"Legacy depth enable");
+            me.youngjibbit.utils.render.GLUtils.startBlend();
+            SessionInfoRenderCheck.require(glIsEnabled(GL_BLEND)&&glGetInteger(GL_BLEND_SRC)==GL_SRC_ALPHA
+                    &&glGetInteger(GL_BLEND_DST)==GL_ONE_MINUS_SRC_ALPHA,"Legacy blend factors");
+            me.youngjibbit.utils.render.GLUtils.endBlend();
+            SessionInfoRenderCheck.require(!glIsEnabled(GL_BLEND),"Legacy blend disable");
+            me.youngjibbit.utils.render.GLUtils.enableCaps(GL_LINE_SMOOTH);
+            SessionInfoRenderCheck.require(glIsEnabled(GL_LINE_SMOOTH)
+                    &&me.youngjibbit.utils.GLUtil.enabledCaps==canonical,"Legacy cap ownership merged");
+            me.youngjibbit.utils.render.GLUtils.disableCaps();
+            SessionInfoRenderCheck.require(!glIsEnabled(GL_LINE_SMOOTH),"Legacy cap disable");
+        } finally {
+            me.youngjibbit.utils.render.GLUtils.enabledCaps=previous;
+        }
     }
 
     private static byte[] draw(Runnable draw) {

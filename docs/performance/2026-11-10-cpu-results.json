@@ -1,0 +1,298 @@
+{
+  "schema_version": 1,
+  "measurement_date": "2026-11-10",
+  "baseline_commit": "2508562100a66480c639e2c01dfdffb004d98008",
+  "candidate_identification": "Working-tree implementation; recorded font source SHA-256 hashes below identify the measured final fixed-slot implementation.",
+  "environment": {
+    "java": ["openjdk version \"1.8.0_482\"", "OpenJDK Runtime Environment (Temurin)(build 1.8.0_482-b08)", "OpenJDK 64-Bit Server VM (Temurin)(build 25.482-b08, mixed mode)"],
+    "maven": "3.9.15",
+    "os": "Linux-6.18.57-x86_64-with-glibc2.41",
+    "architecture": "x86_64",
+    "cpu": "AMD EPYC 9V74 80-Core Processor",
+    "cpu_affinity_and_frequency_control": "Not recorded"
+  },
+  "scope": {
+    "timing": "System.nanoTime CPU microbenchmarks, not whole-client frame times or FPS",
+    "allocation": "ThreadMXBean Java heap allocation on the measurement thread; excludes input construction, native buffers, GPU memory and font construction",
+    "native_and_windows_validation": "Pending when this CPU evidence was recorded"
+  },
+  "ui_preparation": {
+    "benchmark_source": "src/test/java/me/youngjibbit/utils/render/UiPreparationBenchmark.java",
+    "parameters": {
+      "preparation": "Theme.getDefaultTheme plus TEXT, BORDER and GLOW gradient queries",
+      "fresh_jvms_per_variant": 5,
+      "execution_order": "Variants alternated; the records below are grouped by repeat and variant",
+      "preparations_per_simulated_frame": 250,
+      "simulated_frame_step_ns": 16666667,
+      "warmup_frames": 1000,
+      "measured_frames": 4000,
+      "measured_preparations": 1000000
+    },
+    "summary": {
+      "baseline": {
+        "median_ns": 90.439722,
+        "median_bytes": 192.896,
+        "ns_range": [82.531258, 103.319963]
+      },
+      "optimized": {
+        "median_ns": 36.899746,
+        "median_bytes": 0.256,
+        "ns_range": [35.821583, 39.417007]
+      }
+    },
+    "runs": [
+      {
+        "repeat": 1,
+        "mode": "baseline",
+        "ns_per_preparation": 86.758419,
+        "bytes_per_preparation": 192.896,
+        "checksum": "97864929906090750"
+      },
+      {
+        "repeat": 1,
+        "mode": "optimized",
+        "ns_per_preparation": 35.862374,
+        "bytes_per_preparation": 0.256,
+        "checksum": "97864929906090750"
+      },
+      {
+        "repeat": 2,
+        "mode": "baseline",
+        "ns_per_preparation": 103.319963,
+        "bytes_per_preparation": 192.896,
+        "checksum": "97864929906090750"
+      },
+      {
+        "repeat": 2,
+        "mode": "optimized",
+        "ns_per_preparation": 39.417007,
+        "bytes_per_preparation": 0.256,
+        "checksum": "97864929906090750"
+      },
+      {
+        "repeat": 3,
+        "mode": "baseline",
+        "ns_per_preparation": 91.136323,
+        "bytes_per_preparation": 192.896,
+        "checksum": "97864929906090750"
+      },
+      {
+        "repeat": 3,
+        "mode": "optimized",
+        "ns_per_preparation": 36.899746,
+        "bytes_per_preparation": 0.256,
+        "checksum": "97864929906090750"
+      },
+      {
+        "repeat": 4,
+        "mode": "baseline",
+        "ns_per_preparation": 82.531258,
+        "bytes_per_preparation": 192.896,
+        "checksum": "97864929906090750"
+      },
+      {
+        "repeat": 4,
+        "mode": "optimized",
+        "ns_per_preparation": 38.002772,
+        "bytes_per_preparation": 0.256,
+        "checksum": "97864929906090750"
+      },
+      {
+        "repeat": 5,
+        "mode": "baseline",
+        "ns_per_preparation": 90.439722,
+        "bytes_per_preparation": 192.896,
+        "checksum": "97864929906090750"
+      },
+      {
+        "repeat": 5,
+        "mode": "optimized",
+        "ns_per_preparation": 35.821583,
+        "bytes_per_preparation": 0.256,
+        "checksum": "97864929906090750"
+      }
+    ]
+  },
+  "font_metrics": {
+    "benchmark_source": "src/test/java/me/youngjibbit/utils/font/FontMetricsBenchmark.java",
+    "implementation": "Final 64-set x 4-way fixed-slot primitive caches; no Map nodes or boxed widths on insertion/churn; maximum retained text length 256 UTF-16 units",
+    "source_sha256": {
+      "FontTextCache.java": "3b2dbe953809c0bca1935fe7c60829fd45d96d55fbc94058911760c51b477cab",
+      "TTFFontRenderer.java": "f1db87de194bd1326ca63f1a3134b2101f6a1139332b7b32876860c33acdd208",
+      "FontTextCacheTest.java": "2946f7c9efae164d5cab65b38ff805bb2719b124c8559bd1f9fbd2d3a62d6c55"
+    },
+    "parameters": {
+      "font": "java.awt.Font.DIALOG / PLAIN / 20",
+      "fresh_jvms_per_variant": 5,
+      "measured_rounds_per_scenario": 7,
+      "sample_definition": "Median of 7 measured rounds per fresh JVM; summary is median and min/max of 5 JVM samples",
+      "standard_iterations_per_round": 250000,
+      "standard_warmup_iterations": 250000,
+      "long_text_iterations_per_round": 25000,
+      "long_text_warmup_iterations": 100000,
+      "input_labels_preconstructed": true,
+      "long_text": "300 W characters; bypasses retention"
+    },
+    "scenario_order": ["repeated-ui-labels", "changing-hud-labels-192", "cache-churn-512", "long-text-without-retention"],
+    "label_counts": [24, 192, 512, 1],
+    "summary": [
+      {
+        "scenario": "repeated-ui-labels",
+        "baseline": {
+          "median_ns": 139.884,
+          "median_bytes": 6.667,
+          "ns_range": [124.482, 210.081]
+        },
+        "optimized": {
+          "median_ns": 13.409,
+          "median_bytes": 0.0,
+          "ns_range": [6.921, 15.357]
+        }
+      },
+      {
+        "scenario": "changing-hud-labels-192",
+        "baseline": {
+          "median_ns": 315.555,
+          "median_bytes": 0.0,
+          "ns_range": [188.102, 362.633]
+        },
+        "optimized": {
+          "median_ns": 139.479,
+          "median_bytes": 0.0,
+          "ns_range": [137.101, 148.158]
+        }
+      },
+      {
+        "scenario": "cache-churn-512",
+        "baseline": {
+          "median_ns": 321.396,
+          "median_bytes": 0.0,
+          "ns_range": [192.069, 335.439]
+        },
+        "optimized": {
+          "median_ns": 251.553,
+          "median_bytes": 0.0,
+          "ns_range": [246.72, 259.973]
+        }
+      },
+      {
+        "scenario": "long-text-without-retention",
+        "baseline": {
+          "median_ns": 3572.728,
+          "median_bytes": 0.0,
+          "ns_range": [2007.437, 3731.327]
+        },
+        "optimized": {
+          "median_ns": 2486.803,
+          "median_bytes": 0.0,
+          "ns_range": [2406.267, 2870.42]
+        }
+      }
+    ],
+    "runs": [
+      {
+        "execution_order": 1,
+        "repeat": 1,
+        "mode": "baseline",
+        "ns_per_call": [124.482, 188.102, 192.069, 2192.302],
+        "bytes_per_call": [6.667, 0.0, 0.0, 0.0],
+        "checksum": "1060823331.548"
+      },
+      {
+        "execution_order": 2,
+        "repeat": 1,
+        "mode": "optimized",
+        "ns_per_call": [11.595, 148.158, 259.935, 2755.218],
+        "bytes_per_call": [0.0, 0.0, 0.0, 0.0],
+        "checksum": "1060823331.548"
+      },
+      {
+        "execution_order": 3,
+        "repeat": 2,
+        "mode": "optimized",
+        "ns_per_call": [13.409, 137.101, 251.553, 2870.42],
+        "bytes_per_call": [0.0, 0.0, 0.0, 0.0],
+        "checksum": "1060823331.548"
+      },
+      {
+        "execution_order": 4,
+        "repeat": 2,
+        "mode": "baseline",
+        "ns_per_call": [126.394, 197.611, 215.123, 2007.437],
+        "bytes_per_call": [6.667, 0.0, 0.0, 0.0],
+        "checksum": "1060823331.548"
+      },
+      {
+        "execution_order": 5,
+        "repeat": 3,
+        "mode": "baseline",
+        "ns_per_call": [210.081, 327.427, 335.439, 3572.728],
+        "bytes_per_call": [6.667, 0.0, 0.0, 0.0],
+        "checksum": "1060823331.548"
+      },
+      {
+        "execution_order": 6,
+        "repeat": 3,
+        "mode": "optimized",
+        "ns_per_call": [6.921, 138.223, 247.847, 2486.803],
+        "bytes_per_call": [0.0, 0.0, 0.0, 0.0],
+        "checksum": "1060823331.548"
+      },
+      {
+        "execution_order": 7,
+        "repeat": 4,
+        "mode": "optimized",
+        "ns_per_call": [15.357, 139.482, 259.973, 2406.267],
+        "bytes_per_call": [0.0, 0.0, 0.0, 0.0],
+        "checksum": "1060823331.548"
+      },
+      {
+        "execution_order": 8,
+        "repeat": 4,
+        "mode": "baseline",
+        "ns_per_call": [165.719, 362.633, 333.071, 3731.327],
+        "bytes_per_call": [6.667, 0.0, 0.0, 0.0],
+        "checksum": "1060823331.548"
+      },
+      {
+        "execution_order": 9,
+        "repeat": 5,
+        "mode": "baseline",
+        "ns_per_call": [139.884, 315.555, 321.396, 3683.3],
+        "bytes_per_call": [0.0, 0.0, 0.0, 0.0],
+        "checksum": "1060823331.548"
+      },
+      {
+        "execution_order": 10,
+        "repeat": 5,
+        "mode": "optimized",
+        "ns_per_call": [13.729, 139.479, 246.72, 2461.977],
+        "bytes_per_call": [0.0, 0.0, 0.0, 0.0],
+        "checksum": "1060823331.548"
+      }
+    ],
+    "interpretation": ["Repeated labels and 192-label workloads improved in all five paired JVM runs.", "512-label churn and long-text medians decreased, but the optimized variant was slower in two of five paired JVM runs for each scenario.", "Long text bypasses the cache; its median change is not attributed to the cache.", "These ranges are between-JVM variability, not confidence intervals or per-call percentiles.", "All 10 checksum strings match."]
+  },
+  "focused_validation": {
+    "java8_maven_compile_and_tests": "PASS",
+    "tests": 46,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "suites": {
+      "FontTextCacheTest": 4,
+      "GuiResolutionTest": 2,
+      "RenderStateBuffersTest": 4,
+      "GaussianKernelCacheTest": 3,
+      "ColorUtilityCompatibilityTest": 2,
+      "UiEffectsTest": 12,
+      "ThemeModeApproachTwoTest": 3,
+      "ThemeUiConsumerTest": 3,
+      "ThemeModelTest": 13
+    },
+    "additional_overlapping_runs": {
+      "FontTextCacheTest": 4,
+      "ui_suites": 35
+    }
+  }
+}

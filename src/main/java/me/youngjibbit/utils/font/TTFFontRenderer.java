@@ -27,7 +27,7 @@ import static org.lwjgl.opengl.GL11.*;
  */
 public class TTFFontRenderer implements AutoCloseable {
     private static final int MAX_GLYPHS = 8192, MAX_PAGES = 32, PADDING = 8;
-    private static final int MAX_CACHED_TEXTS = 256, MAX_CACHED_TEXT_LENGTH = 256;
+    private static final int MAX_CACHED_TEXT_LENGTH = 256;
     private static final String CODES = "0123456789abcdefklmnor";
     private static final int[] COLORS = colors();
     private final Thread renderThread;
@@ -37,9 +37,9 @@ public class TTFFontRenderer implements AutoCloseable {
     private final Map<Integer,Glyph> unicode = new HashMap<>();
     private final List<Page>[] pages = new List[]{new ArrayList<>(),new ArrayList<>(),new ArrayList<>(),new ArrayList<>()};
     private final Set<Integer> ownedTextures = new LinkedHashSet<>();
-    private final Map<String,Float> widths = boundedTextCache();
+    private final FontTextCache widths = new FontTextCache();
     // Only the render thread prepares text; metrics remain safe for worker callers.
-    private final Map<String,Boolean> preparedTexts = boundedTextCache();
+    private final FontTextCache preparedTexts = new FontTextCache();
     private ByteBuffer uploadPixels;
     private final float ascent, lineHeight;
     private final int pageSize;
@@ -143,7 +143,7 @@ public class TTFFontRenderer implements AutoCloseable {
 
     private void prepare(String text) {
         boolean cacheable=text.length()<=MAX_CACHED_TEXT_LENGTH;
-        if(cacheable&&preparedTexts.get(text)!=null)return;
+        if(cacheable&&!Float.isNaN(preparedTexts.get(text)))return;
         Format format=new Format(-1,false);
         boolean needsUpload=false;
         for(int index=0;index<text.length();){
@@ -155,7 +155,7 @@ public class TTFFontRenderer implements AutoCloseable {
             if(!glyph.empty&&glyph.page==null){needsUpload=true;break;}
         }
         if(!needsUpload){
-            if(cacheable)preparedTexts.put(text,Boolean.TRUE);
+            if(cacheable)preparedTexts.put(text,1);
             return;
         }
         // Cold uploads may bind textures; the active gradient shader and caller's state survive.
@@ -169,7 +169,7 @@ public class TTFFontRenderer implements AutoCloseable {
                 upload(glyph(format.obfuscated?obfuscated(cp):cp,format.style));
             }
         }
-        if(cacheable)preparedTexts.put(text,Boolean.TRUE);
+        if(cacheable)preparedTexts.put(text,1);
     }
 
     public int drawString(String text,float x,float y,int color){return render(text,x,y,color,false);}
@@ -238,7 +238,7 @@ public class TTFFontRenderer implements AutoCloseable {
         checkOpen();if(text==null||text.isEmpty())return 0;
         boolean cacheable=text.length()<=MAX_CACHED_TEXT_LENGTH;
         if(cacheable){
-            synchronized(this){Float cached=widths.get(text);if(cached!=null)return cached;}
+            synchronized(this){float cached=widths.get(text);if(!Float.isNaN(cached))return cached;}
         }
         Format format=new Format(-1,false);float line=0,max=0;
         for(int index=0;index<text.length();){
@@ -270,12 +270,6 @@ public class TTFFontRenderer implements AutoCloseable {
         ownedTextures.clear();for(List<Page> style:pages)style.clear();
         for(Glyph[] style:latin)Arrays.fill(style,null);unicode.clear();
         widths.clear();preparedTexts.clear();uploadPixels=null;closed=true;
-    }
-
-    private static <V> Map<String,V> boundedTextCache(){
-        return new LinkedHashMap<String,V>(32,.75f,true){
-            @Override protected boolean removeEldestEntry(Map.Entry<String,V> eldest){return size()>MAX_CACHED_TEXTS;}
-        };
     }
 
     private static int obfuscated(int cp){return cp==' '?cp:'A'+Math.floorMod(cp+1,26);}

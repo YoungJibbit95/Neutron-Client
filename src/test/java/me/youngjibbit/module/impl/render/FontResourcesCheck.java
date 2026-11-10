@@ -52,11 +52,11 @@ public final class FontResourcesCheck {
    SessionInfoRenderCheck.require(WatermarkCheck.equal(cold,cached)&&RenderDiagnostics.glyphUploads==beforeUploads,"Prepared text cache changed pixels or uploaded warm glyphs");
    SessionInfoRenderCheck.require(SessionInfoRenderCheck.get(lazy,"uploadPixels")==pixels,"Warm drawing replaced glyph upload storage");
   }
-  Map<String,Boolean> prepared=(Map<String,Boolean>)SessionInfoRenderCheck.get(lazy,"preparedTexts");
+  Object prepared=SessionInfoRenderCheck.get(lazy,"preparedTexts");
   for(int i=0;i<300;i++)lazy.drawString("Dynamic label "+i,30,40,-1);
-  SessionInfoRenderCheck.require(prepared.size()==256,"Prepared label cache is unbounded");
+  SessionInfoRenderCheck.require((int)SessionInfoRenderCheck.get(prepared,"size")<=256,"Prepared label cache is unbounded");
   Set<Integer> owned=(Set<Integer>)SessionInfoRenderCheck.get(lazy,"ownedTextures");int id=owned.iterator().next();GlStateManager.bindTexture(id);glBindTexture(GL_TEXTURE_2D,id);manager.close();manager.close();SessionInfoRenderCheck.require(!glIsTexture(id)&&glGetInteger(GL_TEXTURE_BINDING_2D)==0&&RenderDiagnostics.glyphTexturesCreated==RenderDiagnostics.glyphTexturesDeleted,"Font textures not released");
-  SessionInfoRenderCheck.require(prepared.isEmpty()&&SessionInfoRenderCheck.get(lazy,"uploadPixels")==null,"Font close retained prepared labels/upload storage");
+  SessionInfoRenderCheck.require((int)SessionInfoRenderCheck.get(prepared,"size")==0&&SessionInfoRenderCheck.get(lazy,"uploadPixels")==null,"Font close retained prepared labels/upload storage");
   try{lazy.getWidth("closed");throw new AssertionError("Closed renderer still usable");}catch(IllegalStateException expected){}
   System.out.println("Fonts used: files="+RenderDiagnostics.fontFileLoads+" renderers="+RenderDiagnostics.fontRendererCreates+" glyph textures="+RenderDiagnostics.glyphTexturesCreated+" deleted="+RenderDiagnostics.glyphTexturesDeleted);
   RenderDiagnostics.reset();java.util.concurrent.ExecutorService preparation=java.util.concurrent.Executors.newFixedThreadPool(2);java.util.concurrent.ConcurrentLinkedQueue<TextureData> queue=new java.util.concurrent.ConcurrentLinkedQueue<>();TTFFontRenderer pending=new TTFFontRenderer(preparation,queue,new java.awt.Font("Verdana",java.awt.Font.PLAIN,18),8);pending.close();preparation.shutdown();SessionInfoRenderCheck.require(queue.isEmpty()&&RenderDiagnostics.glyphTexturesCreated==0&&RenderDiagnostics.glyphTexturesDeleted==0,"Pending legacy uploads outlived their owner");

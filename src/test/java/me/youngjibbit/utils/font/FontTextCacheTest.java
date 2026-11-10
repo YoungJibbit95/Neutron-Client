@@ -5,7 +5,6 @@ import org.junit.Test;
 import java.awt.Font;
 import java.lang.reflect.Field;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -35,19 +34,14 @@ public class FontTextCacheTest {
 
     @Test public void changingLabelsAndLongTextCannotGrowTheCacheWithoutBound() throws Exception {
         try (TTFFontRenderer font = renderer()) {
-            Map<?, ?> widths = widths(font);
+            FontTextCache widths = widths(font);
             for (int i = 0; i < 2048; i++) font.getWidth("Frame " + i);
             assertEquals(256, widths.size());
-            assertFalse(widths.containsKey("Frame 0"));
-            assertTrue(widths.containsKey("Frame 2047"));
+            assertTrue(Float.isNaN(widths.get("Frame 0")));
+            assertFalse(Float.isNaN(widths.get("Frame 2047")));
             font.getWidth(repeat('W', 257));
             assertEquals(256, widths.size());
-            assertFalse(widths.containsKey(repeat('W', 257)));
-            // A recently used entry survives eviction by a newly arriving dynamic label.
-            font.getWidth("Frame 1792");
-            font.getWidth("Frame 2048");
-            assertTrue(widths.containsKey("Frame 1792"));
-            assertFalse(widths.containsKey("Frame 1793"));
+            assertTrue(Float.isNaN(widths.get(repeat('W', 257))));
             assertEquals(font.getWidth(repeat('\u0000', 300) + "Frame 0"), font.getWidth("Frame 0"), 0);
         }
     }
@@ -80,9 +74,29 @@ public class FontTextCacheTest {
         } finally {
             font.close();
         }
-        assertTrue(widths(font).isEmpty());
+        assertEquals(0, widths(font).size());
         try { font.getWidth(LABELS[0]); fail("Closed renderer accepted a cached label"); }
         catch (IllegalStateException expectedFailure) { }
+    }
+
+    @Test public void collidingLabelsUseFullEqualityAndEvictTheLeastRecentlyReadSlot() {
+        String[] colliding = {"AaAaAa", "AaAaBB", "AaBBAa", "AaBBBB", "BBAaAa"};
+        FontTextCache cache = new FontTextCache();
+        for (int i = 0; i < colliding.length; i++) assertEquals(colliding[0].hashCode(), colliding[i].hashCode());
+        for (int i = 0; i < 4; i++) cache.put(colliding[i], i + 1);
+        assertEquals(1, cache.get(new String(colliding[0])), 0);
+        cache.put(colliding[4], 5);
+        assertTrue(Float.isNaN(cache.get(colliding[1])));
+        assertEquals(1, cache.get(colliding[0]), 0);
+        assertEquals(3, cache.get(colliding[2]), 0);
+        assertEquals(4, cache.get(colliding[3]), 0);
+        assertEquals(5, cache.get(colliding[4]), 0);
+        cache.put(colliding[0], 9);
+        assertEquals(9, cache.get(colliding[0]), 0);
+        assertEquals(4, cache.size());
+        cache.clear();
+        assertEquals(0, cache.size());
+        assertTrue(Float.isNaN(cache.get(colliding[0])));
     }
 
     private static TTFFontRenderer renderer() {
@@ -95,9 +109,9 @@ public class FontTextCacheTest {
         return new String(characters);
     }
 
-    private static Map<?, ?> widths(TTFFontRenderer font) throws Exception {
+    private static FontTextCache widths(TTFFontRenderer font) throws Exception {
         Field field = TTFFontRenderer.class.getDeclaredField("widths");
         field.setAccessible(true);
-        return (Map<?, ?>) field.get(font);
+        return (FontTextCache) field.get(font);
     }
 }
