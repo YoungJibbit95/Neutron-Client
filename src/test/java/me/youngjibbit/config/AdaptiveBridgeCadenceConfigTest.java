@@ -48,9 +48,14 @@ public class AdaptiveBridgeCadenceConfigTest {
         for (String approach : new String[]{"Neutron", "Arsenic", "Adaptive Bridge"}) {
             scaffold.getModeSetting("Scaffold Approach").setValue(approach);
             boolean bridge = "Adaptive Bridge".equals(approach);
-            for (String name : new String[]{"Place Min CPS", "Place Max CPS", "Click Profile",
-                    "Place Interpolation", "Variation Strength", "Place Debug"})
+            for (String name : new String[]{"Place Min CPS", "Place Max CPS", "Click Profile"})
                 assertEquals(name + " in " + approach, bridge, scaffold.getValueByName(name).isVisible());
+            for (String name : new String[]{"Place Interpolation", "Variation Strength", "Place Debug"}) {
+                scaffold.getBooleanSetting("Advanced Bridge Settings").setValue(false);
+                assertFalse(name,scaffold.getValueByName(name).isVisible());
+                scaffold.getBooleanSetting("Advanced Bridge Settings").setValue(true);
+                assertEquals(name + " in " + approach,bridge,scaffold.getValueByName(name).isVisible());
+            }
             if (bridge) assertFalse(scaffold.getNumberSetting("Interpolation").isVisible());
         }
         assertEquals(5, scaffold.getNumberSetting("Interpolation").getValue(), 0);

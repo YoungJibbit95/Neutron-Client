@@ -525,10 +525,22 @@ public class ConfigManager {
                 Value<?> mode=module.getValueByName("rotation_mode");if(mode!=null && !change.values.containsKey(mode))change.values.put(mode,"Godbridge");
                 plan.legacyScaffold++;
             }
+            prioritizeScaffoldSettings(change);
             migrateNetworkOptions(plan,change);
             plan.changes.add(change);
         }
         return plan;
+    }
+    /** Explicit modern controls win over a legacy preset regardless of JSON key order. */
+    private static void prioritizeScaffoldSettings(Change change) {
+        if(!"scaffold".equals(change.module.getId()))return;
+        Map<Value<?>,Object> ordered=new LinkedHashMap<>();
+        for(String alias:Arrays.asList("Sprint","Bridge Rotation Speed","Aim Speed")) {
+            Value<?> value=change.module.getValueByName(alias);
+            if(value!=null && change.values.containsKey(value))ordered.put(value,change.values.get(value));
+        }
+        ordered.putAll(change.values);
+        change.values.clear();change.values.putAll(ordered);
     }
     private static boolean isNetworkPolicy(Module module) { return module.getId().equals("backtrack") || module.getId().equals("tickbase"); }
     private static boolean isCombatRotation(Module module) { return module.getId().equals("aura") || module.getId().equals("aimassist"); }

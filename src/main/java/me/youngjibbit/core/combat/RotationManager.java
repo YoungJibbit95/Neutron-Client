@@ -137,8 +137,67 @@ public final class RotationManager {
     private WeakReference<Object> motionPlayer = new WeakReference<>(null);
     private WeakReference<Object> motionWorld = new WeakReference<>(null);
     private MovementFrame movementFrame;
+    private BridgeRotationCandidate bridgeCandidate;
+    private BridgeFinalization bridgeFinalization;
     private VisibleAssistStop visibleAssistStop;
     private static final String VISIBLE_STOP = "aimassist-return";
+
+    /** Explicit Adaptive lifetime; generic source names never confer this permission. */
+    private static final class BridgeMotionScope {
+        final WeakReference<Object> owner, world, player, connection;
+        final long epoch, generation;
+        BridgeMotionScope(AdaptiveBridgePlanner.Scope scope) {
+            owner=new WeakReference<>(scope.owner);world=new WeakReference<>(scope.world);
+            player=new WeakReference<>(scope.player);connection=new WeakReference<>(scope.connection);
+            epoch=scope.connectionEpoch;generation=scope.acquisitionGeneration;
+        }
+        boolean same(AdaptiveBridgePlanner.Scope scope) {
+            return scope!=null && owner.get()==scope.owner && world.get()==scope.world
+                    && player.get()==scope.player && connection.get()==scope.connection
+                    && epoch==scope.connectionEpoch && generation==scope.acquisitionGeneration;
+        }
+        AdaptiveBridgePlanner.Scope live() {
+            return new AdaptiveBridgePlanner.Scope(owner.get(),world.get(),player.get(),connection.get(),epoch,generation);
+        }
+    }
+
+    private static final class BridgeRotationCandidate {
+        final BridgeMotionScope scope;
+        final AdaptiveBridgeMotion controller;
+        final Object identity;
+        final long sequence;
+        final float yaw,pitch;
+        boolean consumed;
+        BridgeRotationCandidate(AdaptiveBridgePlanner.Scope scope,AdaptiveBridgeMotion controller,Object identity,
+                                long sequence,float yaw,float pitch) {
+            this.scope=new BridgeMotionScope(scope);this.sequence=sequence;this.yaw=yaw;this.pitch=pitch;
+            this.controller=controller;this.identity=identity;
+        }
+    }
+
+    /** The input frame remains immutable; only this exact late C03 request may differ. */
+    private final class BridgeFinalization {
+        final MovementFrame movement;
+        final Request request;
+        final BridgeMotionScope scope;
+        final BridgeRotationCandidate candidate;
+        BridgeFinalization(MovementFrame movement,Request request,AdaptiveBridgePlanner.Scope scope,
+                           BridgeRotationCandidate candidate) {
+            this.movement=movement;this.request=request;this.scope=new BridgeMotionScope(scope);
+            this.candidate=candidate;
+        }
+        boolean current() {
+            AdaptiveBridgePlanner.Scope live=scope.live();
+            if(bridgeFinalization!=this || !bridgeCandidateCurrent(candidate) || !candidate.consumed
+                    || winner!=request || movementFrame!=movement
+                    || !movement.claimed || !movement.current() || movement.request==null
+                    || movement.request.bridgeScope==null || !movement.request.bridgeScope.same(live)
+                    || !bridgeCameraMovement(live))return false;
+            return bridgeFinalization==this && bridgeCandidateCurrent(candidate)
+                    && winner==request && movementFrame==movement
+                    && movement.claimed && movement.current();
+        }
+    }
 
     /** A visible assist has no silent yaw to return from. Decay only its last accepted camera delta. */
     public void beginVisibleAssistStop() {
@@ -303,6 +362,7 @@ public final class RotationManager {
 
     public void beginMotion(float cameraYaw, float cameraPitch) {
         movementFrame = null;
+        bridgeCandidate=null;bridgeFinalization=null;
         // Keep the observed packet values for finishMotion's rejection, but never smooth from them.
         boolean usableBase = hasEffective && Float.isFinite(effectiveYaw) && Float.isFinite(effectivePitch)
                 && effectivePitch >= -90 && effectivePitch <= 90;
@@ -322,6 +382,71 @@ public final class RotationManager {
 
     public void request(String source, int priority, float yaw, float pitch) {
         offer(new Request(source,priority,yaw,pitch,false,0,0,()->true));
+    }
+
+    /** Mark an early Adaptive hold whose local movement stays in the camera input frame. */
+    public boolean requestBridgeMovement(AdaptiveBridgePlanner.Scope scope,float yaw,float pitch) {
+        if(Thread.currentThread()!=bridgeOwningThread || movementFrame!=null
+                || !Float.isFinite(yaw) || !Float.isFinite(pitch) || Math.abs(pitch)>90)return false;
+        final long motion=sequence;
+        RuntimeObservation observation=RuntimeServices.observation();
+        SceneContext scene=bridgeScene(scope,observation,motion);
+        if(scene==null || !bridgeCameraMovement(scope) || sequence!=motion || movementFrame!=null)return false;
+        Request request=new Request("scaffold",SCAFFOLD_PRIORITY,yaw,pitch,false,0,0,()->true);
+        request.bridgeScope=new BridgeMotionScope(scope);
+        offer(request);
+        return winner==request;
+    }
+
+    /**
+     * Commit the checked actual-PRE candidate after input/physics. Only an explicitly
+     * scoped Adaptive camera-frame hold may receive a different final C03 angle.
+     * Neither the consumed input axes nor the immutable MovementRotation are changed.
+     */
+    public boolean requestBridgeFinalRotation(AdaptiveBridgePlanner.Scope scope,float yaw,float pitch) {
+        if(Thread.currentThread()!=bridgeOwningThread)return false;
+        final long motion=sequence;
+        final BridgeRotationCandidate candidate=bridgeCandidate;
+        final MovementFrame prepared=movementFrame;
+        if(candidate==null || candidate.consumed || candidate.sequence!=motion || !candidate.scope.same(scope)
+                || Float.compare(candidate.yaw,yaw)!=0 || Float.compare(candidate.pitch,pitch)!=0
+                || !bridgeCandidateCurrent(candidate))return false;
+        if(prepared!=null && (!prepared.current() || !prepared.claimed || prepared.request==null
+                || prepared.request.bridgeScope==null || !prepared.request.bridgeScope.same(scope)
+                || winner!=prepared.request))return false;
+        RuntimeObservation observation=RuntimeServices.observation();
+        SceneContext scene=bridgeScene(scope,observation,motion);
+        if(scene==null || !bridgeCameraMovement(scope) || sequence!=motion || bridgeCandidate!=candidate
+                || candidate.consumed || movementFrame!=prepared
+                || !bridgeCandidateCurrent(candidate))return false;
+        if(prepared!=null && (!prepared.current() || !prepared.claimed || winner!=prepared.request))return false;
+        Request request=new Request("scaffold",SCAFFOLD_PRIORITY,yaw,pitch,false,0,0,()->true);
+        request.bridgeScope=new BridgeMotionScope(scope);
+        request.bridgeCandidate=candidate;
+        candidate.consumed=true;
+        if(prepared==null) {
+            offer(request);
+            return winner==request;
+        }
+        cancelVisibleAssistStop();cancelRotationRelease();
+        offeredSources.add("scaffold");
+        winner=request;
+        bridgeFinalization=new BridgeFinalization(prepared,request,scope,candidate);
+        return bridgeFinalization.current();
+    }
+
+    private boolean bridgeCameraMovement(AdaptiveBridgePlanner.Scope scope) {
+        if(!bridgeContext(scope))return false;
+        me.youngjibbit.module.impl.world.Scaffold scaffold=(me.youngjibbit.module.impl.world.Scaffold)scope.owner;
+        boolean camera=scaffold.moveFixMode()==MoveFixController.Mode.OFF || scaffold.preservesBridgeHeading();
+        return camera && scaffold.isCurrentBridgeScope(scope) && bridgeContext(scope);
+    }
+
+    private boolean bridgeCandidateCurrent(BridgeRotationCandidate candidate) {
+        RotationState state=states.get("scaffold");
+        return candidate!=null && bridgeCandidate==candidate && candidate.sequence==sequence
+                && state!=null && state.bridgeMotion==candidate.controller
+                && candidate.controller.isTaskCurrent(candidate.scope.live(),candidate.identity,candidate.sequence);
     }
 
     public void requestVisible(String source,int priority,float yaw,float pitch,float cameraYaw,float cameraPitch,BooleanSupplier valid) {
@@ -346,6 +471,14 @@ public final class RotationManager {
         resolvedTicket = null;
         MovementFrame prepared = movementFrame;
         if (prepared != null && prepared.current()) {
+            BridgeFinalization bridge=bridgeFinalization;
+            if(bridge!=null && bridge.movement==prepared && bridge.current()) {
+                event.setRotations(bridge.request.yaw,bridge.request.pitch);
+                resolvedRequest=bridge.request;resolvedFrame=new Object();
+                resolvedTicket=new ResolvedC03SendTicket(bridge.request,resolvedFrame,Float.NaN,Float.NaN);
+                return;
+            }
+            if(sequence!=resolvingSequence || movementFrame!=prepared || !prepared.current())return;
             // Physics has already used this exact pose. A late replacement/disable may
             // withdraw its source, but must not relabel the acceleration with another yaw.
             if (winner != prepared.request) {
@@ -643,6 +776,7 @@ public final class RotationManager {
         private final SceneContext scene;
         private final long suspensionRevision;
         private final RotationReleaseLease release;
+        private final BridgeFinalization bridge;
         private final WeakReference<Object> player, world;
         private final WeakReference<NetHandlerPlayClient> handler;
         private final WeakReference<PacketPipeline> packets;
@@ -651,7 +785,7 @@ public final class RotationManager {
             request = captured.request; frame = captured.frame; motionSequence = captured.motionSequence;
             outerTick = captured.outerTick; yaw = captured.yaw; pitch = captured.pitch;
             observation = captured.observation; scene = captured.scene;
-            suspensionRevision = captured.suspensionRevision; release = captured.release;
+            suspensionRevision = captured.suspensionRevision; release = captured.release; bridge=captured.bridge;
             player = captured.player; world = captured.world; handler = captured.handler; packets = captured.packets;
             this.wireYaw = wireYaw; this.wirePitch = wirePitch;
         }
@@ -673,6 +807,7 @@ public final class RotationManager {
             outerTick = observation == null ? -1 : observation.getActiveOuterTickId();
             suspensionRevision = observation == null ? -1 : observation.getObservedSuspensionRevision();
             release = isReleaseSource(request.source) ? rotationRelease : null;
+            bridge=bridgeFinalization!=null && bridgeFinalization.request==request?bridgeFinalization:null;
             scene = observation == null ? null : observation.captureScene();
         }
 
@@ -694,6 +829,11 @@ public final class RotationManager {
         }
 
         private boolean current() {
+            if(request.bridgeScope!=null && !sameFrame())return false;
+            if(request.bridgeCandidate!=null && (!request.bridgeCandidate.consumed
+                    || !bridgeCandidateCurrent(request.bridgeCandidate)))return false;
+            if(bridge!=null && !bridge.current())return false;
+            if(request.bridgeScope!=null && !bridgeCameraMovement(request.bridgeScope.live()))return false;
             if (isReleaseSource(request.source)
                     && (release == null || currentRotationRelease() != release)) return false;
             if (!sameFrame() || !sameObjects() || observation == null || observation != RuntimeServices.observation()
@@ -704,7 +844,10 @@ public final class RotationManager {
             return fresh.isValid() && !fresh.isSuspended() && scene.sameSceneAs(fresh)
                     && sameFrame() && sameObjects() && observation == RuntimeServices.observation()
                     && observation.getActiveOuterTickId() == outerTick
-                    && (release == null || currentRotationRelease() == release);
+                    && (release == null || currentRotationRelease() == release)
+                    && (bridge==null || bridge.current())
+                    && (request.bridgeCandidate==null || bridgeCandidateCurrent(request.bridgeCandidate))
+                    && (request.bridgeScope==null || bridgeCameraMovement(request.bridgeScope.live()));
         }
 
         /** Revalidate the captured lifetime after transport callbacks, before granting source authority. */
@@ -734,6 +877,7 @@ public final class RotationManager {
         final long finishingSequence = sequence;
         final MovementFrame appliedMovement = movementFrame;
         movementFrame = null;
+        bridgeCandidate=null;bridgeFinalization=null;
         final boolean releaseFrame = winner != null && isReleaseSource(winner.source);
         if (releaseFrame) {
             RotationReleaseLease expected = rotationRelease;
@@ -787,7 +931,10 @@ public final class RotationManager {
             if(!entry.getKey().equals(acceptedSource)) {
                 entry.getValue().arsenic.reset();
                 entry.getValue().invalidateAdaptive();
-                if(entry.getValue().bridgeMotion!=null)entry.getValue().bridgeMotion.rejectMotion(sequence);
+                if(entry.getValue().bridgeMotion!=null) {
+                    entry.getValue().bridgeMotion.rejectMotion(sequence);
+                    revokeBridgeCandidate(entry.getValue().bridgeMotion,sequence,null);
+                }
                 // A first-frame neural HOLD is not an offer; it remains warm.
                 if(entry.getValue().aiOfferedSequence==sequence)entry.getValue().invalidateAi();
             }
@@ -1306,10 +1453,10 @@ public final class RotationManager {
         AdaptiveBridgeMotion.Point point=state.bridgeMotion.point(scope,identity,settings,motion,curveMotionTime(),
                 AdaptiveBridgePlanner.Face.valueOf(face.name()),bounds.minX,bounds.minY,bounds.minZ,
                 bounds.maxX,bounds.maxY,bounds.maxZ,originalAnchor.xCoord,originalAnchor.yCoord,originalAnchor.zCoord,true);
-        if(!currentBridgeScene(scope,observation,scene,motion,state)) {
-            state.bridgeMotion.rejectMotion(scope,identity,motion);return null;
+        if(point==null || !currentBridgeScene(scope,observation,scene,motion,state)) {
+            rejectBridgeProposal(state,scope,identity,motion);return null;
         }
-        return point==null?null:new Vec3(point.x,point.y,point.z);
+        return new Vec3(point.x,point.y,point.z);
     }
 
     /**
@@ -1319,6 +1466,21 @@ public final class RotationManager {
     public float[] calculateBridgePlanRotations(AdaptiveBridgePlanner.Scope scope,Object identity,
                                                float targetYaw,float targetPitch,
                                                AdaptiveBridgeMotion.Settings settings) {
+        return bridgePlanRotations(scope,identity,targetYaw,targetPitch,settings,null);
+    }
+
+    /** Task urgency changes only the candidate mathematics; ownership and the mouse grid stay here. */
+    public float[] calculateBridgePlanRotations(AdaptiveBridgePlanner.Scope scope,Object identity,
+                                               float targetYaw,float targetPitch,
+                                               AdaptiveBridgeMotion.Settings settings,
+                                               AdaptiveBridgeMotion.Task task) {
+        if(task==null)return null;
+        return bridgePlanRotations(scope,identity,targetYaw,targetPitch,settings,task);
+    }
+
+    private float[] bridgePlanRotations(AdaptiveBridgePlanner.Scope scope,Object identity,
+                                       float targetYaw,float targetPitch,
+                                       AdaptiveBridgeMotion.Settings settings,AdaptiveBridgeMotion.Task task) {
         if(Thread.currentThread()!=bridgeOwningThread)return null;
         if(identity==null || settings==null)return null;
         final long motion=sequence;
@@ -1327,22 +1489,51 @@ public final class RotationManager {
         if(scene==null)return null;
         RotationState state=state("scaffold");
         if(state.bridgeMotion==null)state.bridgeMotion=new AdaptiveBridgeMotion(state.adaptiveSeed ^ 0x315bc74d9f42a68eL);
-        AdaptiveMotionController.Result next=state.bridgeMotion.advance(scope,identity,settings,motion,curveMotionTime(),
-                baseYaw,basePitch,targetYaw,targetPitch,true);
-        if(next==null || !currentBridgeScene(scope,observation,scene,motion,state)) {
-            state.bridgeMotion.rejectMotion(scope,identity,motion);return null;
+        double yaw,pitch;
+        if(task==null) {
+            AdaptiveMotionController.Result next=state.bridgeMotion.advance(scope,identity,settings,motion,curveMotionTime(),
+                    baseYaw,basePitch,targetYaw,targetPitch,true);
+            if(next==null) {rejectBridgeProposal(state,scope,identity,motion);return null;}
+            yaw=next.yaw;pitch=next.pitch;
+        } else {
+            AdaptiveBridgeMotion.Turn next=state.bridgeMotion.advanceTask(scope,identity,settings,task,motion,curveMotionTime(),
+                    baseYaw,basePitch,targetYaw,targetPitch,true);
+            if(next==null) {rejectBridgeProposal(state,scope,identity,motion);return null;}
+            yaw=next.yaw;pitch=next.pitch;
         }
-        float wantedYaw=baseYaw+MathHelper.wrapAngleTo180_float((float)next.yaw-baseYaw);
-        float[] snapped=quantize(wantedYaw,(float)next.pitch,baseYaw,basePitch,mc.gameSettings.mouseSensitivity);
+        if(!currentBridgeScene(scope,observation,scene,motion,state)) {
+            rejectBridgeProposal(state,scope,identity,motion);return null;
+        }
+        float wantedYaw=baseYaw+MathHelper.wrapAngleTo180_float((float)yaw-baseYaw);
+        float[] snapped=quantize(wantedYaw,(float)pitch,baseYaw,basePitch,mc.gameSettings.mouseSensitivity);
         if(!Float.isFinite(snapped[0]) || !Float.isFinite(snapped[1])) {
-            state.bridgeMotion.rejectMotion(scope,identity,motion);return null;
+            rejectBridgeProposal(state,scope,identity,motion);return null;
         }
+        if(task!=null && (bridgeCandidate==null || bridgeCandidate.sequence!=motion
+                || !bridgeCandidate.scope.same(scope)))
+            bridgeCandidate=new BridgeRotationCandidate(scope,state.bridgeMotion,identity,motion,snapped[0],snapped[1]);
         return snapped;
+    }
+
+    private void rejectBridgeProposal(RotationState state,AdaptiveBridgePlanner.Scope scope,Object identity,long motion) {
+        state.bridgeMotion.rejectMotion(scope,identity,motion);
+        revokeBridgeCandidate(state.bridgeMotion,motion,scope);
+    }
+
+    /** A stale controller/scope callback must never revoke a replacement proposal. */
+    private void revokeBridgeCandidate(AdaptiveBridgeMotion controller,long motion,AdaptiveBridgePlanner.Scope scope) {
+        BridgeRotationCandidate candidate=bridgeCandidate;
+        if(candidate==null || candidate.controller!=controller || candidate.sequence!=motion
+                || scope!=null && !candidate.scope.same(scope))return;
+        bridgeCandidate=null;
+        if(bridgeFinalization!=null && bridgeFinalization.candidate==candidate)bridgeFinalization=null;
     }
 
     /** A stale acquisition cannot dispose a replacement source's active motion. */
     public void resetBridgeMotion(AdaptiveBridgePlanner.Scope expected) {
         if(Thread.currentThread()!=bridgeOwningThread)return;
+        if(bridgeCandidate!=null && bridgeCandidate.scope.same(expected))bridgeCandidate=null;
+        if(bridgeFinalization!=null && bridgeFinalization.scope.same(expected))bridgeFinalization=null;
         RotationState state=states.get("scaffold");
         if(state!=null && state.bridgeMotion!=null)state.bridgeMotion.reset(expected);
     }
@@ -1415,6 +1606,7 @@ public final class RotationManager {
         if (source == null) {
             return;
         }
+        if("scaffold".equals(source)) {bridgeCandidate=null;bridgeFinalization=null;}
         if("aura".equals(source) && personalModelGate!=null) {
             RotationState prior=states.get("aura");
             if(prior!=null && prior.ai!=null)prior.ai.dispose();
@@ -1442,6 +1634,7 @@ public final class RotationManager {
         }
         cancelVisibleAssistStop();
         movementFrame = null;
+        bridgeCandidate=null;bridgeFinalization=null;
         curveMotionSequence=Long.MIN_VALUE;
         rotationRelease = null;
         releaseAcceptance = null;
@@ -1543,6 +1736,8 @@ public final class RotationManager {
         final boolean visible;
         final float cameraYaw,cameraPitch;
         final BooleanSupplier valid;
+        BridgeMotionScope bridgeScope;
+        BridgeRotationCandidate bridgeCandidate;
         VisibleAssistStop visibleStep;
         Request(String source,int priority,float yaw,float pitch,boolean visible,float cameraYaw,float cameraPitch,BooleanSupplier valid) {
             this.source=source;this.priority=priority;this.yaw=yaw;this.pitch=pitch;

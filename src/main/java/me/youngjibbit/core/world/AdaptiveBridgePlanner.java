@@ -73,7 +73,15 @@ public final class AdaptiveBridgePlanner {
         public long sequence;
         public int selectedSlot, destinationX, destinationY, destinationZ;
         public double feetX, feetY, feetZ, eyeX, eyeY, eyeZ;
-        public double yaw, velocityX, velocityZ, forward, strafe, reach = 4.5;
+        public double yaw, velocityX, velocityY, velocityZ, forward, strafe, reach = 4.5;
+        /** Optional accepted aim basis; raw camera yaw above remains the input heading. */
+        public double rotationYaw, rotationPitch;
+        public boolean hasRotation, grounded;
+        /** Nearest point on the raw-input lane, supplied by the independent input controller. */
+        public boolean hasLane;
+        public double laneX, laneZ, laneDirectionX, laneDirectionZ;
+        /** A host with an explicit fixed-height policy can disallow the extra recovery layer. */
+        public boolean allowLowerRecovery = true;
         public double predictionTicks = 1;
         public boolean authorized, eagleEnabled, physicalEdgeRisk;
     }
@@ -101,7 +109,11 @@ public final class AdaptiveBridgePlanner {
         final Scope scope;
         long lastSequence = Long.MIN_VALUE;
         int destinationX, destinationY, destinationZ, slot;
-        double yaw, forward, strafe, velocityX, velocityZ, predictionTicks;
+        double yaw, forward, strafe, velocityX, velocityY, velocityZ, predictionTicks;
+        double rotationYaw, rotationPitch;
+        boolean hasRotation, grounded, allowLowerRecovery;
+        boolean hasLane;
+        double laneX, laneZ, laneDirectionX, laneDirectionZ;
         Object stack;
         Plan cached;
         State(Scope scope) { this.scope = scope; }
@@ -111,8 +123,13 @@ public final class AdaptiveBridgePlanner {
             destinationZ = f.destinationZ; slot = f.selectedSlot;
             stack = f.approvedStack;
             yaw = f.yaw; forward = f.forward; strafe = f.strafe;
-            velocityX = f.velocityX; velocityZ = f.velocityZ;
+            velocityX = f.velocityX; velocityY = f.velocityY; velocityZ = f.velocityZ;
             predictionTicks = f.predictionTicks;
+            rotationYaw = f.rotationYaw; rotationPitch = f.rotationPitch;
+            hasRotation = f.hasRotation; grounded = f.grounded;
+            allowLowerRecovery = f.allowLowerRecovery;
+            hasLane = f.hasLane; laneX = f.laneX; laneZ = f.laneZ;
+            laneDirectionX = f.laneDirectionX; laneDirectionZ = f.laneDirectionZ;
             cached = result;
         }
         boolean sameIntent(Frame f) {
@@ -123,7 +140,17 @@ public final class AdaptiveBridgePlanner {
                     && Double.compare(forward, f.forward) == 0
                     && Double.compare(strafe, f.strafe) == 0
                     && Double.compare(velocityX, f.velocityX) == 0
+                    && Double.compare(velocityY, f.velocityY) == 0
                     && Double.compare(velocityZ, f.velocityZ) == 0
+                    && hasRotation == f.hasRotation && grounded == f.grounded
+                    && allowLowerRecovery == f.allowLowerRecovery
+                    && hasLane == f.hasLane
+                    && (!hasLane || Double.compare(laneX, f.laneX) == 0
+                        && Double.compare(laneZ, f.laneZ) == 0
+                        && Double.compare(laneDirectionX, f.laneDirectionX) == 0
+                        && Double.compare(laneDirectionZ, f.laneDirectionZ) == 0)
+                    && (!hasRotation || Double.compare(rotationYaw, f.rotationYaw) == 0
+                        && Double.compare(rotationPitch, f.rotationPitch) == 0)
                     && Double.compare(predictionTicks, f.predictionTicks) == 0;
         }
     }
@@ -195,13 +222,14 @@ public final class AdaptiveBridgePlanner {
 
         double[] predicted = predict(frame);
         double eyeDeltaX = predicted[0] - frame.feetX;
+        double eyeDeltaY = predictFeetY(frame) - frame.feetY;
         double eyeDeltaZ = predicted[1] - frame.feetZ;
         SupportFace selected = null;
         double bestScore = Double.POSITIVE_INFINITY;
         double chosenYaw = 0, chosenPitch = 0;
 
         for (SupportFace face : options) {
-            if (!validFace(frame, face, eyeDeltaX, eyeDeltaZ)) continue;
+            if (!validFace(frame, face, eyeDeltaX, eyeDeltaY, eyeDeltaZ)) continue;
             double dx = face.hitX - frame.eyeX, dy = face.hitY - frame.eyeY;
             double dz = face.hitZ - frame.eyeZ;
             double horiz = Math.hypot(dx, dz);
@@ -210,9 +238,15 @@ public final class AdaptiveBridgePlanner {
             double dist = Math.hypot(horiz, dy);
             double towardsX = frame.destinationX + .5 - predicted[0];
             double towardsZ = frame.destinationZ + .5 - predicted[1];
+            double turn = frame.hasRotation
+                    ? Math.hypot(wrap(yaw - frame.rotationYaw), pitch - frame.rotationPitch)
+                    : Math.abs(wrap(yaw - frame.yaw));
             double score = Math.hypot(towardsX, towardsZ)
-                    + .12 * Math.abs(wrap(yaw - frame.yaw)) / 180
-                    + .025 * dist;
+                    // All options belong to one destination. Once a useful aim
+                    // exists, a shorter mouse path matters more than centimetres
+                    // of reach; centre-biased scoring causes diagonal face swings.
+                    + (frame.hasRotation ? .01 * turn : .12 * turn / 180)
+                    + (frame.hasRotation ? .001 : .025) * dist;
             if (score < bestScore) { // stable first-candidate tie order
                 selected = face; bestScore = score;
                 chosenYaw = wrap(yaw); chosenPitch = pitch;
@@ -247,6 +281,20 @@ public final class AdaptiveBridgePlanner {
         return new double[]{f.feetX + dx, f.feetZ + dz};
     }
 
+    /** Falling is measured independently of raw keys; an airborne jump is not a clutch. */
+    public static boolean falling(Frame f) {
+        return f != null && !f.grounded && Double.isFinite(f.velocityY) && f.velocityY < -.03;
+    }
+
+    /** Short, bounded fall preview. It is geometry only, never a collision or placement claim. */
+    public static double predictFeetY(Frame f) {
+        if (f == null || !coordinate(f.feetY)) return 0;
+        if (!validMotion(f) || !falling(f)) return f.feetY;
+        double ticks = Math.max(1, f.predictionTicks);
+        double displacement = f.velocityY * ticks - .04 * ticks * ticks;
+        return f.feetY + Math.max(-1, Math.min(0, displacement));
+    }
+
     private static boolean valid(Frame f) {
         if (f == null || f.scope == null || !f.scope.usable() || !f.authorized
                 || f.approvedStack == null || f.sequence < 0
@@ -265,7 +313,13 @@ public final class AdaptiveBridgePlanner {
                 || !Double.isFinite(f.strafe) || Math.abs(f.forward) > 1
                 || Math.abs(f.strafe) > 1
                 || !Double.isFinite(f.velocityX) || !Double.isFinite(f.velocityZ)
+                || !Double.isFinite(f.velocityY) || Math.abs(f.velocityY) > 4
                 || Math.abs(f.velocityX) > 2 || Math.abs(f.velocityZ) > 2
+                || f.hasRotation && (!Double.isFinite(f.rotationYaw)
+                    || !Double.isFinite(f.rotationPitch) || Math.abs(f.rotationPitch) > 90)
+                || f.hasLane && (!coordinate(f.laneX) || !coordinate(f.laneZ)
+                    || !Double.isFinite(f.laneDirectionX) || !Double.isFinite(f.laneDirectionZ)
+                    || Math.abs(Math.hypot(f.laneDirectionX, f.laneDirectionZ) - 1) > 1e-5)
                 || !Double.isFinite(f.reach) || f.reach < 1 || f.reach > 6
                 || !Double.isFinite(f.predictionTicks) || f.predictionTicks < 0
                 || f.predictionTicks > MAX_PREDICTION_TICKS)
@@ -273,7 +327,7 @@ public final class AdaptiveBridgePlanner {
         return true;
     }
 
-    private static boolean validFace(Frame f, SupportFace o, double leadX, double leadZ) {
+    private static boolean validFace(Frame f, SupportFace o, double leadX, double leadY, double leadZ) {
         if (o == null || o.face == null || o.world != f.scope.world
                 || o.player != f.scope.player || o.stack != f.approvedStack
                 || o.supportState == null || o.slot != f.selectedSlot
@@ -291,7 +345,7 @@ public final class AdaptiveBridgePlanner {
                 || o.face.z != 0 && Math.abs(o.hitZ - (o.z + (o.face.z > 0 ? 1 : 0))) > EPS)
             return false;
         return distance(o.hitX - f.eyeX, o.hitY - f.eyeY, o.hitZ - f.eyeZ) <= f.reach
-                && distance(o.hitX - f.eyeX - leadX, o.hitY - f.eyeY,
+                && distance(o.hitX - f.eyeX - leadX, o.hitY - f.eyeY - leadY,
                     o.hitZ - f.eyeZ - leadZ) <= f.reach;
     }
 

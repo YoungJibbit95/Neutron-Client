@@ -6,15 +6,20 @@ import java.util.Objects;
 public final class ScaffoldActivitySnapshot {
     public enum Status { SEARCHING, ALIGNING, READY, PLACING, EDGE_GUARD, RECOVERING }
     public static final long TTL_NANOS = 600_000_000L;
-    private final long sequence, observedAtNanos;
+    private final long sequence, observedAtNanos, placementCount;
     private final int itemId, metadata, blockCount;
     private final String approach, profile;
     private final Status status;
     public ScaffoldActivitySnapshot(long sequence, long observedAtNanos, int itemId, int metadata,
                                     int blockCount, String approach, String profile, Status status) {
-        if (sequence < 0 || itemId < -1 || metadata < -1 || blockCount < -1)
+        this(sequence,observedAtNanos,itemId,metadata,blockCount,approach,profile,status,0);
+    }
+    public ScaffoldActivitySnapshot(long sequence, long observedAtNanos, int itemId, int metadata,
+                                    int blockCount, String approach, String profile, Status status,long placementCount) {
+        if (sequence < 0 || itemId < -1 || metadata < -1 || blockCount < -1 || placementCount < 0)
             throw new IllegalArgumentException("invalid activity fact");
         this.sequence = sequence; this.observedAtNanos = observedAtNanos;
+        this.placementCount=placementCount;
         this.itemId = itemId; this.metadata = metadata; this.blockCount = blockCount;
         this.approach = Objects.requireNonNull(approach, "approach");
         this.profile = Objects.requireNonNull(profile, "profile");
@@ -22,6 +27,8 @@ public final class ScaffoldActivitySnapshot {
     }
     public long getSequence() { return sequence; }
     public long getObservedAtNanos() { return observedAtNanos; }
+    /** Cumulative confirmed placements in this producer run, never search/aim attempts. */
+    public long getPlacementCount() { return placementCount; }
     /** Original Item registry ID, or -1 when no usable stack was observed. */
     public int getItemId() { return itemId; }
     public int getMetadata() { return metadata; }

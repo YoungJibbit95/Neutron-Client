@@ -1849,6 +1849,9 @@ public class Minecraft implements IThreadListener, IPlayerUsage
             while (Mouse.next())
             {
                 int i = Mouse.getEventButton();
+                me.youngjibbit.core.activity.InputClickJournal.global().observe(this.theWorld,
+                        this.thePlayer != null && this.currentScreen == null && this.inGameHasFocus,
+                        i, Mouse.getEventButtonState(), System.nanoTime());
                 KeyBinding.setKeyBindState(i - 100, Mouse.getEventButtonState());
 
                 if (Mouse.getEventButtonState())

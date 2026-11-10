@@ -131,7 +131,7 @@
         "round_rots": false,
         "place_delay": 80,
         "timer": 1,
-        "sprint": false,
+        "sprint_mode": "Off",
         "keep_y": false,
         "downwards": false,
         "item_spoof": true,

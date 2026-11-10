@@ -31,7 +31,8 @@ public final class IslandObservations {
             default:return null;
         }
         IslandStateMachine.Scaffold view=IslandStateMachine.Scaffold.observed(snapshot.getBlockCount(),
-                snapshot.getApproach(),snapshot.getProfile(),status,snapshot.getItemId(),snapshot.getMetadata(),snapshot.getSequence());
+                snapshot.getApproach(),snapshot.getProfile(),status,snapshot.getItemId(),snapshot.getMetadata(),snapshot.getSequence(),
+                snapshot.getPlacementCount(),snapshot.getObservedAtNanos());
         return view.valid()?view:null;
     }
     public static IslandStateMachine.InventoryActivity inventory(InventoryActivitySnapshot first,

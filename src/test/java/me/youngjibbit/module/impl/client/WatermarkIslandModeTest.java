@@ -1,6 +1,7 @@
 package me.youngjibbit.module.impl.client;
 
 import me.youngjibbit.value.impl.ComboValue;
+import me.youngjibbit.value.impl.CheckBoxValue;
 import org.junit.Test;
 import java.lang.reflect.Field;
 import static org.junit.Assert.*;
@@ -24,5 +25,24 @@ public class WatermarkIslandModeTest {
         assertEquals(10, value.getSelectedIndex());
         value.setValue("Creative");
         assertEquals(11, value.getSelectedIndex());
+    }
+
+    @Test public void optionalWidgetsShareOnePlacementChoiceAndOnlyExposeRelevantControls(){
+        WatermarkHUDModule module=new WatermarkHUDModule();
+        ComboValue mode=(ComboValue)(Object)module.getValueByName("Mode");
+        ComboValue placement=(ComboValue)(Object)module.getValueByName("Island Widget Placement");
+        ComboValue clockStyle=(ComboValue)(Object)module.getValueByName("Island Clock Style");
+        CheckBoxValue cps=(CheckBoxValue)(Object)module.getValueByName("Island CPS Widget");
+        CheckBoxValue clock=(CheckBoxValue)(Object)module.getValueByName("Island Clock");
+        assertArrayEquals(new String[]{"Inside","Outside"},placement.getOptions());
+        assertArrayEquals(new String[]{"Text","Modern"},clockStyle.getOptions());
+        assertFalse(cps.getValue());assertEquals("Inside",placement.getValue());assertEquals("Text",clockStyle.getValue());
+        mode.setValue("Simple");assertFalse(cps.isVisible());assertFalse(placement.isVisible());
+        assertTrue(module.getValueByName("FPS").isVisible());
+        mode.setValue("Modern");assertTrue(cps.isVisible());assertFalse(placement.isVisible());
+        assertFalse(module.getValueByName("FPS").isVisible());assertTrue(clockStyle.isVisible());
+        cps.setValue(true);assertTrue(placement.isVisible());
+        clock.setValue(false);assertFalse(clockStyle.isVisible());
+        assertTrue(module.getValues().indexOf(clockStyle)>module.getValues().indexOf(module.getValueByName("Island Local Warnings")));
     }
 }

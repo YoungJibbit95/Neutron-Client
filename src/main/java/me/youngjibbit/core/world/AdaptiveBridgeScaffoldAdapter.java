@@ -12,6 +12,8 @@ import java.util.List;
  * Actual authority remains in its placeWithAuthority PRE/C03/POST gates.
  */
 public final class AdaptiveBridgeScaffoldAdapter {
+    static final int MAX_RECOVERY_DESTINATIONS=12;
+    private static final double FOOTPRINT_HALF_WIDTH=.28;
     private final AdaptiveBridgePlanner planner=new AdaptiveBridgePlanner();
     private final Thread owningThread=Thread.currentThread();
 
@@ -31,44 +33,200 @@ public final class AdaptiveBridgeScaffoldAdapter {
      * Inert acquisition for enable/PRE. Unlike findTarget, an occupied current
      * foot cell does not stop the short look-ahead. Every face still passes the
      * existing service's real current-world, stack, reach and raycast checks.
-     * Three sampled destinations and six faces bound this to eighteen planFace
-     * calls; subsequent PRE preparation adds at most five alternative faces.
+     * Normal bridging samples only three centerline cells (eighteen planFace calls).
+     * An unsupported diagonal corner may try two adjacent connector faces, once.
+     * A measured fall may add the actual short landing footprint and one lower
+     * layer, capped at twelve cells. There is no arbitrary horizontal radius.
+     * Subsequent PRE preparation adds at most five alternative faces.
      * No planner state, rotation request, inventory write or placement is made.
      */
     public PlacementTarget findEarlyTarget(ScaffoldPlacementService service,
             AdaptiveBridgePlanner.Frame frame,int blockY,PlacementTarget preferred) {
-        if(Thread.currentThread()!=owningThread || service==null || frame==null
-                || frame.scope==null || !frame.scope.usable() || !frame.authorized
-                || !AdaptiveBridgePlanner.validMotion(frame) || blockY<0 || blockY>255)return null;
+        if(!validFrame(service,frame,blockY))return null;
         double[] predicted=AdaptiveBridgePlanner.predict(frame);
-        BlockPos[] destinations={
-                new BlockPos(frame.feetX,blockY,frame.feetZ),
-                new BlockPos((frame.feetX+predicted[0])*.5,blockY,(frame.feetZ+predicted[1])*.5),
-                new BlockPos(predicted[0],blockY,predicted[1])};
-        for(int index=0;index<destinations.length;index++) {
-            BlockPos destination=destinations[index];
-            boolean duplicate=false;
-            for(int earlier=0;earlier<index;earlier++)
-                if(destination.equals(destinations[earlier]))duplicate=true;
-            if(duplicate)continue;
+        PlacementTarget ray=null;
+        boolean queriedRay=!frame.hasRotation;
+        for(BlockPos destination:destinations(frame,blockY,predicted)) {
+            if(!service.isReplaceableDestination(destination))continue;
             // An actual gap beneath the player takes precedence over a future
             // kept point. Within one destination keep its exact immutable intent.
             if(preferred!=null && destination.equals(preferred.getDestination())
                     && validPreview(service,frame,preferred,predicted))return preferred;
+            if(!queriedRay) {
+                ray=service.planBridgeRay((float)frame.rotationYaw,(float)frame.rotationPitch);
+                queriedRay=true;
+            }
+            // A useful held direction is the cheapest acquisition. It wins
+            // before face enumeration, but never over a more urgent route cell.
+            if(ray!=null && destination.equals(ray.getDestination())
+                    && validPreview(service,frame,ray,predicted))return ray;
             for(EnumFacing face:EnumFacing.values()) {
-                PlacementTarget candidate=service.planFace(
-                        destination.offset(face.getOpposite()),face,null);
+                PlacementTarget candidate=planFace(service,frame,destination.offset(face.getOpposite()),face);
                 if(validPreview(service,frame,candidate,predicted))return candidate;
             }
         }
+        return findDiagonalConnector(service,frame,blockY,predicted,preferred,ray,queriedRay);
+    }
+
+    /**
+     * A one-block diagonal step needs one orthogonal connector before its center
+     * cell has a supporting face. Only the previous corner block may supply these
+     * two proposals; this is not a search around neighboring rows.
+     */
+    private PlacementTarget findDiagonalConnector(ScaffoldPlacementService service,
+            AdaptiveBridgePlanner.Frame frame,int blockY,double[] predicted,PlacementTarget preferred,
+            PlacementTarget ray,boolean queriedRay) {
+        Corner corner=corner(frame,blockY);
+        if(corner==null || !service.isReplaceableDestination(
+                new BlockPos(frame.feetX,blockY,frame.feetZ)))return null;
+        if(isConnector(frame,preferred,corner) && validPreview(service,frame,preferred,predicted))return preferred;
+        if(!queriedRay)ray=service.planBridgeRay((float)frame.rotationYaw,(float)frame.rotationPitch);
+        if(isConnector(frame,ray,corner) && validPreview(service,frame,ray,predicted))return ray;
+        for(EnumFacing face:new EnumFacing[]{corner.first,corner.second}) {
+            BlockPos destination=corner.support.offset(face);
+            if(!overlapsFootprint(frame.feetX,frame.feetZ,destination))continue;
+            PlacementTarget candidate=planFace(service,frame,corner.support,face);
+            if(validPreview(service,frame,candidate,predicted))return candidate;
+        }
         return null;
+    }
+
+    private static PlacementTarget planFace(ScaffoldPlacementService service,AdaptiveBridgePlanner.Frame frame,
+            BlockPos support,EnumFacing face) {
+        return frame.hasRotation?service.planBridgeFace(support,face,new Vec3(frame.eyeX,frame.eyeY,frame.eyeZ),
+                (float)frame.rotationYaw,(float)frame.rotationPitch):service.planFace(support,face,null);
+    }
+
+    private static final class Corner {
+        final BlockPos support;
+        final EnumFacing first,second;
+        Corner(BlockPos support,EnumFacing first,EnumFacing second) {
+            this.support=support;this.first=first;this.second=second;
+        }
+    }
+
+    private static Corner corner(AdaptiveBridgePlanner.Frame frame,int blockY) {
+        if(frame==null || AdaptiveBridgePlanner.falling(frame))return null;
+        double yaw=Math.toRadians(frame.yaw);
+        double dx=-Math.sin(yaw)*frame.forward+Math.cos(yaw)*frame.strafe;
+        double dz=Math.cos(yaw)*frame.forward+Math.sin(yaw)*frame.strafe;
+        if(frame.hasLane && Math.hypot(frame.feetX-frame.laneX,frame.feetZ-frame.laneZ)<=FOOTPRINT_HALF_WIDTH) {
+            dx=frame.laneDirectionX;dz=frame.laneDirectionZ;
+        }
+        double length=Math.hypot(dx,dz);
+        if(!Double.isFinite(length) || length<1e-5 || Math.min(Math.abs(dx),Math.abs(dz))<length*1e-5)return null;
+        EnumFacing x=dx>0?EnumFacing.EAST:EnumFacing.WEST;
+        EnumFacing z=dz>0?EnumFacing.SOUTH:EnumFacing.NORTH;
+        double[] start=routeStart(frame);
+        BlockPos support=new BlockPos(start[0],blockY,start[1]).offset(x.getOpposite()).offset(z.getOpposite());
+        // Keep ties deterministic even when sin/cos differ by floating-point noise.
+        return Math.abs(dx)+1e-6>=Math.abs(dz)?new Corner(support,x,z):new Corner(support,z,x);
+    }
+
+    private static boolean isConnector(AdaptiveBridgePlanner.Frame frame,PlacementTarget target,Corner corner) {
+        return target!=null && corner!=null && corner.support.equals(target.getBlockPos())
+                && (target.getFacing()==corner.first || target.getFacing()==corner.second)
+                && corner.support.offset(target.getFacing()).equals(target.getDestination())
+                && overlapsFootprint(frame.feetX,frame.feetZ,target.getDestination());
+    }
+
+    /**
+     * Pure membership of an already checked PRE target. A connector and its
+     * following diagonal cell share the short remaining support window, so the
+     * host may raise aim urgency without acquiring another face or placement.
+     */
+    public boolean isDiagonalConnector(AdaptiveBridgePlanner.Frame frame,PlacementTarget target,int blockY) {
+        return Thread.currentThread()==owningThread && frame!=null && frame.scope!=null
+                && frame.scope.usable() && frame.authorized && AdaptiveBridgePlanner.validMotion(frame)
+                && blockY>=0 && blockY<=255 && target!=null
+                && target.world==frame.scope.world && target.player==frame.scope.player
+                && isConnector(frame,target,corner(frame,blockY));
+    }
+
+    /**
+     * POST may retain only a destination belonging to this immediate route.
+     * A normal look-ahead remains an aim preview until it is below the feet.
+     * Recovery may use the short landing footprint; it never inherits the legacy
+     * scorer's two-block retention square. This is not placement authorization.
+     */
+    public boolean stillNeeded(ScaffoldPlacementService service,PlacementTarget target,
+            AdaptiveBridgePlanner.Frame frame,int blockY) {
+        if(!validFrame(service,frame,blockY) || target==null)return false;
+        // The physical foot cell, not a nearby lane cell, decides if support is missing.
+        if(!service.isReplaceableDestination(new BlockPos(frame.feetX,blockY,frame.feetZ)))return false;
+        BlockPos destination=target.getDestination();
+        double[] predicted=AdaptiveBridgePlanner.predict(frame),start=routeStart(frame);
+        boolean relevant=AdaptiveBridgePlanner.falling(frame)
+                ?destinations(frame,blockY,predicted).contains(destination)
+                :(new BlockPos(start[0],blockY,start[1]).equals(destination)
+                    && overlapsFootprint(frame.feetX,frame.feetZ,destination))
+                    || isConnector(frame,target,corner(frame,blockY));
+        return relevant && validPreview(service,frame,target,predicted);
+    }
+
+    private boolean validFrame(ScaffoldPlacementService service,AdaptiveBridgePlanner.Frame frame,int blockY) {
+        return Thread.currentThread()==owningThread && service!=null && frame!=null
+                && frame.scope!=null && frame.scope.usable() && frame.authorized
+                && AdaptiveBridgePlanner.validMotion(frame) && blockY>=0 && blockY<=255;
+    }
+
+    private static double[] routeStart(AdaptiveBridgePlanner.Frame frame) {
+        return frame.hasLane && !AdaptiveBridgePlanner.falling(frame)
+                && Math.hypot(frame.feetX-frame.laneX,frame.feetZ-frame.laneZ)<=FOOTPRINT_HALF_WIDTH
+                ?new double[]{frame.laneX,frame.laneZ}:new double[]{frame.feetX,frame.feetZ};
+    }
+
+    private static List<BlockPos> destinations(AdaptiveBridgePlanner.Frame frame,int blockY,double[] predicted) {
+        List<BlockPos> cells=new ArrayList<>(MAX_RECOVERY_DESTINATIONS);
+        double[] start=routeStart(frame);
+        double endX=predicted[0],endZ=predicted[1];
+        boolean falling=AdaptiveBridgePlanner.falling(frame);
+        if(frame.hasLane && !falling && Math.hypot(frame.feetX-frame.laneX,frame.feetZ-frame.laneZ)<=FOOTPRINT_HALF_WIDTH) {
+            double along=(predicted[0]-frame.laneX)*frame.laneDirectionX
+                    +(predicted[1]-frame.laneZ)*frame.laneDirectionZ;
+            endX=frame.laneX+along*frame.laneDirectionX;
+            endZ=frame.laneZ+along*frame.laneDirectionZ;
+        }
+        add(cells,start[0],blockY,start[1]);
+        if(falling)footprint(cells,frame.feetX,blockY,frame.feetZ);
+        add(cells,(start[0]+endX)*.5,blockY,(start[1]+endZ)*.5);
+        add(cells,endX,blockY,endZ);
+        if(falling) {
+            footprint(cells,predicted[0],blockY,predicted[1]);
+            int lower=Math.max(blockY-1,net.minecraft.util.MathHelper.floor_double(
+                    AdaptiveBridgePlanner.predictFeetY(frame)-1));
+            if(frame.allowLowerRecovery && lower>=0 && lower<blockY) {
+                add(cells,predicted[0],lower,predicted[1]);
+                footprint(cells,predicted[0],lower,predicted[1]);
+            }
+        }
+        return cells;
+    }
+
+    private static boolean overlapsFootprint(double x,double z,BlockPos cell) {
+        return x+FOOTPRINT_HALF_WIDTH>cell.getX() && x-FOOTPRINT_HALF_WIDTH<cell.getX()+1
+                && z+FOOTPRINT_HALF_WIDTH>cell.getZ() && z-FOOTPRINT_HALF_WIDTH<cell.getZ()+1;
+    }
+
+    private static void footprint(List<BlockPos> cells,double x,int y,double z) {
+        // Only cells actually overlapped by the conservative player footprint.
+        // A grounded route never calls this and therefore cannot grow a side row.
+        for(int dx=-1;dx<=1;dx+=2)for(int dz=-1;dz<=1;dz+=2)
+            add(cells,x+dx*FOOTPRINT_HALF_WIDTH,y,z+dz*FOOTPRINT_HALF_WIDTH);
+    }
+
+    private static void add(List<BlockPos> cells,double x,int y,double z) {
+        if(cells.size()>=MAX_RECOVERY_DESTINATIONS || Math.abs(x)>30000000 || Math.abs(z)>30000000)return;
+        BlockPos cell=new BlockPos(x,y,z);
+        if(!cells.contains(cell))cells.add(cell);
     }
 
     private static boolean validPreview(ScaffoldPlacementService service,
             AdaptiveBridgePlanner.Frame frame,PlacementTarget target,double[] predicted) {
         if(target==null || target.world!=frame.scope.world || target.player!=frame.scope.player
                 || !service.isValid(target))return false;
-        Vec3 futureEyes=new Vec3(frame.eyeX+predicted[0]-frame.feetX,frame.eyeY,
+        Vec3 futureEyes=new Vec3(frame.eyeX+predicted[0]-frame.feetX,
+                frame.eyeY+AdaptiveBridgePlanner.predictFeetY(frame)-frame.feetY,
                 frame.eyeZ+predicted[1]-frame.feetZ);
         return futureEyes.squareDistanceTo(target.getHitVec())<=frame.reach*frame.reach;
     }
@@ -103,13 +261,16 @@ public final class AdaptiveBridgeScaffoldAdapter {
         List<AdaptiveBridgePlanner.SupportFace> options=new ArrayList<>();
 
         addIfValid(service,original,original,valid,options);
-        boolean held=keeping && !valid.isEmpty() && AdaptiveBridgePlanner.validMotion(frame)
+        boolean held=(keeping || isConnector(frame,original,corner(frame,destination.getY()))
+                    || frame.hasRotation && service.retainBridgeHit(original,
+                        (float)frame.rotationYaw,(float)frame.rotationPitch)!=null)
+                && !valid.isEmpty() && AdaptiveBridgePlanner.validMotion(frame)
                 && validPreview(service,frame,original,AdaptiveBridgePlanner.predict(frame));
         // All alternatives must still be approved by the existing service
         // and use the SAME destination, slot and actual inventory stack.
         if(!held)for(EnumFacing face:EnumFacing.values()) {
             if(face==original.getFacing())continue;
-            PlacementTarget alternate=service.planFace(destination.offset(face.getOpposite()),face,null);
+            PlacementTarget alternate=planFace(service,frame,destination.offset(face.getOpposite()),face);
             if(alternate!=null)addIfValid(service,original,alternate,valid,options);
         }
         AdaptiveBridgePlanner.Plan candidate=planner.prepare(frame,options);

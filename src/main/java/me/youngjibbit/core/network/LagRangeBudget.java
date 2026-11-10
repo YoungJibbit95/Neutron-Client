@@ -26,4 +26,6 @@ public final class LagRangeBudget {
     }
     private void expire(long now) { if (credit > 0 && (now - earnedAt < 0 || now - earnedAt > 2_000_000_000L)) reset(); }
     public void reset() { credit = consecutive = 0; lastCharge = Long.MIN_VALUE; }
+    /** Observation only: expiry is reported without changing the simulation budget. */
+    public int liveCredit(long now){return credit>0&&now-earnedAt>=0&&now-earnedAt<=2_000_000_000L?credit:0;}
 }

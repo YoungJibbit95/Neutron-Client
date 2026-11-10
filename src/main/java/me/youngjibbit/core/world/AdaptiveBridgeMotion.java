@@ -7,6 +7,20 @@ import java.lang.ref.WeakReference;
 /** Scaffold-only mathematics. The host keeps every rotation, input and placement permission. */
 public final class AdaptiveBridgeMotion {
     public enum Mode { ADAPTIVE, GODBRIDGE }
+    /** Urgency of the host's checked placement task; it never grants placement authority. */
+    public enum Task { TRACKING, APPROACH, EDGE, CLUTCH }
+    /** Correlated mouse-speed envelopes; these never add random angular error to a settled aim. */
+    public enum NoiseProfile {
+        OFF(0, 0, .035, .065), STEADY(.55, .30, .045, .080),
+        NATURAL(.9, .60, .035, .060), LIVELY(1.45, 1, .028, .045);
+        final double frequency, depth, initialResponse, keepingResponse;
+        NoiseProfile(double frequency, double depth, double initialResponse, double keepingResponse) {
+            this.frequency = frequency; this.depth = depth;
+            this.initialResponse = initialResponse; this.keepingResponse = keepingResponse;
+        }
+    }
+    private static final double MOTION_SECONDS = .05;
+    private static final long MAX_PAUSE_NANOS = 250_000_000L;
     /**
      * Preset fractions of the host yaw/pitch slider base (degrees per 50 ms).
      * The keeping multipliers reproduce the accepted W08 pace exactly, so a
@@ -33,6 +47,10 @@ public final class AdaptiveBridgeMotion {
         /** Degrees per second caps of the settled keeping phase; equal to the base caps when flat. */
         public final double keepingYawSpeed, keepingPitchSpeed;
         public final double maxAcceleration, maxJerk;
+        /** The range-based UI has one absolute cap for every phase, including recovery. */
+        public final boolean aimRange;
+        public final NoiseProfile noiseProfile;
+        public final double minAimSpeed, noiseTempo;
         /** The keeping phase engages once this fraction of the initial distance is covered. */
         static final double KEEPING_PROGRESS = .4;
 
@@ -57,6 +75,7 @@ public final class AdaptiveBridgeMotion {
                     || keepingPitchTicks != null && (!positive(keepingPitchTicks) || keepingPitchTicks > 90))
                 throw new IllegalArgumentException("invalid bridge rotation settings");
             this.mode = mode; this.speed = speed; this.variation = variation;
+            aimRange = false; noiseProfile = NoiseProfile.OFF; minAimSpeed = 0; noiseTempo = 1;
             this.initialYawTicks = initialYawTicks; this.initialPitchTicks = initialPitchTicks;
             this.keepingYawTicks = keepingYawTicks; this.keepingPitchTicks = keepingPitchTicks;
             double profileScale = mode == Mode.GODBRIDGE ? .8 : 1;
@@ -72,6 +91,58 @@ public final class AdaptiveBridgeMotion {
             maxAcceleration = clamp(Math.max(maxYawSpeed, maxPitchSpeed) * 6 * speed.acceleration, 300, 4200);
             maxJerk = clamp(maxAcceleration * 20, 9000, 84000);
         }
+
+        /**
+         * Friendly global range in degrees per 50 ms. The minimum is a requested
+         * travel speed, never a minimum angular step: small corrections still
+         * settle exactly. Swapped slider endpoints have the same meaning.
+         */
+        public static Settings aimRange(Mode mode, NoiseProfile profile, double minAimTicks,
+                double maxAimTicks, double noiseAmount, double noiseTempo) {
+            return new Settings(mode, profile, minAimTicks, maxAimTicks, noiseAmount, noiseTempo);
+        }
+
+        private Settings(Mode mode, NoiseProfile profile, double first, double second,
+                double noiseAmount, double tempo) {
+            if (mode == null || profile == null || !finite(first) || !finite(second)
+                    || first < 1 || first > 180 || second < 1 || second > 180
+                    || !finite(noiseAmount) || noiseAmount < 0 || noiseAmount > 1
+                    || !finite(tempo) || tempo < .25 || tempo > 3)
+                throw new IllegalArgumentException("invalid bridge aim range");
+            this.mode = mode; speed = Speed.CUSTOM; variation = noiseAmount;
+            aimRange = true; noiseProfile = profile; noiseTempo = tempo;
+            initialYawTicks = initialPitchTicks = Math.max(first, second);
+            keepingYawTicks = keepingPitchTicks = Double.valueOf(Math.min(first, second));
+            minAimSpeed = Math.min(first, second) * 20;
+            maxYawSpeed = maxPitchSpeed = Math.max(first, second) * 20;
+            keepingYawSpeed = keepingPitchSpeed = maxYawSpeed;
+            maxAcceleration = Math.max(300, maxYawSpeed * 8);
+            maxJerk = maxAcceleration * 20;
+        }
+
+        /** Optional advanced phase limits may narrow, but never raise, the global range cap. */
+        public Settings withPhaseLimits(double initialYaw, double initialPitch,
+                double keepingYaw, double keepingPitch) {
+            return new Settings(this, initialYaw, initialPitch, keepingYaw, keepingPitch);
+        }
+
+        private Settings(Settings range, double initialYaw, double initialPitch,
+                double keepingYaw, double keepingPitch) {
+            if (!range.aimRange || !positive(initialYaw) || !positive(initialPitch)
+                    || !positive(keepingYaw) || !positive(keepingPitch)
+                    || initialYaw > 180 || initialPitch > 180 || keepingYaw > 180 || keepingPitch > 180)
+                throw new IllegalArgumentException("invalid bridge phase limits");
+            mode = range.mode; speed = range.speed; variation = range.variation;
+            aimRange = true; noiseProfile = range.noiseProfile; noiseTempo = range.noiseTempo;
+            minAimSpeed = range.minAimSpeed;
+            initialYawTicks = initialYaw; initialPitchTicks = initialPitch;
+            keepingYawTicks = Double.valueOf(keepingYaw); keepingPitchTicks = Double.valueOf(keepingPitch);
+            maxYawSpeed = Math.min(range.maxYawSpeed, initialYaw * 20);
+            maxPitchSpeed = Math.min(range.maxPitchSpeed, initialPitch * 20);
+            keepingYawSpeed = Math.min(range.keepingYawSpeed, keepingYaw * 20);
+            keepingPitchSpeed = Math.min(range.keepingPitchSpeed, keepingPitch * 20);
+            maxAcceleration = range.maxAcceleration; maxJerk = range.maxJerk;
+        }
         private AdaptiveMotionController.Limits limits() {
             // Reserve the reused engine's immutable acceleration-scale maximum.
             // It adds no second angular random walk or lateral curvature here.
@@ -84,17 +155,66 @@ public final class AdaptiveBridgeMotion {
         }
         public boolean same(Settings other) {
             return other != null && mode == other.mode && speed == other.speed
+                    && aimRange == other.aimRange && noiseProfile == other.noiseProfile
+                    && Double.compare(minAimSpeed, other.minAimSpeed) == 0
+                    && Double.compare(noiseTempo, other.noiseTempo) == 0
+                    && Double.compare(maxYawSpeed, other.maxYawSpeed) == 0
+                    && Double.compare(maxPitchSpeed, other.maxPitchSpeed) == 0
+                    && Double.compare(keepingYawSpeed, other.keepingYawSpeed) == 0
+                    && Double.compare(keepingPitchSpeed, other.keepingPitchSpeed) == 0
                     && Double.compare(variation, other.variation) == 0
                     && Double.compare(initialYawTicks, other.initialYawTicks) == 0
                     && Double.compare(initialPitchTicks, other.initialPitchTicks) == 0
                     && java.util.Objects.equals(keepingYawTicks, other.keepingYawTicks)
                     && java.util.Objects.equals(keepingPitchTicks, other.keepingPitchTicks);
         }
+
+        /** Degrees/second; emergency presets reserve at most 90/180 degrees per nominal tick. */
+        public double yawSpeed(Task task) {
+            double base = task == Task.TRACKING ? keepingYawSpeed : maxYawSpeed;
+            if (speed == Speed.CUSTOM) return base;
+            return task == Task.CLUTCH ? Math.max(base, 3600)
+                    : task == Task.EDGE ? Math.max(base, 1800) : base;
+        }
+        /** Degrees/second; CUSTOM always retains the configured initial/keeping limits. */
+        public double pitchSpeed(Task task) {
+            double base = task == Task.TRACKING ? keepingPitchSpeed : maxPitchSpeed;
+            return speed != Speed.CUSTOM && (task == Task.EDGE || task == Task.CLUTCH)
+                    ? Math.max(base, 1800) : base;
+        }
     }
 
     public static final class Point {
         public final double x, y, z;
         private Point(double x, double y, double z) { this.x = x; this.y = y; this.z = z; }
+    }
+    /** One task-aware turn proposal, before the manager's final sensitivity quantization. */
+    public static final class Turn {
+        public final double yaw, pitch, yawVelocity, pitchVelocity;
+        public final boolean candidate;
+        private Turn(double yaw, double pitch, double yawVelocity, double pitchVelocity) {
+            this.yaw = yaw; this.pitch = pitch;
+            this.yawVelocity = yawVelocity; this.pitchVelocity = pitchVelocity;
+            candidate = Math.abs(yawVelocity) > 1e-7 || Math.abs(pitchVelocity) > 1e-7;
+        }
+    }
+
+    /** Time continuity belongs to the bridge manoeuvre, not to its next block face. */
+    private static final class TaskTrajectory {
+        final AdaptiveBridgePlanner.Scope scope;
+        final Settings settings;
+        final FastNoiseLite noise;
+        final long startNanos;
+        boolean hasNoise;
+        double filteredNoise;
+        long lastSequence, lastNanos;
+        TaskTrajectory(AdaptiveBridgePlanner.Scope scope, Settings settings, long sequence, long nanos, long seed) {
+            this.scope = scope; this.settings = settings;
+            startNanos = lastNanos = nanos; lastSequence = sequence;
+            noise = new FastNoiseLite((int)(seed ^ scope.acquisitionGeneration * 0x9e3779b97f4a7c15L));
+            noise.SetNoiseType(FastNoiseLite.NoiseType.OpenSimplex2S);
+            noise.SetFractalType(FastNoiseLite.FractalType.None); noise.SetFrequency(1);
+        }
     }
     /** Weak tombstone: reset releases the active scene without reopening old generations. */
     private static final class Lifetime {
@@ -124,6 +244,7 @@ public final class AdaptiveBridgeMotion {
         AdaptiveBridgePlanner.Face face;
         Point cachedPoint;
         AdaptiveMotionController.Result cachedRotation;
+        Turn cachedTurn;
         Acquisition(AdaptiveBridgePlanner.Scope scope, Object identity, Settings settings,
                     long seed, long ordinal, long sequence, long nanos) {
             this.scope = scope; this.identity = identity; this.settings = settings;
@@ -141,6 +262,7 @@ public final class AdaptiveBridgeMotion {
     private final long seed;
     private Lifetime highest;
     private Acquisition current;
+    private TaskTrajectory taskTrajectory;
     private long ordinal, lastSequence = Long.MIN_VALUE, blockedThrough = Long.MIN_VALUE;
     private boolean retired;
     public AdaptiveBridgeMotion(long seed) { this.seed = seed; }
@@ -166,7 +288,10 @@ public final class AdaptiveBridgeMotion {
         double seconds = (a.lastNanos - a.startNanos) * 1e-9;
         double fade = 1 - Math.exp(-seconds / .2);
         double rate = settings.mode == Mode.GODBRIDGE ? .35 : .65;
-        double radius = (settings.mode == Mode.GODBRIDGE ? .035 : .08) * settings.variation * fade;
+        // The range-based controller varies the travel envelope, not the useful
+        // face point. In particular Godbridge must not chase decorative jitter.
+        double radius = settings.aimRange ? 0
+                : (settings.mode == Mode.GODBRIDGE ? .035 : .08) * settings.variation * fade;
         double[] point = { anchorX, anchorY, anchorZ };
         int normal = face.x != 0 ? 0 : face.y != 0 ? 1 : 2;
         double[] noise = new double[3];
@@ -208,10 +333,106 @@ public final class AdaptiveBridgeMotion {
         return result;
     }
 
+    /**
+     * A real host motion supplies a nominal 50 ms first-step budget. Looking at a
+     * face does not spend it. Later steps use elapsed motion time, capped at 75 ms;
+     * duplicate callbacks and a new face cannot buy another budget. Safe tracking
+     * eases into the target; an imminent edge or falling catch removes that delay.
+     * Physical motions without a task accrue no credit: resuming after them gets
+     * one nominal step, while a stalled consecutive task is still rejected.
+     * Custom sliders remain hard speed caps, even when a late catch is impossible.
+     */
+    public synchronized Turn advanceTask(AdaptiveBridgePlanner.Scope scope, Object identity,
+            Settings settings, Task task, long sequence, long nanos,
+            double fromYaw, double fromPitch, double targetYaw, double targetPitch, boolean authorized) {
+        Acquisition a = acquire(scope, identity, settings, sequence, nanos, authorized);
+        if (a == null) return null;
+        if (task == null || !finite(fromYaw) || !finite(fromPitch) || !finite(targetYaw)
+                || !finite(targetPitch) || fromPitch < -90 || fromPitch > 90
+                || targetPitch < -90 || targetPitch > 90) {
+            rejectIfCurrent(scope, identity, sequence); return null;
+        }
+        if (a.rotationSequence == sequence) return a.cachedTurn;
+        double dt = MOTION_SECONDS;
+        TaskTrajectory trajectory = taskTrajectory;
+        if (trajectory != null && trajectory.scope.same(scope) && trajectory.settings.same(settings)) {
+            long elapsed = a.lastNanos - trajectory.lastNanos;
+            long motionGap = sequence - trajectory.lastSequence;
+            if (motionGap <= 0 || elapsed < 0 || motionGap == 1 && elapsed >= MAX_PAUSE_NANOS) {
+                rejectIfCurrent(scope, identity, sequence); return null;
+            }
+            dt = motionGap > 1 ? MOTION_SECONDS : Math.min(.075, elapsed * 1e-9);
+        } else {
+            trajectory = new TaskTrajectory(scope, settings, sequence, a.lastNanos, seed);
+            taskTrajectory = trajectory;
+        }
+        double yawError = wrap(wrap(targetYaw) - wrap(fromYaw)), pitchError = targetPitch - fromPitch;
+        double yawCap = settings.yawSpeed(task), pitchCap = settings.pitchSpeed(task);
+        double response = task == Task.TRACKING ? .10 : task == Task.APPROACH ? .04 : 0;
+        if (settings.aimRange) {
+            boolean urgent = task == Task.EDGE || task == Task.CLUTCH;
+            // A Godbridge acquisition goes straight to its checked geometric
+            // solution within the same hard cap; subsequent corrections ease in.
+            boolean acquireGodbridge = settings.mode == Mode.GODBRIDGE && task == Task.APPROACH;
+            if (urgent || acquireGodbridge) response = 0;
+            else {
+                NoiseProfile profile = settings.noiseProfile;
+                double seconds = Math.max(0, (a.lastNanos - trajectory.startNanos) * 1e-9);
+                // Aim speed also controls the noise's time scale. Face switches
+                // retain the manoeuvre clock, so they cannot restart a pattern.
+                double pace = Math.sqrt((settings.minAimSpeed + settings.maxYawSpeed) / 1400);
+                double phase = seconds * profile.frequency * settings.noiseTempo * pace;
+                double rawNoise = profile == NoiseProfile.OFF ? 0
+                        : clamp(trajectory.noise.GetNoise((float)phase, 37.719f), -1, 1);
+                double noise = rawNoise;
+                if(trajectory.hasNoise) {
+                    double responseSeconds=.12/Math.max(.25,settings.noiseTempo*pace);
+                    double change=(rawNoise-trajectory.filteredNoise)*-Math.expm1(-dt/responseSeconds);
+                    double slew=dt*2*settings.noiseTempo*pace;
+                    noise=trajectory.filteredNoise+clamp(change,-slew,slew);
+                }
+                trajectory.filteredNoise=noise;trajectory.hasNoise=true;
+                double envelope = clamp(.55 + noise * .45 * settings.variation * profile.depth, 0, 1);
+                double minYaw = Math.min(settings.minAimSpeed, yawCap);
+                double minPitch = Math.min(settings.minAimSpeed, pitchCap);
+                yawCap = minYaw + (yawCap - minYaw) * envelope;
+                pitchCap = minPitch + (pitchCap - minPitch) * envelope;
+                response = (task == Task.TRACKING ? profile.keepingResponse : profile.initialResponse)
+                        / Math.max(.5, pace);
+                // Noise scales acceleration/braking as well as the travel cap,
+                // without ever pushing the turn outside its angular error.
+                response *= 1 + noise * .2 * settings.variation * profile.depth;
+            }
+        }
+        double yawStep = taskStep(yawError, yawCap, dt, response);
+        double pitchStep = taskStep(pitchError, pitchCap, dt, response);
+        Turn turn = new Turn(wrap(wrap(fromYaw) + yawStep), fromPitch + pitchStep,
+                dt > 0 ? yawStep / dt : 0, dt > 0 ? pitchStep / dt : 0);
+        trajectory.lastSequence = sequence; trajectory.lastNanos = a.lastNanos;
+        a.rotationSequence = sequence; a.cachedTurn = turn;
+        return turn;
+    }
+
+    private static double taskStep(double error, double speed, double dt, double response) {
+        if (dt <= 0 || Math.abs(error) <= 1e-7) return 0;
+        double remaining = Math.abs(error);
+        double eased = response == 0 ? remaining
+                : Math.max(.2, remaining * -Math.expm1(-dt / response));
+        return Math.copySign(Math.min(remaining, Math.min(speed * dt, eased)), error);
+    }
+
+    /** Read-only validity of the exact task proposal; a cached angle is not an active proposal. */
+    public synchronized boolean isTaskCurrent(AdaptiveBridgePlanner.Scope scope, Object identity, long sequence) {
+        return Thread.currentThread() == owningThread && !retired && current != null
+                && current.scope.same(scope) && current.identity == identity
+                && current.lastSequence == sequence && current.rotationSequence == sequence
+                && current.cachedTurn != null && sequence > blockedThrough;
+    }
+
     /** A rejected movement can restart only on a later physical motion. */
     public synchronized void rejectMotion(long sequence) {
         if (Thread.currentThread() != owningThread || current == null || current.lastSequence != sequence) return;
-        blockedThrough = Math.max(blockedThrough, sequence); current = null;
+        blockedThrough = Math.max(blockedThrough, sequence); current = null; taskTrajectory = null;
     }
     /** Context-query rejection may return after a newer acquisition replaced this one. */
     public synchronized void rejectMotion(AdaptiveBridgePlanner.Scope scope, Object identity, long sequence) {
@@ -222,11 +443,11 @@ public final class AdaptiveBridgeMotion {
     /** Explicit lifecycle invalidation requires a newer host generation to resume. */
     public synchronized boolean reset(AdaptiveBridgePlanner.Scope expected) {
         if (Thread.currentThread() != owningThread || highest == null || !highest.same(expected)) return false;
-        current = null; retired = true; return true;
+        current = null; taskTrajectory = null; retired = true; return true;
     }
     public synchronized void reset() {
         if (Thread.currentThread() != owningThread) return;
-        current = null; retired = true;
+        current = null; taskTrajectory = null; retired = true;
     }
 
     private Acquisition acquire(AdaptiveBridgePlanner.Scope scope, Object identity, Settings settings,
@@ -237,12 +458,13 @@ public final class AdaptiveBridgeMotion {
         if (order < 0 || order == 0 && sequence < lastSequence) return null;
         if (!authorized) { if (order == 0) rejectIfCurrent(scope, identity, sequence); return null; }
         if (order > 0) {
-            highest = new Lifetime(scope); current = null; retired = false;
+            highest = new Lifetime(scope); current = null; taskTrajectory = null; retired = false;
             lastSequence = blockedThrough = Long.MIN_VALUE;
         }
         if (retired || sequence <= blockedThrough) return null;
         if (current != null && (current.identity != identity || !current.settings.same(settings))) {
             if (sequence == current.lastSequence) { rejectMotion(sequence); return null; }
+            if (!current.settings.same(settings)) taskTrajectory = null;
             current = null;
         }
         if (current == null) {
@@ -260,7 +482,7 @@ public final class AdaptiveBridgeMotion {
         if (current != null && current.scope.same(scope) && current.identity == identity
                 && sequence >= current.lastSequence) {
             blockedThrough = Math.max(blockedThrough, sequence); lastSequence = Math.max(lastSequence, sequence);
-            current = null;
+            current = null; taskTrajectory = null;
         }
     }
     private int order(AdaptiveBridgePlanner.Scope scope) {
@@ -289,6 +511,12 @@ public final class AdaptiveBridgeMotion {
         return true;
     }
     private static boolean finite(double value) { return Double.isFinite(value); }
+    private static double wrap(double value) {
+        value %= 360;
+        if (value > 180) value -= 360;
+        if (value <= -180) value += 360;
+        return value;
+    }
     private static boolean positive(double value) { return finite(value) && value > 0; }
     private static double clamp(double value, double min, double max) {
         return Math.max(min, Math.min(max, value));
