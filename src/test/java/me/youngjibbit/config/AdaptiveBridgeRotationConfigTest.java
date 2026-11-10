@@ -48,7 +48,9 @@ public class AdaptiveBridgeRotationConfigTest {
             scaffold.getModeSetting("Scaffold Approach").setValue(approach);
             boolean bridge = "Adaptive Bridge".equals(approach);
             assertEquals(bridge, scaffold.getModeSetting("Bridge Rotation Profile").isVisible());
-            assertEquals(bridge, scaffold.getModeSetting("Aim Speed").isVisible());
+            assertFalse(scaffold.getModeSetting("Aim Speed").isVisible());
+            assertEquals(bridge,scaffold.getNumberSetting("Min Aim Speed").isVisible());
+            assertEquals(bridge,scaffold.getNumberSetting("Max Aim Speed").isVisible());
             assertEquals(bridge, scaffold.getNumberSetting("Bridge Rotation Variation").isVisible());
             boolean custom = bridge && "Custom".equals(scaffold.getModeSetting("Aim Speed").getValue());
             for (String slider : new String[]{"Initial Yaw Speed", "Initial Pitch Speed",
@@ -56,8 +58,8 @@ public class AdaptiveBridgeRotationConfigTest {
                 assertEquals(slider, custom, scaffold.getNumberSetting(slider).isVisible());
             }
             if (bridge) {
-                assertTrue(scaffold.getNumberSetting("Yaw Speed").isVisible());
-                assertTrue(scaffold.getNumberSetting("Pitch Speed").isVisible());
+                assertFalse(scaffold.getNumberSetting("Yaw Speed").isVisible());
+                assertFalse(scaffold.getNumberSetting("Pitch Speed").isVisible());
             }
         }
         assertEquals(55, scaffold.getNumberSetting("Initial Yaw Speed").getValue(), 0);
@@ -95,8 +97,11 @@ public class AdaptiveBridgeRotationConfigTest {
                 JsonObject settings = new JsonParser().parse(saved).getAsJsonObject()
                         .getAsJsonObject("modules").getAsJsonObject("scaffold").getAsJsonObject("settings");
                 assertEquals(profile, settings.get("bridge_rotation_profile").getAsString());
-                assertEquals(aim, settings.get("aim_speed").getAsString());
-                assertEquals(.73, settings.get("bridge_rotation_variation").getAsDouble(), 0);
+                assertNull(settings.get("aim_speed"));
+                assertEquals("Calm".equals(aim)?18D:"Swift".equals(aim)?55D:35D,
+                        settings.get("min_aim_speed").getAsDouble(),0);
+                assertEquals("Calm".equals(aim)?90D:180D,settings.get("max_aim_speed").getAsDouble(),0);
+                assertEquals(.73, settings.get("aim_noise_amount").getAsDouble(), 0);
                 assertTrue(settings.get("bridge_rotation_speed") == null);
                 if ("Custom".equals(aim)) {
                     assertEquals(21D, settings.get("initial_yaw_speed").getAsDouble(), 0);
@@ -112,7 +117,9 @@ public class AdaptiveBridgeRotationConfigTest {
                 assertTrue(configs.getLastError(), configs.loadConfig("BridgeMotion"));
                 assertEquals(saved, configs.serialize());
                 assertEquals("NCP", scaffold.getModeSetting("Rotation Mode").getValue());
-                assertEquals(aim, scaffold.getModeSetting("Aim Speed").getValue());
+                assertEquals("Custom".equals(aim),scaffold.getBooleanSetting("Phase Speed Limits").getValue());
+                assertEquals("Calm".equals(aim)?18D:"Swift".equals(aim)?55D:35D,
+                        scaffold.getNumberSetting("Min Aim Speed").getValue(),0);
                 assertEquals(11, scaffold.getNumberSetting("Yaw Speed").getValue(), 0);
                 assertEquals(17, scaffold.getNumberSetting("Pitch Speed").getValue(), 0);
             }

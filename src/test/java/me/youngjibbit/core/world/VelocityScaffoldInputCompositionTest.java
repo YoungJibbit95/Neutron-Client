@@ -83,7 +83,7 @@ public class VelocityScaffoldInputCompositionTest {
             r.f.scaffold.setToggled(false);
             r.f.scaffold.getModeSetting("Scaffold Approach").setValue(approach);
             r.f.scaffold.getBooleanSetting("Eagle").setValue(false);
-            r.f.scaffold.getBooleanSetting("Sprint").setValue(true);
+            r.f.scaffold.getModeSetting("Sprint Mode").setValue("Legit");
             r.f.scaffold.getBooleanSetting("Auto Jump").setValue(false);
             r.f.scaffold.getBooleanSetting("Tower").setValue(false);
             r.f.scaffold.getNumberSetting("Sneak After Blocks").setValue(interval ? 1D : 0D);
@@ -121,7 +121,7 @@ public class VelocityScaffoldInputCompositionTest {
                 if ("Neutron".equals(approach))
                     assertFalse("no later fresh input has consumed the earned pulse yet", r.player.movementInput.sneak);
                 assertTrue(r.player.onGround);
-                // Arsenic suppresses sprint in ordinary input even when the old Sprint value is true.
+                // Legit sprint respects the real sneak/forward result of each approach.
                 assertEquals("sprint is established only by physical input and the real module gate",
                         "Neutron".equals(approach), r.player.isSprinting());
 

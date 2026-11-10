@@ -245,6 +245,9 @@ public class EntityPlayerSP extends AbstractClientPlayer
         // Motion PRE can itself finish a newer walking frame, including before cancelling this one.
         if (!currentFrame.getAsBoolean()) return;
 
+        // Finalize after all PRE listeners, including key/module requests while Scaffold searches.
+        me.youngjibbit.module.impl.world.Scaffold.applySprintPolicy(this);
+        if (!currentFrame.getAsBoolean()) return;
         // PRE movement owners finalize sprint before its action packet, even if motion is cancelled.
         final boolean flag = this.isSprinting();
 
@@ -651,6 +654,7 @@ public class EntityPlayerSP extends AbstractClientPlayer
      */
     public void setSprinting(boolean sprinting)
     {
+        sprinting = me.youngjibbit.module.impl.world.Scaffold.filterSprint(this, sprinting);
         super.setSprinting(sprinting);
         this.sprintingTicksLeft = sprinting ? 600 : 0;
     }
@@ -988,6 +992,7 @@ public class EntityPlayerSP extends AbstractClientPlayer
             this.setSprinting(false);
         }
 
+        me.youngjibbit.module.impl.world.Scaffold.applySprintPolicy(this);
         RuntimeServices.rotation().beforeMovementPhysics();
 
         if (this.capabilities.allowFlying)

@@ -44,6 +44,11 @@ public final class CombatTimingCoordinator {
         return true;
     }
     public boolean owns(Object candidate) { expire(); return owner == candidate; }
+    /** HUD reads must not expire a lease or otherwise advance the gameplay coordinator. */
+    public boolean observesOwner(Object candidate) {
+        long now=clock.getAsLong();
+        return candidate!=null&&owner==candidate&&now-leaseUntil<0;
+    }
     public void release(Object candidate, long cooldownMs) {
         // An expired owner must not release a newer owner's window or extend its gap.
         if (owner != candidate) return;

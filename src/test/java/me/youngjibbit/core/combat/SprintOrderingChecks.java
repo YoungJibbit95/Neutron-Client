@@ -70,16 +70,16 @@ public class SprintOrderingChecks {
             } finally { f.scaffold.onDisable(); }
         }
     }
-    @Test public void missingPlanTargetLossAndDisableReleaseSprintSuppression() throws Exception {
+    @Test public void missingPlanAndTargetLossKeepOffUntilDisable() throws Exception {
         try (RotationBehaviorHookTest.Fixture f = new RotationBehaviorHookTest.Fixture()) {
             prepare(f); f.scaffold.onEnable();
             try {
                 f.player.sprint = true; f.player.onUpdateWalkingPlayer(); assertFalse(f.player.isSprinting()); actions(f);
                 f.player.inventory.mainInventory[3] = null; f.player.sprint = true;
-                f.player.onUpdateWalkingPlayer(); assertTrue(f.player.isSprinting()); assertTrue(f.player.isServerSprintState());
-                assertEquals(Collections.singletonList(C0BPacketEntityAction.Action.START_SPRINTING), actions(f));
+                f.player.onUpdateWalkingPlayer(); assertFalse(f.player.isSprinting()); assertFalse(f.player.isServerSprintState());
+                assertTrue(actions(f).isEmpty());
                 f.scaffold.onDisable(); f.player.sprint = false; f.player.onUpdateWalkingPlayer();
-                assertEquals(Collections.singletonList(C0BPacketEntityAction.Action.STOP_SPRINTING), actions(f));
+                assertTrue(actions(f).isEmpty());
                 f.player.sprint = true; f.player.onUpdateWalkingPlayer(); assertTrue(f.player.isServerSprintState());
                 assertEquals(Collections.singletonList(C0BPacketEntityAction.Action.START_SPRINTING), actions(f));
             } finally { f.scaffold.onDisable(); }
@@ -162,7 +162,7 @@ public class SprintOrderingChecks {
             assertNull(f.runtime.getRotationManager().getConfirmedOwner());
         }
     }
-    @Test public void towerPlanLossKeepsInitialSuppressionForOnlyTheCurrentStep() throws Exception {
+    @Test public void towerPlanLossKeepsOffForFollowingSearchSteps() throws Exception {
         try (RotationBehaviorHookTest.Fixture f = new RotationBehaviorHookTest.Fixture()) {
             prepare(f); MovementInput.moveForward = 0; f.player.moveForward = 0;
             TowerController tower = new TowerController(new TowerController.Access() {
@@ -180,8 +180,8 @@ public class SprintOrderingChecks {
                 f.player.sprint = true; f.player.onUpdateWalkingPlayer();
                 assertEquals(.42, f.player.motionY, 0); assertNull(f.player.inventory.mainInventory[3]);
                 assertFalse(f.player.isSprinting()); assertFalse(f.player.isServerSprintState()); assertTrue(actions(f).isEmpty());
-                f.player.sprint = true; f.player.onUpdateWalkingPlayer(); assertTrue(f.player.isSprinting());
-                assertEquals(Collections.singletonList(C0BPacketEntityAction.Action.START_SPRINTING), actions(f));
+                f.player.sprint = true; f.player.onUpdateWalkingPlayer(); assertFalse(f.player.isSprinting());
+                assertTrue(actions(f).isEmpty());
             } finally { f.scaffold.onDisable(); }
         }
     }

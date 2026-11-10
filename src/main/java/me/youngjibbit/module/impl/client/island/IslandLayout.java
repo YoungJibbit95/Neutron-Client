@@ -12,12 +12,18 @@ public final class IslandLayout {
             viewportWidth = Math.max(1, screenW);
             viewportHeight = Math.max(1, screenH);
             float limit = Math.min(380, Math.min(viewportWidth * .85f, Math.max(1, viewportWidth - 16)));
-            this.width = clamp(width, Math.min(1, limit), limit);
-            this.height = clamp(height, Math.min(1,limit), Math.max(1, viewportHeight - 8));
+            this.width = clamp(width, Math.min(.01f, limit), limit);
+            this.height = clamp(height, Math.min(.01f,limit), Math.max(1, viewportHeight - 8));
             this.radius = clamp(radius, 0, Math.min(this.width,this.height) / 2);
             this.opacity = clamp(opacity, 0, 1);
             this.x = clamp((viewportWidth - this.width) / 2, 0, viewportWidth - this.width);
             this.y = clamp(8, 0, viewportHeight - this.height);
+        }
+
+        private Frame(Frame frame, float left) {
+            viewportWidth=frame.viewportWidth;viewportHeight=frame.viewportHeight;
+            width=frame.width;height=frame.height;radius=frame.radius;opacity=frame.opacity;
+            x=clamp(left,0,viewportWidth-width);y=frame.y;
         }
 
         /** Retargetable geometry centered at the same safe-area anchor. */
@@ -25,14 +31,18 @@ public final class IslandLayout {
             return new Frame(viewportWidth, viewportHeight, finite(width, this.width),
                     finite(height, this.height), finite(radius, this.radius), finite(opacity, this.opacity));
         }
+        /** Keep a group of detached widgets centered together with its main capsule. */
+        public Frame shiftHorizontally(float delta) {
+            return new Frame(this,x+finite(delta,0));
+        }
     }
 
     public static Frame forState(IslandStateMachine.State state, int width, int height) {
         if (state == null) state = IslandStateMachine.State.IDLE;
         switch (state) {
             case TARGET: return new Frame(width, height, 280, 56, 20, 1);
-            case SCAFFOLD: return new Frame(width, height, 260, 48, 20, .98f);
-            case MODULE_TOAST: case POSSIBLE_SETBACK: return noticeFrame(state,width,height);
+            case SCAFFOLD: return new Frame(width, height, 224, 46, 17, .98f);
+            case MODULE_TOAST: case POSSIBLE_SETBACK: case NOTIFICATION: return noticeFrame(state,width,height);
             case CLOCK_REMINDER: return clockFrame(width,height);
             case INVENTORY_ACTIVITY: return new Frame(width, height, 250, 46, 19, 1);
             case IDLE:
@@ -50,8 +60,8 @@ public final class IslandLayout {
         if(state==null)state=IslandStateMachine.State.IDLE;
         switch(state){
             case TARGET:return new Frame(width,height,266,52,17,1);
-            case SCAFFOLD:return new Frame(width,height,248,44,17,1);
-            case MODULE_TOAST:case POSSIBLE_SETBACK:return noticeFrame(state,width,height);
+            case SCAFFOLD:return new Frame(width,height,224,46,17,1);
+            case MODULE_TOAST:case POSSIBLE_SETBACK:case NOTIFICATION:return noticeFrame(state,width,height);
             case CLOCK_REMINDER:return clockFrame(width,height);
             case INVENTORY_ACTIVITY:return new Frame(width,height,236,42,17,1);
             case IDLE:

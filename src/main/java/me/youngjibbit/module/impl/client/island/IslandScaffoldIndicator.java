@@ -91,8 +91,9 @@ public final class IslandScaffoldIndicator {
 
     /** Complete item/text/status canvas is fitted as one unit, including during Island morphs. */
     public static final class Layout {
-        public static final float WIDTH=248,HEIGHT=44,ITEM_X=10,ITEM_Y=10,ITEM_SIZE=24,
-                TEXT_X=42,TEXT_WIDTH=160,STATUS_X=214,STATUS_Y=6,STATUS_SIZE=24,LABEL_Y=33;
+        public static final float WIDTH=224,HEIGHT=46,ITEM_X=9,ITEM_Y=8,ITEM_SIZE=22,
+                TEXT_X=40,TEXT_WIDTH=136,STATUS_X=190,STATUS_Y=4,STATUS_SIZE=24,LABEL_Y=30,
+                GRAPH_X=40,GRAPH_Y=36,GRAPH_WIDTH=136,GRAPH_HEIGHT=6;
         public final float x,y,scale,width,height;
         public Layout(IslandLayout.Frame frame){
             scale=Math.min(1,Math.min(frame.width/WIDTH,frame.height/HEIGHT));

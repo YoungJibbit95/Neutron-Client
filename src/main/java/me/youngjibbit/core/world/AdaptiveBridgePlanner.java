@@ -242,8 +242,11 @@ public final class AdaptiveBridgePlanner {
                     ? Math.hypot(wrap(yaw - frame.rotationYaw), pitch - frame.rotationPitch)
                     : Math.abs(wrap(yaw - frame.yaw));
             double score = Math.hypot(towardsX, towardsZ)
-                    + .12 * turn / 180
-                    + .025 * dist;
+                    // All options belong to one destination. Once a useful aim
+                    // exists, a shorter mouse path matters more than centimetres
+                    // of reach; centre-biased scoring causes diagonal face swings.
+                    + (frame.hasRotation ? .01 * turn : .12 * turn / 180)
+                    + (frame.hasRotation ? .001 : .025) * dist;
             if (score < bestScore) { // stable first-candidate tie order
                 selected = face; bestScore = score;
                 chosenYaw = wrap(yaw); chosenPitch = pitch;

@@ -112,19 +112,29 @@ public final class PacketDelays {
     }
     /** Metadata only: no packet payloads, names or chat content. Does not pump or release queues. */
     public synchronized Snapshot snapshot(Object owner) {
-        long now = clock.getAsLong(), oldest = 0;
-        int held = 0;
+        long now = clock.getAsLong(), oldest = 0, ownerOldest = 0;
+        int held = 0, liveHeld = 0;
+        Request request=requests.get(owner);
+        boolean ownerActive=!closed&&request!=null&&now-request.expires<0;
         for (ArrayDeque<Entry> queue : queues.values()) for (Entry entry : queue) {
             oldest = Math.max(oldest, Math.max(0, now - entry.created));
-            if (entry.holds.containsKey(owner)) held++;
+            Long deadline=entry.holds.get(owner);
+            if (deadline!=null) {
+                held++;
+                if(ownerActive&&now-deadline<0&&now-entry.created>=0){liveHeld++;ownerOldest=Math.max(ownerOldest,now-entry.created);}
+            }
         }
-        return new Snapshot(size(), held, requests.size(), oldest / 1000000L);
+        return new Snapshot(size(), held, requests.size(), oldest / 1000000L,liveHeld,ownerOldest/1000000L,ownerActive);
     }
     public static final class Snapshot {
         public final int size, heldByOwner, activeOwners;
         public final long oldestAgeMs;
-        Snapshot(int size, int heldByOwner, int activeOwners, long oldestAgeMs) {
+        public final int liveHeldByOwner;
+        public final long ownerOldestAgeMs;
+        public final boolean ownerActive;
+        Snapshot(int size, int heldByOwner, int activeOwners, long oldestAgeMs,int liveHeldByOwner,long ownerOldestAgeMs,boolean ownerActive) {
             this.size = size; this.heldByOwner = heldByOwner; this.activeOwners = activeOwners; this.oldestAgeMs = oldestAgeMs;
+            this.liveHeldByOwner=liveHeldByOwner;this.ownerOldestAgeMs=ownerOldestAgeMs;this.ownerActive=ownerActive;
         }
     }
     /** Observes lease deadlines and direction queues without pumping, testing matchers or renewing leases. */
