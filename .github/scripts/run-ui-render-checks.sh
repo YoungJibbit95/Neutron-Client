@@ -38,6 +38,7 @@ maven_version="$("$maven_bin" --version 2>&1)"
   xrandr -q &&
   glxinfo -B
 } 2>&1 | tee "$logs/environment.log"
+python3 "$script_dir/glx-pbuffer-probe.py" 2>&1 | tee "$logs/glx-configs.log"
 
 if [[ "$java_version" != *'1.8.0_482'* || "$java_version" != *'Temurin'* \
       || "$java_version" != *'build 1.8.0_482-b08'* || "$javac_version" != 'javac 1.8.0_482' ]]; then

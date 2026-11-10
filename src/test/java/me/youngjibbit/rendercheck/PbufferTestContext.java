@@ -25,8 +25,21 @@ public final class PbufferTestContext implements AutoCloseable {
         boolean ready=false;
         try {
             require(!Display.isCreated(),"Each render check requires its own JVM without a native Display");
-            buffer=new Pbuffer(1280,960,new PixelFormat().withDepthBits(24).withStencilBits(8),null,null);
-            buffer.makeCurrent();ready=true;
+            // The fixture reads 8-bit RGBA images. Do not leave color precision at
+            // PixelFormat's zero-bit minimum: GLX may select an unrelated format.
+            buffer=new Pbuffer(1280,960,new PixelFormat().withBitsPerPixel(24).withAlphaBits(8)
+                    .withDepthBits(24).withStencilBits(8),null,null);
+            buffer.makeCurrent();
+            require(glGetInteger(GL_RED_BITS)>=8 && glGetInteger(GL_GREEN_BITS)>=8
+                    && glGetInteger(GL_BLUE_BITS)>=8 && glGetInteger(GL_ALPHA_BITS)>=8,
+                    "Pbuffer requires at least 8 bits per RGBA channel");
+            require(glGetInteger(GL_DEPTH_BITS)>=24 && glGetInteger(GL_STENCIL_BITS)>=8,
+                    "Pbuffer requires 24-bit depth and 8-bit stencil");
+            System.out.println("Pbuffer format: RGBA="+glGetInteger(GL_RED_BITS)+"/"
+                    +glGetInteger(GL_GREEN_BITS)+"/"+glGetInteger(GL_BLUE_BITS)+"/"
+                    +glGetInteger(GL_ALPHA_BITS)+", depth="+glGetInteger(GL_DEPTH_BITS)
+                    +", stencil="+glGetInteger(GL_STENCIL_BITS));
+            ready=true;
         } finally {if(!ready)close();}
     }
     public void initialize(Minecraft mc,File data) throws Exception {
