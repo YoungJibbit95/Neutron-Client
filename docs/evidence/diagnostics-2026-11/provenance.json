@@ -21,7 +21,7 @@
     "baselineTests": 10,
     "candidateTests": 10,
     "failures": 0,
-    "boundary": "fresh isolated JVMs; full-suite order-dependent failure remains unresolved",
+    "boundary": "Historical fresh isolated JVM runs of the original fixture; subsequent JIT-dependent fixture reproduction and correction are recorded separately below. Final supported full-suite CI remains required.",
     "candidateClasspath": "target/test-classes:target/classes:target/render-classpath.txt entries",
     "baselineClasspath": "target/test-classes:exact baseline JAR:target/render-classpath.txt entries",
     "environment": "JAVA_TOOL_OPTIONS removed for child processes; java.io.tmpdir and java.awt.headless passed directly"
@@ -36,7 +36,8 @@
     "src/main/java/me/youngjibbit/core/diagnostics/ChunkPipelineMetrics.java": "476f3ca7e9fe3bfb28304917f63cc08db9f6dc99b6fe4c8b2cf31308d51750c1",
     "src/test/java/me/youngjibbit/core/diagnostics/ChunkPipelineMetricsTest.java": "16e345d5f2ed26b4caec58c71241e3b61640a14afe024e93b16df1481efa4c12",
     "src/main/java/me/youngjibbit/core/diagnostics/GpuPassTimings.java": "da62071ba8e924e2c81e55b2b947248abc8de974c5fbbf6dd5080af4bab589a8",
-    "src/test/java/me/youngjibbit/core/diagnostics/GpuPassTimingsTest.java": "9e12796f3fef3db7adff23876a4be84d4047f9cb28067bdf14b6c54cbf4ff24f"
+    "src/test/java/me/youngjibbit/core/diagnostics/GpuPassTimingsTest.java": "9e12796f3fef3db7adff23876a4be84d4047f9cb28067bdf14b6c54cbf4ff24f",
+    "src/test/java/me/youngjibbit/core/network/SmartDisableLifecycleTest.java": "d233ceebcf3e6a7b3f1234e46f12ce1410ea03406ee3a9b5c0567fcc44908c5f"
   },
   "evidenceSha256": {
     "candidate-suite-summary.txt": "f7bf47eb0d1b900559c308c0756b6ab3bf8390a9b230e0a96cba43e92e4455c6",
@@ -56,5 +57,104 @@
     "overlappingChunkMetricTests": 15,
     "output": "core-and-chunk-56-tests.txt",
     "boundary": "isolated Java 8 production lifecycle/queue fixtures with mock GL uploads; reported by independent core implementer and raw output retained"
+  },
+  "smartDisableFixtureCorrection": {
+    "review": "Independent source review accepted: all original 10 test methods and assertions retained, one client-isolation test added, production Module toggle/enable/disable and ModuleSmartDisable remain exercised.",
+    "initialPullRequest": 184,
+    "initialPullRequestHeadReportedByIntegrator": "afaf969cf9f852bec0aff391d03e5896740b938d",
+    "candidateLocalSourceCommitBeforeFixtureFix": "45731532484035fd0b679d6faa409d34dca8e737",
+    "sourceFile": "src/test/java/me/youngjibbit/core/network/SmartDisableLifecycleTest.java",
+    "sourceSha256": "d233ceebcf3e6a7b3f1234e46f12ce1410ea03406ee3a9b5c0567fcc44908c5f",
+    "productionClassesIndependentlyHashCompared": {
+      "me/youngjibbit/module/Module.class": {
+        "baseline_sha256": "1788755dbc2519b875381446fccfc53028ced7828c9f8b78ac6ba061087ebcb2",
+        "candidate_sha256": "1788755dbc2519b875381446fccfc53028ced7828c9f8b78ac6ba061087ebcb2"
+      },
+      "me/youngjibbit/core/module/ModuleSmartDisable.class": {
+        "baseline_sha256": "f2c32df86bd4ce834b1ed170c04aa8dc6dbd2b2e1b65e6babb65c3d74a7e5590",
+        "candidate_sha256": "f2c32df86bd4ce834b1ed170c04aa8dc6dbd2b2e1b65e6babb65c3d74a7e5590"
+      }
+    },
+    "before": {
+      "baselineForcedJit": {
+        "tests": 10,
+        "failures": 7
+      },
+      "candidateForcedJit": {
+        "tests": 10,
+        "failures": 7
+      },
+      "candidateInterpreter": {
+        "tests": 10,
+        "failures": 0
+      }
+    },
+    "after": [
+      {
+        "name": "baseline-default",
+        "jvm_flags": [],
+        "tests": 11,
+        "failures": 0,
+        "exit_code": 0,
+        "log_sha256": "d3fb27aade9658e7eb17dfba5bfba651b55a63693ec41ec810c87184bc19fa9d"
+      },
+      {
+        "name": "baseline-interpreter",
+        "jvm_flags": [
+          "-Xint"
+        ],
+        "tests": 11,
+        "failures": 0,
+        "exit_code": 0,
+        "log_sha256": "7af0ce57d7b808f7b8a85d18a49afa98c52fe959bbcbc95873f80c24fff00527"
+      },
+      {
+        "name": "baseline-forced-supplier-jit",
+        "jvm_flags": [
+          "-Xcomp",
+          "-XX:CompileCommand=compileonly,me/youngjibbit/module/Module.lambda$enableSmartDisable$0",
+          "-XX:CompileCommand=compileonly,me/youngjibbit/core/network/SmartDisableLifecycleTest$Guarded.lambda$new$0"
+        ],
+        "tests": 11,
+        "failures": 0,
+        "exit_code": 0,
+        "log_sha256": "08fc9ef5fee3f9e31ddaa00ec839231b2ff728793e132b1fb0401818d50bb51f"
+      },
+      {
+        "name": "candidate-default",
+        "jvm_flags": [],
+        "tests": 11,
+        "failures": 0,
+        "exit_code": 0,
+        "log_sha256": "3b3f792bc4cd6e3b1f18e86dd43713182abc4bcb8ca59bce50782ea5b0005f3f"
+      },
+      {
+        "name": "candidate-interpreter",
+        "jvm_flags": [
+          "-Xint"
+        ],
+        "tests": 11,
+        "failures": 0,
+        "exit_code": 0,
+        "log_sha256": "77d7d41b5fe5c5b419f9b384b25ce9dd4f519a9a57807f3a72056d5ba06e02cd"
+      },
+      {
+        "name": "candidate-forced-supplier-jit",
+        "jvm_flags": [
+          "-Xcomp",
+          "-XX:CompileCommand=compileonly,me/youngjibbit/module/Module.lambda$enableSmartDisable$0",
+          "-XX:CompileCommand=compileonly,me/youngjibbit/core/network/SmartDisableLifecycleTest$Guarded.lambda$new$0"
+        ],
+        "tests": 11,
+        "failures": 0,
+        "exit_code": 0,
+        "log_sha256": "1b2a00ab33d4a5415d48a7491fd55d0fce40f5a047c537c8ce7ad2609ee2f203"
+      }
+    ],
+    "evidence": "../core-2026-11/smart-disable-jit-fixture.json",
+    "boundary": "Isolated fixture correction and JIT reproduction, not final full-suite CI. No gameplay/SmartDisable production change or assertion weakening."
+  },
+  "linkedEvidenceSha256": {
+    "../core-2026-11/smart-disable-jit-fixture.json": "efcec8fdc72f035283a9d48d7208e1261eda06e46ccfcfe3dbf7a0a63dc52a0a"
   }
 }
