@@ -3,6 +3,7 @@ package me.youngjibbit.module.impl.client;
 import me.youngjibbit.core.diagnostics.NetworkResearchTrace;
 import me.youngjibbit.core.diagnostics.NetworkResearchTrace.*;
 import me.youngjibbit.core.diagnostics.NetworkResearchSimulation;
+import me.youngjibbit.core.diagnostics.NetworkResearchRecording;
 import me.youngjibbit.core.network.PacketDelays;
 import me.youngjibbit.core.network.PacketPipeline;
 import me.youngjibbit.event.network.PlaySessionEvent;
@@ -145,6 +146,13 @@ public final class NetworkResearch extends Module {
     public long getOverwritten() { return trace.getOverwritten(); }
     public long getCaptureFailures() { return failures; }
     public void writeJsonLines(Writer destination) throws IOException { trace.writeJsonLines(destination); }
+    /** Capture metadata and scalars at one explicit client-thread inspection boundary. */
+    public NetworkResearchRecording recording() {
+        // Disabled modules have an empty observation run, even when Source still selects Simulation.
+        boolean simulated = isToggled() && "Simulation".equals(source.getValue());
+        return trace.recording(failures, simulated ? scenario.getValue().toUpperCase(Locale.ROOT) : "",
+                simulated ? simulation.getRejected() : 0);
+    }
     public void recordServerFlag(String evidenceReference, String check) {
         if (!observing() || !context(currentPipeline())) throw new IllegalStateException("active observed session required");
         trace.serverFlag(clock.getAsLong(), evidenceReference, check);

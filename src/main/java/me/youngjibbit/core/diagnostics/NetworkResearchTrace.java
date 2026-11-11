@@ -86,6 +86,11 @@ public final class NetworkResearchTrace {
     }
 
     public List<Entry> snapshot() { return Collections.unmodifiableList(new ArrayList<>(entries)); }
+    /** Explicit export boundary. Preserve loss counters alongside the immutable retained samples. */
+    public NetworkResearchRecording recording(long captureFailures, String scenario, long simulationRejected) {
+        return new NetworkResearchRecording(run, mode, origin, capacity, sequence, overwritten, rejected,
+                captureFailures, scenario, simulationRejected, snapshot());
+    }
     /** Exports a bounded snapshot; caller chooses the destination. No per-packet disk IO. */
     public void writeJsonLines(Writer destination) throws IOException {
         for (Entry entry : snapshot()) { destination.write(JSON.toJson(entry)); destination.write('\n'); }
@@ -103,7 +108,7 @@ public final class NetworkResearchTrace {
         public final int entityId;
         public final double x, y, z, renderedX, renderedY, renderedZ;
         public final long intervalNanos, deviationNanos;
-        private Entry(long run, long sequence, long nanos, Mode mode, Origin origin, Kind kind, String type, int id,
+        Entry(long run, long sequence, long nanos, Mode mode, Origin origin, Kind kind, String type, int id,
                       double x, double y, double z, double rx, double ry, double rz, long interval, long deviation, String detail) {
             this.run=run; this.sequence=sequence; this.nanos=nanos; this.mode=mode; this.origin=origin; this.kind=kind;
             packetType=type; entityId=id; this.x=x; this.y=y; this.z=z; renderedX=rx; renderedY=ry; renderedZ=rz;
