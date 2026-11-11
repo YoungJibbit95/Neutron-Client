@@ -269,6 +269,7 @@ public class ConfigManager {
                 + (plan.migratedOctaves==0?"":"; legacy octave counts truncated with minimum 1")
                 + (plan.migratedTiming==0?"":"; legacy preset timing preserved (Min/Max/Interpolation = 30/40/5); disable Preset Timing to use stored settings")
                 + (plan.migratedModes==0?"":"; historical Smooth mapped to Legit (bounded exponential interpolation)")
+                + (plan.migratedTargetHudModes==0?"":"; "+plan.migratedTargetHudModes+" TargetHUD design migrated to a current mode")
                 + (plan.legacyAssist==0?"":"; historical AimAssist modes use the shared bounded camera path; broken negative-noise speeds and repeated jitter are not reproduced")
                 + (plan.migratedDefaults==0?"":"; new optional rotation features defaulted off for legacy profiles")
                 + (plan.legacyScaffold==0?"":"; historical Scaffold uses the shared Godbridge plan; face raycasts remain mandatory")
@@ -707,7 +708,7 @@ public class ConfigManager {
             String requested=json.getAsString();
             if("targethud".equals(change.module.getId()) && "mode".equals(value.getId())) {
                 String migrated=me.youngjibbit.module.impl.render.TargetHUD.migrateMode(requested);
-                if(!requested.equals(migrated))plan.migratedModes++;
+                if(!requested.equals(migrated))plan.migratedTargetHudModes++;
                 requested=migrated;
             }
             if("client_settings".equals(change.module.getId()) && "gradient_method".equals(value.getId())) {
@@ -827,7 +828,7 @@ public class ConfigManager {
     private static final class Plan {
         final JsonObject root;
         final List<Change> changes = new ArrayList<>();
-        int unknown, migratedRotations, migratedOctaves, migratedTiming, migratedModes, legacyAssist, migratedDefaults, legacyScaffold, legacyNetwork, clampedLegacyDelays, migratedNetworkPolicies;
+        int unknown, migratedRotations, migratedOctaves, migratedTiming, migratedModes, migratedTargetHudModes, legacyAssist, migratedDefaults, legacyScaffold, legacyNetwork, clampedLegacyDelays, migratedNetworkPolicies;
         Plan(JsonObject root) { this.root = root; }
     }
     private static final class Change {

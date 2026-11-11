@@ -239,19 +239,23 @@ public class TargetHUD extends Module {
         final boolean creative="Creative".equals(f.design);final long epoch=sceneEpoch;
         GuiShaderBloom.afterBatch(()->{
             if(!isToggled()||!HUD.visible()||epoch!=sceneEpoch||mc.gameSettings.showDebugInfo)return;
-            surface.withScene(f.theme,true,false,3.5f,()->{
+            surface.withScene(f.theme,true,false,3.5f,policy->{
                 try(RenderState state=new RenderState()){
                     state.screenSpace();
                     try(GuiClip clip=GuiClip.push(new ClipRect(x,y,w,h))){
                         CreativeHudLayout.Fit fit=new CreativeHudLayout.Fit(142,34,w,h);
-                        glTranslatef(x+fit.x,y+fit.y,0);glScalef(fit.scale,fit.scale,1);
                         float bx=creative?35:0,bw=creative?107:142;
-                        UIUtils.drawDecorationRound(bx,0,bw,34,creative?11:13,new Color(17,23,34,Math.round(232*alpha)));
-                        if(creative)UIUtils.drawDecorationRound(1,3,28,28,14,new Color(27,34,47,Math.round(238*alpha)));
+                        // The common owner preserves the selected material, surface opacity and reveal alpha.
+                        float plateAlpha=alpha*(policy.style<0?policy.opacity:1);
+                        surface.inheritedPanel(x+fit.x+bx*fit.scale,y+fit.y,bw*fit.scale,34*fit.scale,
+                                (creative?11:13)*fit.scale,f.theme,plateAlpha,()->{});
+                        if(creative)surface.inheritedPanel(x+fit.x+fit.scale,y+fit.y+3*fit.scale,
+                                28*fit.scale,28*fit.scale,14*fit.scale,f.theme,plateAlpha,()->{});
+                        glTranslatef(x+fit.x,y+fit.y,0);glScalef(fit.scale,fit.scale,1);
                         int accent=f.theme.getPrimaryGradientRGB();
                         CompactHudVisuals.begin(fit.scale);
                         float cx=creative?15:18,cy=17,portrait=creative?23:24;
-                        CompactHudVisuals.dot(cx,cy,portrait/2,0xff2b3547,alpha);
+                        CompactHudVisuals.dot(cx,cy,portrait/2,0xff2b3547,alpha*policy.opacity);
                         if(creative){
                             CompactHudVisuals.arc(cx,cy,14,0,1,1.6f,accent,alpha*.18f);
                             CompactHudVisuals.arc(cx,cy,14,0,f.health,2,accent,alpha);

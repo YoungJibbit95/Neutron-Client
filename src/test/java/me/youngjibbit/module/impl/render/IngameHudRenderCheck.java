@@ -256,6 +256,7 @@ public final class IngameHudRenderCheck {
                             "Compact painter leaked GL/scene/batch state");
                 }
             }
+            CompactHudMaterialCheck.run(target,session,armor);
             SessionInfoRenderCheck.require(equipment[0].getItemDamage()==100&&held.getItemDamage()==800,"Compact armor mutated its source stacks");
         }finally{
             RenderDiagnostics.enabled=diagnostics;settings.animations.setValue(oldAnimations);settings.reducedMotion.setValue(oldReduced);

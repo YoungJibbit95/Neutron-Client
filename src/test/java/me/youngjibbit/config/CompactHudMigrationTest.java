@@ -20,10 +20,14 @@ public class CompactHudMigrationTest {
                 {"Rue","Rue"},{"Tenacity","Tenacity"},{"Basic","Basic"},{"Modern","Modern"},{"Creative","Creative"}};
         for(String[] alias:aliases){
             Path dir=temporary.newFolder().toPath();TargetHUD hud=new TargetHUD();
-            ConfigManager manager=new ConfigManager(dir,Collections.singletonList(hud),()->false,message->{});
+            java.util.List<String> messages=new java.util.ArrayList<>();
+            ConfigManager manager=new ConfigManager(dir,Collections.singletonList(hud),()->false,messages::add);
             String content="{\"version\":2,\"modules\":{\"targethud\":{\"settings\":{\"mode\":\""+alias[0]+"\",\"position_x\":83,\"position_y\":97}}}}";
             Files.write(dir.resolve("old.json"),content.getBytes(StandardCharsets.UTF_8));
             assertTrue(alias[0],manager.loadConfig("old"));assertEquals(alias[1],hud.getModeSetting("Mode").getValue());
+            String report=String.join(" ",messages);
+            assertEquals(alias[0],!alias[0].equals(alias[1]),report.contains("TargetHUD design migrated"));
+            assertFalse("HUD-only migration must not claim an AimAssist change",report.contains("Smooth mapped to Legit"));
             assertEquals(83,hud.getNumberSetting("Position X").getValue(),0);
             assertEquals(97,hud.getNumberSetting("Position Y").getValue(),0);
             assertTrue(manager.saveConfig("canonical"));

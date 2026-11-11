@@ -198,9 +198,10 @@ public class SessionInfo extends Module {
                 if(creative){
                     compactBlock(frame,0,0,61,40,policy);compactBlock(frame,65,0,89,40,policy);
                 }else compactBlock(frame,0,0,154,42,policy);
-                if(!creative){
-                    UIUtils.drawDecorationRound(x+37,y+21,49,17,7,new Color(107,141,179,20));
-                    UIUtils.drawDecorationRound(x+92,y+21,55,17,7,new Color(107,141,179,20));
+                if(!creative&&policy.background){
+                    int opacity=Math.round(20*policy.opacity);
+                    UIUtils.drawDecorationRound(x+37,y+21,49,17,7,new Color(107,141,179,opacity));
+                    UIUtils.drawDecorationRound(x+92,y+21,55,17,7,new Color(107,141,179,opacity));
                 }
                 CompactHudVisuals.begin(fit.scale);
                 int accent=frame.theme.getPrimaryGradientRGB();
@@ -217,7 +218,11 @@ public class SessionInfo extends Module {
     }
     private void compactBlock(Frame frame,float x,float y,float w,float h,UiEffects.SurfacePolicy policy){
         if(policy.blur)UiEffects.drawBlurredRect(frame.x+x,frame.y+y,w,h,11,Color.WHITE,Math.max(1,Math.round(frame.blurRadius)),1);
-        if(policy.background)UIUtils.drawDecorationRound(frame.x+x,frame.y+y,w,h,11,new Color(17,23,34,232));
+        if(policy.background){
+            // Forced material eligibility must survive low opacity; only legacy fallback scales its ink.
+            if(UiEffects.material())UIUtils.drawSceneRound(frame.x+x,frame.y+y,w,h,11);
+            else UIUtils.drawRound(frame.x+x,frame.y+y,w,h,11,new Color(17,23,34,Math.round(232*policy.opacity)));
+        }
     }
 
     void paint(Frame frame) {

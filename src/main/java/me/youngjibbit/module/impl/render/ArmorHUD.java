@@ -173,13 +173,21 @@ public class ArmorHUD extends Module {
                     boolean creative="Creative".equals(f.design);
                     if(!creative){
                         if(policy.blur)UiEffects.drawBlurredRect(0,0,f.width,f.height,10,Color.WHITE,3,1);
-                        if(policy.background)UIUtils.drawDecorationRound(0,0,f.width,f.height,10,new Color(17,23,34,232));
+                        if(policy.background){
+                            if(UiEffects.material())UIUtils.drawSceneRound(0,0,f.width,f.height,10);
+                            else UIUtils.drawRound(0,0,f.width,f.height,10,new Color(17,23,34,Math.round(232*policy.opacity)));
+                        }
                     }
                     for(Cell cell:f.cells){
                         if(creative){
                             if(policy.blur)UiEffects.drawBlurredRect(cell.x,cell.y,cell.w,cell.h,8,Color.WHITE,3,1);
-                            if(policy.background)UIUtils.drawDecorationRound(cell.x,cell.y,cell.w,cell.h,8,new Color(17,23,34,232));
-                        }else UIUtils.drawDecorationRound(cell.x,cell.y,cell.w,cell.h,7,new Color(133,160,195,cell.item==null?12:18));
+                            if(policy.background){
+                                if(UiEffects.material())UIUtils.drawSceneRound(cell.x,cell.y,cell.w,cell.h,8);
+                                else UIUtils.drawRound(cell.x,cell.y,cell.w,cell.h,8,
+                                        new Color(17,23,34,Math.round(232*policy.opacity)));
+                            }
+                        }else if(policy.background)UIUtils.drawDecorationRound(cell.x,cell.y,cell.w,cell.h,7,
+                                new Color(133,160,195,Math.round((cell.item==null?12:18)*policy.opacity)));
                     }
                     CompactHudVisuals.begin(f.scale);
                     for(Cell cell:f.cells)if(cell.item==null)
@@ -193,6 +201,10 @@ public class ArmorHUD extends Module {
                             try{
                                 float squeeze=1-cell.pulse*.07f;
                                 glTranslatef(ix+8,iy+8,0);glScalef(squeeze,squeeze,1);glTranslatef(-ix-8,-iy-8,0);
+                                // Semantic glyphs are untextured; vanilla RenderItem only binds its atlas.
+                                GlStateManager.setActiveTexture(OpenGlHelper.defaultTexUnit);
+                                org.lwjgl.opengl.GL13.glActiveTexture(OpenGlHelper.defaultTexUnit);
+                                GlStateManager.enableTexture2D();glEnable(GL_TEXTURE_2D);
                                 GlStateManager.enableDepth();GlStateManager.depthFunc(GL_LEQUAL);
                                 GlStateManager.depthMask(true);GlStateManager.enableAlpha();
                                 RenderHelper.enableGUIStandardItemLighting();mc.getRenderItem().zLevel=100;
