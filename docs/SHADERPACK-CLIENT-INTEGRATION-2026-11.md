@@ -11,9 +11,12 @@ Die Effekte behalten ihre eigene Blend-Rechnung. Ein Shaderpack, das diese Pfade
 noch nicht im Spiel durchlaufen hat, erhält dadurch keinen Kompatibilitätsstatus.
 
 **Abnahmestand dieses Dokuments:** Java-8-Kompilation und lokale Strukturtests
-sind erfolgreich. Die neuen nativen Prüfszenen sind implementiert, lokal jedoch
-**NOT_RUN**: Im Arbeitskontext konnte kein X11/Pbuffer-Kontext erstellt werden.
-CI-Ergebnisse müssen mit ihrer tatsächlichen Kandidatenrevision ergänzt werden.
+sind erfolgreich. Beide neuen nativen Shader-Prüfszenen haben in
+[CI-Lauf 43024301240](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/43024301240)
+auf `afaf969cf9f852bec0aff391d03e5896740b938d` bestanden. Der gesamte UI-Lauf
+scheiterte ausschließlich an der separaten GPU-Zeitmessfixture; Details stehen
+in Abschnitt 5. Ein nachfolgend integrierter Kandidatenstand braucht eigene
+bestandene Prüfungen. Lokal konnte kein X11/Pbuffer-Kontext erstellt werden.
 Beide unten benannten Sildur-Packs sowie Vollwelt-, Display- und Hardwaremessungen
 bleiben **NOT_RUN**. Frühere UI-Prüfungen gelten nur für ihre damals benannten
 Revisionen und Szenen; siehe [historischer Render-Bericht](RENDER-PERFORMANCE-2026-11.md).
@@ -150,9 +153,9 @@ keine GPU-Abschlüsse; nicht jeder historische Raw-GL-Helfer ist instrumentiert.
 | `RenderStateBuffersTest` | Getrennte verschachtelte Snapshots, wiederverwendeter direkter Speicher, begrenzter Idle-Pool, Thread-Trennung | PASS |
 | `RenderStateFramebufferCheck.selection` | Auswahl der vorhandenen Core-/ARB-/EXT-FBO-API | PASS |
 | `WorldOverlayContractTest` | Bootstrap, Hook-Reihenfolge, Hand-/Final-/FP-Grenze, Shadow-Guard, Per-Eye-Final-Reset, Listener- und Event-Vertrag | PASS für lokale Strukturprüfungen; nativer Opt-in nicht aktiviert |
-| [ShaderCompatibilityNativeCheck](../src/test/java/me/youngjibbit/utils/render/ShaderCompatibilityNativeCheck.java) | Reale GL-Programme mit kollidierenden Uniformpositionen, MRT-Metadatenschutz, Pack-Overrides/deferred state, getrennte Read-/Draw-FBOs, Viewport, verschachtelte/Exception-/Standalone-Scopes, Shadowprogramm und Reload-Generation. Diese MRT-/Split-FBO-Testfixture verlangt GL30; sie ist kein Beleg für einen GL2-only-Treiber. | NOT_RUN lokal |
-| [ShaderWorldOverlayNativeCheck](../src/test/java/me/youngjibbit/utils/render/ShaderWorldOverlayNativeCheck.java) | Produktionsevent mit synthetischer finaler Farbe und später Handtiefe: Alpha/additive Pixelorakel, Kamera, Augenkanäle, Quellen-/Main-Tiefe unverändert, 1:1/halbe/überhöhte Weltauflösung, Wiederverwendung, Resize/Generation/Welt/Frame/Auge/PartialTicks, Pack off/on, Exception/Callback-Release, detach/lifetime | NOT_RUN lokal |
-| Derselbe native Overlay-Check, Pass-Flags | Echte `beginRenderPass`, `setViewport`, `renderCompositeFinal`, `endRender` mit leeren Fixture-Packprogrammen: beide no-hand Augen brauchen je einen tatsächlichen Final-Draw, explizites Final erhält keinen zweiten Draw, Shadoweintritt verändert keine Hauptkamera-Flags | NOT_RUN lokal; kein externer Pack |
+| [ShaderCompatibilityNativeCheck](../src/test/java/me/youngjibbit/utils/render/ShaderCompatibilityNativeCheck.java) | Reale GL-Programme mit kollidierenden Uniformpositionen, MRT-Metadatenschutz, Pack-Overrides/deferred state, getrennte Read-/Draw-FBOs, Viewport, verschachtelte/Exception-/Standalone-Scopes, Shadowprogramm und Reload-Generation. Diese MRT-/Split-FBO-Testfixture verlangt GL30; sie ist kein Beleg für einen GL2-only-Treiber. | PASS in CI auf `afaf969c`; lokal NOT_RUN |
+| [ShaderWorldOverlayNativeCheck](../src/test/java/me/youngjibbit/utils/render/ShaderWorldOverlayNativeCheck.java) | Produktionsevent mit synthetischer finaler Farbe und später Handtiefe: Alpha/additive Pixelorakel, Kamera, Augenkanäle, Quellen-/Main-Tiefe unverändert, 1:1/halbe/überhöhte Weltauflösung, Wiederverwendung, Resize/Generation/Welt/Frame/Auge/PartialTicks, Pack off/on, Exception/Callback-Release, detach/lifetime | PASS in CI auf `afaf969c`; lokal NOT_RUN |
+| Derselbe native Overlay-Check, Pass-Flags | Echte `beginRenderPass`, `setViewport`, `renderCompositeFinal`, `endRender` mit leeren Fixture-Packprogrammen: beide no-hand Augen brauchen je einen tatsächlichen Final-Draw, explizites Final erhält keinen zweiten Draw, Shadoweintritt verändert keine Hauptkamera-Flags | PASS in CI auf `afaf969c`; kein externer Pack |
 | Bestehende `WorldOverlayNativeCheck` / `RendererReloadNativeCheck` | Isolierter unmittelbarer Kamerahook beziehungsweise Renderer-/ShaderGroup-Reload; begrenzte Fixture statt Vollspiel | Kandidatenlauf separat aus CI übernehmen |
 | Reales Spiel und benannte externe Packs | Tatsächliche Gbuffer-/Shadow-/Composite-/Final-Programme, native Fensterereignisse, Hardware-Framezeiten, gesamte Modul-Kombination | NOT_RUN |
 
@@ -161,6 +164,29 @@ Der Overlay-Check schreibt kleine Pixelnachweise nach
 `shader-compatibility-preview`-Verzeichnis. Logs, Bilder und Programmstatus müssen
 gemeinsam zur tatsächlich geprüften Revision archiviert werden. Ein synthetischer
 GL-Erfolg ändert die folgenden Pack-Zeilen nicht automatisch auf PASS.
+
+### Nachgewiesener erster CI-Lauf
+
+Der [Legacy-UI-Lauf 43024301240](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/43024301240)
+prüfte `afaf969cf9f852bec0aff391d03e5896740b938d` am 11.11.2026. Alle zwölf
+Teilprogramme wurden versucht. Beide Shader-Prüfprogramme und die vollständige
+Capture-Orchestrierungsprobe bestanden. Der einzige Fehler war ein X11-`BadMatch`
+beim Fixture-`glFlush` von `GpuPassTimingsNativeCheck`, das noch auf das
+Pbuffer-Standardziel zeichnete. Ein Wechsel dieser Fixture auf ein eigenes
+vollständiges Farb-FBO behält sämtliche Query-Orakel bei und ergänzt Pixel- und
+FBO-Zustandsprüfungen; dessen Erfolg muss ein neuer CI-Lauf belegen.
+
+Die Umgebung meldete Mesa 25.2.8, llvmpipe LLVM 20.1.2 und OpenGL 4.5
+Compatibility. Das [Artefakt `legacy-ui-184-1`](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/43024301240/artifacts/13857620255)
+enthält Logs und PNGs; ZIP-Größe 16.716.063 Bytes, SHA256
+`7b531e55f71575de1b516524b45d7f76c4190e3ed5e9ddeab9a8531b4d8e3c8f`.
+Der Download wurde gegen diese Prüfsumme geprüft; native, Augen- und
+halbskalierte Overlay-PNGs wurden zusätzlich visuell kontrolliert.
+
+Der getrennte [Performance-Lauf 43024300783](https://github.com/YoungJibbit95/Neutron-Client/actions/runs/43024300783)
+bestand für denselben Head gegen die oben genannte Basis: vier ausbalancierte
+JVM-Paare und 64 exakte RGBA-Vergleiche. Das ersetzt weder den noch offenen
+integrierten Kandidatenlauf noch die folgende externe Packmatrix.
 
 ### Geplante externe Packmatrix
 

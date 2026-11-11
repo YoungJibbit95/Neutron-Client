@@ -1500,11 +1500,14 @@ public class Minecraft implements IThreadListener, IPlayerUsage
 
     private void sendClickBlockToController(boolean leftClick)
     {
+        final boolean physicalAttack = leftClick;
         leftClick = leftClick && me.youngjibbit.module.impl.exploit.LagRange.allowBlockAttack();
         if (!leftClick)
         {
             this.leftClickCounter = 0;
         }
+
+        if (me.youngjibbit.module.impl.player.BedBreaker.handleBlockInput(this, physicalAttack)) return;
 
         if (this.leftClickCounter <= 0 && !this.thePlayer.isUsingItem())
         {
@@ -1528,6 +1531,7 @@ public class Minecraft implements IThreadListener, IPlayerUsage
     public void clickMouse()
     {
         if (this.thePlayer == null || this.theWorld == null || this.currentScreen != null || !this.inGameHasFocus) return;
+        me.youngjibbit.module.impl.player.BedBreaker.observeManualAttack(this);
         if (!me.youngjibbit.module.impl.exploit.LagRange.allowBlockAttack()) return;
         me.youngjibbit.module.Module aura = Pulsar.INSTANCE.getMm() == null ? null
                 : Pulsar.INSTANCE.getMm().getModule(me.youngjibbit.module.impl.combat.Aura.class);

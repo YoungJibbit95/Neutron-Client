@@ -116,5 +116,6 @@ jobs:
             target/legacy-ui-render/run.*/screenshots/**/flame-motion.gif
             target/legacy-ui-render/run.*/screenshots/**/shader-modes.json
             target/legacy-ui-render/run.*/screenshots/**/target-esp.json
+            target/legacy-ui-render/run.*/screenshots/**/inventory-assist-report.json
           if-no-files-found: error
           retention-days: 14

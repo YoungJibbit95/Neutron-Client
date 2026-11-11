@@ -2,6 +2,8 @@
 
 Date: 2026-11-11. Baseline: `97c263c792864d03c2271670121fd72d53bbfeb1`.
 
+Provenance boundary: the local measurements and test results in this report precede the later merge of upstream `main` at `fa24c93386daf61077772862b220f27817e07a99` into task revision `9d0775405eab6a382fab6e3343cc3993e8a0c8af`. Their original source/artifact hashes and raw samples remain the evidence for those exact runs. The integrated revision requires its own build and CI result; these earlier passes are not a substitute for that validation.
+
 This change corrects chunk task lifecycle and reduces a measured CPU cache cost. It does **not** establish an in-game FPS, GPU-time or packet-to-visible improvement. The exact baseline artifact, isolated candidate class, ordered samples and validation boundaries are distinguished below.
 
 ## Changes and their contracts

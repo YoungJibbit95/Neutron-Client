@@ -246,8 +246,13 @@ public class SmartDisableLifecycleTest {
             assertNotNull(module.getName(), death(module)); assertNotNull(module.getName(), world(module));
             assertFalse(death(module).getValue()); assertFalse(world(module).getValue());
             assertTrue(death(module).isVisible()); assertTrue(world(module).isVisible());
-            assertSame(death(module), module.getValues().get(module.getValues().size() - 2));
-            assertSame(world(module), module.getValues().get(module.getValues().size() - 1));
+            int deathIndex=module.getValues().indexOf(death(module));
+            assertSame(world(module), module.getValues().get(deathIndex+1));
+            String firstPhase2=module instanceof Aura?"adaptive_curve_strength"
+                    :module instanceof Scaffold?null:"interaction_mode";
+            if(firstPhase2==null)assertEquals(module.getValues().size()-2,deathIndex);
+            else assertSame("Phase 2 must append after the existing lifecycle pair",module.getValueByName(firstPhase2),
+                    module.getValues().get(deathIndex+2));
         }
         Scaffold scaffold = new Scaffold();
         for (String mode : new String[]{"Neutron", "Arsenic", "Adaptive Bridge"}) {

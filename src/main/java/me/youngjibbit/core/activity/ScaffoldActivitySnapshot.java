@@ -4,7 +4,7 @@ import java.util.Objects;
 
 /** Immutable display facts only; never placement admission or a retained game object. */
 public final class ScaffoldActivitySnapshot {
-    public enum Status { SEARCHING, ALIGNING, READY, PLACING, EDGE_GUARD, RECOVERING }
+    public enum Status { SEARCHING, ALIGNING, READY, PLACING, EDGE_GUARD, RECOVERING, WAITING, PAUSED }
     public static final long TTL_NANOS = 600_000_000L;
     private final long sequence, observedAtNanos, placementCount;
     private final int itemId, metadata, blockCount;

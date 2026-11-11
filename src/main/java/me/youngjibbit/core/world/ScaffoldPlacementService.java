@@ -178,7 +178,12 @@ public final class ScaffoldPlacementService {
 
     /** Refine only the hit point of the PRE face; never acquire a new block/stack in POST. */
     public PlacementTarget alignAcceptedHit(PlacementTarget target,RotationManager rotations) {
-        if(!isValid(target) || !rotations.canUseRotation("scaffold",false))return null;
+        return alignAcceptedHit(target,rotations,"scaffold");
+    }
+
+    /** The exact owner is explicit; another builder cannot inherit an accepted pose. */
+    public PlacementTarget alignAcceptedHit(PlacementTarget target,RotationManager rotations,String source) {
+        if(rotations==null || source==null || !isValid(target) || !rotations.canUseRotation(source,false))return null;
         Vec3 eyes=access.wireEyes();
         Vec3 direction=Entity.getVectorForRotation(rotations.getEffectivePitch(),rotations.getEffectiveYaw());
         MovingObjectPosition hit=access.rayTrace(eyes,eyes.add(scaled(direction,access.reach())));
@@ -430,7 +435,9 @@ public final class ScaffoldPlacementService {
         boolean placed = false;
         BooleanSupplier gate = () -> (actionValid.getAsBoolean() && sequence == rotations.getMotionSequence()
                 && usableRotation(rotations, pre, requiredRotationSource)
-                && valid(target, target.getSlot()) && effectiveHit(target, rotations, pre) != null)
+                && valid(target, target.getSlot()) && effectiveHit(target, rotations, pre) != null
+                && actionValid.getAsBoolean() && sequence == rotations.getMotionSequence()
+                && usableRotation(rotations, pre, requiredRotationSource))
                 || reject(Rejection.LATE_CHANGE);
         try {
             if (switched) access.selectSlot(target.getSlot());

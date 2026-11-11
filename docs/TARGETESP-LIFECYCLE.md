@@ -2,7 +2,7 @@
 
 ## TargetESP einschalten
 
-`Render → TargetESP` enthält zwei unabhängig schaltbare Anzeigen: einen Halo am aktuellen Aura-Target und einen Punkt für die aktuell angewendete Aura-/Scaffold-Rotation. Das Modul ist standardmäßig ausgeschaltet. Nach dem Einschalten sind beide Anzeigen zunächst ausgewählt.
+`Render → TargetESP` enthält zwei unabhängig schaltbare Anzeigen: einen Halo am aktuellen Aura-Target und einen Punkt für die aktuell angewendete Aura-/Scaffold-/NScaffold-Rotation. Das Modul ist standardmäßig ausgeschaltet. Nach dem Einschalten sind beide Anzeigen zunächst ausgewählt.
 
 Die Einstellungen liegen in den drei Dropdown-Unterkategorien **Halo**, **Hitpoint** und **Appearance**. Die zugehörigen Detailregler werden ausgeblendet, wenn ihre Anzeige ausgeschaltet ist; der Schalter selbst bleibt erreichbar.
 
@@ -24,12 +24,12 @@ Der Halo übernimmt das aktive Target der Aura. Er sucht selbst keine Gegner. Ei
 | Einstellung | Wirkung |
 |---|---|
 | Hitpoint | Schaltet den Rotationspunkt ein oder aus. |
-| Hitpoint Source | `Active` zeigt den aktuell akzeptierten Besitzer der Rotation; `Aura` und `Scaffold` beschränken die Anzeige auf dieses Modul. |
+| Hitpoint Source | `Active` zeigt den aktuell akzeptierten Besitzer der Rotation; `Aura`, `Scaffold` und `NScaffold` beschränken die Anzeige auf genau dieses Modul. |
 | Hitpoint Size | Größe des geschichteten Punktes und seines Glows. |
 | Hitpoint Ray Length | Länge des **Visualisierungsstrahls**, standardmäßig sechs Blöcke. Verändert keine Angriffs- oder Platzierungsreichweite. |
 | Show Ray Misses | Zeigt bei fehlendem Treffer einen schwächeren Punkt am Strahlende. Ausgeschaltet erscheinen nur tatsächliche lokale Schnittpunkte. |
 
-Der Punkt beobachtet ausschließlich die **lokal akzeptierten effektiven Rotationswinkel**. Der Strahl beginnt an der zuletzt lokal gemeldeten Spielerposition zuzüglich Augenhöhe. Bei Aura wird der nächste Schnittpunkt mit einer kollidierbaren Entität oder einem Block angezeigt; bei Scaffold werden Blöcke berücksichtigt.
+Der Punkt beobachtet ausschließlich die **lokal akzeptierten effektiven Rotationswinkel**. Der Strahl beginnt an der zuletzt lokal gemeldeten Spielerposition zuzüglich Augenhöhe. Bei Aura wird der nächste Schnittpunkt mit einer kollidierbaren Entität oder einem Block angezeigt; bei Scaffold und NScaffold werden Blöcke berücksichtigt. Beide Builder bleiben eigenständige Besitzer; das Aktivieren eines Moduls bestätigt keine alte Rotation des anderen.
 
 Das ist **keine Serverbestätigung** eines Treffers, Angriffs oder platzierten Blocks. Der Punkt zeigt auch keinen gewünschten zukünftigen Aim-Punkt. Die Anzeige fordert keine Rotation an und löst keine Spielaktion aus.
 
