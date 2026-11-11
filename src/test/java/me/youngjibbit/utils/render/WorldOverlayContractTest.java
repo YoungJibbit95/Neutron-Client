@@ -33,11 +33,48 @@ public class WorldOverlayContractTest {
         assertTrue(renderer.substring(border,hook).contains("if (!Shaders.isShadowPass)"));
         assertFalse(source("me/youngjibbit/utils/render/CustomEntityRenderer.java").contains("super.renderWorldPass"));
     }
+    @Test public void shaderpackDispatchUsesFinalColorBeforeFirstPersonOverlay() throws Exception {
+        String renderer=source("net/minecraft/client/renderer/EntityRenderer.java");
+        int hand=renderer.indexOf("ShadersRender.renderHand1(this, partialTicks, pass)");
+        int composite=renderer.indexOf("Shaders.renderCompositeFinal()",hand);
+        int dispatch=renderer.indexOf("this.renderShaderpackWorldOverlays(pass, partialTicks)",composite);
+        int clear=renderer.indexOf("GlStateManager.clear(256)",dispatch);
+        int overlay=renderer.indexOf("ShadersRender.renderFPOverlay(this, partialTicks, pass)",clear);
+        assertTrue(hand>=0&&hand<composite&&composite<dispatch&&dispatch<clear&&clear<overlay);
+        int end=renderer.indexOf("Shaders.endRender()",dispatch);
+        int withoutHand=renderer.indexOf("this.renderShaderpackWorldOverlays(pass, partialTicks)",end);
+        assertTrue(end<withoutHand);
+        assertTrue(renderer.substring(end,withoutHand).contains("if (!this.renderHand && !Shaders.isShadowPass)"));
+        assertEquals(2,renderer.split("this\\.renderShaderpackWorldOverlays\\(pass, partialTicks\\)",-1).length-1);
+        String custom=source("me/youngjibbit/utils/render/CustomEntityRenderer.java");
+        int capture=custom.indexOf("shaderWorldOverlays.capture(");
+        int immediate=custom.indexOf("Pulsar.BUS.post(");
+        assertTrue(capture>=0&&capture<immediate);
+        assertTrue(custom.substring(capture,immediate).contains("return;"));
+        assertTrue(custom.contains("shaderWorldOverlays.render("));
+        assertTrue(custom.contains("finally { releaseClientRenderResources(); }"));
+    }
+    @Test public void eachMainEyeRequiresItsOwnFinalPass() throws Exception {
+        String shaders=source("net/optifine/shaders/Shaders.java");
+        int entry=shaders.indexOf("public static void beginRenderPass(");
+        int next=shaders.indexOf("public static void setViewport(",entry);
+        String pass=shaders.substring(entry,next);
+        int shadow=pass.indexOf("if (!isShadowPass)");
+        int world=pass.indexOf("isRenderingWorld = true;");
+        int reset=pass.indexOf("isCompositeRendered = false;");
+        assertTrue(shadow>=0&&shadow<world&&world<reset);
+        int end=shaders.indexOf("public static void endRender()");
+        String finish=shaders.substring(end,shaders.indexOf("public static void beginSky()",end));
+        int guard=finish.indexOf("if (!isCompositeRendered)");
+        assertTrue(guard>=0&&guard<finish.indexOf("renderCompositeFinal();"));
+    }
     @Test public void nativeDispatchWhenRequested() throws Exception {
         org.junit.Assume.assumeTrue(Boolean.getBoolean("pulsar.world.overlay.native"));
-        for (Class<?> probe : new Class<?>[]{WorldOverlayNativeCheck.class,RendererReloadNativeCheck.class}) {
+        for (Class<?> probe : new Class<?>[]{WorldOverlayNativeCheck.class,RendererReloadNativeCheck.class,
+                ShaderWorldOverlayNativeCheck.class,ShaderCompatibilityNativeCheck.class}) {
         Path log=Files.createTempFile(Paths.get(System.getProperty("user.dir")),"world-overlay-",".log");
-        Process child=new ProcessBuilder(Paths.get(System.getProperty("java.home"),"bin","java.exe").toString(),
+        String javaExecutable=System.getProperty("os.name").startsWith("Windows")?"java.exe":"java";
+        Process child=new ProcessBuilder(Paths.get(System.getProperty("java.home"),"bin",javaExecutable).toString(),
                 "-Duser.home="+System.getProperty("user.home"),
                 "-Dorg.lwjgl.librarypath="+System.getProperty("org.lwjgl.librarypath"),
                 "-cp",System.getProperty("java.class.path"),probe.getName())

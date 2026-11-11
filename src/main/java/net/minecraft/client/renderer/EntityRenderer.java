@@ -12,6 +12,8 @@ import java.util.Random;
 import java.util.concurrent.Callable;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.core.diagnostics.CpuPhaseTimings;
+import me.youngjibbit.core.diagnostics.PerformanceCaptureSession;
 import me.youngjibbit.event.render.Event2D;
 import me.youngjibbit.gui.MainMenu;
 import me.youngjibbit.module.impl.render.Nametags;
@@ -1333,7 +1335,14 @@ public class EntityRenderer implements IResourceManagerReloadListener
                 j = Math.max(j, 60);
                 long k = System.nanoTime() - p_181560_2_;
                 long l = Math.max((long)(1000000000 / j / 4) - k, 0L);
-                this.renderWorld(p_181560_1_, System.nanoTime() + l);
+                long worldCpu = PerformanceCaptureSession.INSTANCE.beginCpu();
+                long worldGpu = PerformanceCaptureSession.INSTANCE.beginGpu("WORLD");
+                try {
+                    this.renderWorld(p_181560_1_, System.nanoTime() + l);
+                } finally {
+                    PerformanceCaptureSession.INSTANCE.endGpu(worldGpu);
+                    PerformanceCaptureSession.INSTANCE.endCpu(CpuPhaseTimings.Phase.WORLD, worldCpu, this.mc.getRenderFrameSequence());
+                }
 
                 if (OpenGlHelper.shadersSupported)
                 {
@@ -1357,7 +1366,14 @@ public class EntityRenderer implements IResourceManagerReloadListener
                 if (!this.mc.gameSettings.hideGUI || this.mc.currentScreen != null)
                 {
                     GlStateManager.alphaFunc(516, 0.1F);
-                    this.mc.ingameGUI.renderGameOverlay(p_181560_1_);
+                    long hudCpu = PerformanceCaptureSession.INSTANCE.beginCpu();
+                    long hudGpu = PerformanceCaptureSession.INSTANCE.beginGpu("HUD");
+                    try {
+                        this.mc.ingameGUI.renderGameOverlay(p_181560_1_);
+                    } finally {
+                        PerformanceCaptureSession.INSTANCE.endGpu(hudGpu);
+                        PerformanceCaptureSession.INSTANCE.endCpu(CpuPhaseTimings.Phase.HUD, hudCpu, this.mc.getRenderFrameSequence());
+                    }
 
                     if (this.mc.gameSettings.ofShowFps && !this.mc.gameSettings.showDebugInfo)
                     {
@@ -1388,7 +1404,8 @@ public class EntityRenderer implements IResourceManagerReloadListener
             if (this.mc.currentScreen != null)
             {
                 GlStateManager.clear(256);
-
+                long guiCpu = PerformanceCaptureSession.INSTANCE.beginCpu();
+                long guiGpu = PerformanceCaptureSession.INSTANCE.beginGpu("GUI");
                 try
                 {
                     me.youngjibbit.utils.render.UiEffects.beginFrame();
@@ -1427,6 +1444,11 @@ public class EntityRenderer implements IResourceManagerReloadListener
                         }
                     });
                     throw new ReportedException(crashreport);
+                }
+                finally
+                {
+                    PerformanceCaptureSession.INSTANCE.endGpu(guiGpu);
+                    PerformanceCaptureSession.INSTANCE.endCpu(CpuPhaseTimings.Phase.GUI, guiCpu, this.mc.getRenderFrameSequence());
                 }
             }
         }
@@ -1925,6 +1947,7 @@ public class EntityRenderer implements IResourceManagerReloadListener
             {
                 ShadersRender.renderHand1(this, partialTicks, pass);
                 Shaders.renderCompositeFinal();
+                this.renderShaderpackWorldOverlays(pass, partialTicks);
             }
 
             GlStateManager.clear(256);
@@ -1944,11 +1967,25 @@ public class EntityRenderer implements IResourceManagerReloadListener
         if (flag)
         {
             Shaders.endRender();
+            if (!this.renderHand && !Shaders.isShadowPass)
+            {
+                this.renderShaderpackWorldOverlays(pass, partialTicks);
+            }
         }
     }
 
-    /** World camera after translucent terrain, before final hand; once per visible eye. */
+    /** World camera after translucent terrain: draw directly, or capture for the shaderpack final pass. */
     protected void renderWorldOverlays(int pass, float partialTicks)
+    {
+    }
+
+    /** Shaderpack final colour is ready; draw with a saved world camera and private world depth. */
+    protected void renderShaderpackWorldOverlays(int pass, float partialTicks)
+    {
+    }
+
+    /** Release client-owned GL resources on the context thread before world/context teardown. */
+    public void releaseClientRenderResources()
     {
     }
 

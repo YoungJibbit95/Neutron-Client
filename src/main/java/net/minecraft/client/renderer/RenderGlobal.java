@@ -199,6 +199,7 @@ public class RenderGlobal implements IWorldAccess, IResourceManagerReloadListene
     public Entity renderedEntity;
     public Set chunksToResortTransparency = new LinkedHashSet();
     public Set chunksToUpdateForced = new LinkedHashSet();
+    private boolean preferNormalChunkUpdate;
     private Deque visibilityDeque = new ArrayDeque();
     private List renderInfosEntities = new ArrayList(1024);
     private List renderInfosTileEntities = new ArrayList(1024);
@@ -543,6 +544,9 @@ public class RenderGlobal implements IWorldAccess, IResourceManagerReloadListene
         else
         {
             this.chunksToUpdate.clear();
+            this.chunksToUpdateForced.clear();
+            this.chunksToResortTransparency.clear();
+            this.preferNormalChunkUpdate = false;
             this.clearRenderInfos();
 
             if (this.viewFrustum != null)
@@ -629,6 +633,9 @@ public class RenderGlobal implements IWorldAccess, IResourceManagerReloadListene
     protected void stopChunkUpdates()
     {
         this.chunksToUpdate.clear();
+        this.chunksToUpdateForced.clear();
+        this.chunksToResortTransparency.clear();
+        this.preferNormalChunkUpdate = false;
         this.renderDispatcher.stopChunkUpdates();
     }
 
@@ -1279,16 +1286,15 @@ public class RenderGlobal implements IWorldAccess, IResourceManagerReloadListene
         else
         {
             this.mc.mcProfiler.endStartSection("rebuildNear");
-            this.renderDispatcher.clearChunkUpdates();
-            Set<RenderChunk> set = this.chunksToUpdate;
-            this.chunksToUpdate = Sets.<RenderChunk>newLinkedHashSet();
+            // Keep accepted tasks and waiting order across frames. Cancellation belongs
+            // to chunk/world/resource lifecycle, not to visibility traversal.
             Lagometer.timerChunkUpdate.start();
 
             for (RenderGlobal.ContainerLocalRenderInformation renderglobal$containerlocalrenderinformation3 : this.renderInfos)
             {
                 RenderChunk renderchunk5 = renderglobal$containerlocalrenderinformation3.renderChunk;
 
-                if (renderchunk5.isNeedsUpdate() || set.contains(renderchunk5))
+                if (renderchunk5.isNeedsUpdate())
                 {
                     this.displayListEntitiesDirty = true;
                     BlockPos blockpos1 = renderchunk5.getPosition();
@@ -1298,22 +1304,15 @@ public class RenderGlobal implements IWorldAccess, IResourceManagerReloadListene
                     {
                         this.chunksToUpdate.add(renderchunk5);
                     }
-                    else if (!renderchunk5.isPlayerUpdate())
-                    {
-                        this.chunksToUpdateForced.add(renderchunk5);
-                    }
                     else
                     {
-                        this.mc.mcProfiler.startSection("build near");
-                        this.renderDispatcher.updateChunkNow(renderchunk5);
-                        renderchunk5.setNeedsUpdate(false);
-                        this.mc.mcProfiler.endSection();
+                        this.chunksToUpdateForced.add(renderchunk5);
+                        this.chunksToUpdate.remove(renderchunk5);
                     }
                 }
             }
 
             Lagometer.timerChunkUpdate.end();
-            this.chunksToUpdate.addAll(set);
             this.mc.mcProfiler.endSection();
         }
     }
@@ -2273,86 +2272,73 @@ public class RenderGlobal implements IWorldAccess, IResourceManagerReloadListene
 
     public void updateChunks(long finishTimeNano)
     {
-        finishTimeNano = (long)((double)finishTimeNano + 1.0E8D);
-        this.displayListEntitiesDirty |= this.renderDispatcher.runChunkUploads(finishTimeNano);
+        me.youngjibbit.core.diagnostics.ChunkFrameBudget.Limits limits =
+                me.youngjibbit.core.diagnostics.ChunkFrameBudget.current();
+        finishTimeNano = limits.deadline(finishTimeNano, System.nanoTime());
+        // A complete revision is indivisible. One batch may exceed these soft limits
+        // so even an expired frame budget cannot stop all chunk progress.
+        this.displayListEntitiesDirty |= this.renderDispatcher.runChunkUploads(finishTimeNano, limits.bytes);
+        int scheduled = 0;
+        double normalWeight = 0.0D;
+        int normalLimit = Config.getUpdatesPerFrame();
+        boolean normalExhausted = false;
+        boolean forcedExhausted = false;
 
-        if (this.chunksToUpdateForced.size() > 0)
+        // Fairness starts before admission to the bounded worker queue. Even when
+        // only one enqueue fits, sustained urgent updates cannot starve normal ones.
+        while (scheduled < 64 && (scheduled == 0 || (finishTimeNano != 0L
+                && System.nanoTime() - finishTimeNano < 0L)))
         {
-            Iterator iterator = this.chunksToUpdateForced.iterator();
-
-            while (iterator.hasNext())
+            boolean urgent = !this.preferNormalChunkUpdate;
+            RenderChunk next = urgent
+                    ? (forcedExhausted ? null : this.scheduleNextChunk(true))
+                    : (normalExhausted ? null : this.scheduleNextChunk(false));
+            if (next == null)
             {
-                RenderChunk renderchunk = (RenderChunk)iterator.next();
-
-                if (!this.renderDispatcher.updateChunkLater(renderchunk))
-                {
-                    break;
-                }
-
-                renderchunk.setNeedsUpdate(false);
-                iterator.remove();
-                this.chunksToUpdate.remove(renderchunk);
-                this.chunksToResortTransparency.remove(renderchunk);
+                if (urgent) forcedExhausted = true; else normalExhausted = true;
+                urgent = !urgent;
+                next = urgent
+                        ? (forcedExhausted ? null : this.scheduleNextChunk(true))
+                        : (normalExhausted ? null : this.scheduleNextChunk(false));
+                if (next == null) break;
+            }
+            ++scheduled;
+            this.preferNormalChunkUpdate = urgent;
+            if (!urgent && !next.isChunkRegionEmpty())
+            {
+                normalWeight += 2.0D * RenderChunkUtils.getRelativeBufferSize(next);
+                normalExhausted = normalWeight > normalLimit;
             }
         }
 
-        if (this.chunksToResortTransparency.size() > 0)
+        // Preserve the existing one-transparency-request-per-frame bound.
+        Iterator<RenderChunk> transparency = this.chunksToResortTransparency.iterator();
+        while (transparency.hasNext())
         {
-            Iterator iterator2 = this.chunksToResortTransparency.iterator();
-
-            if (iterator2.hasNext())
-            {
-                RenderChunk renderchunk2 = (RenderChunk)iterator2.next();
-
-                if (this.renderDispatcher.updateTransparencyLater(renderchunk2))
-                {
-                    iterator2.remove();
-                }
-            }
+            RenderChunk chunk = transparency.next();
+            if (chunk.hasPendingCompileTask()) continue;
+            if (this.renderDispatcher.updateTransparencyLater(chunk)) transparency.remove();
+            break;
         }
+    }
 
-        double d1 = 0.0D;
-        int i = Config.getUpdatesPerFrame();
-
-        if (!this.chunksToUpdate.isEmpty())
+    private RenderChunk scheduleNextChunk(boolean urgent)
+    {
+        Iterator<RenderChunk> pending = (urgent ? this.chunksToUpdateForced : this.chunksToUpdate).iterator();
+        while (pending.hasNext())
         {
-            Iterator<RenderChunk> iterator1 = this.chunksToUpdate.iterator();
-
-            while (iterator1.hasNext())
-            {
-                RenderChunk renderchunk1 = (RenderChunk)iterator1.next();
-                boolean flag = renderchunk1.isChunkRegionEmpty();
-                boolean flag1;
-
-                if (flag)
-                {
-                    flag1 = this.renderDispatcher.updateChunkNow(renderchunk1);
-                }
-                else
-                {
-                    flag1 = this.renderDispatcher.updateChunkLater(renderchunk1);
-                }
-
-                if (!flag1)
-                {
-                    break;
-                }
-
-                renderchunk1.setNeedsUpdate(false);
-                iterator1.remove();
-
-                if (!flag)
-                {
-                    double d0 = 2.0D * RenderChunkUtils.getRelativeBufferSize(renderchunk1);
-                    d1 += d0;
-
-                    if (d1 > (double)i)
-                    {
-                        break;
-                    }
-                }
-            }
+            RenderChunk chunk = pending.next();
+            if (!chunk.isNeedsUpdate()) { pending.remove(); continue; }
+            if (chunk.hasPendingCompileTask()) continue;
+            if (!this.renderDispatcher.updateChunkLater(chunk, urgent)) return null;
+            chunk.setNeedsUpdate(false);
+            pending.remove();
+            if (urgent) this.chunksToUpdate.remove(chunk);
+            else this.chunksToUpdateForced.remove(chunk);
+            this.chunksToResortTransparency.remove(chunk);
+            return chunk;
         }
+        return null;
     }
 
     public void renderWorldBorder(Entity p_180449_1_, float partialTicks)

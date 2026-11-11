@@ -1,0 +1,191 @@
+{
+  "schema_version": 1,
+  "date_utc": "2026-11-11",
+  "baseline_commit": "97c263c792864d03c2271670121fd72d53bbfeb1",
+  "baseline_jar_sha256": "f80b4a65ceb77786b0469675fac3f014fe79fa17601cfdbc909bab46559a8fe8",
+  "candidate_source_commit_before_test_fix": "45731532484035fd0b679d6faa409d34dca8e737",
+  "java": "Temurin 8u482-b08",
+  "junit": "4.13.2",
+  "before_forced_jit_flags": [
+    "-Xcomp",
+    "-XX:CompileCommand=compileonly,me/youngjibbit/module/Module.lambda$enableSmartDisable$0"
+  ],
+  "before_provenance": {
+    "neutron/src/test/java/me/youngjibbit/core/network/SmartDisableLifecycleTest.java": "d66bc69428f8f955fcea5340b3fde73d94b7f199957c26f3a7c82584731518b2",
+    "neutron/target/test-classes/me/youngjibbit/core/network/SmartDisableLifecycleTest.class": "d804c3fa4178a5f4b88538f55dc6630d6b4be05594343900e31b8affc782b62c",
+    "neutron/target/classes/me/youngjibbit/module/Module.class": "1788755dbc2519b875381446fccfc53028ced7828c9f8b78ac6ba061087ebcb2",
+    "neutron/target/classes/me/youngjibbit/core/module/ModuleSmartDisable.class": "f2c32df86bd4ce834b1ed170c04aa8dc6dbd2b2e1b65e6babb65c3d74a7e5590"
+  },
+  "production_class_hashes": {
+    "me/youngjibbit/module/Module.class": {
+      "baseline_sha256": "1788755dbc2519b875381446fccfc53028ced7828c9f8b78ac6ba061087ebcb2",
+      "candidate_sha256": "1788755dbc2519b875381446fccfc53028ced7828c9f8b78ac6ba061087ebcb2"
+    },
+    "me/youngjibbit/core/module/ModuleSmartDisable.class": {
+      "baseline_sha256": "f2c32df86bd4ce834b1ed170c04aa8dc6dbd2b2e1b65e6babb65c3d74a7e5590",
+      "candidate_sha256": "f2c32df86bd4ce834b1ed170c04aa8dc6dbd2b2e1b65e6babb65c3d74a7e5590"
+    }
+  },
+  "before": [
+    {
+      "file": "smart-disable-baseline-forced-supplier-jit.log",
+      "exit_code": 1,
+      "sha256": "a26e1d1a88d6dfb44c248c8bb2af64a5593fe14b8a4c10de19120b173e628a27",
+      "failed_methods": [
+        "enablingInMenusAllowsFirstJoinButStopsOnTheNextWorld",
+        "deathStopsBeforeUpdateAndNeverAutomaticallyReenablesAfterRespawn",
+        "onlyTheObservedConnectionEndStopsTheModule",
+        "worldAndPlayerIdentityChangesStopBeforeDirectRotationOrMotionEvents",
+        "nonClientThreadNotificationsDoNotMutateTheModule",
+        "unloadStopsExactlyOnceEvenWhenCleanupPublishesNestedEvents",
+        "deathAndWorldOptionsAreIndependent"
+      ],
+      "raw_output": "CompilerOracle: compileonly me/youngjibbit/module/Module.lambda$enableSmartDisable$0\nJUnit version 4.13.2\n.SLF4J: Class path contains multiple SLF4J bindings.\nSLF4J: Found binding in [jar:file:/workspace/scratch/8e1b58fba226/evidence/baseline/neutron-97c263c-baseline.jar!/org/slf4j/impl/StaticLoggerBinder.class]\nSLF4J: Found binding in [jar:file:/workspace/scratch/8e1b58fba226/toolchain/m2/org/apache/logging/log4j/log4j-slf4j-impl/2.26.1/log4j-slf4j-impl-2.26.1.jar!/org/slf4j/impl/StaticLoggerBinder.class]\nSLF4J: See http://www.slf4j.org/codes.html#multiple_bindings for an explanation.\nSLF4J: Actual binding is of type [org.apache.logging.slf4j.Log4jLoggerFactory]\n.E.E.E.E.E.E.E..\nTime: 1.164\nThere were 7 failures:\n1) enablingInMenusAllowsFirstJoinButStopsOnTheNextWorld(me.youngjibbit.core.network.SmartDisableLifecycleTest)\njava.lang.AssertionError\n\tat org.junit.Assert.fail(Assert.java:87)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.junit.Assert.assertFalse(Assert.java:65)\n\tat org.junit.Assert.assertFalse(Assert.java:75)\n\tat me.youngjibbit.core.network.SmartDisableLifecycleTest.enablingInMenusAllowsFirstJoinButStopsOnTheNextWorld(SmartDisableLifecycleTest.java:135)\n2) deathStopsBeforeUpdateAndNeverAutomaticallyReenablesAfterRespawn(me.youngjibbit.core.network.SmartDisableLifecycleTest)\njava.lang.AssertionError\n\tat org.junit.Assert.fail(Assert.java:87)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.junit.Assert.assertFalse(Assert.java:65)\n\tat org.junit.Assert.assertFalse(Assert.java:75)\n\tat me.youngjibbit.core.network.SmartDisableLifecycleTest.deathStopsBeforeUpdateAndNeverAutomaticallyReenablesAfterRespawn(SmartDisableLifecycleTest.java:75)\n3) onlyTheObservedConnectionEndStopsTheModule(me.youngjibbit.core.network.SmartDisableLifecycleTest)\njava.lang.AssertionError\n\tat org.junit.Assert.fail(Assert.java:87)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.junit.Assert.assertFalse(Assert.java:65)\n\tat org.junit.Assert.assertFalse(Assert.java:75)\n\tat me.youngjibbit.core.network.SmartDisableLifecycleTest.onlyTheObservedConnectionEndStopsTheModule(SmartDisableLifecycleTest.java:147)\n4) worldAndPlayerIdentityChangesStopBeforeDirectRotationOrMotionEvents(me.youngjibbit.core.network.SmartDisableLifecycleTest)\njava.lang.AssertionError\n\tat org.junit.Assert.fail(Assert.java:87)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.junit.Assert.assertFalse(Assert.java:65)\n\tat org.junit.Assert.assertFalse(Assert.java:75)\n\tat me.youngjibbit.core.network.SmartDisableLifecycleTest.worldAndPlayerIdentityChangesStopBeforeDirectRotationOrMotionEvents(SmartDisableLifecycleTest.java:120)\n5) nonClientThreadNotificationsDoNotMutateTheModule(me.youngjibbit.core.network.SmartDisableLifecycleTest)\njava.lang.AssertionError\n\tat org.junit.Assert.fail(Assert.java:87)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.junit.Assert.assertFalse(Assert.java:65)\n\tat org.junit.Assert.assertFalse(Assert.java:75)\n\tat me.youngjibbit.core.network.SmartDisableLifecycleTest.nonClientThreadNotificationsDoNotMutateTheModule(SmartDisableLifecycleTest.java:174)\n6) unloadStopsExactlyOnceEvenWhenCleanupPublishesNestedEvents(me.youngjibbit.core.network.SmartDisableLifecycleTest)\njava.lang.AssertionError\n\tat org.junit.Assert.fail(Assert.java:87)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.junit.Assert.assertFalse(Assert.java:65)\n\tat org.junit.Assert.assertFalse(Assert.java:75)\n\tat me.youngjibbit.core.network.SmartDisableLifecycleTest.unloadStopsExactlyOnceEvenWhenCleanupPublishesNestedEvents(SmartDisableLifecycleTest.java:105)\n7) deathAndWorldOptionsAreIndependent(me.youngjibbit.core.network.SmartDisableLifecycleTest)\njava.lang.AssertionError\n\tat org.junit.Assert.fail(Assert.java:87)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.junit.Assert.assertFalse(Assert.java:65)\n\tat org.junit.Assert.assertFalse(Assert.java:75)\n\tat me.youngjibbit.core.network.SmartDisableLifecycleTest.deathAndWorldOptionsAreIndependent(SmartDisableLifecycleTest.java:91)\n\nFAILURES!!!\nTests run: 10,  Failures: 7\n\n"
+    },
+    {
+      "file": "smart-disable-candidate-forced-supplier-jit.log",
+      "exit_code": 1,
+      "sha256": "273c49b62f31e686e1de4b7b1c1c1f9d5d42ab25cd964a7a355548a3d4ae99aa",
+      "failed_methods": [
+        "enablingInMenusAllowsFirstJoinButStopsOnTheNextWorld",
+        "deathStopsBeforeUpdateAndNeverAutomaticallyReenablesAfterRespawn",
+        "onlyTheObservedConnectionEndStopsTheModule",
+        "worldAndPlayerIdentityChangesStopBeforeDirectRotationOrMotionEvents",
+        "nonClientThreadNotificationsDoNotMutateTheModule",
+        "unloadStopsExactlyOnceEvenWhenCleanupPublishesNestedEvents",
+        "deathAndWorldOptionsAreIndependent"
+      ],
+      "raw_output": "CompilerOracle: compileonly me/youngjibbit/module/Module.lambda$enableSmartDisable$0\nJUnit version 4.13.2\n..E.E.E.E.E.E.E..\nTime: 1.778\nThere were 7 failures:\n1) enablingInMenusAllowsFirstJoinButStopsOnTheNextWorld(me.youngjibbit.core.network.SmartDisableLifecycleTest)\njava.lang.AssertionError\n\tat org.junit.Assert.fail(Assert.java:87)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.junit.Assert.assertFalse(Assert.java:65)\n\tat org.junit.Assert.assertFalse(Assert.java:75)\n\tat me.youngjibbit.core.network.SmartDisableLifecycleTest.enablingInMenusAllowsFirstJoinButStopsOnTheNextWorld(SmartDisableLifecycleTest.java:135)\n2) deathStopsBeforeUpdateAndNeverAutomaticallyReenablesAfterRespawn(me.youngjibbit.core.network.SmartDisableLifecycleTest)\njava.lang.AssertionError\n\tat org.junit.Assert.fail(Assert.java:87)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.junit.Assert.assertFalse(Assert.java:65)\n\tat org.junit.Assert.assertFalse(Assert.java:75)\n\tat me.youngjibbit.core.network.SmartDisableLifecycleTest.deathStopsBeforeUpdateAndNeverAutomaticallyReenablesAfterRespawn(SmartDisableLifecycleTest.java:75)\n3) onlyTheObservedConnectionEndStopsTheModule(me.youngjibbit.core.network.SmartDisableLifecycleTest)\njava.lang.AssertionError\n\tat org.junit.Assert.fail(Assert.java:87)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.junit.Assert.assertFalse(Assert.java:65)\n\tat org.junit.Assert.assertFalse(Assert.java:75)\n\tat me.youngjibbit.core.network.SmartDisableLifecycleTest.onlyTheObservedConnectionEndStopsTheModule(SmartDisableLifecycleTest.java:147)\n4) worldAndPlayerIdentityChangesStopBeforeDirectRotationOrMotionEvents(me.youngjibbit.core.network.SmartDisableLifecycleTest)\njava.lang.AssertionError\n\tat org.junit.Assert.fail(Assert.java:87)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.junit.Assert.assertFalse(Assert.java:65)\n\tat org.junit.Assert.assertFalse(Assert.java:75)\n\tat me.youngjibbit.core.network.SmartDisableLifecycleTest.worldAndPlayerIdentityChangesStopBeforeDirectRotationOrMotionEvents(SmartDisableLifecycleTest.java:120)\n5) nonClientThreadNotificationsDoNotMutateTheModule(me.youngjibbit.core.network.SmartDisableLifecycleTest)\njava.lang.AssertionError\n\tat org.junit.Assert.fail(Assert.java:87)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.junit.Assert.assertFalse(Assert.java:65)\n\tat org.junit.Assert.assertFalse(Assert.java:75)\n\tat me.youngjibbit.core.network.SmartDisableLifecycleTest.nonClientThreadNotificationsDoNotMutateTheModule(SmartDisableLifecycleTest.java:174)\n6) unloadStopsExactlyOnceEvenWhenCleanupPublishesNestedEvents(me.youngjibbit.core.network.SmartDisableLifecycleTest)\njava.lang.AssertionError\n\tat org.junit.Assert.fail(Assert.java:87)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.junit.Assert.assertFalse(Assert.java:65)\n\tat org.junit.Assert.assertFalse(Assert.java:75)\n\tat me.youngjibbit.core.network.SmartDisableLifecycleTest.unloadStopsExactlyOnceEvenWhenCleanupPublishesNestedEvents(SmartDisableLifecycleTest.java:105)\n7) deathAndWorldOptionsAreIndependent(me.youngjibbit.core.network.SmartDisableLifecycleTest)\njava.lang.AssertionError\n\tat org.junit.Assert.fail(Assert.java:87)\n\tat org.junit.Assert.assertTrue(Assert.java:42)\n\tat org.junit.Assert.assertFalse(Assert.java:65)\n\tat org.junit.Assert.assertFalse(Assert.java:75)\n\tat me.youngjibbit.core.network.SmartDisableLifecycleTest.deathAndWorldOptionsAreIndependent(SmartDisableLifecycleTest.java:91)\n\nFAILURES!!!\nTests run: 10,  Failures: 7\n\n"
+    },
+    {
+      "file": "smart-disable-candidate-interpreter.log",
+      "exit_code": 0,
+      "sha256": "a5663ff4e948f85f2dd460e117bdae48dbf592d5cdded955f67a224a9cf0d515",
+      "failed_methods": [],
+      "raw_output": "JUnit version 4.13.2\n..........\nTime: 1.728\n\nOK (10 tests)\n\n"
+    }
+  ],
+  "before_counts": {
+    "baseline_forced_jit": {
+      "tests": 10,
+      "failures": 7
+    },
+    "candidate_forced_jit": {
+      "tests": 10,
+      "failures": 7
+    },
+    "candidate_interpreter": {
+      "tests": 10,
+      "failures": 0
+    }
+  },
+  "fix": {
+    "path": "src/test/java/me/youngjibbit/core/network/SmartDisableLifecycleTest.java",
+    "source_sha256": "d233ceebcf3e6a7b3f1234e46f12ce1410ea03406ee3a9b5c0567fcc44908c5f",
+    "description": "Inject the existing ModuleSmartDisable constructor into the nonfinal Module.smartDisable fixture field; keep actual Module.setToggled/onEnable/onDisable. A local client/connection fixture performs no global singleton, static-final, targeting-service or utility rebinding. Existing ten behavior/assertion cases remain; add one independent-client/global-state-preservation case."
+  },
+  "after_shared_system_properties": {
+    "java.io.tmpdir": "/workspace/scratch/8e1b58fba226/toolchain/tmp",
+    "java.awt.headless": "true",
+    "user.home": "/workspace/scratch/8e1b58fba226/neutron/target/test-home"
+  },
+  "after_environment": "JAVA_TOOL_OPTIONS removed only from the diagnostic child process; explicit properties above used instead.",
+  "after_classpath_order": [
+    "isolated fixed test classes",
+    "existing target/test-classes",
+    "baseline JAR OR candidate target/classes",
+    "identical dependency classpath"
+  ],
+  "after": [
+    {
+      "name": "baseline-default",
+      "exit_code": 0,
+      "jvm_flags": [],
+      "test_class": "me.youngjibbit.core.network.SmartDisableLifecycleTest",
+      "summary": "Time: 1.058\nOK (11 tests)",
+      "log": "evidence/smart-disable-fixed-baseline-default.log",
+      "log_sha256": "d3fb27aade9658e7eb17dfba5bfba651b55a63693ec41ec810c87184bc19fa9d",
+      "raw_output": "JUnit version 4.13.2\n.SLF4J: Class path contains multiple SLF4J bindings.\nSLF4J: Found binding in [jar:file:/workspace/scratch/8e1b58fba226/evidence/baseline/neutron-97c263c-baseline.jar!/org/slf4j/impl/StaticLoggerBinder.class]\nSLF4J: Found binding in [jar:file:/workspace/scratch/8e1b58fba226/toolchain/m2/org/apache/logging/log4j/log4j-slf4j-impl/2.26.1/log4j-slf4j-impl-2.26.1.jar!/org/slf4j/impl/StaticLoggerBinder.class]\nSLF4J: See http://www.slf4j.org/codes.html#multiple_bindings for an explanation.\nSLF4J: Actual binding is of type [org.apache.logging.slf4j.Log4jLoggerFactory]\n..........\nTime: 1.058\n\nOK (11 tests)\n\n",
+      "tests": 11,
+      "failures": 0
+    },
+    {
+      "name": "baseline-interpreter",
+      "exit_code": 0,
+      "jvm_flags": [
+        "-Xint"
+      ],
+      "test_class": "me.youngjibbit.core.network.SmartDisableLifecycleTest",
+      "summary": "Time: 1.545\nOK (11 tests)",
+      "log": "evidence/smart-disable-fixed-baseline-interpreter.log",
+      "log_sha256": "7af0ce57d7b808f7b8a85d18a49afa98c52fe959bbcbc95873f80c24fff00527",
+      "raw_output": "JUnit version 4.13.2\n.SLF4J: Class path contains multiple SLF4J bindings.\nSLF4J: Found binding in [jar:file:/workspace/scratch/8e1b58fba226/evidence/baseline/neutron-97c263c-baseline.jar!/org/slf4j/impl/StaticLoggerBinder.class]\nSLF4J: Found binding in [jar:file:/workspace/scratch/8e1b58fba226/toolchain/m2/org/apache/logging/log4j/log4j-slf4j-impl/2.26.1/log4j-slf4j-impl-2.26.1.jar!/org/slf4j/impl/StaticLoggerBinder.class]\nSLF4J: See http://www.slf4j.org/codes.html#multiple_bindings for an explanation.\nSLF4J: Actual binding is of type [org.apache.logging.slf4j.Log4jLoggerFactory]\n..........\nTime: 1.545\n\nOK (11 tests)\n\n",
+      "tests": 11,
+      "failures": 0
+    },
+    {
+      "name": "baseline-forced-supplier-jit",
+      "exit_code": 0,
+      "jvm_flags": [
+        "-Xcomp",
+        "-XX:CompileCommand=compileonly,me/youngjibbit/module/Module.lambda$enableSmartDisable$0",
+        "-XX:CompileCommand=compileonly,me/youngjibbit/core/network/SmartDisableLifecycleTest$Guarded.lambda$new$0"
+      ],
+      "test_class": "me.youngjibbit.core.network.SmartDisableLifecycleTest",
+      "summary": "CompilerOracle: compileonly me/youngjibbit/module/Module.lambda$enableSmartDisable$0\nCompilerOracle: compileonly me/youngjibbit/core/network/SmartDisableLifecycleTest$Guarded.lambda$new$0\nTime: 1.191\nOK (11 tests)",
+      "log": "evidence/smart-disable-fixed-baseline-forced-supplier-jit.log",
+      "log_sha256": "08fc9ef5fee3f9e31ddaa00ec839231b2ff728793e132b1fb0401818d50bb51f",
+      "raw_output": "CompilerOracle: compileonly me/youngjibbit/module/Module.lambda$enableSmartDisable$0\nCompilerOracle: compileonly me/youngjibbit/core/network/SmartDisableLifecycleTest$Guarded.lambda$new$0\nJUnit version 4.13.2\n.SLF4J: Class path contains multiple SLF4J bindings.\nSLF4J: Found binding in [jar:file:/workspace/scratch/8e1b58fba226/evidence/baseline/neutron-97c263c-baseline.jar!/org/slf4j/impl/StaticLoggerBinder.class]\nSLF4J: Found binding in [jar:file:/workspace/scratch/8e1b58fba226/toolchain/m2/org/apache/logging/log4j/log4j-slf4j-impl/2.26.1/log4j-slf4j-impl-2.26.1.jar!/org/slf4j/impl/StaticLoggerBinder.class]\nSLF4J: See http://www.slf4j.org/codes.html#multiple_bindings for an explanation.\nSLF4J: Actual binding is of type [org.apache.logging.slf4j.Log4jLoggerFactory]\n..........\nTime: 1.191\n\nOK (11 tests)\n\n",
+      "tests": 11,
+      "failures": 0
+    },
+    {
+      "name": "candidate-default",
+      "exit_code": 0,
+      "jvm_flags": [],
+      "test_class": "me.youngjibbit.core.network.SmartDisableLifecycleTest",
+      "summary": "Time: 1.176\nOK (11 tests)",
+      "log": "evidence/smart-disable-fixed-candidate-default.log",
+      "log_sha256": "3b3f792bc4cd6e3b1f18e86dd43713182abc4bcb8ca59bce50782ea5b0005f3f",
+      "raw_output": "JUnit version 4.13.2\n...........\nTime: 1.176\n\nOK (11 tests)\n\n",
+      "tests": 11,
+      "failures": 0
+    },
+    {
+      "name": "candidate-interpreter",
+      "exit_code": 0,
+      "jvm_flags": [
+        "-Xint"
+      ],
+      "test_class": "me.youngjibbit.core.network.SmartDisableLifecycleTest",
+      "summary": "Time: 1.874\nOK (11 tests)",
+      "log": "evidence/smart-disable-fixed-candidate-interpreter.log",
+      "log_sha256": "77d7d41b5fe5c5b419f9b384b25ce9dd4f519a9a57807f3a72056d5ba06e02cd",
+      "raw_output": "JUnit version 4.13.2\n...........\nTime: 1.874\n\nOK (11 tests)\n\n",
+      "tests": 11,
+      "failures": 0
+    },
+    {
+      "name": "candidate-forced-supplier-jit",
+      "exit_code": 0,
+      "jvm_flags": [
+        "-Xcomp",
+        "-XX:CompileCommand=compileonly,me/youngjibbit/module/Module.lambda$enableSmartDisable$0",
+        "-XX:CompileCommand=compileonly,me/youngjibbit/core/network/SmartDisableLifecycleTest$Guarded.lambda$new$0"
+      ],
+      "test_class": "me.youngjibbit.core.network.SmartDisableLifecycleTest",
+      "summary": "CompilerOracle: compileonly me/youngjibbit/module/Module.lambda$enableSmartDisable$0\nCompilerOracle: compileonly me/youngjibbit/core/network/SmartDisableLifecycleTest$Guarded.lambda$new$0\nTime: 1.577\nOK (11 tests)",
+      "log": "evidence/smart-disable-fixed-candidate-forced-supplier-jit.log",
+      "log_sha256": "1b2a00ab33d4a5415d48a7491fd55d0fce40f5a047c537c8ce7ad2609ee2f203",
+      "raw_output": "CompilerOracle: compileonly me/youngjibbit/module/Module.lambda$enableSmartDisable$0\nCompilerOracle: compileonly me/youngjibbit/core/network/SmartDisableLifecycleTest$Guarded.lambda$new$0\nJUnit version 4.13.2\n...........\nTime: 1.577\n\nOK (11 tests)\n\n",
+      "tests": 11,
+      "failures": 0
+    }
+  ],
+  "limits": [
+    "This reproduces the same seven assertions by compiling the existing static-final supplier and fixes that test fixture dependency; it does not declare the whole final suite passed.",
+    "Production Module and ModuleSmartDisable sources, shared ExploitHookFixture, POM, workflows, assertions and skip gates were not changed.",
+    "New fixture explicitly injects its client; actual production module setting-registration coverage remains in allFourRequestedModulesExposeTheSameOptInSettings.",
+    "Final forced-JIT runs include BOTH the old production supplier and the new Guarded supplier as explicit compile-only targets."
+  ]
+}
