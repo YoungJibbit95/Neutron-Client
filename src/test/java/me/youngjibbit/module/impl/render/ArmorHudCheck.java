@@ -16,7 +16,7 @@ import static org.lwjgl.opengl.GL11.*;
 public final class ArmorHudCheck {
     public static void run()throws Exception{
         Method fonts=Class.forName("me.youngjibbit.clickgui.ClickGuiRenderCheck").getDeclaredMethod("minimalFonts",String[].class);fonts.setAccessible(true);
-        Pulsar.INSTANCE.fontManager=(FontManager)fonts.invoke(null,(Object)new String[]{"Product-Sans-Bold 16","KhmerOureang 14"});
+        Pulsar.INSTANCE.fontManager=(FontManager)fonts.invoke(null,(Object)new String[]{"Product-Sans-Bold 16","Product-Sans-Bold 14","Product-Sans-Regular 12","KhmerOureang 14"});
         SessionInfoRenderCheck.set(SessionInfoRenderCheck.mc,"mcResourcePackRepository",new net.minecraft.client.resources.ResourcePackRepository(new File("armor-preview/packs"),new File("armor-preview/server-packs"),new net.minecraft.client.resources.DefaultResourcePack(java.util.Collections.emptyMap()),new net.minecraft.client.resources.data.IMetadataSerializer(),SessionInfoRenderCheck.mc.gameSettings));
         TextureManager textures=new TextureManager(SessionInfoRenderCheck.mc.getResourceManager());SessionInfoRenderCheck.set(SessionInfoRenderCheck.mc,"renderEngine",textures);
         TextureMap atlas=new TextureMap("textures");atlas.setMipmapLevels(0);SessionInfoRenderCheck.set(SessionInfoRenderCheck.mc,"textureMapBlocks",atlas);
@@ -37,7 +37,8 @@ public final class ArmorHudCheck {
         }
         String before=equipment[3].writeToNBT(new net.minecraft.nbt.NBTTagCompound()).toString();ArmorHUD hud=new ArmorHUD();SessionInfoRenderCheck.set(hud,"x",30f);SessionInfoRenderCheck.set(hud,"y",40f);
         File out=new File("armor-preview");out.mkdirs();
-        for(String orientation:new String[]{"Vertical","Horizontal"})for(String mode:new String[]{"Percent","Value","Both","None"}){
+        for(String design:new String[]{"Basic","Modern","Creative"})for(String orientation:new String[]{"Vertical","Horizontal"})for(String mode:new String[]{"Percent","Value","Both","None"}){
+            hud.getModeSetting("Mode").setValue(design);
             hud.getModeSetting("Layout").setValue(orientation);hud.getModeSetting("Durability").setValue(mode);
             ArmorHUD.Frame f=hud.layout(equipment,sword,550,320);
             SessionInfoRenderCheck.require(f.cells.size()==5&&f.cells.get(0).item.getItem()==Items.diamond_helmet&&f.cells.get(1).item==null&&f.cells.get(3).item.getItem()==Items.diamond_boots,"Slot mapping/empty slot");
@@ -47,13 +48,13 @@ public final class ArmorHudCheck {
             SessionInfoRenderCheck.require(glIsEnabled(GL_LIGHT0)&&glIsEnabled(GL_COLOR_MATERIAL)&&glIsEnabled(org.lwjgl.opengl.GL12.GL_RESCALE_NORMAL)&&glGetInteger(GL_DEPTH_FUNC)==GL_GREATER&&!glGetBoolean(GL_DEPTH_WRITEMASK)&&Math.abs(glGetFloat(GL_ALPHA_TEST_REF)-.35f)<.001&&renderer.zLevel==17,"Item render state leaked");
             // Force cache transitions to prove restored raw flags and GlStateManager agree.
             GlStateManager.disableLight(0);GlStateManager.disableColorMaterial();GlStateManager.disableRescaleNormal();GlStateManager.depthFunc(GL_LEQUAL);GlStateManager.depthMask(true);GlStateManager.alphaFunc(GL_GREATER,.1f);
-            if(mode.equals("Both"))javax.imageio.ImageIO.write(SessionInfoRenderCheck.capture(),"png",new File(out,orientation+".png"));
+            if(mode.equals("Both"))javax.imageio.ImageIO.write(SessionInfoRenderCheck.capture(),"png",new File(out,design+"-"+orientation+".png"));
         }
         SessionInfoRenderCheck.require(before.equals(equipment[3].writeToNBT(new net.minecraft.nbt.NBTTagCompound()).toString())&&sword.getItemDamage()==800&&equipment[0].getItemDamage()==300,"Rendering mutated equipment");
         hud.getBooleanSetting("Empty Slots").setValue(false);hud.getBooleanSetting("Held Item").setValue(false);
         SessionInfoRenderCheck.require(hud.layout(new ItemStack[4],null,320,240).cells.isEmpty(),"Empty list");
         hud.getNumberSetting("Scale").setValue(1.6);ArmorHUD.Frame f=hud.layout(equipment,sword,100,80);SessionInfoRenderCheck.require(f.width*f.scale<=92&&f.height*f.scale<=72,"Scale-to-fit");
         float old=f.x;hud.interact(false,true,f.x+2,f.y+2,100,80);hud.interact(true,true,f.x+20,f.y+10,100,80);SessionInfoRenderCheck.require(hud.layout(equipment,sword,100,80).x==old,"Non-chat drag armed");
-        hud.onDisable();SessionInfoRenderCheck.require(glGetError()==GL_NO_ERROR,"Armor GL error");System.out.println("PASS: actual item models/glint; slot order, empty slots, damage modes, both layouts, fit/drag, immutable equipment, item GL/cache/z restoration");
+        hud.onDisable();SessionInfoRenderCheck.require(glGetError()==GL_NO_ERROR,"Armor GL error");System.out.println("PASS: actual item models/glint; Basic/Modern/Creative; slot order, empty slots, damage modes, both layouts, fit/drag, immutable equipment, item GL/cache/z restoration");
     }
 }

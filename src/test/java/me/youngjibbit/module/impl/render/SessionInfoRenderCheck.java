@@ -57,7 +57,7 @@ public final class SessionInfoRenderCheck {
             set(mc,"framebufferMc",new Framebuffer(mc.displayWidth,mc.displayHeight,true));
             Class<?> fixture=Class.forName("me.youngjibbit.clickgui.ClickGuiRenderCheck");
             Method fonts=fixture.getDeclaredMethod("minimalFonts",String[].class);fonts.setAccessible(true);
-            Pulsar.INSTANCE.fontManager=(FontManager)fonts.invoke(null,(Object)new String[]{"Poppins-Bold 23","Product-Sans-Bold 20","Product-Sans-Bold 16","icon 22","icon1 22","Product-Sans-Regular 20"});
+            Pulsar.INSTANCE.fontManager=(FontManager)fonts.invoke(null,(Object)new String[]{"Poppins-Bold 23","Product-Sans-Bold 20","Product-Sans-Bold 16","icon 22","icon1 22","Product-Sans-Regular 20","Product-Sans-Bold 14","Product-Sans-Regular 12","Product-Sans-Regular 10","Poppins-Medium 14"});
             if(Boolean.getBoolean("pulsar.diagnostics.check")){DiagnosticsRenderCheck.run();context.check();return;}
             if(Boolean.getBoolean("pulsar.theme.sync.check")){ThemeSyncRenderCheck.run();context.check();return;}
             stats=new SessionStatistics(CLOCK::get);stats.observe(new Object(),true);CLOCK.set(3_723_000_000_000L);
@@ -72,6 +72,7 @@ public final class SessionInfoRenderCheck {
             if(Boolean.getBoolean("pulsar.theme.check")) ThemeEditorCheck.run();
             if(Boolean.getBoolean("pulsar.theme.gui.check")) ThemeGuiRenderCheck.run();
             if(Boolean.getBoolean("pulsar.watermark.check")) WatermarkCheck.run();
+            if(Boolean.getBoolean("pulsar.island.compact.check")) IslandCompactRenderCheck.run();
             if(Boolean.getBoolean("pulsar.armor.check")) ArmorHudCheck.run();
             if(Boolean.getBoolean("pulsar.menu.check")) me.youngjibbit.gui.MainMenuCheck.run(mc);
             if(Boolean.getBoolean("pulsar.neutron.ui.check")) me.youngjibbit.clickgui.NeutronUiRenderCheck.run(mc);
@@ -90,7 +91,7 @@ public final class SessionInfoRenderCheck {
             if(Boolean.getBoolean("pulsar.resources.check")) SharedResourceCheck.run();
             context.check();
         }
-        System.out.println("PASS [Pbuffer/FBO only]: four designs; read-only clock/HUD toggles; confirmed chat/replay/actionbar/disconnect; exact metrics; effect switches/masks; theme; chat-only drag; bounds/simulated resize/GUI scales");
+        System.out.println("PASS [Pbuffer/FBO only]: six designs; read-only clock/HUD toggles; confirmed chat/replay/actionbar/disconnect; exact metrics; effect switches/masks; theme; chat-only drag; bounds/simulated resize/GUI scales");
     }
 
     static SessionStatistics.Snapshot sample() {return new SessionStatistics.Snapshot(3_723_000_000_000L,12345,678,true);}
@@ -102,12 +103,14 @@ public final class SessionInfoRenderCheck {
         SessionInfo.Frame frozen=new SessionInfo.Frame(frame.x,frame.y,frame.width,frame.height,frame.radius,frame.design,frame.snapshot,
                 frame.theme,frame.background,frame.blur,frame.glow,frame.blurRadius,0.25f);
         frozen.text.addAll(frame.text);frozen.ring=frame.ring;
+        frozen.clockProgress=frame.clockProgress;frozen.clockTurn=frame.clockTurn;
+        frozen.killPulse=frame.killPulse;frozen.deathPulse=frame.deathPulse;frozen.statePulse=frame.statePulse;
         GuiShaderBloom.beginBatch();hud.paint(frozen);GuiShaderBloom.flushBatch(2,3);return capture();
     }
     static void checkDesignsAndClock() throws Exception {
         List<BufferedImage> images=new ArrayList<>();List<String> captions=new ArrayList<>();
         long before=stats.snapshot().elapsedNanos;
-        for(String design:new String[]{"Basic","Outline","Tenacity","Rue (Rise)"}) {
+        for(String design:new String[]{"Basic","Outline","Tenacity","Rue (Rise)","Modern","Creative"}) {
             hud.getBooleanSetting("Blur").setValue(true);
             images.add(render(design,NAME,sample()));captions.add(design+" / 1h 2m 3s / multi-digit statistics");
             SessionInfo.Frame frame=layout(NAME,sample());
@@ -138,7 +141,7 @@ public final class SessionInfoRenderCheck {
     }
     static void checkEffects() throws Exception {
         List<BufferedImage> pictures=new ArrayList<>();List<String> captions=new ArrayList<>();
-        for(String design:new String[]{"Basic","Outline","Tenacity","Rue (Rise)"}) {
+        for(String design:new String[]{"Basic","Outline","Tenacity","Rue (Rise)","Modern","Creative"}) {
             hud.getBooleanSetting("Background").setValue(false);hud.getBooleanSetting("Blur").setValue(false);hud.getBooleanSetting("Bloom").setValue(false);
             BufferedImage off=render(design,NAME,sample());
             hud.getBooleanSetting("Bloom").setValue(true);BufferedImage glow=render(design,NAME,sample());
@@ -170,7 +173,7 @@ public final class SessionInfoRenderCheck {
     }
     static void checkDraggingAndResize() throws Exception {
         hud.getBooleanSetting("Background").setValue(true);hud.getBooleanSetting("Blur").setValue(true);hud.getBooleanSetting("Bloom").setValue(true);
-        for(String design:new String[]{"Basic","Outline","Tenacity","Rue (Rise)"}) {
+        for(String design:new String[]{"Basic","Outline","Tenacity","Rue (Rise)","Modern","Creative"}) {
             hud.getModeSetting("Mode").setValue(design);SessionInfo.Frame frame=layout(NAME,sample());
             ScaledResolution sr=new ScaledResolution(mc);float oldX=frame.x,oldY=frame.y;
             hud.interact(false,true,oldX+12,oldY+10,frame,sr.getScaledWidth(),sr.getScaledHeight());
@@ -188,7 +191,7 @@ public final class SessionInfoRenderCheck {
         Pulsar.BUS.post(new me.youngjibbit.event.packet.TickEvent());
         require(!(boolean)get(hud,"dragging"),"Client tick did not stop dragging after chat close");hud.setToggled(false);
         List<BufferedImage> pictures=new ArrayList<>();List<String> captions=new ArrayList<>();
-        for(int scale:new int[]{1,2,3})for(String design:new String[]{"Outline","Tenacity"}) {
+        for(int scale:new int[]{1,2,3})for(String design:new String[]{"Outline","Tenacity","Modern","Creative"}) {
             mc.displayWidth=scale==2?854:1101;mc.displayHeight=scale==2?480:733;mc.gameSettings.guiScale=scale;
             mc.getFramebuffer().createBindFramebuffer(mc.displayWidth,mc.displayHeight);
             set(hud,"x",9999f);set(hud,"y",9999f);Theme.setDefaultTheme(Theme.Neon);

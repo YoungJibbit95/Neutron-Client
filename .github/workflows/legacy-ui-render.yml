@@ -32,6 +32,7 @@ on:
       - 'src/test/java/me/youngjibbit/module/impl/render/**'
       - 'src/test/java/me/youngjibbit/utils/render/**'
       - 'src/test/java/me/youngjibbit/rendercheck/**'
+      - 'src/test/java/net/minecraft/client/gui/**'
       - 'test_natives/linux/**'
 
 permissions:

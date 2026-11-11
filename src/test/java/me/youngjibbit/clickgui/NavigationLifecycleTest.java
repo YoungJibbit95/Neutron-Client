@@ -202,9 +202,9 @@ public class NavigationLifecycleTest {
     @Test public void libraryReentryStartsAtItsFinalGeometryAndEscapeRemainsUsable()throws Exception{
         GuiScreen parent=new GuiScreen(){};Library library=new Library(parent);
         client.displayGuiScreen(library);
-        assertEquals("No second local entry slide underneath the compositor",125,library.left(),.01);
+        assertEquals("No second local entry slide underneath the compositor",152,library.left(),.01);
         client.displayGuiScreen(new GuiScreen(){});client.displayGuiScreen(library);
-        assertEquals(125,library.left(),.01);library.escape();assertSame(parent,client.currentScreen);
+        assertEquals(152,library.left(),.01);library.escape();assertSame(parent,client.currentScreen);
     }
     @Test public void pointerHidesKeyboardCueAndTabRestoresIt() throws Exception {
         class FocusScreen extends QueuedScreen {

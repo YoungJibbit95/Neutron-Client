@@ -2,14 +2,9 @@ package net.minecraft.client.gui;
 
 import com.google.common.collect.Lists;
 
-import java.awt.*;
 import java.io.IOException;
 import java.util.List;
 
-import me.youngjibbit.utils.animations.Animation;
-import me.youngjibbit.utils.animations.Direction;
-import me.youngjibbit.utils.animations.impl.DecelerateAnimation;
-import me.youngjibbit.utils.render.UIUtils;
 import net.minecraft.network.play.client.C14PacketTabComplete;
 import net.minecraft.util.BlockPos;
 import net.minecraft.util.ChatComponentText;
@@ -25,7 +20,6 @@ import org.lwjgl.input.Mouse;
 public class GuiChat extends GuiScreen
 {
     private static final Logger logger = LogManager.getLogger();
-    private final me.youngjibbit.utils.render.ArrayListSurface inputSurface=new me.youngjibbit.utils.render.ArrayListSurface();
     private String historyBuffer = "";
 
     /**
@@ -40,7 +34,6 @@ public class GuiChat extends GuiScreen
 
     /** Chat entry field */
     protected GuiTextField inputField;
-    public static Animation openingAnimation = new DecelerateAnimation(175, 1, Direction.BACKWARDS);
 
     /**
      * is the text that appears when you press the chat key and the input box appears pre-filled
@@ -63,13 +56,20 @@ public class GuiChat extends GuiScreen
     public void initGui()
     {
         Keyboard.enableRepeatEvents(true);
-        this.sentHistoryCursor = this.mc.ingameGUI.getChatGUI().getSentMessages().size();
-        this.inputField = new GuiTextField(0, this.fontRendererObj, 4, this.height - 12, this.width - 4, 12);
+        // initGui is also called on resize: keep the draft and selection intact.
+        String text = this.inputField == null ? this.defaultInputFieldText : this.inputField.getText();
+        int cursor = this.inputField == null ? text.length() : this.inputField.getCursorPosition();
+        int selection = this.inputField == null ? cursor : this.inputField.getSelectionEnd();
+        if (this.inputField == null) this.sentHistoryCursor = this.mc.ingameGUI.getChatGUI().getSentMessages().size();
+        this.inputField = new GuiTextField(0, this.fontRendererObj, 18, this.height - 17, Math.max(20, this.width - 30), 10);
         this.inputField.setMaxStringLength(100);
         this.inputField.setEnableBackgroundDrawing(false);
         this.inputField.setFocused(true);
-        this.inputField.setText(this.defaultInputFieldText);
+        this.inputField.setText(text);
+        this.inputField.setCursorPosition(cursor);
+        this.inputField.setSelectionPos(selection);
         this.inputField.setCanLoseFocus(false);
+        this.mc.ingameGUI.getChatGUI().openInput();
     }
 
     /**
@@ -77,7 +77,7 @@ public class GuiChat extends GuiScreen
      */
     public void onGuiClosed()
     {
-       inputSurface.close();openingAnimation.setDirection(Direction.BACKWARDS);
+        this.mc.ingameGUI.getChatGUI().closeInput(this.inputField, this.width, this.height);
         Keyboard.enableRepeatEvents(false);
         this.mc.ingameGUI.getChatGUI().resetScroll();
     }
@@ -193,7 +193,8 @@ public class GuiChat extends GuiScreen
             }
         }
 
-        this.inputField.mouseClicked(mouseX, mouseY, mouseButton);
+        GuiNewChat chat = this.mc.ingameGUI.getChatGUI();
+        this.inputField.mouseClicked(chat.inputMouseX(mouseX), chat.inputMouseY(mouseY), mouseButton);
         super.mouseClicked(mouseX, mouseY, mouseButton);
     }
 
@@ -317,7 +318,7 @@ public class GuiChat extends GuiScreen
      */
     public void drawScreen(int mouseX, int mouseY, float partialTicks)
     {
-        inputSurface.panel(2,height-14,width-4,12,5,me.youngjibbit.utils.Theme.getDefaultTheme(),true,true,true,5,110/255f,.6f,()->inputField.drawTextBox());
+        this.mc.ingameGUI.getChatGUI().drawInput(this.inputField, this.width, this.height);
         IChatComponent ichatcomponent = this.mc.ingameGUI.getChatGUI().getChatComponent(Mouse.getX(), Mouse.getY());
 
         if (ichatcomponent != null && ichatcomponent.getChatStyle().getChatHoverEvent() != null)

@@ -82,8 +82,8 @@ public class ClickLibraryScreen extends GuiScreen {
     private float detailsWidth() { return w - 40 - configListWidth(); }
     protected ClipRect listBounds() {
         if(legacyConfigs()) {
-            float top=compactConfigs()?94:inlineSearch()?98:126;
-            float bottom=nameBounds().y-y-(compactConfigs()?6:16);
+            float top=compactConfigs()?94:inlineSearch()?88:118;
+            float bottom=nameBounds().y-y-(compactConfigs()?6:14);
             return new ClipRect(x+16,y+top,w-32,Math.max(24,bottom-top));
         }
         if (!themes) return new ClipRect(x + 12, y + (splitConfigs() ? 108 : 82), configListWidth(), Math.max(28, h - (splitConfigs() ? 140 : 170)));
@@ -96,10 +96,23 @@ public class ClickLibraryScreen extends GuiScreen {
         return new ClipRect(x + 12, y + 62, w - 24, 22);
     }
     protected ClipRect nameBounds() {
-        if(legacyConfigs())return new ClipRect(x+16,y+h-(compactConfigs()?74:93),w-32,compactConfigs()?22:28);
-        if (!themes) return splitConfigs() ? new ClipRect(detailsX(), y + 208, detailsWidth(), 22)
-                : new ClipRect(x + 12, y + h - 44, w - 102, 22);
+        if(legacyConfigs())return new ClipRect(x+16,y+h-(compactConfigs()?74:84),w-32,compactConfigs()?22:25);
+        if (!themes) {
+            if(splitConfigs()){
+                ClipRect section=saveSectionBounds();
+                return new ClipRect(section.x,section.y+section.height+2,section.width,22);
+            }
+            return new ClipRect(x+12,y+h-44,w-102,22);
+        }
         return new ClipRect(x + 12, y + h - 78, w - 24, 22);
+    }
+    /** The save form follows Rename as one stack; paint and hit testing share these bounds. */
+    protected ClipRect saveSectionBounds() {
+        if(!legacyConfigs()&&splitConfigs()){
+            ClipRect rename=actionBounds(4);
+            return new ClipRect(detailsX(),rename.y+rename.height+10,detailsWidth(),14);
+        }
+        return new ClipRect(x+12,y+h-59,w-24,14);
     }
     protected ClipRect actionBounds(int id) {
         if(legacyConfigs()) {
@@ -108,7 +121,7 @@ public class ClickLibraryScreen extends GuiScreen {
             int[] order={0,1,4,2,3};int index=0;
             for(int i=0;i<order.length;i++)if(order[i]==id)index=i;
             float available=Math.min(548,w-32),gap=5,bw=(available-gap*4)/5;
-            return new ClipRect(x+(w-available)/2+index*(bw+gap),y+h-(compactConfigs()?45:54),bw,compactConfigs()?26:34);
+            return new ClipRect(x+(w-available)/2+index*(bw+gap),y+h-(compactConfigs()?45:48),bw,26);
         }
         if (id == 6 || id == 7) return new ClipRect(x + 12 + (id - 6) * 88, y + (themes ? 34 : 30), 82, themes ? 22 : 20);
         if (id == 8) return new ClipRect(x + w - 50, y + 10, 38, 22);
@@ -116,7 +129,11 @@ public class ClickLibraryScreen extends GuiScreen {
             if (id == 3) { ClipRect search = searchBounds(); return new ClipRect(search.x + search.width + 6, search.y, 64, 20); }
             if (splitConfigs()) {
                 if (id == 4) return new ClipRect(detailsX(), y + 172, detailsWidth(), 26);
-                return new ClipRect(detailsX(), y + (id == 0 ? 236 : id == 1 ? 112 : 144), detailsWidth(), 26);
+                if (id == 0) {
+                    ClipRect field=nameBounds();
+                    return new ClipRect(field.x,field.y+field.height+6,field.width,26);
+                }
+                return new ClipRect(detailsX(), y + (id == 1 ? 112 : 144), detailsWidth(), 26);
             }
             if (id == 0) return new ClipRect(x + w - 84, y + h - 44, 72, 22);
             float third = Math.max(1,(w - 36) / 3);
@@ -133,8 +150,8 @@ public class ClickLibraryScreen extends GuiScreen {
     }
     private boolean compactList() { return h < 300; }
     private float rowHeight() {
-        if(legacyConfigs())return Math.min(compactConfigs()?68:84,Math.max(30,listBounds().height))+6;
-        return themes ? compactList() ? 36 : creative()?82:56 : splitConfigs() ? creative()?40:34 : 28;
+        if(legacyConfigs())return Math.min(compactConfigs()?46:60,Math.max(30,listBounds().height))+6;
+        return themes ? compactList() ? 36 : creative()?66:52 : splitConfigs() ? creative()?40:34 : 28;
     }
     private float rowsHeight() { return ((items().size() + columns() - 1) / columns()) * rowHeight(); }
     protected ClipRect itemBounds(int index) {
@@ -191,25 +208,13 @@ public class ClickLibraryScreen extends GuiScreen {
                     two()?4:8,two()?.98f:.92f,two()?.2f:.8f,()->{
                 try(GuiClip clip=GuiClip.push(new ClipRect(x+2,y+2,w-4,h-4))){
                     if(two()){
-                        UIUtils.drawRound(x+1,y+1,w-2,h-2,14,
-                                creative?NeutronVisualTokens.alpha(NeutronVisualTokens.FRAME.getRGB(),250):NeutronVisualTokens.FRAME);
-                        UIUtils.drawRound(x+1,y+1,w-2,31,14,
-                                creative?NeutronVisualTokens.alpha(NeutronVisualTokens.HEADER.getRGB(),248):NeutronVisualTokens.HEADER);
-                        UIUtils.drawRound(x+7,y+(themes?88:splitConfigs()?104:78),
-                                Math.max(1,configListWidth()+10),
-                                Math.max(1,h-(themes?164:splitConfigs()?138:170)),
-                                9,creative?NeutronVisualTokens.alpha(NeutronVisualTokens.PANEL.getRGB(),240):NeutronVisualTokens.PANEL);
-                        if(splitConfigs()){
-                            UIUtils.drawRound(detailsX()-3,y+102,
-                                    Math.max(1,detailsWidth()+7),Math.max(1,h-136),
-                                    9,creative?NeutronVisualTokens.alpha(NeutronVisualTokens.PANEL.getRGB(),240):NeutronVisualTokens.PANEL);
-                        }
+                        // The outer panel retains the chosen material; readable backing is local to each control.
                         UIUtils.drawDecorationRound(x+17,y+31,
                                 Math.max(1,w-34),1,.5f,NeutronVisualTokens.HAIRLINE);
                         UIUtils.drawDecorationRound(x+12,y+11,2,18,1,
                                 NeutronVisualTokens.accent(theme,200));
-                        if(creative){
-                            // Dynamic header accent spark.
+                        if(creative&&UiEffects.motion()){
+                            // Ambient accent follows the user's motion preference.
                             float spark=UiEffects.time()*1.5f;
                             float sx=x+w-28+(float)Math.sin(spark)*8f;
                             float sy=y+15+(float)Math.cos(spark*.6f)*5f;
@@ -230,9 +235,7 @@ public class ClickLibraryScreen extends GuiScreen {
                         motion[id].stepForInput(dt, r.contains(mx,my), focus == id, pressed == id, active, ClientSettings.current());
                         r = GuiStyle.buttonBounds(r, motion[id]);
                         if(two()){
-                            UIUtils.drawRound(r.x,r.y,r.width,r.height,7,
-                                    active?(creative?NeutronVisualTokens.alpha(NeutronVisualTokens.CONTROL.getRGB(),245):NeutronVisualTokens.CONTROL):
-                                            (creative?NeutronVisualTokens.alpha(NeutronVisualTokens.PANEL.getRGB(),200):NeutronVisualTokens.PANEL));
+                            MenuSurface.card(r.x,r.y,r.width,r.height,theme,active&&(id==6&&!themes||id==7&&themes),motion[id].amount());
                             if(active&&(id==1||id==6||id==7))
                                 UIUtils.drawDecorationRound(r.x+3,r.y+r.height-3,
                                         Math.max(1,r.width-6),1,.5f,
@@ -243,7 +246,7 @@ public class ClickLibraryScreen extends GuiScreen {
                                         9, me.youngjibbit.utils.render.UiEffects.accent(theme.getSecondaryGradientRGB(), .05f*motion[id].glow()));
                             }
                         }else if(themes)
-                            UIUtils.drawRound(r.x,r.y,r.width,r.height,3,new Color(21,24,31));
+                            MenuSurface.card(r.x,r.y,r.width,r.height,theme,false,motion[id].amount());
                         else {
                             boolean primary=id==1||id==6;
                             int fill=Theme.interpolateRGB(0xff202630,
@@ -259,12 +262,10 @@ public class ClickLibraryScreen extends GuiScreen {
                         for (int i = 0; i < items.size(); i++) {
                             ClipRect r = itemBounds(i); if (r.intersect(listBounds()).isEmpty()) continue;
                             String ref = items.get(i); boolean chosen = ref.equals(selected());
+                            UiSpring itemMotion=cardMotion.computeIfAbsent((themes?"theme:":"config:")+ref,k->new UiSpring());
+                            itemMotion.stepForInput(dt,listBounds().contains(mx,my)&&r.contains(mx,my),chosen&&focus==-2,false,true,ClientSettings.current());
                             if(two()){
-                                UIUtils.drawRound(r.x+2,r.y+2,Math.max(1,r.width-5),
-                                        Math.max(1,r.height-4),8,
-                                        chosen?NeutronVisualTokens.CARD_HOVER:
-                                                r.contains(mx,my)?NeutronVisualTokens.CARD:
-                                                        NeutronVisualTokens.PANEL);
+                                MenuSurface.card(r.x+2,r.y+2,Math.max(1,r.width-5),Math.max(1,r.height-4),theme,chosen,itemMotion.amount());
                                 if(chosen)UIUtils.drawDecorationRound(r.x+4,r.y+7,2,
                                         Math.max(1,r.height-14),1,
                                         NeutronVisualTokens.accent(theme,215));
@@ -273,7 +274,7 @@ public class ClickLibraryScreen extends GuiScreen {
                                             Math.max(1,r.width-16),1,.5f,
                                             NeutronVisualTokens.secondary(theme,166));
                                 if(creative&&r.contains(mx,my)){
-                                    float itemGlow=motion[Math.min(8,i%9)].glow();
+                                    float itemGlow=itemMotion.glow();
                                     if(itemGlow>.02f){
                                         UIUtils.drawDecorationRound(r.x+2-itemGlow*2f, r.y+2-itemGlow*2f,
                                                 Math.max(1,r.width-5)+itemGlow*4f, Math.max(1,r.height-4)+itemGlow*4f,
@@ -281,8 +282,7 @@ public class ClickLibraryScreen extends GuiScreen {
                                     }
                                 }
                             }else if(themes)
-                                GuiStyle.panel(r.x,r.y,r.width,r.height,3,
-                                        chosen?1:r.contains(mx,my)?.4f:.05f,new Color(17,20,27));
+                                MenuSurface.card(r.x,r.y,r.width,r.height,theme,chosen,itemMotion.amount());
                             else {
                                 UIUtils.drawDecorationRound(r.x,r.y,r.width,r.height,3,
                                         new Color(Theme.interpolateRGB(0xff171c25,
@@ -298,9 +298,9 @@ public class ClickLibraryScreen extends GuiScreen {
                                 Theme tile = catalog.find(ref);
                                 // Literal swatches: the selected global gradient must never recolor another preset.
                                 if(creative()&&!compactList())
-                                    UIUtils.drawLiteralGradient(r.x+10,r.y+8,r.width-20,32,16,tile.getPrimaryGradientColor(),tile.getSecondaryGradientColor());
+                                    UIUtils.drawLiteralGradient(r.x+10,r.y+8,r.width-20,24,12,tile.getPrimaryGradientColor(),tile.getSecondaryGradientColor());
                                 else UIUtils.drawLiteralGradient(r.x+5,r.y+4,r.width-10,compactList()?11:18,2,tile.getPrimaryGradientColor(),tile.getSecondaryGradientColor());
-                                float labelY=r.y+(compactList()?19:creative()?55:31);
+                                float labelY=r.y+(compactList()?19:creative()?40:31);
                                 text(tile.getDisplayName(), r.x+7,labelY,r.width-27,ink);
                                 if (chosen) text("+",r.x+r.width-16,labelY,10,ink);
                             } else {
@@ -361,14 +361,13 @@ public class ClickLibraryScreen extends GuiScreen {
                             // Selection and hover only move the local card; grid geometry stays stable.
                             float lift=UiEffects.motion()?Math.min(1.5f,Math.max(0,animation.lift())):0;
                             ClipRect r=new ClipRect(hit.x,hit.y-lift,hit.width,hit.height);
-                            legacyConfigCard(r,theme,selected,hovered);
+                            legacyConfigCard(r,theme,selected,animation.amount());
                             GuiStyle.feedback(r,animation);
-                            if(r.height>=60) {
+                            if(r.height>=50) {
                                 LegacyUiStyle.icon("settings",r.x+12,r.y+12,17,theme.getPrimaryGradientRGB());
-                                text("LOCAL PROFILE",r.x+38,r.y+14,r.width-65,LegacyUiStyle.FAINT);
+                                text(ref,r.x+38,r.y+12,r.width-64,ink);
                                 if(selected)LegacyUiStyle.icon("check",r.x+r.width-22,r.y+14,10,theme.getPrimaryGradientRGB());
-                                text(ref,r.x+12,r.y+r.height-28,r.width-24,ink);
-                                text(selected?"Selected · Enter to load":"Saved client setup",r.x+12,r.y+r.height-14,r.width-24,LegacyUiStyle.MUTED);
+                                text(selected?"Selected · Enter to load":"Local profile",r.x+38,r.y+32,r.width-50,LegacyUiStyle.MUTED);
                             } else {
                                 LegacyUiStyle.icon("settings",r.x+10,r.y+(r.height-12)/2,12,selected?theme.getPrimaryGradientRGB():LegacyUiStyle.MUTED);
                                 text(ref,r.x+30,r.y+(r.height-10)/2,r.width-42,ink);
@@ -399,22 +398,15 @@ public class ClickLibraryScreen extends GuiScreen {
             });
         }
     }
-    private void legacyConfigCard(ClipRect r,Theme theme,boolean selected,boolean hovered) {
-        LegacyUiStyle.card(r.x,r.y,r.width,r.height,theme,selected,hovered);
-        // Blur/glass can give adjacent cards the same scene sample. Keep their
-        // boundaries visible with a light local veil over the shared material.
-        // The low-alpha fill is decorative, so it does not sample that scene again.
-        UIUtils.drawRoundOutline(r.x+.5f,r.y+.5f,r.width-1,r.height-1,
-                LegacyUiStyle.CONTROL_RADIUS,.7f,
-                LegacyUiStyle.alpha(LegacyUiStyle.INK,selected?.08f:hovered?.065f:.045f),
-                LegacyUiStyle.alpha(LegacyUiStyle.INK,selected?.28f:hovered?.20f:.14f),0);
+    private void legacyConfigCard(ClipRect r,Theme theme,boolean selected,float hover) {
+        MenuSurface.card(r.x,r.y,r.width,r.height,theme,selected,hover);
     }
     private void legacyAction(int id,int mx,int my,float dt,Theme theme,int ink) {
         ClipRect hit=actionBounds(id);boolean active=enabled(id);
         motion[id].stepForInput(dt,hit.contains(mx,my),focus==id,pressed==id,active,ClientSettings.current());
         ClipRect r=GuiStyle.buttonBounds(hit,motion[id]);
         boolean selected=id==6;
-        LegacyUiStyle.card(r.x,r.y,r.width,r.height,theme,selected,active&&hit.contains(mx,my));
+        MenuSurface.card(r.x,r.y,r.width,r.height,theme,selected,motion[id].amount());
         GuiStyle.feedback(r,motion[id]);
         String[] names={"Save","Load","Delete","Refresh","Rename"};
         String title=id<5?names[id]:id==6?"Configs":id==7?"Themes":"Back";
@@ -430,7 +422,7 @@ public class ClickLibraryScreen extends GuiScreen {
         } else LegacyUiStyle.icon(icon,r.x+(r.width-13)/2,r.y+(r.height-13)/2,13,color);
     }
     private void legacyField(ClipRect r,String value,boolean focused,String icon,Theme theme,int ink) {
-        LegacyUiStyle.card(r.x,r.y,r.width,r.height,theme,focused&&showsKeyboardFocus(),false);
+        MenuSurface.card(r.x,r.y,r.width,r.height,theme,focused&&showsKeyboardFocus(),false);
         LegacyUiStyle.icon(icon,r.x+9,r.y+(r.height-12)/2,12,focused?theme.getPrimaryGradientRGB():LegacyUiStyle.FAINT);
         try(GuiClip field=GuiClip.push(new ClipRect(r.x+28,r.y+2,r.width-36,r.height-4))) {
             if(focused)while(value.length()>1&&font().getWidth(value)>r.width-42)value=value.substring(value.offsetByCodePoints(0,1));
@@ -444,18 +436,21 @@ public class ClickLibraryScreen extends GuiScreen {
             text("Selected config",detailsX(),y+66,detailsWidth(),UiEffects.alpha(ink,.72f));
             String visible = visibleConfigSelection();
             text(visible.isEmpty() ? "Choose a config" : visible, detailsX(), y+87, detailsWidth(), ink);
-            UIUtils.drawDecorationRound(detailsX(),y+181,detailsWidth(),1,0,UiEffects.color(ink,.12f));
-            text("Save current setup",detailsX(),y+190,detailsWidth(),ink);
-        } else text("Save current setup as",x+12,y+h-59,w-24,UiEffects.alpha(ink,.8f));
+            ClipRect section=saveSectionBounds();
+            UIUtils.drawDecorationRound(section.x,section.y-6,section.width,1,0,UiEffects.color(ink,.12f));
+            text("Save current setup",section.x,section.y,section.width,ink);
+        } else {
+            ClipRect section=saveSectionBounds();
+            text("Save current setup as",section.x,section.y,section.width,UiEffects.alpha(ink,.8f));
+        }
     }
     private void field(ClipRect r,String value,boolean focused,int ink) {
         if(ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())){
-            UIUtils.drawRound(r.x,r.y,r.width,r.height,7,NeutronVisualTokens.CONTROL);
+            MenuSurface.card(r.x,r.y,r.width,r.height,Theme.getDefaultTheme(),focused&&showsKeyboardFocus(),false);
             if(focused&&showsKeyboardFocus())UIUtils.drawDecorationRound(r.x+4,
                     r.y+r.height-2,Math.max(1,r.width-8),1,.5f,
                     NeutronVisualTokens.accent(Theme.getDefaultTheme(),185));
-        }else GuiStyle.panel(r.x,r.y,r.width,r.height,3,
-                focused&&showsKeyboardFocus()?1:.12f,new Color(15,18,24));
+        }else MenuSurface.card(r.x,r.y,r.width,r.height,Theme.getDefaultTheme(),focused&&showsKeyboardFocus(),false);
         try(GuiClip clip=GuiClip.push(new ClipRect(r.x+5,r.y+2,r.width-10,r.height-4))) {
             if(focused)while(value.length()>1&&font().getWidth(value)>r.width-14)value=value.substring(value.offsetByCodePoints(0,1));
             text(value,r.x+7,r.y+6,r.width-14,ink);

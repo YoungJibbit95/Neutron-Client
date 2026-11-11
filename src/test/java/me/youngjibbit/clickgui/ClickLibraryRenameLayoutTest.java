@@ -110,6 +110,84 @@ public class ClickLibraryRenameLayoutTest {
         } finally { ThemeMode.select(previous); }
     }
 
+    @Test public void splitSaveFormFollowsRenameWithoutCoveringHeadingFieldOrFooter()throws Exception {
+        String previous=ThemeMode.selected();ThemeMode.select(ThemeMode.APPROACH_TWO);
+        try {
+            for(boolean creative:new boolean[]{false,true})for(int[] size:new int[][]{{560,320},{640,320},{640,360},{854,480}}){
+                Path dir=temporary.newFolder().toPath(),original=dir.resolve("Saved.json");
+                byte[] bytes="{\"preserve\":true}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
+                Files.write(original,bytes);
+                ClickLibraryScreen screen=modernScreen(dir,size[0],size[1],creative);
+                try {
+                    ClipRect rename=screen.actionBounds(4),section=screen.saveSectionBounds(),name=screen.nameBounds(),save=screen.actionBounds(0);
+                    ClipRect load=screen.actionBounds(1),delete=screen.actionBounds(2);
+                    assertTrue("Load must finish before Delete",load.y+load.height<=delete.y);
+                    assertTrue("Delete must finish before Rename",delete.y+delete.height<=rename.y);
+                    assertTrue("The save divider must follow Rename",rename.y+rename.height+4<=section.y-6);
+                    assertTrue("The full heading must finish before the editable field",section.y+section.height+2<=name.y);
+                    assertTrue("Save must follow the field with a visible gap",name.y+name.height+6<=save.y);
+                    float windowBottom=(Float)field(screen,"y")+(Float)field(screen,"h");
+                    assertTrue("Save must leave the status/footer line uncovered",save.y+save.height+6<=windowBottom-16);
+                    for(ClipRect r:new ClipRect[]{load,delete,rename,section,name,save}){
+                        assertTrue(r.width>0&&r.height>0&&r.x>=0&&r.y>=0&&r.x+r.width<=screen.width&&r.y+r.height<=screen.height);
+                        assertTrue("The detail form must not cover the config list",r.intersect(screen.listBounds()).isEmpty());
+                    }
+                    assertEquals(section.x,name.x,.001f);assertEquals(name.x,save.x,.001f);
+                    assertEquals(section.width,name.width,.001f);assertEquals(name.width,save.width,.001f);
+                    click(screen,screen.itemBounds(0));click(screen,rename);
+                    assertEquals(Boolean.TRUE,field(screen,"renaming"));
+                    type(screen,"Draft name");click(screen,name);
+                    assertEquals(-4,field(screen,"focus"));assertEquals("Draft name",field(screen,"renameBuffer"));
+                    screen.keyTyped('\0',Keyboard.KEY_ESCAPE);
+                    click(screen,save);
+                    ConfigLibrary actions=(ConfigLibrary)field(screen,"configs");
+                    assertEquals("The moved Save button must receive its click",ConfigLibrary.Pending.OVERWRITE,actions.pending());
+                    assertEquals("Saved",actions.target());
+                    assertArrayEquals("Layout and draft edits cannot overwrite the source",bytes,Files.readAllBytes(original));
+                    screen.keyTyped('\0',Keyboard.KEY_ESCAPE);
+                } finally {screen.onGuiClosed();}
+            }
+        } finally {ThemeMode.select(previous);}
+    }
+
+    @Test public void modernRenameDraftAndHitTargetsSurviveTheMinimumSplitHeight()throws Exception {
+        String previous=ThemeMode.selected();ThemeMode.select(ThemeMode.APPROACH_TWO);
+        try {
+            for(boolean creative:new boolean[]{false,true}){
+                Path dir=temporary.newFolder().toPath(),original=dir.resolve("Saved.json");
+                byte[] bytes="{\"preserve\":true}".getBytes(java.nio.charset.StandardCharsets.UTF_8);Files.write(original,bytes);
+                ClickLibraryScreen screen=modernScreen(dir,560,360,creative);
+                try {
+                    click(screen,screen.itemBounds(0));click(screen,screen.actionBounds(4));type(screen,"Resize draft");
+                    for(int height:new int[]{319,320,321,240,360}){
+                        screen.height=height;screen.initGui();
+                        assertEquals(Boolean.TRUE,field(screen,"renaming"));assertEquals("Resize draft",field(screen,"renameBuffer"));
+                        ClipRect name=screen.nameBounds(),rename=screen.actionBounds(4),save=screen.actionBounds(0);
+                        assertTrue("Rename stays separate across the split breakpoint",rename.intersect(name).isEmpty());
+                        assertTrue("Save stays separate across the split breakpoint",save.intersect(name).isEmpty());
+                        for(ClipRect r:new ClipRect[]{name,rename,save})
+                            assertTrue(r.x>=0&&r.y>=0&&r.x+r.width<=screen.width&&r.y+r.height<=screen.height);
+                        click(screen,name);assertEquals(-4,field(screen,"focus"));assertEquals("Resize draft",field(screen,"renameBuffer"));
+                        assertArrayEquals(bytes,Files.readAllBytes(original));
+                    }
+                    screen.keyTyped('\0',Keyboard.KEY_RETURN);
+                    ConfigLibrary actions=(ConfigLibrary)field(screen,"configs");
+                    assertEquals(ConfigLibrary.Pending.RENAME,actions.pending());assertEquals("Resize draft",actions.target());
+                    assertFalse(Files.exists(dir.resolve("Resize draft.json")));
+                } finally {screen.onGuiClosed();}
+            }
+        } finally {ThemeMode.select(previous);}
+    }
+
+    private ClickLibraryScreen modernScreen(Path dir,int width,int height,final boolean creative) {
+        ClickLibraryScreen screen=new ClickLibraryScreen(null,false,
+                new ConfigManager(dir,Collections.emptyList(),()->false,message->{}),new ThemeCatalog(null)){
+            @Override protected boolean modernPresentation(){return true;}
+            @Override protected boolean creativePresentation(){return creative;}
+        };
+        screen.width=width;screen.height=height;screen.initGui();return screen;
+    }
+
     private ClickLibraryScreen screen(Path dir,int width,int height) {
         ClickLibraryScreen screen=new ClickLibraryScreen(null,false,
                 new ConfigManager(dir,Collections.emptyList(),()->false,message->{}),new ThemeCatalog(null));

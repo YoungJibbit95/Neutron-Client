@@ -64,15 +64,17 @@ public class NeutronTwoGuiTest {
         void release(){mouseReleased(-1,-1,0);}
         void key(int code)throws Exception{keyTyped(' ',code);}
         void frame(float dt,int mx,int my){advanceMotion(dt,mx,my);}
+        ClipRect category(int index){return categoryBounds(index);}
+        ClipRect toolbar(){return searchBounds();}
     }
     @Test public void modernScreenHasDistinctLayoutWithoutChangingLegacyPanelDimensions()throws Exception {
         Screen modern=new Screen();modern.setup(854,480);
         assertTrue(modern.modernPresentation());
         assertEquals(640f,(Float)field(modern,"width"),.01f);
-        assertEquals(440f,(Float)field(modern,"height"),.01f);
+        assertEquals(393.6f,(Float)field(modern,"height"),.01f);
         float left=(Float)field(modern,"x");
         ClipRect viewport=(ClipRect)field(modern,"viewport");
-        assertEquals(left+me.youngjibbit.gui.NeutronVisualTokens.sidebar(640)+16,
+        assertEquals(left+140.8f+16,
                 viewport.x,.01f);
         ClickGui legacy=new ClickGui();
         assertFalse(legacy.modernPresentation());
@@ -96,9 +98,8 @@ public class NeutronTwoGuiTest {
         assertEquals(1,dummy.enabledCount);
         screen.release();screen.release();assertEquals(1,dummy.enabledCount);
         float x=(Float)field(screen,"x"),y=(Float)field(screen,"y");
-        screen.click((int)x+15,(int)y+56+4+
-                (int)me.youngjibbit.gui.NeutronVisualTokens.categoryPitch(
-                        (Float)field(screen,"height"),Category.values().length)+12,0);
+        ClipRect movement=screen.category(1);
+        screen.click((int)(movement.x+movement.width/2),(int)(movement.y+movement.height/2),0);
         assertEquals(Category.Movement,field(screen,"selectedCategory"));
         screen.key(Keyboard.KEY_PRIOR);
         assertEquals(Category.Combat,field(screen,"selectedCategory"));
@@ -109,9 +110,8 @@ public class NeutronTwoGuiTest {
     @Test public void reopeningKeepsLogicalCategoryButDiscardsPointerCapture()throws Exception {
         Screen screen=new Screen();screen.setup(854,480);
         float x=(Float)field(screen,"x"),y=(Float)field(screen,"y");
-        screen.click((int)x+15,(int)y+56+4+
-                (int)me.youngjibbit.gui.NeutronVisualTokens.categoryPitch(
-                        (Float)field(screen,"height"),Category.values().length)+12,0);
+        ClipRect movement=screen.category(1);
+        screen.click((int)(movement.x+movement.width/2),(int)(movement.y+movement.height/2),0);
         screen.release();
         assertEquals(Category.Movement,field(screen,"selectedCategory"));
         screen.click((int)x+38,(int)y+14,0);
@@ -120,6 +120,25 @@ public class NeutronTwoGuiTest {
         assertFalse((Boolean)field(screen,"dragging"));
         assertFalse((Boolean)field(screen,"resizing"));
         assertEquals(Category.Movement,field(screen,"selectedCategory"));
+        assertEquals(0,dummy.valueChanges);
+    }
+
+    @Test public void compactCategoryTargetsRemainReachableAcrossSizesAndBothStyles()throws Exception {
+        for(String style:new String[]{"Modern","Creative"}){
+            ClientSettings.current().neutronScreenStyle.setValue(style);
+            for(int[] size:new int[][]{{320,240},{640,360},{854,480},{1280,960}}){
+                Screen screen=new Screen();screen.setup(size[0],size[1]);
+                for(int i=0;i<Category.values().length;i++){
+                    ClipRect category=screen.category(i),toolbar=screen.toolbar();
+                    assertTrue(category.width>0&&category.height>0);
+                    assertTrue(category.x>=0&&category.x+category.width<=size[0]);
+                    assertTrue(category.y>=toolbar.y+toolbar.height);
+                    assertTrue(category.y+category.height<=size[1]);
+                    screen.click((int)(category.x+category.width/2),(int)(category.y+category.height/2),0);
+                    screen.release();assertEquals(Category.values()[i],field(screen,"selectedCategory"));
+                }
+            }
+        }
         assertEquals(0,dummy.valueChanges);
     }
 }

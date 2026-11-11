@@ -37,11 +37,15 @@ public class ArmorHUD extends Module {
     private final SliderValue scale=new SliderValue("Scale",this,1.0,0.65,1.6);
     private final ArrayListSurface surface=new ArrayListSurface(this);
     private final HudSpring[] durabilitySprings=new HudSpring[5];
+    private final CompactHudMotion[] slotChanges=new CompactHudMotion[5];
+    private final Object[] previousItems=new Object[5];
+    private static final String[] SLOT_NAMES={"Head","Body","Legs","Feet","Hand"};
     private long durabilityFrame;
     private Object durabilityWorld;
-    { for(int i=0;i<durabilitySprings.length;i++)durabilitySprings[i]=new HudSpring(); }
+    { for(int i=0;i<durabilitySprings.length;i++){durabilitySprings[i]=new HudSpring();slotChanges[i]=new CompactHudMotion();} }
     private void clearDurabilityMotion(){
         for(HudSpring spring:durabilitySprings)spring.reset();
+        for(CompactHudMotion motion:slotChanges)motion.reset();Arrays.fill(previousItems,null);
         durabilityFrame=0;
     }
     private final SliderValue positionX=new SliderValue("Position X",this,100.0,-16384,16384);
@@ -77,18 +81,23 @@ public class ArmorHUD extends Module {
         boolean animations=settings==null||settings.animations.getValue();
         boolean reduced=settings!=null&&settings.reducedMotion.getValue();
         String intensity=settings==null?"Balanced":settings.motionIntensity.getValue();
-        TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Bold 16");
+        String design=mode.getValue();
+        boolean compact=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())||"Modern".equals(design)||"Creative".equals(design);
+        TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Bold "+(compact?"14":"16"));
         Frame f=new Frame(font);
         boolean horizontal=layout.getValue().equals("Horizontal");
-        String design=mode.getValue();
         f.design=design;
         f.modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())||"Modern".equals(design)||"Creative".equals(design);
-        String[] names={"Head","Body","Legs","Feet","Hand"};
         for(int i=0;i<5;i++){
             if(i==4&&!held.getValue())continue;
             ItemStack item=i==4?hand:armor.length>3-i?armor[3-i]:null;
             if(item==null&&!empty.getValue())continue;
             ItemStack copy=item==null?null:item.copy();
+            Object itemType=copy==null?null:copy.getItem();
+            if(previousItems[i]!=itemType){durabilitySprings[i].reset();previousItems[i]=itemType;}
+            long observed=copy==null?0:((long)net.minecraft.item.Item.getIdFromItem(copy.getItem())<<32)
+                    ^((long)copy.getItemDamage()<<8)^copy.stackSize;
+            float pulse=slotChanges[i].step(observed,dt,animations,reduced,intensity);
             float displayRatio=1;
             if(copy!=null&&copy.getMaxDamage()>0){
                 int max=copy.getMaxDamage();
@@ -96,10 +105,10 @@ public class ArmorHUD extends Module {
                 displayRatio=Math.max(0,Math.min(1,
                         durabilitySprings[i].step(actual,dt,animations,reduced,intensity)));
             }else durabilitySprings[i].reset();
-            String label=copy==null?names[i]:formatDurability(copy,displayRatio);
-            f.cells.add(new Cell(copy,label,displayRatio));
+            String label=copy==null?SLOT_NAMES[i]:formatDurability(copy,displayRatio);
+            f.cells.add(new Cell(copy,label,displayRatio,i,pulse));
         }
-        if("Creative".equals(design))return creativeLayout(f,horizontal,sw,sh);
+        if(f.modern)return compactLayout(f,horizontal,sw,sh);
         // Occupied vertical rows keep the equipment order. Empty slots share one compact strip.
         float cursor=6,max=0,emptyWidth=0;
         boolean hasLabels=false,hasBars=false;
@@ -131,18 +140,20 @@ public class ArmorHUD extends Module {
         else f.glow=glow.getValue();
         f.bar=bar.getValue();return f;
     }
-    private Frame creativeLayout(Frame f,boolean horizontal,int sw,int sh){
+    private Frame compactLayout(Frame f,boolean horizontal,int sw,int sh){
         boolean[] occupied=new boolean[f.cells.size()];float[] labels=new float[occupied.length];
         for(int i=0;i<occupied.length;i++){
             Cell c=f.cells.get(i);occupied[i]=c.item!=null;
             labels[i]=(occupied[i]?f.font:f.emptyFont).getWidth(c.label);
         }
         CreativeHudLayout.Armor geometry=new CreativeHudLayout.Armor(horizontal,occupied,labels);
+        float padding="Creative".equals(f.design)?0:3;
         for(int i=0;i<occupied.length;i++){
             CreativeHudLayout.Rect r=geometry.cells[i];Cell c=f.cells.get(i);
-            c.x=r.x;c.y=r.y;c.w=r.width;c.h=r.height;c.mini=!occupied[i];
+            c.x=r.x+padding;c.y=r.y+padding;c.w=r.width;c.h=r.height;c.mini=!occupied[i];
         }
-        f.width=geometry.width;f.height=geometry.height;f.horizontal=horizontal;
+        f.width=occupied.length==0?0:geometry.width+padding*2;
+        f.height=occupied.length==0?0:geometry.height+padding*2;f.horizontal=horizontal;
         f.scale=Math.min(scale.getValue().floatValue(),Math.min(Math.max(1,sw-8)/Math.max(1,f.width),
                 Math.max(1,sh-8)/Math.max(1,f.height)));
         width=f.width*f.scale;height=f.height*f.scale;
@@ -152,48 +163,65 @@ public class ArmorHUD extends Module {
         return f;
     }
 
-    /** Individual compact equipment tabs; no enclosing card or separate per-cell framebuffer. */
-    private void paintCreative(Frame f){
+    /** Shared content geometry: Modern groups the rail; Creative uses detached round tabs. */
+    private void paintCompact(Frame f){
         GuiShaderBloom.afterBatch(()->surface.withScene(f.theme,f.background,f.blur,3,policy->{
             try(RenderState state=new RenderState()){
                 state.screenSpace();
                 try(GuiClip clip=GuiClip.push(new ClipRect(f.x,f.y,f.width*f.scale,f.height*f.scale))){
                     glTranslatef(f.x,f.y,0);glScalef(f.scale,f.scale,1);
+                    boolean creative="Creative".equals(f.design);
+                    if(!creative){
+                        if(policy.blur)UiEffects.drawBlurredRect(0,0,f.width,f.height,10,Color.WHITE,3,1);
+                        if(policy.background){
+                            if(UiEffects.material())UIUtils.drawSceneRound(0,0,f.width,f.height,10);
+                            else UIUtils.drawRound(0,0,f.width,f.height,10,new Color(17,23,34,Math.round(232*policy.opacity)));
+                        }
+                    }
+                    for(Cell cell:f.cells){
+                        if(creative){
+                            if(policy.blur)UiEffects.drawBlurredRect(cell.x,cell.y,cell.w,cell.h,8,Color.WHITE,3,1);
+                            if(policy.background){
+                                if(UiEffects.material())UIUtils.drawSceneRound(cell.x,cell.y,cell.w,cell.h,8);
+                                else UIUtils.drawRound(cell.x,cell.y,cell.w,cell.h,8,
+                                        new Color(17,23,34,Math.round(232*policy.opacity)));
+                            }
+                        }else if(policy.background)UIUtils.drawDecorationRound(cell.x,cell.y,cell.w,cell.h,7,
+                                new Color(133,160,195,Math.round((cell.item==null?12:18)*policy.opacity)));
+                    }
+                    CompactHudVisuals.begin(f.scale);
+                    for(Cell cell:f.cells)if(cell.item==null)
+                        CompactHudVisuals.equipment(cell.slot,cell.x+(cell.w-12)/2,cell.y+(cell.h-12)/2,12,0xff8196ae,.85f);
                     float oldZ=mc.getRenderItem().zLevel;
                     try{
                         for(Cell cell:f.cells){
-                            try(UiEffects.GradientSpace contour=UiEffects.perimeterSpace(
-                                    f.x+cell.x*f.scale,f.y+cell.y*f.scale,cell.w*f.scale,cell.h*f.scale,
-                                    UiEffects.radius(4,cell.w,cell.h)*f.scale)){
-                            if(policy.blur)UiEffects.drawBlurredRect(cell.x,cell.y,cell.w,cell.h,4,
-                                    Color.WHITE,3,1);
-                            if(policy.background)UIUtils.drawRound(cell.x,cell.y,cell.w,cell.h,4,
-                                    new Color(20,23,32,210));
-                            if(cell.item==null){
-                                String label=fitLabel(cell.label,f.emptyFont,cell.w-6);
-                                f.emptyFont.drawString(label,cell.x+(cell.w-f.emptyFont.getWidth(label))/2,
-                                        cell.y+4,0xffaeb9ca);
-                                continue;
-                            }
-                            float ix=cell.x+(f.horizontal?(cell.w-16)/2:3),iy=cell.y+2;
-                            GlStateManager.enableDepth();GlStateManager.depthFunc(GL_LEQUAL);
-                            GlStateManager.depthMask(true);GlStateManager.enableAlpha();
-                            RenderHelper.enableGUIStandardItemLighting();mc.getRenderItem().zLevel=100;
-                            mc.getRenderItem().renderItemAndEffectIntoGUI(cell.item,Math.round(ix),Math.round(iy));
+                            if(cell.item==null)continue;
+                            float ix=cell.x+(f.horizontal?(cell.w-16)/2:3),iy=cell.y+1;
+                            glPushMatrix();
+                            try{
+                                float squeeze=1-cell.pulse*.07f;
+                                glTranslatef(ix+8,iy+8,0);glScalef(squeeze,squeeze,1);glTranslatef(-ix-8,-iy-8,0);
+                                // Semantic glyphs are untextured; vanilla RenderItem only binds its atlas.
+                                GlStateManager.setActiveTexture(OpenGlHelper.defaultTexUnit);
+                                org.lwjgl.opengl.GL13.glActiveTexture(OpenGlHelper.defaultTexUnit);
+                                GlStateManager.enableTexture2D();glEnable(GL_TEXTURE_2D);
+                                GlStateManager.enableDepth();GlStateManager.depthFunc(GL_LEQUAL);
+                                GlStateManager.depthMask(true);GlStateManager.enableAlpha();
+                                RenderHelper.enableGUIStandardItemLighting();mc.getRenderItem().zLevel=100;
+                                mc.getRenderItem().renderItemAndEffectIntoGUI(cell.item,Math.round(ix),Math.round(iy));
+                            }finally{glPopMatrix();}
                             RenderHelper.disableStandardItemLighting();GlStateManager.disableDepth();GlStateManager.disableAlpha();
-                            float available=cell.w-(f.horizontal?6:30);
-                            String label=fitLabel(cell.label,f.font,available);
+                            String label=fitLabel(cell.label,f.font,cell.w-(f.horizontal?6:29));
                             float tx=f.horizontal?cell.x+(cell.w-f.font.getWidth(label))/2:cell.x+26;
-                            f.font.drawString(label,tx,cell.y+(f.horizontal?20:3),0xffeef2f7);
-                            if(f.bar&&cell.item.getMaxDamage()>0){
-                                float bx=cell.x+(f.horizontal?4:26),by=cell.y+(f.horizontal?31:17);
-                                float bw=cell.w-(f.horizontal?8:32);
-                                UIUtils.drawRound(bx,by,bw,2,1,new Color(255,255,255,27));
-                                if(cell.durabilityRatio>0)UIUtils.drawRound(bx,by,bw*cell.durabilityRatio,2,
-                                        Math.min(1,bw*cell.durabilityRatio/2),
-                                        new Color(durabilityColor(f.theme,cell.durabilityRatio),true));
-                            }
+                            f.font.drawString(label,tx,cell.y+(f.horizontal?18:3),0xffeaf2fc);
                         }
+                        CompactHudVisuals.begin(f.scale);
+                        for(Cell cell:f.cells)if(f.bar&&cell.item!=null&&cell.item.getMaxDamage()>0){
+                            float bx=cell.x+(f.horizontal?4:26),by=cell.y+(f.horizontal?27:17);
+                            float bw=Math.max(0,cell.w-(f.horizontal?8:32));
+                            CompactHudVisuals.line(bx,by,bx+bw,by,2,0xff96a9c2,.22f);
+                            if(cell.durabilityRatio>0)CompactHudVisuals.line(bx,by,bx+bw*cell.durabilityRatio,by,2,
+                                    durabilityColor(f.theme,cell.durabilityRatio),1);
                         }
                     }finally{mc.getRenderItem().zLevel=oldZ;}
                 }
@@ -225,14 +253,14 @@ public class ArmorHUD extends Module {
     }
     private void clamp(int sw,int sh){
         if(!me.youngjibbit.module.impl.client.HUD.bounded())return;
-        float insetX="Creative".equals(mode.getValue())?Math.min(4,Math.max(0,(sw-width)/2)):4;
-        float insetY="Creative".equals(mode.getValue())?Math.min(4,Math.max(0,(sh-height)/2)):4;
+        float insetX=Math.min(4,Math.max(0,(sw-width)/2));
+        float insetY=Math.min(4,Math.max(0,(sh-height)/2));
         x=Math.max(insetX,Math.min(x,sw-width-insetX));y=Math.max(insetY,Math.min(y,sh-height-insetY));
     }
     void paint(Frame f){
         if(f.cells.isEmpty())return;
         final boolean modern="Modern".equals(f.design)||f.modern;
-        if("Creative".equals(f.design)){paintCreative(f);return;}
+        if(f.modern){paintCompact(f);return;}
         GuiShaderBloom.afterBatch(()->surface.panel(f.x,f.y,f.width*f.scale,f.height*f.scale,
                 (f.modern?9:5)*f.scale,f.theme,f.background,f.blur,f.glow,
                 f.modern?3:4,f.modern?.82f:.7f,
@@ -307,10 +335,13 @@ public class ArmorHUD extends Module {
         return (palette&0xff000000)|(color&0x00ffffff);
     }
     static final class Cell {
-        final ItemStack item;final String label;final float durabilityRatio;
+        final ItemStack item;final String label;final float durabilityRatio,pulse;final int slot;
         float x,y,w,h;boolean mini;
         Cell(ItemStack item,String label,float durabilityRatio){
-            this.item=item;this.label=label;this.durabilityRatio=durabilityRatio;
+            this(item,label,durabilityRatio,4,0);
+        }
+        Cell(ItemStack item,String label,float durabilityRatio,int slot,float pulse){
+            this.item=item;this.label=label;this.durabilityRatio=durabilityRatio;this.slot=slot;this.pulse=pulse;
         }
     }
     static final class Frame {

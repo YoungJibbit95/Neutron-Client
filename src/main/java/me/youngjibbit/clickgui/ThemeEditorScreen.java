@@ -111,7 +111,7 @@ public class ThemeEditorScreen extends GuiScreen {
     private String fieldLabel(int id){switch(id){case 9:return "Theme name";case 10:return "First color";case 11:return "Second color";case 12:return "Surface";case 13:return "Text";case 14:return "Accent";case 7:return "Direction";case 8:return "Animation";case 20:return "Speed";case 21:return "Glow amount";case 22:return "Glow radius";case 23:return "Border amount";case 24:return "Border width";default:return "";}}
     private void control(int id,String label){
         ClipRect r=GuiStyle.buttonBounds(actionBounds(id),controlMotion[id]);boolean on=enabled(id);Theme theme=Theme.getDefaultTheme();
-        LegacyUiStyle.card(r.x,r.y,r.width,r.height,theme,id==3||id==25+section,controlMotion[id].amount()>.08f);
+        me.youngjibbit.clickgui.utils.MenuSurface.card(r.x,r.y,r.width,r.height,theme,id==3||id==25+section,controlMotion[id].amount());
         GuiStyle.feedback(r,controlMotion[id]);
         int ink=UiEffects.alpha(LegacyUiStyle.INK,on?1:.38f);
         String icon=id==0?"back":id==1?"chevron":id==2?"duplicate":id==3?"check":id==4?"back":id==5?"refresh":id==6?"delete":null;
@@ -214,7 +214,7 @@ public class ThemeEditorScreen extends GuiScreen {
         GuiStyle.panel(p.x,p.y,p.width,p.height,7,1,LegacyUiStyle.panel(theme));
         LegacyUiStyle.icon("palette",p.x+12,p.y+9,12,theme.getPrimaryGradientRGB());
         text(fit(fieldLabel(pickerField)+" / HSV + alpha",p.width-42),p.x+31,p.y+10,ink);
-        picker.draw();ClipRect done=pickerDone();LegacyUiStyle.card(done.x,done.y,done.width,done.height,theme,true,false);
+        picker.draw();ClipRect done=pickerDone();me.youngjibbit.clickgui.utils.MenuSurface.card(done.x,done.y,done.width,done.height,theme,true,false);
         LegacyUiStyle.icon("check",done.x+8,done.y+5,12,ink);
         text(fit("Done · Esc restores color",done.width-33),done.x+26,done.y+6,ink);
     }

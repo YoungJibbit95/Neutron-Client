@@ -50,9 +50,9 @@ public final class IslandLayout {
     public static Frame forState(IslandStateMachine.State state, int width, int height) {
         if (state == null) state = IslandStateMachine.State.IDLE;
         switch (state) {
-            case TARGET: return new Frame(width, height, 280, 90, 17, 1);
+            case TARGET: return new Frame(width, height, 245, 82, 17, 1);
             case SCAFFOLD: return new Frame(width, height, 224, 46, 17, .98f);
-            case MODULE_TOAST: case POSSIBLE_SETBACK: case NOTIFICATION: return noticeFrame(state,width,height);
+            case MODULE_TOAST: case POSSIBLE_SETBACK: case NOTIFICATION: return noticeFrame(state,width,height,false);
             case CLOCK_REMINDER: return clockFrame(width,height);
             case INVENTORY_ACTIVITY: return new Frame(width, height, 250, 46, 19, 1);
             case IDLE:
@@ -69,9 +69,9 @@ public final class IslandLayout {
         if(!modern)return forState(state,width,height);
         if(state==null)state=IslandStateMachine.State.IDLE;
         switch(state){
-            case TARGET:return new Frame(width,height,266,86,17,1);
+            case TARGET:return new Frame(width,height,234,82,17,1);
             case SCAFFOLD:return new Frame(width,height,224,46,17,1);
-            case MODULE_TOAST:case POSSIBLE_SETBACK:case NOTIFICATION:return noticeFrame(state,width,height);
+            case MODULE_TOAST:case POSSIBLE_SETBACK:case NOTIFICATION:return noticeFrame(state,width,height,true);
             case CLOCK_REMINDER:return clockFrame(width,height);
             case INVENTORY_ACTIVITY:return new Frame(width,height,236,42,17,1);
             case IDLE:
@@ -86,8 +86,8 @@ public final class IslandLayout {
         return bounded.withGeometry(diameter,diameter,diameter/2,1);
     }
 
-    private static Frame noticeFrame(IslandStateMachine.State state,int width,int height){
-        return new Frame(width,height,IslandContentLayout.width(state),IslandContentLayout.height(state)
+    private static Frame noticeFrame(IslandStateMachine.State state,int width,int height,boolean modern){
+        return new Frame(width,height,IslandAttachmentLayout.attached(state)?(modern?234:245):IslandContentLayout.width(state),IslandContentLayout.height(state)
                 +(IslandAttachmentLayout.attached(state)?34:0),
                 state==IslandStateMachine.State.POSSIBLE_SETBACK?14:19,1);
     }

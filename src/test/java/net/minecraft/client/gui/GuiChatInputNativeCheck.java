@@ -57,13 +57,16 @@ public final class GuiChatInputNativeCheck {
             System.out.println("AUDIT FontRenderer production drawStringWithShadow: chars=" + text.length() + " formatTokens=" + tokens + " allocatedBytesPerDraw=" + bytes / 100);
         }
     }
-    private static void draw(Minecraft mc, GuiChat chat) {
+    static void draw(Minecraft mc, GuiChat chat) { draw(mc, chat, 0); }
+    static void draw(Minecraft mc, GuiChat chat, int updateCounter) {
+        ScaledResolution resolution = new ScaledResolution(mc);
         mc.getFramebuffer().bindFramebuffer(true);
-        glMatrixMode(GL_PROJECTION); glLoadIdentity(); glOrtho(0, chat.width, chat.height, 0, -1000, 1000);
+        glMatrixMode(GL_PROJECTION); glLoadIdentity(); glOrtho(0, resolution.getScaledWidth_double(), resolution.getScaledHeight_double(), 0, -1000, 1000);
         glMatrixMode(GL_MODELVIEW); glLoadIdentity(); glClearColor(.08f, .15f, .2f, 1); glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        GlStateManager.pushMatrix(); GlStateManager.translate(0, chat.height - 48, 0);
-        mc.ingameGUI.getChatGUI().drawChat(0); GlStateManager.popMatrix();
-        chat.drawScreen(-1, -1, 0);
+        GlStateManager.pushMatrix(); GlStateManager.translate(0, resolution.getScaledHeight() - 48, 0);
+        mc.ingameGUI.getChatGUI().drawChat(updateCounter); GlStateManager.popMatrix();
+        mc.ingameGUI.getChatGUI().drawClosingInput();
+        if (mc.currentScreen == chat) chat.drawScreen(-1, -1, 0);
         require(glGetError() == GL_NO_ERROR, "Chat input drawing generated a GL error");
     }
     public static void main(String[] args) throws Exception {
@@ -142,6 +145,7 @@ public final class GuiChatInputNativeCheck {
                 } finally { channel.finish(); }
                 reportFontAllocations(mc.fontRendererObj);
                 verifyFormatting(mc.fontRendererObj);
+                ChatPresentationNativeCheck.run(mc, chat);
                 WorldUnloadNativeCheck.run(mc);
                 chat.onGuiClosed(); ArrayListSurface.releaseResources(); context.check();
                 System.out.println("PASS: real GuiChat typing/edit/history/completion/100-char scroll, modifiers, CJK/Cyrillic/emoji/control filtering, GuiNewChat scrolling, actual packet send and local-command dispatch in isolated Pbuffer");

@@ -3,9 +3,9 @@ package me.youngjibbit.module.impl.client.island;
 /** One logical content canvas scaled inside the current morph frame; no offscreen text or symbols. */
 public final class IslandContentLayout {
     public final float x,y,width,height,scale;
-    public static float width(IslandStateMachine.State state){return state==IslandStateMachine.State.NOTIFICATION?272:state==IslandStateMachine.State.POSSIBLE_SETBACK?254:
+    public static float width(IslandStateMachine.State state){return state==IslandStateMachine.State.NOTIFICATION?172:state==IslandStateMachine.State.POSSIBLE_SETBACK?176:
             state==IslandStateMachine.State.INVENTORY_ACTIVITY?236:206;}
-    public static float height(IslandStateMachine.State state){return state==IslandStateMachine.State.NOTIFICATION?58:state==IslandStateMachine.State.POSSIBLE_SETBACK?72:
+    public static float height(IslandStateMachine.State state){return state==IslandStateMachine.State.NOTIFICATION?54:state==IslandStateMachine.State.POSSIBLE_SETBACK?66:
             state==IslandStateMachine.State.INVENTORY_ACTIVITY?42:38;}
     private IslandContentLayout(IslandLayout.Frame frame,IslandStateMachine.State state){
         width=width(state);height=height(state);

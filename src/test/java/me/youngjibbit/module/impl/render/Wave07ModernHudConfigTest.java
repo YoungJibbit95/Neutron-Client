@@ -67,8 +67,8 @@ public class Wave07ModernHudConfigTest {
         ArmorHUD armor=new ArmorHUD();
         Keystrokes keys=new Keystrokes();
         ThemeMode.select(ThemeMode.APPROACH_TWO);
-        assertEquals("Neutron White",target.getModeSetting("Mode").getValue());
-        assertEquals(1,target.getModeSetting("Mode").getSelectedIndex());
+        assertEquals("Modern",target.getModeSetting("Mode").getValue());
+        assertEquals(3,target.getModeSetting("Mode").getSelectedIndex());
         assertEquals("Vertical",armor.getModeSetting("Layout").getValue());
         assertEquals("Percent",armor.getModeSetting("Durability").getValue());
         assertTrue(keys.getBooleanSetting("Mouse Buttons").getValue());

@@ -8,6 +8,7 @@ import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.font.TTFFontRenderer;
 import me.youngjibbit.utils.render.*;
 import me.youngjibbit.gui.NeutronVisualTokens;
+import me.youngjibbit.clickgui.utils.MenuSurface;
 import me.youngjibbit.gui.LegacyUiStyle;
 import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.clickgui.utils.*;
@@ -87,9 +88,9 @@ public class SettingsMenu extends GuiScreen {
     private List<String> names(){groups();return sectionNames;}
     private List<Value<?>> rows(){List<String> names=names();if(names.isEmpty())return Collections.emptyList();group=Math.max(0,Math.min(group,names.size()-1));List<Value<?>> values=new ArrayList<>();for(Value<?> v:groups().get(names.get(group)))if(v.isVisible())values.add(v);return values;}
     private boolean rail(){return w>=560&&h>=330;}
-    private float inset(){return rail()?ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())?190:154:14;}
+    private float inset(){return rail()?ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())?176:154:14;}
     private void layout(){
-        w=Math.min(two()?740:760,Math.max(1,width-16));h=Math.min(two()?448:464,Math.max(1,height-12));x=(width-w)/2;y=(height-h)/2;
+        w=Math.min(two()?700:720,Math.max(1,width-16));h=Math.min(420,Math.max(1,height-12));x=(width-w)/2;y=(height-h)/2;
         List<Value<?>> visible=rows();
         focus=Math.max(0,Math.min(focus,Math.max(0,visible.size()+5)));
         if(editValue!=null){editing=visible.indexOf(editValue);if(editing<0)editValue=null;}
@@ -112,15 +113,15 @@ public class SettingsMenu extends GuiScreen {
     }
     private int columns(){return two()?creative()&&view().width>=500?2:1:view().width>=520&&!compactLegacy()?2:1;}
     private boolean stacked(){return columns()==2||!two()&&view().width<360;}
-    private float rowPitch(){return two()?columns()==2?66:42:stacked()?60:42;}
+    private float rowPitch(){return stacked()?52:40;}
     private float contentHeight(int count){return ((count+columns()-1)/columns())*rowPitch();}
     protected ClipRect rowBounds(int row){
         ClipRect v=view();int cols=columns();float cell=(v.width-(cols-1)*8)/cols;
-        return new ClipRect(v.x+(row%cols)*(cell+8),v.y+(row/cols)*rowPitch()-scroll,cell,two()?(cols==2?60:38):rowPitch()-4);
+        return new ClipRect(v.x+(row%cols)*(cell+8),v.y+(row/cols)*rowPitch()-scroll,cell,rowPitch()-4);
     }
     protected ClipRect controlBounds(int row){
         ClipRect r=rowBounds(row);
-        if(stacked())return new ClipRect(r.x+8,r.y+(two()?27:25),r.width-16,two()?30:27);
+        if(stacked())return new ClipRect(r.x+8,r.y+18,r.width-16,28);
         float cw=Math.min(180,r.width*.45f);return new ClipRect(r.x+r.width-cw-7,r.y+4,cw,30);
     }
     protected ClipRect sliderTrack(int row){
@@ -128,7 +129,10 @@ public class SettingsMenu extends GuiScreen {
         return new ClipRect(left,control.y+(two()?25:22),Math.max(1,right-left),two()?3:2);
     }
     protected ClipRect categoryBounds(int index){
-        if(two()&&rail())return new ClipRect(x+15,y+68+index*35,162,31);
+        if(two()&&rail()){
+            float pitch=Math.min(32,(h-126)/Math.max(1,names().size()));
+            return new ClipRect(x+15,y+68+index*pitch,148,pitch-4);
+        }
         float pitch=Math.min(34,(h-134)/Math.max(1,names().size()));
         return new ClipRect(x+12,y+70+index*pitch,126,pitch-4);
     }
@@ -151,7 +155,7 @@ public class SettingsMenu extends GuiScreen {
         ClipRect b=GuiStyle.buttonBounds(actionBounds(id),state);
         if(!two()){
             Theme theme=Theme.getDefaultTheme();
-            LegacyUiStyle.card(b.x,b.y,b.width,b.height,theme,id==5,state.amount()>.08f);
+            MenuSurface.card(b.x,b.y,b.width,b.height,theme,id==5,state.amount());
             GuiStyle.feedback(b,state);
             String icon=id==0?"back":id==1?"chevron":id==2?"refresh":id==3?"palette":id==4?"settings":"check";
             if(id==1){glPushMatrix();try{glTranslatef(b.x+b.width/2,b.y+b.height/2,0);glRotatef(-90,0,0,1);LegacyUiStyle.icon(icon,-6,-6,12,LegacyUiStyle.INK);}finally{glPopMatrix();}}
@@ -159,7 +163,7 @@ public class SettingsMenu extends GuiScreen {
             if(id>1){String label=id==2?"Reset":id==3?(names().size()>group&&names().get(group).equals("HUD behavior")?"Positions":"Preview"):id==4?"Options":"Done";text(fit(label,b.width-32),b.x+26,b.y+9,LegacyUiStyle.INK);}
             return;
         }
-        UIUtils.drawRound(b.x,b.y,b.width,b.height,7,creative()?NeutronVisualTokens.alpha(NeutronVisualTokens.CONTROL.getRGB(),245):NeutronVisualTokens.CONTROL);
+        MenuSurface.card(b.x,b.y,b.width,b.height,Theme.getDefaultTheme(),id==5,state.amount());
         GuiStyle.feedback(b,state);text(fit(title,b.width-10),b.x+5,b.y+6,GuiStyle.ink(0xffe4ebf6,state));
     }
     protected void advanceMotion(float dt,int mx,int my){ClientSettings c=ClientSettings.current();int size=rows().size();for(int i=0;i<6;i++)actionMotion[i].stepForInput(dt,actionBounds(i).contains(mx,my),focus==size+i,pressed==i,true,c);}
@@ -189,19 +193,12 @@ public class SettingsMenu extends GuiScreen {
             surface.panel(x,y,w,h,two()?14:8,theme,true,true,!two(),
                     two()?4:5,two()?.98f:.9f,two()?.2f:.8f,()->{
                 if(two()){
-                    UIUtils.drawRound(x+1,y+1,w-2,h-2,14,
-                            creative?NeutronVisualTokens.alpha(NeutronVisualTokens.FRAME.getRGB(),250):NeutronVisualTokens.FRAME);
-                    UIUtils.drawRound(x+5,y+58,Math.max(1,inset()-10),h-96,11,
-                            creative?NeutronVisualTokens.alpha(NeutronVisualTokens.SIDEBAR.getRGB(),245):NeutronVisualTokens.SIDEBAR);
-                    UIUtils.drawRound(x+inset()+1,y+88,
-                            Math.max(1,w-inset()-8),Math.max(1,h-137),11,
-                            creative?NeutronVisualTokens.alpha(NeutronVisualTokens.PANEL.getRGB(),240):NeutronVisualTokens.PANEL);
-                    UIUtils.drawRound(x+1,y+1,w-2,53,14,
-                            creative?NeutronVisualTokens.alpha(NeutronVisualTokens.HEADER.getRGB(),248):NeutronVisualTokens.HEADER);
+                    if(rail()) UIUtils.drawDecorationRound(x+5,y+58,Math.max(1,inset()-10),h-96,8,
+                            new Color(17,23,33,182));
                     UIUtils.drawDecorationRound(x+17,y+51,
                             Math.max(1,w-34),1,.5f,NeutronVisualTokens.HAIRLINE);
-                    if(creative){
-                        // Dynamic surface accent in header.
+                    if(creative&&UiEffects.motion()){
+                        // Ambient decoration follows the motion preference.
                         float pulse=UiEffects.time()*1.2f;
                         float ax=x+w-30+(float)Math.sin(pulse)*7f;
                         float ay=y+20+(float)Math.cos(pulse*.8f)*4f;
@@ -220,7 +217,7 @@ public class SettingsMenu extends GuiScreen {
                 heading.drawString("Client settings",x+(two()?16:39),y+11,
                         two()?NeutronVisualTokens.INK:0xfff1f4fa);
                 if(!compactLegacy())text(fit("Appearance, motion and type — changes apply live",w-48),
-                        x+(two()?16:39),y+33,two()?(creative?NeutronVisualTokens.accent(theme,160).getRGB():NeutronVisualTokens.MUTED):LegacyUiStyle.MUTED);
+                        x+(two()?16:39),y+33,two()?NeutronVisualTokens.MUTED:LegacyUiStyle.MUTED);
                 // The global screen exit animation stays owned by GuiTransitions.
                 // The entry accent uses the same spring policy; text/input remain ready.
                 if(me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(me.youngjibbit.theme.ThemeMode.selected())
@@ -240,16 +237,14 @@ public class SettingsMenu extends GuiScreen {
                         me.youngjibbit.gui.UiSpring motion=categoryMotion.computeIfAbsent(sections.get(i),k->new me.youngjibbit.gui.UiSpring());
                         motion.stepForInput(dt,popupValue==null&&r.contains(mx,my),false,false,true,motionSettings);
                         r=GuiStyle.buttonBounds(r,motion);
-                        if(two()&&selected)
-                            UIUtils.drawRound(r.x+3,r.y+2,r.width-6,r.height-4,
-                                    NeutronVisualTokens.RADIUS_CONTROL,
-                                    creative?NeutronVisualTokens.alpha(NeutronVisualTokens.CARD_HOVER.getRGB(),245):NeutronVisualTokens.CARD_HOVER);
+                        if(two()&&(selected||motion.amount()>.02f))
+                            MenuSurface.card(r.x+3,r.y+1,r.width-6,r.height-2,theme,selected,motion.amount());
                         if(!two()){
-                            if(selected||motion.amount()>.05f)LegacyUiStyle.card(r.x+3,r.y+1,r.width-6,r.height-2,theme,selected,!selected);
+                            if(selected||motion.amount()>.05f)MenuSurface.card(r.x+3,r.y+1,r.width-6,r.height-2,theme,selected,motion.amount());
                             LegacyUiStyle.icon(i==0?"palette":i==5?"rename":i==6?"load":"settings",r.x+10,r.y+(r.height-12)/2,12,selected?LegacyUiStyle.INK:LegacyUiStyle.FAINT);
                         }
                         text(fit(two()?sections.get(i):sectionLabel(sections.get(i)),r.width-(two()?14:35)),
-                                r.x+(two()?14:29),r.y+(two()?10:(r.height-font().getLineHeight())/2),
+                                r.x+(two()?14:29),r.y+(r.height-font().getLineHeight())/2,
                                 GuiStyle.ink(two()?(selected?NeutronVisualTokens.INK:
                                                 NeutronVisualTokens.MUTED):
                                                 selected?0xfff1f4fa:0xffa4b0c3,motion));
@@ -265,7 +260,7 @@ public class SettingsMenu extends GuiScreen {
                         w-inset()-78),x+inset()+34,two()?y+59:sectionY()+7,
                         two()?NeutronVisualTokens.INK:LegacyUiStyle.INK);
                 if(!compactLegacy())text(fit(description(),view().width),view().x,two()?y+80:y+86,
-                        two()?(creative?NeutronVisualTokens.accent(theme,150).getRGB():NeutronVisualTokens.MUTED):LegacyUiStyle.MUTED);
+                        two()?NeutronVisualTokens.MUTED:LegacyUiStyle.MUTED);
                 try(GuiClip clip=GuiClip.push(view())){
                     List<Value<?>> values=rows();
                     for(int i=0;i<values.size();i++)if(!view().intersect(rowBounds(i)).isEmpty())drawValue(i,values.get(i),theme,dt,mx,my);
@@ -289,14 +284,7 @@ public class SettingsMenu extends GuiScreen {
         boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
         boolean creative=this.creative();
         if(two()){
-            UIUtils.drawRound(row.x,row.y,row.width,row.height,
-                    NeutronVisualTokens.RADIUS_CARD,
-                    creative?NeutronVisualTokens.alpha(NeutronVisualTokens.CARD.getRGB(),245):NeutronVisualTokens.CARD);
-            if(row.contains(mx,my)&&popupValue==null){
-                UIUtils.drawRound(row.x,row.y,row.width,row.height,
-                        NeutronVisualTokens.RADIUS_CARD,
-                        creative?NeutronVisualTokens.alpha(NeutronVisualTokens.CARD_HOVER.getRGB(),240):NeutronVisualTokens.CARD_HOVER);
-            }
+            MenuSurface.card(row.x,row.y,row.width,row.height,theme,false,motion.amount());
             if(index==focus&&showsKeyboardFocus())
                 UIUtils.drawDecorationRound(row.x+3,row.y+7,2,row.height-14,1,
                         NeutronVisualTokens.accent(theme,210));
@@ -306,9 +294,9 @@ public class SettingsMenu extends GuiScreen {
                         10, me.youngjibbit.utils.render.UiEffects.accent(theme.getSecondaryGradientRGB(), .05f*motion.glow()));
             }
         }
-        if(!two())LegacyUiStyle.card(row.x,row.y,row.width,row.height,theme,index==focus&&showsKeyboardFocus(),popupValue==null&&row.contains(mx,my));
+        if(!two())MenuSurface.card(row.x,row.y,row.width,row.height,theme,index==focus&&showsKeyboardFocus(),motion.amount());
         text(fit(UiEffects.settingLabel(value),stacked()?row.width-20:control.x-row.x-18),
-                row.x+(two()?12:10),row.y+(stacked()?8:13),
+                row.x+(two()?12:10),row.y+(stacked()?6:11),
                 two()?GuiStyle.ink(NeutronVisualTokens.INK,motion):LegacyUiStyle.INK);
         GuiStyle.feedback(row,motion);
         if(value instanceof CheckBoxValue){
@@ -316,11 +304,11 @@ public class SettingsMenu extends GuiScreen {
             float amount=follow(value,on?1:0,dt),sx=control.x+control.width-38,sy=control.y+6;
             text(on?"On":"Off",sx-25,control.y+9,on?0xffe5ecf7:0xff9da9bb);
             if(two()){
-                UIUtils.drawRound(sx,sy,34,16,8,NeutronVisualTokens.CONTROL);
-                if(amount>.006f)UIUtils.drawRound(sx+1,sy+1,
+                UIUtils.drawDecorationRound(sx,sy,34,16,8,NeutronVisualTokens.CONTROL);
+                if(amount>.006f)UIUtils.drawDecorationRound(sx+1,sy+1,
                         Math.max(1,32*Math.min(1,amount)),14,7,
                         NeutronVisualTokens.accent(theme,185));
-                UIUtils.drawRound(sx+3+18*Math.max(0,Math.min(1,amount)),sy+3,
+                UIUtils.drawDecorationRound(sx+3+18*Math.max(0,Math.min(1,amount)),sy+3,
                         10,10,5,new Color(251,247,252));
             }else{
                 UIUtils.drawDecorationRound(sx,sy,34,16,8,
@@ -343,9 +331,7 @@ public class SettingsMenu extends GuiScreen {
             UIUtils.drawDecorationRound(track.x-3+track.width*amount,track.y-2,
                     6,6,3,new Color(0xffedf3ff,true));
         }else{
-            UIUtils.drawRound(control.x,control.y+3,control.width,24,
-                    two()?NeutronVisualTokens.RADIUS_CONTROL:4,
-                    two()?NeutronVisualTokens.CONTROL:LegacyUiStyle.control(theme,popupValue==value));
+            MenuSurface.card(control.x,control.y+3,control.width,24,theme,popupValue==value,motion.amount());
             text(fit(UiEffects.settingOption(value,String.valueOf(value.getValue())),control.width-28),control.x+7,control.y+10,GuiStyle.ink(0xffe5edf9,motion));
             if(two())text(popupValue==value?"^":"v",control.x+control.width-16,control.y+9,0xffaebbd0);
             else {glPushMatrix();try{glTranslatef(control.x+control.width-14,control.y+15,0);if(popupValue==value)glRotatef(180,0,0,1);LegacyUiStyle.icon("chevron",-5,-5,10,LegacyUiStyle.MUTED);}finally{glPopMatrix();}}
@@ -388,7 +374,7 @@ public class SettingsMenu extends GuiScreen {
                     two()?(creative?NeutronVisualTokens.alpha(NeutronVisualTokens.CARD.getRGB(),240):NeutronVisualTokens.CARD):LegacyUiStyle.alpha(LegacyUiStyle.panel(theme).getRGB(),.42f));
             me.youngjibbit.utils.render.TextEffects.direct(theme,()->text(fit("Neutron  /  HitDelayFix  /  FastPlace",pw-20),px+10,py+5,-1));
             text(fit("Aa Bb  0123456789  ·  Session Info  ·  "+selectedFamily(),pw-20),px+10,py+19,0xffc5cfdf);
-            if(creative){
+            if(creative&&UiEffects.motion()){
                 float spark=UiEffects.time()*2f;
                 float sx=px+pw-22+(float)Math.sin(spark)*6f;
                 UIUtils.drawRound(sx,py+13,6,6,3,NeutronVisualTokens.accent(theme,(int)(160+80*Math.abs((float)Math.sin(spark*.5f)))));
@@ -452,15 +438,12 @@ public class SettingsMenu extends GuiScreen {
         // outgoing visual are animated. Its fixed hit rectangles never move.
         boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
         boolean creative=this.creative();
-        UIUtils.drawRound(p.x-1,p.y-1,p.width+2,Math.max(1,visibleHeight+2),
+        UIUtils.drawDecorationRound(p.x-1,p.y-1,p.width+2,Math.max(1,visibleHeight+2),
                 modern?9:7,modern?(creative?NeutronVisualTokens.alpha(0xffa4a0b3,Math.round(55*opacity)):NeutronVisualTokens.alpha(
                         0xffa4a0b3,Math.round(47*opacity))):
                         LegacyUiStyle.alpha(LegacyUiStyle.MUTED,.22f*opacity));
-        UIUtils.drawRound(p.x,p.y,p.width,Math.max(1,visibleHeight),
-                modern?8:6,modern?(creative?NeutronVisualTokens.alpha(
-                        NeutronVisualTokens.CARD.getRGB(),Math.round(250*opacity)):NeutronVisualTokens.alpha(
-                        NeutronVisualTokens.CARD.getRGB(),Math.round(245*opacity))):
-                        LegacyUiStyle.alpha(LegacyUiStyle.panel(theme).getRGB(),opacity));
+        UIUtils.drawDecorationRound(p.x,p.y,p.width,Math.max(1,visibleHeight),
+                modern?8:6,new Color(23,28,39,Math.round(245*opacity)));
         int count=popupRows(shown),offset=open?popupOffset:closingPopupOffset;
         int choice=open?popupChoice:closingPopupChoice;
         float marker=presentation.cursor(p.y+4+(choice-offset)*22+5,dt,settings);
@@ -475,7 +458,7 @@ public class SettingsMenu extends GuiScreen {
                 boolean highlighted=option==choice||(open&&mx>=p.x&&mx<=p.x+p.width
                         &&my>=top&&my<top+22);
                 if(!two()&&highlighted)UIUtils.drawDecorationRound(p.x+4,top+1,p.width-8,20,4,LegacyUiStyle.alpha(LegacyUiStyle.control(theme,true).getRGB(),opacity));
-                int ink=two()&&highlighted?theme.getPrimaryGradientRGB():LegacyUiStyle.INK;
+                int ink=two()&&highlighted?Theme.interpolateRGB(NeutronVisualTokens.INK,theme.getPrimaryGradientRGB(),.18f):LegacyUiStyle.INK;
                 if(!two()&&option==shown.getSelectedIndex())LegacyUiStyle.icon("check",p.x+p.width-19,top+6,10,fadeInk(theme.getPrimaryGradientRGB(),opacity));
                 text(fit(options[option],p.width-30),p.x+10,top+7,fadeInk(ink,opacity));
             }

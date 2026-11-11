@@ -67,7 +67,7 @@ test_classpath="$repo_root/target/test-classes:$repo_root/target/classes:$depend
 collect_screenshots() (
   local name="$1" preview image destination
   shopt -s nullglob
-  for preview in gui-preview dropdown-preview arraylist-preview session-preview theme-preview settings-preview neutron-ui-preview shader-preview; do
+  for preview in gui-preview dropdown-preview arraylist-preview session-preview theme-preview settings-preview neutron-ui-preview shader-preview hud-preview armor-preview chat-preview; do
     for image in "$fixtures/$name/$preview/"*.png; do
       destination="$screenshots/$name/$preview"
       mkdir -p "$destination" && cp -- "$image" "$destination/" || return "$?"
@@ -152,15 +152,19 @@ suite_arraylist() {
 }
 suite_session() {
   run_check session me.youngjibbit.module.impl.render.SessionInfoRenderCheck \
-    'PASS [Pbuffer/FBO only]: four designs' \
-    -Dpulsar.settings.check=true -Dpulsar.theme.check=true -Dpulsar.neutron.ui.check=true &&
+    'PASS [Pbuffer/FBO only]: six designs' \
+    -Dpulsar.settings.check=true -Dpulsar.theme.check=true -Dpulsar.neutron.ui.check=true \
+    -Dpulsar.hud.check=true -Dpulsar.armor.check=true -Dpulsar.island.compact.check=true &&
   require_marker session 'PASS: editor UI RGBA/name/direction/motion/sliders' &&
   require_marker session 'PASS: Library hub layout/navigation' &&
   require_marker session 'PASS: real client settings exact/invalid/cancel/reset' &&
   require_images session session-preview &&
   require_images session theme-preview &&
   require_images session settings-preview &&
-  require_images session neutron-ui-preview
+  require_images session neutron-ui-preview &&
+  require_images session hud-preview &&
+  require_images session armor-preview &&
+  require_marker session 'PASS: compact Island notifications, balanced dock composition'
 }
 suite_shader_modes() {
   run_check shader_modes me.youngjibbit.module.impl.render.ShaderModesRenderCheck \
@@ -177,9 +181,16 @@ assert len(report['measurements']) == 6, 'Missing shader-mode timing evidence'
 PY
 }
 
+suite_chat() {
+  run_check chat net.minecraft.client.gui.GuiChatInputNativeCheck \
+    'PASS: real GuiChat typing/edit/history/completion' &&
+  require_marker chat 'PASS: compact chat presentation' &&
+  require_images chat chat-preview
+}
+
 failed_suites=()
 suite_results=()
-for suite in panel dropdown arraylist session shader_modes; do
+for suite in panel dropdown arraylist session shader_modes chat; do
   suite_result=0
   "suite_$suite" 2>&1 | tee "$logs/$suite-suite.log" || suite_result=$?
   suite_results+=("$suite: exit $suite_result")
@@ -189,14 +200,21 @@ for suite in panel dropdown arraylist session shader_modes; do
 done
 printf '%s\n' "${suite_results[@]}" | tee "$logs/suites.log"
 
+# Small JPEG copies let remote reviewers inspect the actual fixture images from
+# job logs. Full-resolution PNGs above remain the visual/pixel evidence.
+printf '%s\n' '::group::Native UI visual review copies'
+"$java_bin" -Djava.awt.headless=true -cp "$test_classpath" \
+  me.youngjibbit.rendercheck.UiReviewImages "$screenshots"
+printf '%s\n' '::endgroup::'
+
 if (( ${#failed_suites[@]} != 0 )); then
-  printf 'FAIL: Native UI suites failed: %s. All five suites were attempted; see each suite log.\n' \
+  printf 'FAIL: Native UI suites failed: %s. All six suites were attempted; see each suite log.\n' \
     "${failed_suites[*]}" | tee "$logs/summary.log"
   exit 1
 fi
 
 printf '%s\n' \
-  'PASS: Five separate native JVMs completed with production shaders, FBO/readback and fixture diagnostics enabled.' \
-  'Coverage: panel/subcategories, dropdown/library/config actions, Arraylist, SessionInfo, Theme editor, Client settings, Library transitions and Flame/Neon/Lines ESP/UI contours.' \
+  'PASS: Six separate native JVMs completed with production shaders, FBO/readback and fixture diagnostics enabled.' \
+  'Coverage: panel/subcategories, dropdown/library/config actions, Arraylist, compact TargetHUD/SessionInfo/ArmorHUD, compact Island/docking, animated chat/input/links/resize, Theme editor, Client settings, Library transitions and Flame/Neon/Lines ESP/UI contours.' \
   'Not covered: game-world rendering, native Display/fullscreen/VSync, multiplayer or full client bootstrap.' \
   | tee "$logs/summary.log"

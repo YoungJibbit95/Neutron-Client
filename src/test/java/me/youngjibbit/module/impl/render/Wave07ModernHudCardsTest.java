@@ -29,27 +29,22 @@ public class Wave07ModernHudCardsTest {
         for(Theme t:Theme.values()){
             isolated.select(t.name());
             assertSame("Palette must be independent from Design: "+t.name(),t,
-                    theme.invoke(null,"Neutron 2.0"));
+                    theme.invoke(null,"Modern"));
         }
         assertEquals(20,Theme.values().length);
         assertEquals(0xfff71ec0,Theme.approachTwo().getPrimaryGradientRGB());
         isolated.select("Purple");
-        assertSame(Theme.Purple,theme.invoke(null,"Neutron 2.0"));
+        assertSame(Theme.Purple,theme.invoke(null,"Modern"));
     }
 
-    @Test public void allEightSavedTargetDesignsAndDefaultRemainValid() {
-        TargetHUD hud=new TargetHUD();
-        String[] expected={"Neutron Default","Neutron White","Neutron Outline",
-                "Rise","Tenacity","Basic","Test","Neutron 2.0","Modern","Creative"};
+    @Test public void fiveTargetLayoutsRemainIndependentFromTheme(){
+        TargetHUD hud=new TargetHUD();String[] expected={"Rue","Tenacity","Basic","Modern","Creative"};
         assertArrayEquals(expected,hud.getModeSetting("Mode").getOptions());
-        assertEquals("Neutron White",hud.getModeSetting("Mode").getValue());
-        assertEquals(1,hud.getModeSetting("Mode").getSelectedIndex());
+        assertEquals("Modern",hud.getModeSetting("Mode").getValue());assertEquals(3,hud.getModeSetting("Mode").getSelectedIndex());
         for(int i=0;i<expected.length;i++){
-            hud.getModeSetting("Mode").setValue(expected[i]);
-            assertEquals(i,hud.getModeSetting("Mode").getSelectedIndex());
+            hud.getModeSetting("Mode").setValue(expected[i]);assertEquals(i,hud.getModeSetting("Mode").getSelectedIndex());
+            assertEquals(expected[i],TargetHUD.effectiveDesign(expected[i],true));
         }
-        assertEquals("Neutron 2.0",TargetHUD.effectiveDesign("Neutron White",true));
-        assertEquals("Neutron White",TargetHUD.effectiveDesign("Neutron White",false));
     }
 
     @Test public void armorLayoutAndDurabilityAreFunctionalNotCosmeticModes(){

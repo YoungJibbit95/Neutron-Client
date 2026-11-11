@@ -48,13 +48,14 @@ public class CreativeHudCompositionTest {
         helmet.setItemDamage(73);boots.setItemDamage(90);
         ItemStack sword=new ItemStack(Items.diamond_sword);sword.setItemDamage(200);
         ItemStack[] equipment={boots,null,null,helmet};
-        hud.getModeSetting("Mode").setValue("Creative");
+        for(String design:new String[]{"Modern","Creative"}){
+        hud.getModeSetting("Mode").setValue(design);
         for(String orientation:new String[]{"Vertical","Horizontal"}){
             hud.getModeSetting("Layout").setValue(orientation);
             for(String format:new String[]{"Percent","Value","Both","None"}){
                 hud.getModeSetting("Durability").setValue(format);
                 ArmorHUD.Frame f=hud.layout(equipment,sword,640,360);
-                assertEquals("Creative",f.design);assertEquals(5,f.cells.size());
+                assertEquals(design,f.design);assertEquals(5,f.cells.size());
                 assertSame(Items.diamond_helmet,f.cells.get(0).item.getItem());
                 assertNull(f.cells.get(1).item);assertNull(f.cells.get(2).item);
                 assertSame(Items.diamond_boots,f.cells.get(3).item.getItem());
@@ -65,26 +66,28 @@ public class CreativeHudCompositionTest {
                 assertTrue(f.width*f.scale<=632&&f.height*f.scale<=352);
             }
         }
+        }
         assertEquals(73,helmet.getItemDamage());assertEquals(90,boots.getItemDamage());assertEquals(200,sword.getItemDamage());
         hud.getBooleanSetting("Empty Slots").setValue(false);hud.getBooleanSetting("Held Item").setValue(false);
         assertEquals(2,hud.layout(equipment,sword,640,360).cells.size());
         assertTrue(hud.layout(new ItemStack[4],null,640,360).cells.isEmpty());
     }
 
-    @Test public void targetEditorUsesTheSameSmallerCreativeGeometryWithoutChangingSavedMode()throws Exception {
-        TargetHUD hud=new TargetHUD();Method preview=TargetHUD.class.getDeclaredMethod("editorPreview",int.class,int.class);
-        preview.setAccessible(true);hud.getModeSetting("Mode").setValue("Modern");
-        TargetHUD.Frame modern=(TargetHUD.Frame)preview.invoke(hud,640,360);
-        hud.getModeSetting("Mode").setValue("Creative");
-        TargetHUD.Frame creative=(TargetHUD.Frame)preview.invoke(hud,640,360);
-        assertEquals(46,creative.height,0);assertEquals(49,creative.textX,0);
-        assertEquals("Preview",creative.kind);assertEquals("Creative",creative.design);
-        assertTrue(creative.width*creative.height<modern.width*modern.height);
-        assertEquals(9,hud.getModeSetting("Mode").getSelectedIndex());
-        for(int viewport:new int[]{1,2,7,8,32,64,240}){
-            TargetHUD.Frame f=(TargetHUD.Frame)preview.invoke(hud,viewport,viewport);
-            assertTrue(f.width<=Math.max(1,viewport-8));assertTrue(f.height<=Math.max(1,viewport-8));
+    @Test public void bothTargetPreviewsAreCompactAndKeepSavedModes()throws Exception{
+        TargetHUD hud=new TargetHUD();Method preview=TargetHUD.class.getDeclaredMethod("editorPreview",int.class,int.class);preview.setAccessible(true);
+        hud.getModeSetting("Mode").setValue("Tenacity");TargetHUD.Frame tenacity=(TargetHUD.Frame)preview.invoke(hud,640,360);
+        for(String design:new String[]{"Modern","Creative"}){
+            hud.getModeSetting("Mode").setValue(design);TargetHUD.Frame compact=(TargetHUD.Frame)preview.invoke(hud,640,360);
+            assertEquals(142,compact.width,0);assertEquals(34,compact.height,0);
+            assertEquals("Preview",compact.kind);assertEquals(design,compact.design);
+            assertEquals(.75f,compact.width/tenacity.width,.025f);assertEquals(.75f,compact.height/tenacity.height,.025f);
+            assertEquals(design,hud.getModeSetting("Mode").getValue());
+            for(int viewport:new int[]{1,2,7,8,32,64,240}){
+                TargetHUD.Frame f=(TargetHUD.Frame)preview.invoke(hud,viewport,viewport);
+                assertTrue(f.width<=Math.max(1,viewport-8));assertTrue(f.height<=Math.max(1,viewport-8));
+            }
         }
+        assertEquals(4,hud.getModeSetting("Mode").getSelectedIndex());
     }
 
     @Test public void sessionCreativeUsesRealFrozenTimeAndCountsInSeparateColumns(){
@@ -95,12 +98,12 @@ public class CreativeHudCompositionTest {
         SessionStatistics.Snapshot snapshot=statistics.snapshot();SessionInfo hud=new SessionInfo(statistics);
         hud.getModeSetting("Mode").setValue("Modern");SessionInfo.Frame modern=hud.layout(snapshot,"Tester",640,360);
         hud.getModeSetting("Mode").setValue("Creative");SessionInfo.Frame creative=hud.layout(snapshot,"Tester",640,360);
-        assertEquals(236,creative.width,0);assertEquals(64,creative.height,0);assertFalse(creative.ring);assertFalse(creative.glow);
+        assertEquals(154,creative.width,0);assertEquals(40,creative.height,0);assertEquals(154,modern.width,0);assertEquals(42,modern.height,0);assertFalse(creative.ring);assertFalse(creative.glow);
         assertSame(snapshot,creative.snapshot);assertTrue(creative.width*creative.height<modern.width*modern.height);
-        assertEquals("01:14",creative.text.get(1).text);assertEquals("Tester",creative.text.get(3).text);
-        assertEquals("KILLS",creative.text.get(4).text);assertEquals("1",creative.text.get(5).text);
-        assertEquals("DEATHS",creative.text.get(6).text);assertEquals("1",creative.text.get(7).text);
-        assertTrue(creative.text.get(5).x<creative.text.get(7).x);
+        assertEquals("01:14",creative.text.get(0).text);assertEquals("Tester",creative.text.get(1).text);
+        assertEquals("1",creative.text.get(2).text);assertEquals("1",creative.text.get(3).text);
+        assertTrue(creative.text.get(2).x<creative.text.get(3).x);
+        assertEquals(0,creative.killPulse,0);assertEquals(0,creative.deathPulse,0);
         assertEquals("Creative",hud.getModeSetting("Mode").getValue());
         assertEquals(50,hud.getNumberSetting("Position X").getValue(),0);assertEquals(40,hud.getNumberSetting("Position Y").getValue(),0);
     }
@@ -109,7 +112,8 @@ public class CreativeHudCompositionTest {
         ArmorHUD armor=new ArmorHUD();armor.getModeSetting("Mode").setValue("Creative");
         SessionInfo session=new SessionInfo(new SessionStatistics(()->0L));session.getModeSetting("Mode").setValue("Creative");
         SessionStatistics.Snapshot snapshot=new SessionStatistics.Snapshot(0,0,0,false);
-        for(int size:new int[]{1,2,7,8,16,32,64,240}){
+        for(String design:new String[]{"Modern","Creative"})for(int size:new int[]{1,2,7,8,16,32,64,240}){
+            armor.getModeSetting("Mode").setValue(design);session.getModeSetting("Mode").setValue(design);
             ArmorHUD.Frame a=armor.layout(new ItemStack[4],null,size,size);
             assertTrue(a.x>=0&&a.y>=0&&a.x+a.width*a.scale<=size+.001f&&a.y+a.height*a.scale<=size+.001f);
             SessionInfo.Frame s=session.layout(snapshot,"A long player name",size,size);

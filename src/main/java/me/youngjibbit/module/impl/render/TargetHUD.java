@@ -33,7 +33,7 @@ import static org.lwjgl.opengl.GL11.*;
 /** Freeze living-entity data and geometry before any deferred surface pass is submitted. */
 @ModuleInfo(name="TargetHUD", category=Category.Render)
 public class TargetHUD extends Module {
-    private final ComboValue mode=new ComboValue("Mode",this,new String[]{"Neutron Default","Neutron White","Neutron Outline","Rise","Tenacity","Basic","Test","Neutron 2.0","Modern","Creative"},1);
+    private final ComboValue mode=new ComboValue("Mode",this,new String[]{"Rue","Tenacity","Basic","Modern","Creative"},3);
     public final SliderValue gradientSpeed=new SliderValue("Gradient Speed",this,5000.0,1000,10000,true);
     private final ArrayListSurface surface=new ArrayListSurface(this);
     // Append after the existing values and material controls to preserve saved settings.
@@ -42,6 +42,7 @@ public class TargetHUD extends Module {
     private final HudSpring healthSpring=new HudSpring(),absorptionSpring=new HudSpring(),
             portraitSpring=new HudSpring(),distanceSpring=new HudSpring();
     private final HudReveal reveal=new HudReveal();
+    private final CompactHudMotion healthChange=new CompactHudMotion();
     private EntityLivingBase animatedTarget;
     private float animatedHealth,animatedAbsorption,portraitPulse;
     private long lastFrame,lastVisualFrame,sceneEpoch;
@@ -61,7 +62,7 @@ public class TargetHUD extends Module {
     private void resetTarget(){
         animatedTarget=null;animatedHealth=animatedAbsorption=portraitPulse=0;
         lastFrame=lastVisualFrame=0;sceneEpoch++;lastDisplayed=null;worldContext=null;
-        healthSpring.reset();absorptionSpring.reset();portraitSpring.reset();distanceSpring.reset();reveal.reset();
+        healthSpring.reset();absorptionSpring.reset();portraitSpring.reset();distanceSpring.reset();reveal.reset();healthChange.reset();
         dragging=false;HudDrag.cancel(this);
     }
     @Subscribe private final Listener<Event2D> render=new Listener<>(e->{if(isToggled())renderTarget(resolveTarget());});
@@ -86,7 +87,7 @@ public class TargetHUD extends Module {
         if(target==null){
             // Fade the frozen final frame only; discard all live target motion.
             animatedTarget=null;lastFrame=0;
-            healthSpring.reset();absorptionSpring.reset();portraitSpring.reset();distanceSpring.reset();
+            healthSpring.reset();absorptionSpring.reset();portraitSpring.reset();distanceSpring.reset();healthChange.reset();
         }
         if(live==null&&chat)live=editorPreview(sw,sh);
         if(!chat&&lastDisplayed!=null&&"Preview".equals(lastDisplayed.kind)){
@@ -129,48 +130,42 @@ public class TargetHUD extends Module {
         }
         previousButton=down;
     }
-    /** Presentation-only theme overlay; all seven original modes/default remain saved. */
-    static String effectiveDesign(String saved,boolean modernTheme){
-        if(modernTheme){
-            if("Neutron White".equals(saved))return "Neutron 2.0";
-            if("Modern".equals(saved)||"Creative".equals(saved))return saved; // 2.0 modes stay as-is
-        }
+    /** Config aliases are resolved before assignment; paint never changes persisted choices. */
+    public static String migrateMode(String saved){
+        if(saved==null)return null;
+        if("Rise".equalsIgnoreCase(saved)||"Rue (Rise)".equalsIgnoreCase(saved))return "Rue";
+        if("Neutron Default".equalsIgnoreCase(saved)||"Test".equalsIgnoreCase(saved))return "Basic";
+        if("Neutron White".equalsIgnoreCase(saved)||"Neutron Outline".equalsIgnoreCase(saved)||"Neutron 2.0".equalsIgnoreCase(saved))return "Modern";
+        if("Rue".equalsIgnoreCase(saved))return "Rue";
+        if("Tenacity".equalsIgnoreCase(saved))return "Tenacity";
+        if("Basic".equalsIgnoreCase(saved))return "Basic";
+        if("Modern".equalsIgnoreCase(saved))return "Modern";
+        if("Creative".equalsIgnoreCase(saved))return "Creative";
         return saved;
     }
-    static float modernWidth(int viewport,float content){
-        return Math.min(Math.max(1,viewport-8),Math.max(240,Math.min(310,content)));
-    }
-    static float modernHeight(int viewport){
-        return Math.min(Math.max(1,viewport-8),64);
-    }
-    static float creativeWidth(int viewport,float content){
-        return Math.min(Math.max(1,viewport-8),new CreativeHudLayout.Target(content).width);
-    }
-    static float creativeHeight(int viewport){return Math.min(Math.max(1,viewport-8),46);}
+    static String effectiveDesign(String saved,boolean modernTheme){return migrateMode(saved);}
+    static float modernWidth(int viewport,float content){return Math.min(Math.max(1,viewport-8),142);}
+    static float modernHeight(int viewport){return Math.min(Math.max(1,viewport-8),34);}
+    static float creativeWidth(int viewport,float content){return modernWidth(viewport,content);}
+    static float creativeHeight(int viewport){return modernHeight(viewport);}
+    private static boolean compact(String design){return "Modern".equals(design)||"Creative".equals(design);}
     private static Theme targetTheme(String design){
-        // Palette belongs to the selected ThemeCatalog, not to the layout.
-        return ("Neutron 2.0".equals(design)||"Modern".equals(design)||"Creative".equals(design))?Theme.resolve(ThemeCatalog.global().current()):
-                Theme.resolve(Theme.getDefaultTheme());
+        return compact(design)?Theme.resolve(ThemeCatalog.global().current()):Theme.resolve(Theme.getDefaultTheme());
     }
 
     private Frame editorPreview(int sw,int sh){
-        String design=effectiveDesign(mode.getValue(),
-                ThemeMode.APPROACH_TWO.equals(ThemeMode.selected()));
-        boolean modern="Neutron 2.0".equals(design)||"Modern".equals(design)||"Creative".equals(design);
-        boolean creative="Creative".equals(design);
-        boolean test="Test".equals(design),basic="Basic".equals(design),rise="Rise".equals(design);
-        TTFFontRenderer nameFont=Pulsar.INSTANCE.fontManager.getFont((basic?"Product-Sans-Bold":"Poppins-Medium")+" 18");
-        TTFFontRenderer infoFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 16");
-        float w=creative?creativeWidth(sw,220):modern?modernWidth(sw,258):Math.min(Math.max(1,sw-8),190);
-        float h=creative?creativeHeight(sh):modern?modernHeight(sh):Math.min(Math.max(1,sh-8),rise||basic?50:44);
+        String design=effectiveDesign(mode.getValue(),ThemeMode.APPROACH_TWO.equals(ThemeMode.selected()));
+        boolean small=compact(design),basic="Basic".equals(design),rue="Rue".equals(design);
+        TTFFontRenderer nameFont=Pulsar.INSTANCE.fontManager.getFont((basic?"Product-Sans-Bold":"Poppins-Medium")+(small?" 14":" 18"));
+        TTFFontRenderer infoFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular "+(small?"12":"16"));
+        float w=small?modernWidth(sw,142):Math.min(Math.max(1,sw-8),basic?166:rue?174:190);
+        float h=small?modernHeight(sh):Math.min(Math.max(1,sh-8),basic?40:rue?42:44);
+        float textX=small?("Creative".equals(design)?44:38):44;
+        float radius=small?12:basic?2:rue?12:5;
         HudPlacement.Point p=position(sw,sh,w,h);
-        float rad=creative?6:modern?16:basic?.5f:rise?14:"Neutron White".equals(design)?10:UiEffects.radius(5,w,h);
-        float textX=test?8:creative?49:modern?58:44;
-        float textWidth=(creative?Math.max(196,w):w)-textX-8;
-        return new Frame(p.x,p.y,w,h,Math.min(rad,h/2),textX,
-                fit("TargetHUD preview",nameFont,textWidth),
-                creative?"HP -- / --  ·  -- m":modern?"Health: --  |  Dist: --":"-- / --","Preview",null,
-                1,0,design,nameFont,infoFont,targetTheme(design));
+        return new Frame(p.x,p.y,w,h,Math.min(radius,h/2),textX,
+                fit("Target preview",nameFont,small?142-textX-8:w-textX-8),
+                small?"--":"-- / --","Preview",null,1,0,design,nameFont,infoFont,targetTheme(design),0,"-- m");
     }
     Frame layout(EntityLivingBase target,int sw,int sh){
         if(target==null||target.isDead||!target.isEntityAlive())return null;
@@ -180,131 +175,110 @@ public class TargetHUD extends Module {
         long now=System.nanoTime();
         float dt=lastFrame==0||now<=lastFrame?0:Math.min(.05f,(now-lastFrame)/1_000_000_000f);
         ClientSettings settings=ClientSettings.current();
-        boolean enabled=settings==null||settings.animations.getValue();
-        boolean reduced=settings!=null&&settings.reducedMotion.getValue();
+        boolean enabled=settings==null||settings.animations.getValue(),reduced=settings!=null&&settings.reducedMotion.getValue();
         String intensity=settings==null?"Balanced":settings.motionIntensity.getValue();
         float observedDistance=Float.NaN;
-        if(mc.thePlayer!=null){
-            float d=mc.thePlayer.getDistanceToEntity(target);
-            if(Float.isFinite(d)&&d>=0)observedDistance=Math.min(999,d);
-        }
+        if(mc.thePlayer!=null){float d=mc.thePlayer.getDistanceToEntity(target);if(Float.isFinite(d)&&d>=0)observedDistance=Math.min(999,d);}
         if(animatedTarget!=target){
-            animatedTarget=target;animatedHealth=healthSpring.snap(health);
-            animatedAbsorption=absorptionSpring.snap(absorption);
-            distanceSpring.snap(Float.isFinite(observedDistance)?observedDistance:0);
-            portraitSpring.snap(1);
+            animatedTarget=target;animatedHealth=healthSpring.snap(health);animatedAbsorption=absorptionSpring.snap(absorption);
+            distanceSpring.snap(Float.isFinite(observedDistance)?observedDistance:0);portraitSpring.snap(1);healthChange.reset();
         }else{
             animatedHealth=Math.max(0,Math.min(max,healthSpring.step(health,dt,enabled,reduced,intensity)));
-            animatedAbsorption=Math.max(0,Math.min(2048,
-                    absorptionSpring.step(absorption,dt,enabled,reduced,intensity)));
-            if(Float.isFinite(observedDistance))distanceSpring.step(
-                    observedDistance,dt,enabled,reduced,intensity);
+            animatedAbsorption=Math.max(0,Math.min(2048,absorptionSpring.step(absorption,dt,enabled,reduced,intensity)));
+            if(Float.isFinite(observedDistance))distanceSpring.step(observedDistance,dt,enabled,reduced,intensity);
         }
-        portraitPulse=Math.max(0,Math.min(1,portraitSpring.step(0,dt,enabled,reduced,intensity)));
+        float damagePulse=healthChange.step(((long)Float.floatToIntBits(health)<<32)^(Float.floatToIntBits(absorption)&0xffffffffL),
+                dt,enabled,reduced,intensity);
+        portraitPulse=Math.max(damagePulse,Math.max(0,Math.min(1,portraitSpring.step(0,dt,enabled,reduced,intensity))));
         lastFrame=now;
-        String design=effectiveDesign(mode.getValue(),
-                ThemeMode.APPROACH_TWO.equals(ThemeMode.selected()));
-        boolean modern="Neutron 2.0".equals(design)||"Modern".equals(design)||"Creative".equals(design);
-        final boolean creative="Creative".equals(design);
-        boolean test="Test".equals(design),basic="Basic".equals(design),rise="Rise".equals(design);
-        TTFFontRenderer nameFont=Pulsar.INSTANCE.fontManager.getFont((basic?"Product-Sans-Bold":"Poppins-Medium")+" 18");
-        TTFFontRenderer infoFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 16");
-        String name=net.minecraft.util.StringUtils.stripControlCodes(target.getCommandSenderName());if(name==null||name.trim().isEmpty())name="Living entity";
-        String hp=modern?(creative?"HP ":"Health: ")+number(animatedHealth)+" / "+number(max)+
-                (Float.isFinite(observedDistance)?"  |  "+number(
-                        Math.max(0,distanceSpring.value()))+" m":"")+
-                (animatedAbsorption>0?"  +"+number(animatedAbsorption)+" Abs":""):
-                number(animatedHealth)+" / "+number(max)+(animatedAbsorption>0?"  +"+number(animatedAbsorption):"");
-        float textX=test?8:creative?49:modern?58:44;
-        float width=creative?creativeWidth(sw,Math.max(nameFont.getWidth(name),infoFont.getWidth(hp))+textX+16):
-                modern?modernWidth(sw,Math.max(nameFont.getWidth(name),
-                infoFont.getWidth(hp))+textX+16):
-                Math.min(Math.max(1,sw-8),Math.max(152,Math.min(240,
-                        Math.max(nameFont.getWidth(name),infoFont.getWidth(hp))+textX+9)));
-        float height=creative?creativeHeight(sh):modern?modernHeight(sh):
-                Math.min(Math.max(1,sh-8),rise||basic?50:44);
-        HudPlacement.Point point=position(sw,sh,width,height);float x=point.x,y=point.y;
-        float radius=creative?6:modern?16:basic?.5f:rise?14:"Neutron White".equals(design)?10:UiEffects.radius(5,width,height);
-        ResourceLocation skin=null;
-        if(!test&&target instanceof AbstractClientPlayer)skin=((AbstractClientPlayer)target).getLocationSkin();
+        String design=effectiveDesign(mode.getValue(),ThemeMode.APPROACH_TWO.equals(ThemeMode.selected()));
+        boolean small=compact(design),basic="Basic".equals(design),rue="Rue".equals(design);
+        TTFFontRenderer nameFont=Pulsar.INSTANCE.fontManager.getFont((basic?"Product-Sans-Bold":"Poppins-Medium")+(small?" 14":" 18"));
+        TTFFontRenderer infoFont=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular "+(small?"12":"16"));
+        String name=net.minecraft.util.StringUtils.stripControlCodes(target.getCommandSenderName());
+        if(name==null||name.trim().isEmpty())name="Living entity";
+        String hp=small?number(animatedHealth):number(animatedHealth)+" / "+number(max)+(animatedAbsorption>0?"  +"+number(animatedAbsorption):"");
+        String distance=Float.isFinite(observedDistance)?number(Math.max(0,distanceSpring.value()))+" m":"";
+        float textX=small?("Creative".equals(design)?44:38):44;
+        float width=small?modernWidth(sw,142):Math.min(Math.max(1,sw-8),basic?166:rue?174:190);
+        float height=small?modernHeight(sh):Math.min(Math.max(1,sh-8),basic?40:rue?42:44);
+        HudPlacement.Point point=position(sw,sh,width,height);
+        ResourceLocation skin=target instanceof AbstractClientPlayer?((AbstractClientPlayer)target).getLocationSkin():null;
         String kind=target instanceof AbstractClientPlayer?"Player":target instanceof EntityAnimal?"Animal":"Mob";
-        float textWidth=(creative?Math.max(196,width):width)-textX-8;
-        return new Frame(x,y,width,height,Math.min(radius,height/2),textX,fit(name,nameFont,textWidth),fit(hp,infoFont,textWidth),kind,skin,
+        return new Frame(point.x,point.y,width,height,Math.min(small?12:basic?2:rue?12:5,height/2),textX,
+                fit(name,nameFont,(small?142:width)-textX-8),fit(hp,infoFont,small?35:width-textX-8),kind,skin,
                 Math.max(0,Math.min(1,animatedHealth/max)),Math.max(0,Math.min(1,animatedAbsorption/max)),
-                design,nameFont,infoFont,targetTheme(design),portraitPulse);
+                design,nameFont,infoFont,targetTheme(design),portraitPulse,fit(distance,infoFont,42));
     }
     private static String number(float value){return String.format(Locale.ROOT,value>=10000?"%.1fk":value==Math.rint(value)?"%.0f":"%.1f",value>=10000?value/1000:value);}
     private static String fit(String text,TTFFontRenderer font,float available){if(font.getWidth(text)<=available)return text;int end=text.length();while(end>0&&font.getWidth(text.substring(0,end)+"...")>available)end=text.offsetByCodePoints(end,-1);return end==0?"":text.substring(0,end)+"...";}
     void paint(Frame f){paint(f,1,1,0);}
     void paint(Frame f,float opacity,float scale,float slideY){
-        if("Creative".equals(f.design)){paintCreative(f,opacity,scale,slideY);return;}
-        final boolean modern="Neutron 2.0".equals(f.design)||"Modern".equals(f.design)||"Creative".equals(f.design);
-        boolean basic="Basic".equals(f.design),outlined="Neutron Outline".equals(f.design),
-                tenacity="Tenacity".equals(f.design);
-        final float x=f.x+(f.width-f.width*scale)/2;
-        final float y=f.y+slideY+(f.height-f.height*scale)/2;
-        final float w=f.width*scale,h=f.height*scale;
-        final long epoch=sceneEpoch;
+        if(compact(f.design)){paintCompact(f,opacity,scale,slideY);return;}
+        boolean basic="Basic".equals(f.design),tenacity="Tenacity".equals(f.design);
+        final float x=f.x+(f.width-f.width*scale)/2,y=f.y+slideY+(f.height-f.height*scale)/2;
+        final float w=f.width*scale,h=f.height*scale;final long epoch=sceneEpoch;
         GuiShaderBloom.afterBatch(()->{
-            // The compositor can run after a target/world/HUD disable event.
             if(!isToggled()||!HUD.visible()||epoch!=sceneEpoch||mc.gameSettings.showDebugInfo)return;
-            surface.designedPanel(x,y,w,h,Math.min(f.radius*scale,h/2),f.theme,true,
-                    modern?false:!basic,modern?false:!basic,modern?3.5f:5,
-                    (modern?.86f:.62f)*opacity,
-                    (modern?.10f:outlined?.9f:0)*opacity,tenacity,()->{
+            surface.designedPanel(x,y,w,h,Math.min(f.radius*scale,h/2),f.theme,true,!basic,!basic,5,
+                    .72f*opacity,0,tenacity,()->{
                 try(RenderState state=new RenderState()){
                     state.screenSpace();
-                    try(GuiClip clip=GuiClip.push(new ClipRect(x+1,y+1,Math.max(1,w-2),Math.max(1,h-2)))){
-                        glTranslatef(x-f.x*scale,y-f.y*scale,0);
-                        glScalef(scale,scale,1);
+                    try(GuiClip clip=GuiClip.push(new ClipRect(x,y,w,h))){
+                        glTranslatef(x-f.x*scale,y-f.y*scale,0);glScalef(scale,scale,1);
                         content(f,opacity);
                     }
                 }
             });
         });
     }
-    /** A detached portrait tab and a short information rail, sharing one captured scene. */
-    private void paintCreative(Frame f,float opacity,float revealScale,float slideY){
-        final float x=f.x+(f.width-f.width*revealScale)/2;
-        final float y=f.y+slideY+(f.height-f.height*revealScale)/2;
+    /** An inline capsule or detached health-orbit portrait; both fit 142 x 34 logical pixels. */
+    private void paintCompact(Frame f,float alpha,float revealScale,float slideY){
+        final float x=f.x+(f.width-f.width*revealScale)/2,y=f.y+slideY+(f.height-f.height*revealScale)/2;
         final float w=f.width*revealScale,h=f.height*revealScale;
-        final long epoch=sceneEpoch;
+        final boolean creative="Creative".equals(f.design);final long epoch=sceneEpoch;
         GuiShaderBloom.afterBatch(()->{
             if(!isToggled()||!HUD.visible()||epoch!=sceneEpoch||mc.gameSettings.showDebugInfo)return;
-            surface.withScene(f.theme,true,false,3.5f,()->{
-                try(RenderState state=new RenderState();UiEffects.GradientSpace domain=UiEffects.gradientSpace(x,y,w,h)){
+            surface.withScene(f.theme,true,false,3.5f,policy->{
+                try(RenderState state=new RenderState()){
                     state.screenSpace();
                     try(GuiClip clip=GuiClip.push(new ClipRect(x,y,w,h))){
-                        CreativeHudLayout.Target geometry=new CreativeHudLayout.Target(f.width);
-                        CreativeHudLayout.Fit fit=geometry.fit(w,h);
-                        glTranslatef(x+fit.x-f.x*fit.scale,y+fit.y-f.y*fit.scale,0);
-                        glScalef(fit.scale,fit.scale,1);
-                        CreativeHudLayout.Rect body=geometry.body;
-                        try(UiEffects.GradientSpace contour=UiEffects.perimeterSpace(
-                                x+fit.x+body.x*fit.scale,y+fit.y+body.y*fit.scale,
-                                body.width*fit.scale,body.height*fit.scale,
-                                UiEffects.radius(6,body.width,body.height)*fit.scale)){
-                            UIUtils.drawRound(f.x+body.x,f.y+body.y,body.width,body.height,6,
-                                    new Color(19,23,32,Math.round(218*opacity)));
-                            UIUtils.drawRound(f.x+body.x,f.y+8,1.2f,28,.6f,
-                                    tint(f.theme.getPrimaryGradientColor(),.55f*opacity));
+                        CreativeHudLayout.Fit fit=new CreativeHudLayout.Fit(142,34,w,h);
+                        float bx=creative?35:0,bw=creative?107:142;
+                        // The common owner preserves the selected material, surface opacity and reveal alpha.
+                        float plateAlpha=alpha*(policy.style<0?policy.opacity:1);
+                        surface.inheritedPanel(x+fit.x+bx*fit.scale,y+fit.y,bw*fit.scale,34*fit.scale,
+                                (creative?11:13)*fit.scale,f.theme,plateAlpha,()->{});
+                        if(creative)surface.inheritedPanel(x+fit.x+fit.scale,y+fit.y+3*fit.scale,
+                                28*fit.scale,28*fit.scale,14*fit.scale,f.theme,plateAlpha,()->{});
+                        glTranslatef(x+fit.x,y+fit.y,0);glScalef(fit.scale,fit.scale,1);
+                        int accent=f.theme.getPrimaryGradientRGB();
+                        CompactHudVisuals.begin(fit.scale);
+                        float cx=creative?15:18,cy=17,portrait=creative?23:24;
+                        CompactHudVisuals.dot(cx,cy,portrait/2,0xff2b3547,alpha*policy.opacity);
+                        if(creative){
+                            CompactHudVisuals.arc(cx,cy,14,0,1,1.6f,accent,alpha*.18f);
+                            CompactHudVisuals.arc(cx,cy,14,0,f.health,2,accent,alpha);
+                            if(f.absorption>0)CompactHudVisuals.arc(cx,cy,11.7f,0,f.absorption,1.25f,0xffffd36b,alpha);
                         }
-                        portrait(f,opacity);
-                        f.nameFont.drawString(f.name,f.x+geometry.textX,f.y+geometry.nameY,
-                                opacity(0xfff0f4f8,opacity));
-                        f.infoFont.drawString(f.healthText,f.x+geometry.textX,f.y+geometry.infoY,
-                                opacity(0xffbbc9d8,opacity));
-                        CreativeHudLayout.Rect hp=geometry.health;
-                        UIUtils.drawRound(f.x+hp.x,f.y+hp.y,hp.width,hp.height,1.5f,
-                                new Color(255,255,255,Math.round(28*opacity)));
-                        float filled=hp.width*f.health;
-                        if(filled>.01f)UIUtils.drawGradientHorizontal(f.x+hp.x,f.y+hp.y,filled,hp.height,
-                                Math.min(1.5f,filled/2),tint(f.theme.getPrimaryGradientColor(),opacity),
-                                tint(f.theme.getSecondaryGradientColor(),opacity));
-                        CreativeHudLayout.Rect absorb=geometry.absorption;
-                        float absorbed=absorb.width*f.absorption;
-                        if(absorbed>.01f)UIUtils.drawRound(f.x+absorb.x,f.y+absorb.y,absorbed,absorb.height,
-                                Math.min(.75f,absorbed/2),new Color(255,211,80,Math.round(220*opacity)));
+                        float pulse=1-.06f*Math.max(0,Math.min(1,f.headPulse));
+                        float size=portrait*pulse;
+                        if(f.skin!=null)CompactHudVisuals.skin(f.skin,cx-size/2,cy-size/2,size,creative?size/2:7,alpha);
+                        else{
+                            String badge="Preview".equals(f.kind)?"N":"Animal".equals(f.kind)?"A":"Mob".equals(f.kind)?"M":"P";
+                            f.nameFont.drawString(badge,cx-f.nameFont.getWidth(badge)/2,cy-5,opacity(0xffedf4ff,alpha));
+                        }
+                        float tx=creative?44:38;
+                        f.nameFont.drawString(f.name,tx,4,opacity(0xffedf4ff,alpha));
+                        f.infoFont.drawString(f.healthText,tx+11,17,opacity(0xffd7e4ef,alpha));
+                        if(!f.distanceText.isEmpty())f.infoFont.drawString(f.distanceText,tx+55,17,opacity(0xffaab9cc,alpha));
+                        CompactHudVisuals.begin(fit.scale);
+                        CompactHudVisuals.heart(tx,18,7+f.headPulse*.4f,accent,alpha);
+                        if(!f.distanceText.isEmpty())CompactHudVisuals.range(tx+44,18,7,0xff8fa5bc,alpha);
+                        float track=142-tx-9;
+                        CompactHudVisuals.line(tx,29,tx+track,29,2.5f,0xff73859e,alpha*.24f);
+                        if(f.health>0)CompactHudVisuals.line(tx,29,tx+track*f.health,29,2.5f,accent,alpha);
+                        if(f.absorption>0)CompactHudVisuals.line(tx,32,tx+track*f.absorption,32,1,0xffffd36b,alpha);
                     }
                 }
             });
@@ -320,96 +294,44 @@ public class TargetHUD extends Module {
                 Math.round(c.getAlpha()*Math.max(0,Math.min(1,alpha))));
     }
     private void content(Frame f,float alpha){
-        boolean modern="Neutron 2.0".equals(f.design)||"Modern".equals(f.design)||"Creative".equals(f.design);
-        boolean white="Neutron White".equals(f.design)&&(UiEffects.scene()==null||UiEffects.scene().policy.style<0);
-        if(modern){
-            // Neutral dark ink plate and a quiet selected-palette hairline.
-            UIUtils.drawRound(f.x+2,f.y+2,Math.max(1,f.width-4),
-                    Math.max(1,f.height-4),Math.max(1,f.radius-2),
-                    new Color(18,20,30,Math.round(205*alpha)));
-            UIUtils.drawRoundOutline(f.x+2,f.y+2,f.width-4,f.height-4,
-                    Math.max(1,f.radius-2),.55f,new Color(0,0,0,1),
-                    tint(f.theme.getPrimaryGradientColor(),.34f*alpha));
-            UIUtils.drawGradientHorizontal(f.x+14,f.y+3,Math.min(72,Math.max(0,f.width-28)),
-                    1.2f,.6f,tint(f.theme.getPrimaryGradientColor(),.62f*alpha),
-                    tint(f.theme.getSecondaryGradientColor(),.48f*alpha));
+        boolean basic="Basic".equals(f.design),rue="Rue".equals(f.design);
+        portrait(f,alpha);
+        f.nameFont.drawString(f.name,f.x+f.textX,f.y+5,opacity(0xfff1f4f9,alpha));
+        f.infoFont.drawString(f.healthText,f.x+f.textX,f.y+18,opacity(0xffb9c8d9,alpha));
+        float bx=f.x+f.textX,by=f.y+f.height-7,bw=Math.max(0,f.width-f.textX-8);
+        if(rue){
+            float gap=2,pip=(bw-gap*9)/10;
+            for(int i=0;i<10;i++){
+                UIUtils.drawDecorationRound(bx+i*(pip+gap),by,pip,3,1.5f,new Color(255,255,255,Math.round(30*alpha)));
+                float amount=Math.max(0,Math.min(1,f.health*10-i));
+                if(amount>0)UIUtils.drawDecorationRound(bx+i*(pip+gap),by,pip*amount,3,Math.min(1.5f,pip*amount/2),tint(f.theme.getPrimaryGradientColor(),alpha));
+            }
+        }else{
+            UIUtils.drawDecorationRound(bx,by,bw,3,basic?.5f:1.5f,new Color(255,255,255,Math.round(30*alpha)));
+            if(f.health>0)UIUtils.drawGradientHorizontal(bx,by,bw*f.health,3,Math.min(basic?.5f:1.5f,bw*f.health/2),
+                    tint(f.theme.getPrimaryGradientColor(),alpha),tint(f.theme.getSecondaryGradientColor(),alpha));
         }
-        if(white)UIUtils.drawRound(f.x+1,f.y+1,f.width-2,f.height-2,
-                Math.max(.5f,f.radius-1),new Color(244,245,248,Math.round(235*alpha)));
-        int text=opacity(white?0xff20232c:modern?0xfff7f0f9:
-                f.theme.isCustom()?f.theme.getTextColor().getRGB():0xfff2f3f7,alpha);
-        if(!"Test".equals(f.design))portrait(f,alpha);
-        float titleY=f.y+(modern?10:6);
-        if(white||modern||alpha<.999f)
-            f.nameFont.drawString(f.name,f.x+f.textX,titleY,text);
-        else TextEffects.direct(f.theme,()->f.nameFont.drawString(f.name,f.x+f.textX,titleY,-1));
-        f.infoFont.drawString(f.healthText,f.x+f.textX,f.y+(modern?31:19),
-                opacity(white?0xff484d58:modern?0xffd5c8da:0xffcdd3df,alpha));
-        float bx=f.x+f.textX,by=f.y+f.height-(modern?12:8),bw=Math.max(0,f.width-f.textX-8);
-        float barHeight=modern?5:3;
-        UIUtils.drawRound(bx,by,bw,barHeight,barHeight/2,
-                tint(new Color(white?0x30323c44:0x66363b49,true),alpha));
-        float filled=bw*f.health;
-        if(filled>.01f)UIUtils.drawGradientHorizontal(bx,by,filled,barHeight,Math.min(barHeight/2,filled/2),
-                tint(f.theme.getPrimaryGradientColor(),alpha),tint(f.theme.getSecondaryGradientColor(),alpha));
-        float absorbed=bw*f.absorption;
-        if(absorbed>.01f)UIUtils.drawRound(bx+bw-absorbed,by,absorbed,barHeight,
-                Math.min(barHeight/2,absorbed/2),
-                new Color(255,211,80,Math.round(220*alpha)));
+        if(f.absorption>0)UIUtils.drawDecorationRound(bx,by+4,bw*f.absorption,1,.5f,new Color(255,211,80,Math.round(220*alpha)));
     }
-    /** Players use their skin; animals/mobs get an explicit species badge, never a fabricated skin. */
+    /** Players use their real head and hat layers; missing skins get a factual species badge. */
     private void portrait(Frame f,float alpha){
-        boolean modern="Neutron 2.0".equals(f.design)||"Modern".equals(f.design)||"Creative".equals(f.design);
-        final boolean creative="Creative".equals(f.design);
-        float size=creative?32:modern?Math.min(40,Math.max(12,f.height-10)):30;
-        float px=f.x+(creative?0:modern?10:7),py=creative?f.y+7:f.y+(f.height-size)/2;
+        float size=28,px=f.x+7,py=f.y+(f.height-size)/2;
         try(RenderState state=new RenderState()){
-            float pulse=creative?1-.07f*Math.max(0,Math.min(1,f.headPulse)):
-                    1+.09f*Math.max(0,Math.min(1,f.headPulse));
-            glTranslatef(px+size/2,py+size/2,0);glScalef(pulse,pulse,1);
-            glTranslatef(-px-size/2,-py-size/2,0);
-            try(UiEffects.GradientSpace contour=creative?portraitContour(px,py,size):null){
-            UIUtils.drawRound(px,py,size,size,modern?9:4,
-                    creative?new Color(40,34,49,Math.round(220*alpha)):
-                    modern?new Color(40,34,49,Math.round(230*alpha)):
-                    new Color((f.theme.getPrimaryGradientRGB()&0xffffff)
-                            |(Math.round(85*alpha)<<24),true));
-            if(f.skin!=null){
-                float insetSize=size-2;
-                ClipRect skinBounds=new ClipRect(px+1,py+1,insetSize,insetSize);
-                try(GuiClip clip=creative?GuiClip.pushTransformed(skinBounds):GuiClip.push(skinBounds)){
-                    GlStateManager.setActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0);
-                    org.lwjgl.opengl.GL13.glActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0);
-                    GlStateManager.enableTexture2D();glEnable(GL_TEXTURE_2D);
-                    GlStateManager.enableBlend();glEnable(GL_BLEND);
-                    GlStateManager.blendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-                    glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-                    GlStateManager.color(1,1,1,alpha);glColor4f(1,1,1,alpha);
-                    mc.getTextureManager().bindTexture(f.skin);
-                    Gui.drawScaledCustomSizeModalRect((int)px+1,(int)py+1,8,8,8,8,
-                            (int)insetSize,(int)insetSize,64,64);
-                    Gui.drawScaledCustomSizeModalRect((int)px+1,(int)py+1,40,8,8,8,
-                            (int)insetSize,(int)insetSize,64,64);
-                }
-            }else{
+            float pulse=1-.05f*Math.max(0,Math.min(1,f.headPulse));
+            glTranslatef(px+size/2,py+size/2,0);glScalef(pulse,pulse,1);glTranslatef(-px-size/2,-py-size/2,0);
+            UIUtils.drawDecorationRound(px,py,size,size,"Basic".equals(f.design)?2:7,tint(f.theme.getPrimaryGradientColor(),alpha*.25f));
+            if(f.skin!=null)CompactHudVisuals.skin(f.skin,px+1,py+1,size-2,"Basic".equals(f.design)?1:6,alpha);
+            else{
                 String badge="Preview".equals(f.kind)?"N":"Animal".equals(f.kind)?"A":"Mob".equals(f.kind)?"M":"P";
-                f.nameFont.drawString(badge,px+size/2-f.nameFont.getWidth(badge)/2,py+(modern?8:4),
-                        opacity(Color.WHITE.getRGB(),alpha));
+                f.nameFont.drawString(badge,px+size/2-f.nameFont.getWidth(badge)/2,py+4,opacity(0xfff4f7fb,alpha));
                 TTFFontRenderer tiny=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 10");
-                tiny.drawString(f.kind,px+size/2-tiny.getWidth(f.kind)/2,py+size-(modern?12:10),
-                        opacity(Color.WHITE.getRGB(),alpha));
-            }
+                tiny.drawString(f.kind,px+size/2-tiny.getWidth(f.kind)/2,py+size-9,opacity(0xffb9c8d9,alpha));
             }
         }
-    }
-    private static UiEffects.GradientSpace portraitContour(float x,float y,float size){
-        float[] projected=ScreenRect.project(x,y,size,size);
-        float radius=UiEffects.radius(9,size,size)*Math.min(projected[2]/size,projected[3]/size);
-        return UiEffects.perimeterSpace(projected[0],projected[1],projected[2],projected[3],radius);
     }
     static final class Frame {
         final float x,y,width,height,radius,textX,health,absorption,headPulse;
-        final String name,healthText,kind,design;
+        final String name,healthText,kind,design,distanceText;
         final ResourceLocation skin;
         final TTFFontRenderer nameFont,infoFont;
         final Theme theme;
@@ -422,6 +344,12 @@ public class TargetHUD extends Module {
         Frame(float x,float y,float width,float height,float radius,float textX,String name,
               String healthText,String kind,ResourceLocation skin,float health,float absorption,
               String design,TTFFontRenderer nameFont,TTFFontRenderer infoFont,Theme theme,float headPulse){
+            this(x,y,width,height,radius,textX,name,healthText,kind,skin,health,absorption,design,nameFont,infoFont,theme,headPulse,"");
+        }
+        Frame(float x,float y,float width,float height,float radius,float textX,String name,
+              String healthText,String kind,ResourceLocation skin,float health,float absorption,
+              String design,TTFFontRenderer nameFont,TTFFontRenderer infoFont,Theme theme,float headPulse,String distanceText){
+            this.distanceText=distanceText;
             this.x=x;this.y=y;this.width=width;this.height=height;this.radius=radius;
             this.textX=textX;this.name=name;this.healthText=healthText;this.kind=kind;this.skin=skin;
             this.health=health;this.absorption=absorption;this.design=design;
@@ -429,7 +357,7 @@ public class TargetHUD extends Module {
         }
         Frame positioned(float x,float y){
             return new Frame(x,y,width,height,radius,textX,name,healthText,kind,skin,
-                    health,absorption,design,nameFont,infoFont,theme,headPulse);
+                    health,absorption,design,nameFont,infoFont,theme,headPulse,distanceText);
         }
     }
 }

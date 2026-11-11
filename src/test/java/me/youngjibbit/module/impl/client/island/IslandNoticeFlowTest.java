@@ -65,7 +65,7 @@ public class IslandNoticeFlowTest {
                 assertTrue(canvas.y+canvas.height*canvas.scale<=frame.y+frame.height+.0001f);
             }
         assertEquals(206,IslandContentLayout.width(IslandStateMachine.State.MODULE_TOAST),0);
-        assertEquals(72,IslandContentLayout.height(IslandStateMachine.State.POSSIBLE_SETBACK),0);
+        assertEquals(66,IslandContentLayout.height(IslandStateMachine.State.POSSIBLE_SETBACK),0);
         assertEquals(42,IslandContentLayout.height(IslandStateMachine.State.INVENTORY_ACTIVITY),0);
     }
 }

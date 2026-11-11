@@ -9,8 +9,8 @@ public final class IslandAttachmentLayout {
     }
     public IslandAttachmentLayout(IslandLayout.Frame frame,float logicalBaseWidth,IslandStateMachine.State kind,float unitScale){
         shell=frame;
-        float detailWidth=kind==IslandStateMachine.State.TARGET?266:IslandContentLayout.width(kind);
-        float detailHeight=kind==IslandStateMachine.State.TARGET?52:IslandContentLayout.height(kind);
+        float detailWidth=kind==IslandStateMachine.State.TARGET?176:IslandContentLayout.width(kind);
+        float detailHeight=kind==IslandStateMachine.State.TARGET?48:IslandContentLayout.height(kind);
         float scale=Math.min(Float.isFinite(unitScale)?Math.max(.0001f,Math.min(1,unitScale)):1,
                 frame.width/logicalBaseWidth);
         float header=Math.min(frame.height,34*scale);
@@ -18,7 +18,7 @@ public final class IslandAttachmentLayout {
         base=frame.region(frame.x+(frame.width-baseWidth)/2,frame.y,baseWidth,header,header/2);
         float visible=Math.max(0,frame.height-header);
         reveal=Math.max(0,Math.min(1,visible/Math.max(.01f,detailHeight*scale)));
-        float bodyWidth=Math.min(frame.width,detailWidth*scale);
+        float bodyWidth=Math.max(baseWidth*.52f,Math.min(baseWidth*.74f,detailWidth*scale));
         detail=frame.region(frame.x+(frame.width-bodyWidth)/2,frame.y+header,bodyWidth,
                 Math.max(.01f,detailHeight*scale),14*scale);
         joinY=frame.y+Math.max(.01f,header-Math.min(7*scale,header*.25f));

@@ -127,10 +127,68 @@ public final class ClickGuiRenderCheck {
             checkWindowBounds(panel);
             if(!Boolean.getBoolean("pulsar.gui.baseline"))checkAdvancedInput(panel);
             checkBloomReuse();
+            checkCompactPresentations();
             require(glGetError() == GL_NO_ERROR, "OpenGL error after rendering");
             context.check();
         }
         System.out.println("PASS [Pbuffer/FBO only]: clipping, input, sliders, checkbox, combo, scrolling, drag/resize, theme snapshots, simulated GUI scales, bloom reuse");
+    }
+
+
+    @SuppressWarnings("unchecked")
+    private static void checkCompactPresentations()throws Exception{
+        me.youngjibbit.module.impl.client.ClientSettings settings=me.youngjibbit.module.impl.client.ClientSettings.current();
+        String oldMode=me.youngjibbit.theme.ThemeMode.selected(),oldSurface=settings.surface.getValue();
+        String oldStyle=settings.neutronScreenStyle.getValue();
+        boolean oldAnimations=settings.animations.getValue();
+        net.minecraft.client.gui.GuiScreen oldScreen=mc.currentScreen;
+        int oldWidth=mc.displayWidth,oldHeight=mc.displayHeight,oldScale=mc.gameSettings.guiScale;
+        try{
+            me.youngjibbit.theme.ThemeMode.select(me.youngjibbit.theme.ThemeMode.APPROACH_TWO);
+            settings.surface.setValue("Liquid Glass");settings.animations.setValue(false);
+            for(String style:new String[]{"Modern","Creative"}){
+                settings.neutronScreenStyle.setValue(style);
+                Panel panel=new Panel();
+                try{
+                    resize(panel,1280,960,1);mc.currentScreen=panel;
+                    frame(panel,-1,-1,1,1,1);
+                    List<ClickModule> rows=(List<ClickModule>)get(panel,"modules");
+                    require(!rows.isEmpty(),"Compact presentation has no module rows");
+                    ClickModule first=rows.get(0);
+                    require(first.getHeight()==36,"Modern/Creative closed rows must stay compact");
+                    for(int i=0;i<me.youngjibbit.module.Category.values().length;i++){
+                        ClipRect nav=panel.categoryBounds(i),toolbar=panel.searchBox();
+                        require(nav.y>=toolbar.y+toolbar.height,"Compact category overlaps the toolbar");
+                        require(nav.x>=0&&nav.y+nav.height<=new ScaledResolution(mc).getScaledHeight(),"Compact navigation leaves the screen");
+                    }
+                    ByteBuffer pixel=BufferUtils.createByteBuffer(4);
+                    glReadPixels((int)(first.getX()+first.getWidth()/2),mc.displayHeight-(int)(first.getY()+32),
+                            1,1,GL_RGBA,GL_UNSIGNED_BYTE,pixel);
+                    require((pixel.get(0)&255)<110&&(pixel.get(1)&255)<110&&(pixel.get(2)&255)<110,
+                            "Liquid Glass leaves moving bright backdrop directly behind module text");
+                    String stem="compact-"+style.toLowerCase(java.util.Locale.ROOT);
+                    snapshot(stem+"-glass.png");
+                    panel.click((int)(first.getX()+first.getWidth()-12),(int)first.getY()+18,1);
+                    panel.release();frame(panel,-1,-1,1,1,1);
+                    require(first.isOpen()&&first.getHeight()>36&&!first.focusableValues().isEmpty(),
+                            "Compact disclosure does not expose its actual settings controls");
+                    snapshot(stem+"-settings.png");
+                    me.youngjibbit.gui.clientsettings.SettingsMenu preferences=new me.youngjibbit.gui.clientsettings.SettingsMenu(panel);
+                    try{
+                        ScaledResolution resolution=new ScaledResolution(mc);
+                        preferences.setWorldAndResolution(mc,resolution.getScaledWidth(),resolution.getScaledHeight());
+                        mc.currentScreen=preferences;frame(preferences,-1,-1,1,1,1);
+                        snapshot(stem+"-client-settings.png");
+                    }finally{preferences.onGuiClosed();}
+                }finally{panel.onGuiClosed();}
+            }
+            System.out.println("PASS: compact Modern/Creative menu presentation, real disclosure controls, readable local glass backing and settings snapshots");
+        }finally{
+            settings.surface.setValue(oldSurface);settings.neutronScreenStyle.setValue(oldStyle);
+            settings.animations.setValue(oldAnimations);me.youngjibbit.theme.ThemeMode.select(oldMode);
+            mc.currentScreen=oldScreen;mc.displayWidth=oldWidth;mc.displayHeight=oldHeight;mc.gameSettings.guiScale=oldScale;
+            mc.getFramebuffer().createBindFramebuffer(oldWidth,oldHeight);
+        }
     }
 
     private static void checkAdvancedInput(Panel panel)throws Exception{
@@ -468,13 +526,16 @@ public final class ClickGuiRenderCheck {
     }
 
     private static void frame(Panel panel, int mouseX, int mouseY) {
+        frame(panel,mouseX,mouseY,.19f,.27f,.31f);
+    }
+    private static void frame(net.minecraft.client.gui.GuiScreen panel,int mouseX,int mouseY,float red,float green,float blue) {
         mc.getFramebuffer().bindFramebuffer(true);
         glDisable(GL_SCISSOR_TEST);
         GlStateManager.disableDepth();
         GlStateManager.enableTexture2D();
         GlStateManager.disableAlpha();
         GlStateManager.color(1, 1, 1, 1);
-        glClearColor(0.19f, 0.27f, 0.31f, 1);
+        glClearColor(red, green, blue, 1);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         ScaledResolution resolution = new ScaledResolution(mc);
         glMatrixMode(GL_PROJECTION);

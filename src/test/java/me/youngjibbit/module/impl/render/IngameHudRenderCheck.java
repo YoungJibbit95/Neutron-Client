@@ -83,7 +83,7 @@ public final class IngameHudRenderCheck {
             mc.thePlayer.inventory.mainInventory[0]=new ItemStack(Items.spawn_egg);mc.thePlayer.inventory.mainInventory[1]=new ItemStack(net.minecraft.init.Blocks.sand,4);mc.thePlayer.inventory.mainInventory[2]=new ItemStack(Items.beef,7);
             overlay=new GuiIngame(mc);mc.ingameGUI=overlay;mc.currentScreen=null;
             if(baseline){for(int i=0;i<4;i++)frame(cow);save("before-cow.png");return;}
-            checkExtraTextureUnits();checkModelState();RotationHudRenderCheck.run();checkTargets();checkArmor();checkDragging();checkIconsAndMasks();
+            checkExtraTextureUnits();checkModelState();RotationHudRenderCheck.run();checkTargets();checkCompactHudModes();checkArmor();checkDragging();checkIconsAndMasks();
             armor.getBooleanSetting("Empty Slots").setValue(true);armor.getBooleanSetting("Held Item").setValue(true);armor.getModeSetting("Layout").setValue("Vertical");
             for(int i=0;i<5;i++)frame(cow);save("after-cow.png");
             mc.thePlayer.inventory.armorInventory[0]=new ItemStack(Items.diamond_boots);mc.thePlayer.inventory.armorInventory[0].setItemDamage(300);
@@ -99,7 +99,7 @@ public final class IngameHudRenderCheck {
             save("after-zombie-glow.png");writeComparison();RenderDiagnostics.enabled=false;
             int texture=glow.framebuffer.framebufferTexture;glow.setToggled(false);SessionInfoRenderCheck.require(!glIsTexture(texture),"Entity glow framebuffer survived disable");
             SessionInfoRenderCheck.require(glGetError()==GL_NO_ERROR,"Combined HUD GL error");
-            System.out.println("PASS: native hotbar + Event2D/bloom owner, actual player/cow/zombie models/data + entity glow (both paths), seven target designs/switch/death/long names, compact equipment, exclusive silhouette drag, vector icons, GL state, steady reuse and odd resize/scales");
+            System.out.println("PASS: native hotbar + Event2D/bloom owner, actual player/cow/zombie models/data + entity glow (both paths), five target designs/switch/death/long names, compact equipment, exclusive silhouette drag, vector icons, GL state, steady reuse and odd resize/scales");
             if(Boolean.getBoolean("pulsar.neutron.world.check"))CosmeticRenderCheck.run();
         }finally{
             if(modules!=null)for(me.youngjibbit.module.Module module:modules.getAllModules())if(module.isToggled())module.setToggled(false);
@@ -194,7 +194,7 @@ public final class IngameHudRenderCheck {
     static void save(String name)throws Exception{ImageIO.write(SessionInfoRenderCheck.capture(),"png",new File(OUT,name));}
     static void checkTargets()throws Exception{
         java.util.List<BufferedImage> images=new ArrayList<>();java.util.List<String> captions=new ArrayList<>();
-        for(String mode:new String[]{"Neutron Default","Neutron White","Neutron Outline","Rise","Tenacity","Basic","Test"}){
+        for(String mode:new String[]{"Rue","Tenacity","Basic","Modern","Creative"}){
             target.getModeSetting("Mode").setValue(mode);
             for(EntityLivingBase entity:Arrays.asList(player,cow,zombie)){
                 TargetHUD.Frame f=target.layout(entity,550,320);SessionInfoRenderCheck.require(f!=null&&!f.name.isEmpty()&&!f.healthText.isEmpty()&&f.x+f.width<=546,"Incomplete target layout");
@@ -208,7 +208,76 @@ public final class IngameHudRenderCheck {
         for(int i=0;i<images.size();i++){int x=i%3*480,y=i/3*220;graphics.setColor(java.awt.Color.WHITE);graphics.drawString(captions.get(i),x+12,y+22);graphics.drawImage(images.get(i),x+12,y+32,null);}graphics.dispose();ImageIO.write(matrix,"png",new File(OUT,"target-living-matrix.png"));
         cow.setHealth(1);target.layout(cow,550,320);TargetHUD.Frame fresh=target.layout(player,550,320);SessionInfoRenderCheck.require(Math.abs(fresh.health-.9f)<.001,"Health animation carried over from old target");
         cow.setCustomNameTag("A very long animal name that must stay inside the target panel");TargetHUD.Frame longName=target.layout(cow,550,320);SessionInfoRenderCheck.require(longName.nameFont.getWidth(longName.name)<=longName.width-longName.textX-8,"Long target name escaped");
-        cow.getEntityAttribute(SharedMonsterAttributes.maxHealth).setBaseValue(1024);cow.setHealth(900);target.layout(cow,550,320);cow.setHealth(0);SessionInfoRenderCheck.require(target.layout(cow,550,320)==null&&target.layout(null,550,320)==null,"Dead/missing target retains panel");cow.getEntityAttribute(SharedMonsterAttributes.maxHealth).setBaseValue(10);cow.setHealth(7);cow.setCustomNameTag("Cow");target.getModeSetting("Mode").setValue("Neutron Default");
+        cow.getEntityAttribute(SharedMonsterAttributes.maxHealth).setBaseValue(1024);cow.setHealth(900);target.layout(cow,550,320);cow.setHealth(0);SessionInfoRenderCheck.require(target.layout(cow,550,320)==null&&target.layout(null,550,320)==null,"Dead/missing target retains panel");cow.getEntityAttribute(SharedMonsterAttributes.maxHealth).setBaseValue(10);cow.setHealth(7);cow.setCustomNameTag("Cow");target.getModeSetting("Mode").setValue("Basic");
+    }
+    /** Actual compact painters, skins/items/fonts and a warm resource check at four GUI viewports. */
+    static void checkCompactHudModes()throws Exception{
+        me.youngjibbit.module.impl.client.ClientSettings settings=me.youngjibbit.module.impl.client.ClientSettings.current();
+        String oldTarget=target.getModeSetting("Mode").getValue(),oldSession=session.getModeSetting("Mode").getValue();
+        String oldArmor=armor.getModeSetting("Mode").getValue(),oldLayout=armor.getModeSetting("Layout").getValue();
+        String oldDurability=armor.getModeSetting("Durability").getValue();
+        boolean oldAnimations=settings.animations.getValue(),oldReduced=settings.reducedMotion.getValue();
+        boolean oldEmpty=armor.getBooleanSetting("Empty Slots").getValue(),oldHeld=armor.getBooleanSetting("Held Item").getValue();
+        int oldW=mc.displayWidth,oldH=mc.displayHeight,oldScale=mc.gameSettings.guiScale;
+        float oldSessionX=(float)SessionInfoRenderCheck.get(session,"x"),oldSessionY=(float)SessionInfoRenderCheck.get(session,"y");
+        float oldArmorX=(float)SessionInfoRenderCheck.get(armor,"x"),oldArmorY=(float)SessionInfoRenderCheck.get(armor,"y");
+        boolean diagnostics=RenderDiagnostics.enabled;
+        ItemStack[] equipment={new ItemStack(Items.diamond_boots),null,new ItemStack(Items.diamond_chestplate),new ItemStack(Items.diamond_helmet)};
+        equipment[0].setItemDamage(100);equipment[3].addEnchantment(net.minecraft.enchantment.Enchantment.protection,2);
+        ItemStack held=new ItemStack(Items.diamond_sword);held.setItemDamage(800);
+        try{
+            settings.reducedMotion.setValue(true);settings.animations.setValue(true);
+            armor.getModeSetting("Layout").setValue("Horizontal");armor.getModeSetting("Durability").setValue("Percent");
+            armor.getBooleanSetting("Empty Slots").setValue(true);armor.getBooleanSetting("Held Item").setValue(true);
+            for(int[] viewport:new int[][]{{854,480,2},{640,480,2},{1101,733,3},{1280,720,2}}){
+                mc.displayWidth=viewport[0];mc.displayHeight=viewport[1];mc.gameSettings.guiScale=viewport[2];
+                mc.getFramebuffer().createBindFramebuffer(mc.displayWidth,mc.displayHeight);
+                ScaledResolution sr=new ScaledResolution(mc);int sw=sr.getScaledWidth(),sh=sr.getScaledHeight();
+                target.getModeSetting("Mode").setValue("Tenacity");TargetHUD.Frame tenacity=target.layout(player,sw,sh);
+                for(String design:new String[]{"Modern","Creative"}){
+                    target.getModeSetting("Mode").setValue(design);session.getModeSetting("Mode").setValue(design);armor.getModeSetting("Mode").setValue(design);
+                    TargetHUD.Frame t=target.layout(player,sw,sh).positioned(16,18);
+                    SessionInfo.Frame si=session.layout(SessionInfoRenderCheck.sample(),"Compact fixture",sw,sh);si.x=16;si.y=65;
+                    ArmorHUD.Frame a=armor.layout(equipment,held,sw,sh);a.x=16;a.y=118;
+                    SessionInfoRenderCheck.require(t.width<=tenacity.width*.8f&&t.height<=tenacity.height*.8f,"Compact TargetHUD grew beyond requested size");
+                    SessionInfoRenderCheck.require(si.width<=154&&si.height<=42&&a.height<=36,"Compact session/equipment geometry grew");
+                    SessionInfoRenderCheck.require(si.killPulse==0&&si.deathPulse==0&&t.headPulse==0,"Reduced motion retained a pulse");
+                    for(ArmorHUD.Cell cell:a.cells)SessionInfoRenderCheck.require(cell.pulse==0,"Equipment reduced motion retained a pulse");
+                    SessionInfoRenderCheck.backdrop();BufferedImage clean=SessionInfoRenderCheck.capture();
+                    for(int warm=0;warm<3;warm++)paintCompactFixture(t,si,a);
+                    BufferedImage painted=SessionInfoRenderCheck.capture();
+                    SessionInfoRenderCheck.require(!WatermarkCheck.equal(clean,painted),"Compact HUD painters produced no pixels");
+                    ImageIO.write(painted,"png",new File(OUT,"compact-"+design+"-"+viewport[0]+"x"+viewport[1]+".png"));
+                    RenderDiagnostics.enabled=true;RenderDiagnostics.reset();
+                    for(int frame=0;frame<5;frame++)paintCompactFixture(t,si,a);
+                    SessionInfoRenderCheck.require(RenderDiagnostics.framebufferCreates==0&&RenderDiagnostics.programCreates==0,
+                            "Compact warm frames create GPU resources");
+                    SessionInfoRenderCheck.require(glGetError()==GL_NO_ERROR&&UiEffects.scene()==null&&!GuiShaderBloom.isBatching(),
+                            "Compact painter leaked GL/scene/batch state");
+                }
+            }
+            CompactHudMaterialCheck.run(target,session,armor);
+            SessionInfoRenderCheck.require(equipment[0].getItemDamage()==100&&held.getItemDamage()==800,"Compact armor mutated its source stacks");
+        }finally{
+            RenderDiagnostics.enabled=diagnostics;settings.animations.setValue(oldAnimations);settings.reducedMotion.setValue(oldReduced);
+            target.getModeSetting("Mode").setValue(oldTarget);session.getModeSetting("Mode").setValue(oldSession);
+            armor.getModeSetting("Mode").setValue(oldArmor);armor.getModeSetting("Layout").setValue(oldLayout);armor.getModeSetting("Durability").setValue(oldDurability);
+            armor.getBooleanSetting("Empty Slots").setValue(oldEmpty);armor.getBooleanSetting("Held Item").setValue(oldHeld);
+            mc.displayWidth=oldW;mc.displayHeight=oldH;mc.gameSettings.guiScale=oldScale;mc.getFramebuffer().createBindFramebuffer(oldW,oldH);
+            SessionInfoRenderCheck.set(session,"x",oldSessionX);SessionInfoRenderCheck.set(session,"y",oldSessionY);
+            SessionInfoRenderCheck.set(armor,"x",oldArmorX);SessionInfoRenderCheck.set(armor,"y",oldArmorY);
+        }
+        System.out.println("PASS: compact Modern/Creative HUDs; real skins/items/fonts; 75% target geometry; four GUI sizes; reduced motion; warm GPU resource reuse");
+    }
+    private static void paintCompactFixture(TargetHUD.Frame t,SessionInfo.Frame s,ArmorHUD.Frame a){
+        SessionInfoRenderCheck.backdrop();
+        GlStateManager.enableDepth();GlStateManager.depthMask(false);GlStateManager.enableCull();
+        int framebuffer=glGetInteger(org.lwjgl.opengl.EXTFramebufferObject.GL_FRAMEBUFFER_BINDING_EXT);
+        GuiShaderBloom.beginBatch();target.paint(t);session.paint(s);armor.paint(a);GuiShaderBloom.flushBatch(2,3);
+        SessionInfoRenderCheck.require(glIsEnabled(GL_DEPTH_TEST)&&!glGetBoolean(GL_DEPTH_WRITEMASK)&&glIsEnabled(GL_CULL_FACE)
+                &&framebuffer==glGetInteger(org.lwjgl.opengl.EXTFramebufferObject.GL_FRAMEBUFFER_BINDING_EXT),
+                "Compact painters failed to restore incoming GL state");
+        GlStateManager.disableDepth();GlStateManager.depthMask(true);GlStateManager.disableCull();
     }
     static void checkArmor()throws Exception{
         for(String orientation:new String[]{"Horizontal","Vertical"})for(String durability:new String[]{"Percent","Value","Both","None"})for(int count:new int[]{0,2,4}){

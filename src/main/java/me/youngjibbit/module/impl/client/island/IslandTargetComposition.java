@@ -17,12 +17,12 @@ public final class IslandTargetComposition {
         health=new Arc(healthFraction,17);absorption=new Arc(absorptionFraction,12);
         float phase=motion&&Float.isFinite(seconds)?(float)(seconds*.7-Math.floor(seconds*.7)):0;
         float wave=motion?.5f-.5f*(float)Math.cos(phase*TAU):0;
-        float gap=18+1.4f*wave;
+        float gap=18+1.0f*wave;
         reticleAlpha=motion?.8f+.2f*wave:1;
         float x=Layout.CENTER_X,y=Layout.CENTER_Y;
         reticle=new float[]{
-                x-22,y,x-gap,y, x+gap,y,x+22,y,
-                x,y-22,x,y-gap, x,y+gap,x,y+22,
+                x-20,y,x-gap,y, x+gap,y,x+20,y,
+                x,y-20,x,y-gap, x,y+gap,x,y+20,
                 x-3,y,x+3,y, x,y-3,x,y+3};
     }
 
@@ -57,9 +57,9 @@ public final class IslandTargetComposition {
 
     /** Fit the whole glyph/name/health/absorption canvas inside the existing frame clip. */
     public static final class Layout {
-        public static final float WIDTH=266,HEIGHT=52,CENTER_X=28,CENTER_Y=26,
-                TEXT_X=58,TEXT_WIDTH=196,NAME_Y=7,NAME_HEIGHT=13,DETAIL_Y=23,DETAIL_HEIGHT=11,
-                HEALTH_Y=39,HEALTH_HEIGHT=3,ABSORPTION_Y=45,ABSORPTION_HEIGHT=2;
+        public static final float WIDTH=172,HEIGHT=44,CENTER_X=24,CENTER_Y=22,
+                TEXT_X=48,TEXT_WIDTH=116,NAME_Y=6,NAME_HEIGHT=11,DETAIL_Y=19,DETAIL_HEIGHT=9,
+                HEALTH_Y=33,HEALTH_HEIGHT=3,ABSORPTION_Y=39,ABSORPTION_HEIGHT=2;
         public final float x,y,width,height,scale,inset;
         public Layout(IslandLayout.Frame frame){
             inset=Math.min(2,Math.min(frame.width,frame.height)*.08f);

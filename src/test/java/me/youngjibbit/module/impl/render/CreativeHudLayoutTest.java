@@ -7,7 +7,7 @@ public class CreativeHudLayoutTest {
     @Test public void targetPortraitAndBodyAreSeparateAndBothInformationRailsFit(){
         for(float request:new float[]{1,196,220,244,999,Float.NaN}){
             CreativeHudLayout.Target g=new CreativeHudLayout.Target(request);
-            assertTrue(g.width>=196&&g.width<=244);assertEquals(46,g.height,0);
+            assertEquals(142,g.width,0);assertEquals(34,g.height,0);
             assertTrue(g.portrait.right()<g.body.x);
             inside(g.portrait,g.width,g.height);inside(g.body,g.width,g.height);
             inside(g.health,g.width,g.height);inside(g.absorption,g.width,g.height);
@@ -22,7 +22,7 @@ public class CreativeHudLayoutTest {
         for(CreativeHudLayout.Rect r:new CreativeHudLayout.Rect[]{g.time,g.statistics,g.kills,g.deaths})
             inside(r,g.width,g.height);
         assertTrue(g.kills.x>=g.statistics.x&&g.deaths.right()<=g.statistics.right());
-        assertTrue(g.width*g.height<250*100);
+        assertEquals(154,g.width,0);assertEquals(40,g.height,0);assertTrue(g.width*g.height<250*100/3);
     }
     @Test public void mixedArmorRowsKeepInputMappingAndGroupEmptySlotsBelowOccupiedRows(){
         boolean[] occupied={true,false,true,false,true};float[] labels={24,18,27,20,31};
@@ -36,7 +36,7 @@ public class CreativeHudLayoutTest {
     @Test public void horizontalArmorNeverReordersSlotsAndHasNoGroupPadding(){
         CreativeHudLayout.Armor g=new CreativeHudLayout.Armor(true,
                 new boolean[]{true,false,true,true,false},new float[]{21,18,500,Float.NaN,20});
-        assertEquals(0,g.cells[0].x,0);assertEquals(34,g.height,0);
+        assertEquals(0,g.cells[0].x,0);assertEquals(30,g.height,0);
         for(int i=0;i<g.cells.length;i++){
             inside(g.cells[i],g.width,g.height);
             if(i>0)assertEquals(g.cells[i-1].right()+3,g.cells[i].x,0);
@@ -49,7 +49,7 @@ public class CreativeHudLayoutTest {
         for(boolean horizontal:new boolean[]{false,true}){
             CreativeHudLayout.Armor empty=new CreativeHudLayout.Armor(horizontal,
                     new boolean[]{false,false,false,false},new float[]{18,19,20,17});
-            assertEquals(18,empty.height,0);
+            assertEquals(20,empty.height,0);
             for(CreativeHudLayout.Rect r:empty.cells)inside(r,empty.width,empty.height);
         }
     }
