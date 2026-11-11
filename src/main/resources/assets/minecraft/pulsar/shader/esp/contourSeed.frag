@@ -8,15 +8,16 @@ float occupied(vec2 pixel) {
 }
 void main() {
     vec2 cell=floor(gl_FragCoord.xy)*2.0;
-    vec2 center=cell+vec2(1.0),best=vec2(0.0);float score=1.0e20;
+    vec2 boundarySum=vec2(0.0);float boundaryCount=0.0;
     for(int y=0;y<2;y++)for(int x=0;x<2;x++) {
         vec2 p=cell+vec2(float(x)+.5,float(y)+.5);
         if(occupied(p)>.5) {
             float inner=min(min(occupied(p+vec2(1.0,0.0)),occupied(p-vec2(1.0,0.0))),
                             min(occupied(p+vec2(0.0,1.0)),occupied(p-vec2(0.0,1.0))));
-            float d=dot(p-center,p-center);
-            if(inner<.5&&d<score){best=p;score=d;}
+            // A straight two-pixel edge is represented at its midpoint, avoiding
+            // alternating bright/dim rows caused by always choosing its first pixel.
+            if(inner<.5){boundarySum+=p;boundaryCount+=1.0;}
         }
     }
-    gl_FragColor=score<1.0e19?fieldPack(best/sourceResolution):vec4(0.0);
+    gl_FragColor=boundaryCount>0.0?fieldPack(boundarySum/(boundaryCount*sourceResolution)):vec4(0.0);
 }

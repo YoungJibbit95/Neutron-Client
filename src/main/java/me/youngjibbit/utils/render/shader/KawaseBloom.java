@@ -128,6 +128,9 @@ public class KawaseBloom {
         // paint even its nearly transparent halo as a solid colored blob.
         GLUtils.startBlend();GL11.glEnable(GL11.GL_BLEND);
         GL11.glBlendFunc(GL11.GL_SRC_ALPHA,GL11.GL_ONE_MINUS_SRC_ALPHA);
+        // This final pass uses fixed-function sampling after the shader is unloaded.
+        // The caller's RenderState restores its original texture-enable state.
+        GlStateManager.enableTexture2D();GL11.glEnable(GL11.GL_TEXTURE_2D);
         ShaderUtil.drawQuads();
         RenderUtil.bindTexture(0);
         GlStateManager.bindTexture(0);

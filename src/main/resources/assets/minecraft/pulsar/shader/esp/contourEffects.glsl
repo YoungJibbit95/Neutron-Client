@@ -7,6 +7,8 @@ uniform vec4 fxStyle;       // extent, core width, contour count, contour spacin
 uniform vec4 fxTuning;      // flame height, flame rate, neon aura, travelling light length
 uniform vec4 fxFlow;        // counter-wind xy, movement energy, response amount
 uniform vec3 fxPrimary, fxSecondary, fxGradient;
+uniform vec2 fxOrbit; // rounded contour radius, travelling-light trail
+// CONTOUR_COORDINATE
 
 float fxHash(vec2 p) {
     return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453);
@@ -28,21 +30,41 @@ vec2 fxWarp(vec2 point) {
     float t=fxTime*(.25+fxTuning.y*4.0);
     float noise=fxFlowNoise(p,t);
     float tongues=.5+.5*sin(p.x*.255+noise*6.0-t*.82);
-    float rise=fxTuning.x*(.14+.86*pow(tongues,1.65))*(.78+.22*noise);
+    float rise=fxTuning.x*(.14+.86*pow(tongues,2.4))*(.78+.22*noise);
     rise*=1.0+.22*fxFlow.z*fxFlow.w;
     float curl=sin(p.y*.09+t*1.55+noise*5.0)*fxTuning.x*.11;
     vec2 tail=fxFlow.xy*fxFlow.w*rise*.80;
     // Reverse tracing samples the source below the plume and against its tail displacement.
     return point+vec2(curl-tail.x,rise-tail.y*.45);
 }
-vec3 fxPalette(vec2 point,vec3 first,vec3 second) {
+float fxPosition(vec2 point) {
+#ifdef NEUTRON_UI_GRADIENT
+    // UI consumers already own the correct inherited palette and component-orbit domains.
+    if(uiEnabled)return uiPosition(uiGlow);
+#endif
     vec2 p=(point-fxShape.xy)/max(fxShape.zw,vec2(1.0));
     float t=abs(fxGradient.x)>1.5?p.y:p.x;if(fxGradient.x<0.0)t=1.0-t;
-    if(fxGradient.y<.5)t=0.0;
-    else if(fxGradient.y>=1.5)t=.5-.5*cos(6.2831853*(t-fxGradient.z));
-    return mix(first,second,clamp(t,0.0,1.0));
+    if(fxGradient.y<.5)return 0.0;
+    if(fxGradient.y<1.5)return clamp(t,0.0,1.0);
+    if(fxGradient.y<2.5)return .5-.5*cos(6.28318530718*(t-fxGradient.z));
+    if(fxGradient.y<3.5){float travel=.5-.5*cos(6.28318530718*fxGradient.z);return .5-.5*cos(6.28318530718*(t-travel));}
+    if(fxGradient.y<4.5)return .5+(clamp(t,0.0,1.0)-.5)*cos(6.28318530718*fxGradient.z);
+    float contour=uiContour(point-fxShape.xy,fxShape.zw,fxOrbit.x);
+    float travel=fxGradient.x<0.0?-fxGradient.z:fxGradient.z;
+    float sample=.5+.5*cos(6.28318530718*(contour-travel));
+    return pow(clamp(sample,0.0,1.0),1.0+6.0*(1.0-clamp(fxOrbit.y,0.0,1.0)));
+}
+vec3 fxPalette(vec2 point,vec3 first,vec3 second) {
+    return mix(first,second,fxPosition(point));
+}
+vec3 fxSecondaryStop(vec3 first,vec3 second) {
+#ifdef NEUTRON_UI_GRADIENT
+    if(uiEnabled)return uiGlow.y<.5?first:second;
+#endif
+    return fxGradient.y<.5?first:second;
 }
 vec4 fxShadePalette(float distancePx,vec2 point,vec3 first,vec3 second) {
+    second=fxSecondaryStop(first,second);
     float scale=max(.25,fxScale),extent=max(scale*.5,fxStyle.x);
     float d=max(0.0,distancePx);
     vec3 palette=fxPalette(point,first,second);
@@ -85,12 +107,23 @@ vec4 fxShadePalette(float distancePx,vec2 point,vec3 first,vec3 second) {
     return vec4(0.0);
 }
 vec4 fxShade(float distancePx,vec2 point) {return fxShadePalette(distancePx,point,fxPrimary,fxSecondary);}
-// Retain a thin emissive root on the original contour so the moving tongues stay attached.
-vec4 fxShadeContour(float originalDistance,float warpedDistance,vec2 point) {
-    vec4 fire=fxShade(warpedDistance,point);
+// Colored fuel fills the rising volume; the narrow tip and attached root emit light.
+vec4 fxShadeContourPalette(float originalDistance,float warpedDistance,vec2 point,vec3 first,vec3 second) {
+    second=fxSecondaryStop(first,second);
+    vec4 fire=fxShadePalette(warpedDistance,point,first,second);
     if(fxMode!=1)return fire;
-    float root=exp(-max(0.0,originalDistance)/max(.6*fxScale,fxStyle.x*.095))*.88;
-    vec3 color=mix(fxPalette(point,fxPrimary,fxSecondary),vec3(1.0),.62);
-    float a=root+fire.a*(1.0-root);
+    float sourceDistance=max(0.0,originalDistance);
+    float fill=clamp(-warpedDistance/max(fxScale,fxStyle.x*.35),0.0,1.0)
+              *exp(-sourceDistance/max(fxScale,fxTuning.x*.85))*(.46+.10*fxFlow.z*fxFlow.w);
+    vec3 fuel=mix(fxPalette(point,first,second),mix(first,second,
+            clamp(sourceDistance/max(fxScale,fxTuning.x),0.0,1.0)),.20);
+    float a=fire.a+fill*(1.0-fire.a);
+    fire=vec4((fire.rgb*fire.a+fuel*fill*(1.0-fire.a))/max(a,.00001),a);
+    float root=exp(-sourceDistance/max(.6*fxScale,fxStyle.x*.095))*.88;
+    vec3 color=mix(fxPalette(point,first,second),vec3(1.0),.62);
+    a=root+fire.a*(1.0-root);
     return vec4((color*root+fire.rgb*fire.a*(1.0-root))/max(a,.00001),a);
+}
+vec4 fxShadeContour(float originalDistance,float warpedDistance,vec2 point) {
+    return fxShadeContourPalette(originalDistance,warpedDistance,point,fxPrimary,fxSecondary);
 }

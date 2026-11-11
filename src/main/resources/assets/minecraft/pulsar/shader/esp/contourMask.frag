@@ -28,12 +28,7 @@ void main() {
     vec4 effect=fxShadeContour(original,distance,point);
     if(!useTheme) {
         vec3 source=texture2D(sourceMask,fieldUnpack(nearest)).rgb;
-        effect=fxShadePalette(distance,point,source,source);
-        if(fxMode==1) {
-            float root=exp(-max(0.0,original)/max(.6*fxScale,fxStyle.x*.095))*.88;
-            float a=root+effect.a*(1.0-root);
-            effect=vec4((mix(source,vec3(1.0),.62)*root+effect.rgb*effect.a*(1.0-root))/max(a,.00001),a);
-        }
+        effect=fxShadeContourPalette(original,distance,point,source,source);
     }
     effect.a*=outside*effectOpacity;
     if(effect.a<.001)discard;

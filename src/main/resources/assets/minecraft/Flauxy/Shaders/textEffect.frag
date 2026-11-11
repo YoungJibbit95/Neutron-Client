@@ -36,7 +36,9 @@ void main(){
   float derivative=max(length(vec2(dFdx(sampleMask),dFdy(sampleMask))),.125);
   float spread=texture2D(halo,warpedUv).a;
   float haloDistance=(1.0-clamp(spread*4.0,0.0,1.0))*haloDistanceScale;
-  vec4 effect=fxShade(min(max(0.0,(.5-sampleMask)/derivative),haloDistance),screen);
+  float distancePx=min(max(0.0,(.5-sampleMask)/derivative),haloDistance);
+  vec4 effect=globalHalo==2?fxShade(distancePx,screen)
+          :fxShadePalette(distancePx,screen,glowPalette.rgb,glowPalette.rgb);
   float support=clamp(spread*5.0,0.0,1.0);
   glow=effect.a*support*strength*glowPalette.a*(1.0-originalCoverage);
   glowPalette.rgb=effect.rgb;

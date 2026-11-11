@@ -40,6 +40,7 @@ public final class EspEffectStyle {
                 shader.setUniformf("effectResolution",mc.displayWidth,mc.displayHeight);
                 shader.setUniformf("effectRect",pxX,pxY,pxW,pxH);
                 shader.setUniformf("effectRadius",Math.min(2*scale,Math.min(pxW,pxH)*.5f));
+                shader.setUniformf("fxOrbit",Math.min(2*scale,Math.min(pxW,pxH)*.5f),UiEffects.gradient(theme,UiEffects.Channel.GLOW).param2);
                 shader.setUniformf("effectOpacity",1);
                 ShaderUtil.drawQuads(x-padding,y-padding,width+padding*2,height+padding*2);
             } finally {shader.unload();}

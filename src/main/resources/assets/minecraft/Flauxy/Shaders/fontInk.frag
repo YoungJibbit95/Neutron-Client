@@ -51,7 +51,8 @@ void main(){
                 /max(length(dFdx(uv))+length(dFdy(uv)),.000001)*1.41421356;
         float haloDistance=(1.0-clamp(spread*4.0,0.0,1.0))*sampleRadiusPx;
         float distancePx=min(max(0.0,(.5-mask)/derivative),haloDistance);
-        vec4 effect=fxShade(distancePx,screen);
+        vec4 effect=haloTheme?fxShade(distancePx,screen)
+                :fxShadePalette(distancePx,screen,sharp,sharp);
         float support=clamp(spread*5.0,0.0,1.0);
         halo=effect.a*support*haloStrength*gl_Color.a*haloPalette.a*(1.0-ink);
         haloInk=effect.rgb;

@@ -34,6 +34,7 @@ public class ShaderUtil implements Utils, AutoCloseable {
             if(fragment.contains("// CONTOUR_EFFECTS"))fragment=fragment.replace("// CONTOUR_EFFECTS",resource("pulsar/shader/esp/contourEffects.glsl"));
             if(fragment.contains("// CONTOUR_RECT"))fragment=fragment.replace("// CONTOUR_RECT",resource("pulsar/shader/esp/contourRect.glsl"));
             if(fragment.contains("// CONTOUR_FIELD"))fragment=fragment.replace("// CONTOUR_FIELD",resource("pulsar/shader/esp/contourField.glsl"));
+            if(fragment.contains("// CONTOUR_COORDINATE"))fragment=fragment.replace("// CONTOUR_COORDINATE",resource("pulsar/shader/esp/contourCoordinate.glsl"));
             fs=compile(fragment,GL_FRAGMENT_SHADER);vs=compile(vertex,GL_VERTEX_SHADER);
             glAttachShader(program,fs);glAttachShader(program,vs);attached=true;glLinkProgram(program);
             if(glGetProgrami(program,GL_LINK_STATUS)==0)throw new IllegalStateException("Shader link failed: "+glGetProgramInfoLog(program,4096));

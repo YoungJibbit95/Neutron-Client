@@ -70,6 +70,7 @@ public final class ContourEffects {
         palette(s,"fxSecondary",theme.getSecondaryGradientRGB());
         UiEffects.Gradient gradient=UiEffects.gradient(theme,UiEffects.Channel.GLOW);
         s.setUniformf("fxGradient",gradient.axis,UiEffects.options().gradients?gradient.mode:0,gradient.phase);
+        s.setUniformf("fxOrbit",UiEffects.options().roundness*scale,gradient.param2);
     }
     public static void palette(ShaderUtil s,String name,int rgb) {
         s.setUniformf(name,((rgb>>16)&255)/255f,((rgb>>8)&255)/255f,(rgb&255)/255f);
@@ -91,6 +92,9 @@ public final class ContourEffects {
             uiRectShader.init();
             try {
                 upload(uiRectShader,Theme.getDefaultTheme(),style,scale,extent,pxX,pxY,pxW,pxH,motionX,motionY,energy);
+                UiEffects.upload(uiRectShader,Theme.getDefaultTheme());
+                uiRectShader.setUniformf("uiOrbitBounds",pxX,pxY,pxW,pxH);
+                uiRectShader.setUniformf("uiGradientRadius",Math.max(0,pxRadius));
                 if(fixedColor){palette(uiRectShader,"fxPrimary",argb);palette(uiRectShader,"fxSecondary",argb);}
                 uiRectShader.setUniformf("effectResolution",mc.displayWidth,mc.displayHeight);
                 uiRectShader.setUniformf("effectRect",pxX,pxY,pxW,pxH);

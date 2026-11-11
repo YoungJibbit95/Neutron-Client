@@ -64,7 +64,7 @@ public final class ShaderModesRenderCheck {
         REPORT.addProperty("scope","Production GLSL/Pbuffer/FBO, synthetic boxes/silhouettes/UI and controlled time. No native Display, game world, shaderpack, VSync or client FPS claim.");
         try(PbufferTestContext context=new PbufferTestContext()){
             initialize(context,data);
-            try{rectangleAppearance();filledSilhouettes();motionAndAnimation();maximalFlameBounds();uiConsumers();stateAndClipping();resizeAndResources();performanceEvidence();contactSheet();context.check();require(glGetError()==GL_NO_ERROR,"Shader-mode GL error");}
+            try{rectangleAppearance();filledSilhouettes();motionAndAnimation();maximalFlameBounds();uiConsumers();textGlowColorSources();pulsePaletteSemantics();stateAndClipping();resizeAndResources();performanceEvidence();contactSheet();context.check();require(glGetError()==GL_NO_ERROR,"Shader-mode GL error");}
             finally{release();}
             require(RenderDiagnostics.framebufferCreates==RenderDiagnostics.framebufferDeletes,"Final FBO lifetime imbalance: "+RenderDiagnostics.snapshot());
             require(RenderDiagnostics.programCreates==RenderDiagnostics.programDeletes,"Final program lifetime imbalance: "+RenderDiagnostics.snapshot());
@@ -115,10 +115,27 @@ public final class ShaderModesRenderCheck {
         for(String mode:MODES){BufferedImage image=silhouette(mode,0,0,0);save(image,"silhouette-"+mode+".png");gallery(mode+" / filled entity silhouette",image);
             require(changed(image,180,75,280,330)>350,"Filled-mask "+mode+" has no contour");require(changed(image,307,215,26,35)==0,mode+" filled the middle of the source silhouette");
             require(changed(image,238,196,18,90)>12||changed(image,365,196,36,90)>20,mode+" has no outer silhouette glow");
-            if("Neon".equals(mode))require(whitePixels(image,250,140,140,225)>8,"Filled-mask Neon lost its white core");}
+            if("Neon".equals(mode)){require(whitePixels(image,250,140,140,225)>8,"Filled-mask Neon lost its white core");neonStraightEdgeContinuity(image);}}
         clearMask();for(String mode:MODES)require(changed(silhouette(mode,0,0,0),0,0,mc.displayWidth,mc.displayHeight)==0,"Empty source mask creates stray "+mode+" pixels");
         fillMask(12);save(silhouette("Neon",0,0,.3f),"silhouette-twelve.png");fillMask(1);
         System.out.println("PASS: filled silhouette exterior, hollow body, white core, empty masks and shared twelve-entity mask");
+    }
+    private static void neonStraightEdgeContinuity(BufferedImage image){
+        // The left arm's vertical edge is x=258, y=202..297. Sample its three
+        // exterior columns over 64 rows, well away from both corners. A second
+        // difference rejects alternating beads without penalizing a slow palette gradient.
+        double[] profile=new double[64];double total=0;
+        for(int i=0;i<profile.length;i++){
+            for(int x=255;x<=257;x++){int rgb=image.getRGB(x,218+i);profile[i]+=(.2126*(rgb>>16&255)+.7152*(rgb>>8&255)+.0722*(rgb&255))/3;}
+            total+=profile[i];
+        }
+        double sum=0,maximum=0;
+        for(int i=1;i<profile.length-1;i++){double curvature=Math.abs(profile[i-1]-2*profile[i]+profile[i+1]);sum+=curvature;maximum=Math.max(maximum,curvature);}
+        double mean=sum/(profile.length-2);
+        REPORT.addProperty("neon_straight_edge_mean_second_difference",mean);REPORT.addProperty("neon_straight_edge_max_second_difference",maximum);
+        require(total/profile.length>35,"Neon straight-edge continuity reference has no visible core/shoulder");
+        require(mean<=12&&maximum<=36,"Neon straight silhouette edge forms a bright/dim bead chain: mean="+mean+", max="+maximum);
+        System.out.println("PASS: long straight Neon silhouette edge stays continuous outside corners; mean curvature="+mean+", max="+maximum);
     }
     private static void motionAndAnimation()throws Exception{
         BufferedImage stable=rectangle("Flame",0,0,0);require(differences(stable,rectangle("Flame",0,0,0))==0,"Equal phase/input does not reproduce Flame pixels");
@@ -156,13 +173,84 @@ public final class ShaderModesRenderCheck {
     }
     private static void uiConsumers()throws Exception{
         require(Arrays.equals(new String[]{"Standard","Flame","Neon"},settings.uiGlowMode.getOptions()),"UI exposes unsupported contour modes");List<BufferedImage> images=new ArrayList<>();
-        for(String mode:new String[]{"Standard","Flame","Neon"}){settings.uiGlowMode.setValue(mode);require(ContourEffects.specialUi()==!"Standard".equals(mode),"UI mode dispatch disagrees with setting");BufferedImage image=uiScene();images.add(image);save(image,"ui-"+mode+".png");gallery(mode+" / production surface and font glow",image);}
+        for(String mode:new String[]{"Standard","Flame","Neon"}){
+            settings.uiGlowMode.setValue(mode);require(ContourEffects.specialUi()==!"Standard".equals(mode),"UI mode dispatch disagrees with setting");
+            BufferedImage image=uiScene();images.add(image);save(image,"ui-"+mode+".png");gallery(mode+" / production surface and font glow",image);
+            require(changed(image,8,8,24,24)==0&&changed(image,image.getWidth()-32,image.getHeight()-32,24,24)==0,
+                    mode+" UI overwrites distant dark background pixels");
+            require(changed(image,165,145,310,135)>500,mode+" UI panel/content is missing");
+            require(whitePixels(image,183,163,230,65)>25,mode+" UI has no readable bright text in its expected content area");
+        }
         require(differences(images.get(0),images.get(1))>100&&differences(images.get(1),images.get(2))>100,"UI selection does not reach production surface/font renderer");
         settings.glow.setValue(false);settings.textGlow.setValue("Off");settings.uiGlowMode.setValue("Flame");BufferedImage flameOff=uiScene();settings.uiGlowMode.setValue("Neon");BufferedImage neonOff=uiScene();
         require(differences(flameOff,neonOff)==0,"Disabled UI/Text glow still exposes mode-dependent pixels");save(neonOff,"ui-glow-off.png");
         settings.glow.setValue(true);settings.textGlow.setValue("On");settings.uiGlowMode.setValue("Standard");
+        System.out.println("PASS: Standard/Flame/Neon UI keeps distant background dark and renders visible panel content and bright text");
         System.out.println("PASS: actual UI surfaces/fonts select Flame/Neon, expose no Lines option and obey both glow toggles");
     }
+    private static void textGlowColorSources()throws Exception{
+        String oldMode=settings.uiGlowMode.getValue(),oldSource=settings.textGlowColor.getValue(),oldGlow=settings.textGlow.getValue();
+        double oldStrength=settings.textGlowStrength.getValue(),oldRadius=settings.textGlowRadius.getValue();
+        me.youngjibbit.theme.ThemeCatalog catalog=me.youngjibbit.theme.ThemeCatalog.global();
+        Color blue=new Color(24,60,255);
+        catalog.preview(Theme.custom("custom:00000000-0000-0000-0000-000000000001","Shader blue reference",Arrays.asList(blue,blue),false,false,.18f,
+                new Color(8,11,18),Color.WHITE,blue,.75f,9,.8f,1));
+        try(TextEffects text=new TextEffects()){
+            settings.textGlowStrength.setValue(1.0);settings.textGlowRadius.setValue(3.0);
+            for(boolean masked:new boolean[]{false,true}){
+                settings.textGlow.setValue("Off");BufferedImage sharp=coloredText(text,masked);
+                for(String mode:new String[]{"Flame","Neon"}){
+                    settings.uiGlowMode.setValue(mode);settings.textGlow.setValue("On");settings.textGlowColor.setValue("Text");BufferedImage red=coloredText(text,masked);
+                    settings.textGlowColor.setValue("Theme");BufferedImage themed=coloredText(text,masked);
+                    String path=masked?"mask":"atlas";save(red,"text-"+path+"-"+mode+"-text-color.png");save(themed,"text-"+path+"-"+mode+"-theme-color.png");
+                    int switched=0,opaque=0;
+                    for(int y=0;y<sharp.getHeight();y++)for(int x=0;x<sharp.getWidth();x++){
+                        int base=sharp.getRGB(x,y)&0xffffff,a=red.getRGB(x,y)&0xffffff,b=themed.getRGB(x,y)&0xffffff;
+                        if(delta(base)<=1&&(a>>16&255)>(a&255)+4&&(b&255)>(b>>16&255)+4
+                                &&(a>>16&255)>(b>>16&255)+3&&(b&255)>(a&255)+3)switched++;
+                        if(base==0xff2020){opaque++;require(channelDifference(a,b)<=1,"Text Glow Color recolored opaque "+path+" glyphs in "+mode);}
+                    }
+                    require(opaque>5,"Text color reference has no opaque red "+path+" glyphs");
+                    require(switched>12,"Text/Theme did not visibly switch red/blue exterior aura: "+path+" "+mode+" pixels="+switched);
+                }
+            }
+        }finally{
+            catalog.cancelPreview();settings.uiGlowMode.setValue(oldMode);settings.textGlowColor.setValue(oldSource);settings.textGlow.setValue(oldGlow);
+            settings.textGlowStrength.setValue(oldStrength);settings.textGlowRadius.setValue(oldRadius);UiEffects.invalidate();
+        }
+        System.out.println("PASS: atlas and masked Flame/Neon text keep opaque red glyphs and switch exterior aura between Text red and Theme blue");
+    }
+    private static BufferedImage coloredText(TextEffects text,boolean masked){
+        begin();if(masked)text.draw(font,"Neutron glow",210,210,0xffff2020,0xffff2020,0,false,0,true,1,3,false);
+        else font.drawString("Neutron glow",210,210,0xffff2020);return capture();
+    }
+    private static void pulsePaletteSemantics()throws Exception{
+        double oldGlow=settings.neonGlow.getValue();settings.neonGlow.setValue(0.0);
+        try{
+            BufferedImage zero=paletteReference(0,false),quarter=paletteReference(.25f,false),neutral=paletteReference(.25f,true);
+            save(zero,"pulse-phase-zero.png");save(quarter,"pulse-phase-quarter.png");save(neutral,"pulse-neutral-reference.png");
+            require(differences(zero,quarter)>100,"Pulse phase has no visible palette effect");
+            for(int y=0;y<quarter.getHeight();y++)for(int x=0;x<quarter.getWidth();x++)
+                require(channelDifference(quarter.getRGB(x,y),neutral.getRGB(x,y))<=1,"Pulse at phase .25 retains a spatial gradient at "+x+","+y);
+            require(changed(quarter,(int)X-5,(int)Y-5,(int)W+10,(int)H+10)>100,"Pulse palette reference is empty");
+        }finally{settings.neonGlow.setValue(oldGlow);}
+        System.out.println("PASS: production contour Pulse at phase .25 is spatially neutral and matches the equal-endpoint-color reference");
+    }
+    private static BufferedImage paletteReference(float phase,boolean neutral){
+        // Obtain all geometry/style uniforms from the production entry point. Only
+        // palette inputs are controlled to distinguish Pulse from spatial Flow.
+        begin();drawRect("Neon",X,Y,W,H,0,0,0);begin();
+        try(RenderState state=new RenderState()){
+            glDisable(GL_CULL_FACE);GlStateManager.enableBlend();glEnable(GL_BLEND);
+            GL14.glBlendEquation(GL14.GL_FUNC_ADD);GL14.glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);
+            ShaderUtil shader=shaders[1];shader.init();try{
+                shader.setUniformf("fxPrimary",neutral?.5f:1,0,neutral?.5f:0);shader.setUniformf("fxSecondary",0,0,1);
+                shader.setUniformf("fxGradient",1,neutral?0:4,phase);ShaderUtil.drawQuads();
+            }finally{shader.unload();}
+        }
+        return capture();
+    }
+    private static int channelDifference(int a,int b){return Math.max(Math.abs((a>>16&255)-(b>>16&255)),Math.max(Math.abs((a>>8&255)-(b>>8&255)),Math.abs((a&255)-(b&255))));}
     private static void stateAndClipping()throws Exception{
         fillMask(1);
         try(ShaderUtil sentinel=new ShaderUtil("#version 120\nvoid main(){gl_FragColor=vec4(0.3,0.6,0.9,1.0);}",true)){
