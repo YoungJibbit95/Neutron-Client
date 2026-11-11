@@ -10,7 +10,8 @@ import static org.junit.Assert.*;
 public class MicrosoftBrowserUiBindingTest {
     @Test public void browserActionsUseTheActualLoginWorkflowInIsolation() throws Exception {
         Path log=Files.createTempFile(Paths.get(System.getProperty("user.dir")),"microsoft-browser-ui-",".log");
-        Process child=new ProcessBuilder(Paths.get(System.getProperty("java.home"),"bin","java.exe").toString(),
+        String executable=System.getProperty("os.name", "").startsWith("Windows")?"java.exe":"java";
+        Process child=new ProcessBuilder(Paths.get(System.getProperty("java.home"),"bin",executable).toString(),
                 "-Duser.home="+System.getProperty("user.home"),"-cp",System.getProperty("java.class.path"),
                 "org.junit.runner.JUnitCore","me.youngjibbit.account.MicrosoftBrowserUiBindingChecks")
                 .redirectErrorStream(true).redirectOutput(log.toFile()).start();

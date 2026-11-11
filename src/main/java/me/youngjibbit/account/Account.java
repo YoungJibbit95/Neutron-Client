@@ -2,7 +2,6 @@ package me.youngjibbit.account;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import fr.litarvan.openauth.microsoft.MicrosoftAuthResult;
 import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 import java.util.UUID;
@@ -26,12 +25,6 @@ public class Account {
         this.name = name == null || name.isEmpty() ? this.email : name;
         this.provider = provider;
         this.id = legacyId();
-    }
-
-    public Account(MicrosoftAuthResult result) {
-        this(result.getProfile().getName(), null, result.getProfile().getName(), Provider.MICROSOFT);
-        microsoftAccessToken = result.getAccessToken();
-        microsoftProfileId = result.getProfile().getId();
     }
 
     public Account() { }

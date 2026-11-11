@@ -38,6 +38,7 @@ public class MicrosoftBrowserAuthTest {
                 try {
                     String body=read(exchange.getRequestBody());
                     if(path.equals("/token")) {
+                        assertClosed(authorization.get());
                         if(tokenEntered!=null){tokenEntered.countDown();assertTrue(releaseToken.await(3,TimeUnit.SECONDS));}
                         Map<String,String> form=MicrosoftBrowserAuth.query(body), query=MicrosoftBrowserAuth.query(authorization.get().getRawQuery());
                         assertEquals("authorization_code",form.get("grant_type"));assertEquals("mock-code",form.get("code"));
@@ -60,9 +61,6 @@ public class MicrosoftBrowserAuthTest {
                     } else if(path.equals("/minecraft")) {
                         assertEquals("XBL3.0 x=12345;xsts-secret",new JsonParser().parse(body).getAsJsonObject().get("identityToken").getAsString());
                         response="{\"access_token\":\"minecraft-secret\"}";
-                    } else if(path.equals("/store")) {
-                        assertEquals("Bearer minecraft-secret",exchange.getRequestHeaders().getFirst("Authorization"));
-                        response="{\"items\":[{\"name\":\"game_minecraft\"}]}";
                     } else if(path.equals("/profile")) {
                         assertEquals("Bearer minecraft-secret",exchange.getRequestHeaders().getFirst("Authorization"));
                         response="{\"id\":\""+PROFILE+"\",\"name\":\"BrowserPlayer\"}";
@@ -76,9 +74,10 @@ public class MicrosoftBrowserAuthTest {
         static String claims(String token) {return "{\"Token\":\""+token+"\",\"DisplayClaims\":{\"xui\":[{\"uhs\":\"12345\"}]}}";}
         MicrosoftBrowserAuth auth(MicrosoftBrowserAuth.Browser browser,long timeout) {
             String base="http://127.0.0.1:"+server.getAddress().getPort();
-            return new MicrosoftBrowserAuth(CLIENT,new MicrosoftBrowserAuth.Endpoints(base+"/authorize",base+"/token",base+"/xbox",base+"/xsts",base+"/minecraft",base+"/profile",base+"/store"),uri->{
+            return new MicrosoftBrowserAuth(CLIENT,new MicrosoftBrowserAuth.Endpoints(base+"/authorize",base+"/token",base+"/xbox",base+"/xsts",base+"/minecraft",base+"/profile"),uri->{
                 authorization.set(uri);Map<String,String> query=MicrosoftBrowserAuth.query(uri.getRawQuery());
                 assertEquals("S256",query.get("code_challenge_method"));assertEquals("code",query.get("response_type"));
+                assertEquals("select_account",query.get("prompt"));assertEquals("query",query.get("response_mode"));
                 assertEquals("xboxlive.signin",query.get("scope"));assertFalse(query.containsKey("client_secret"));
                 browser.open(uri);
             },timeout);
@@ -101,6 +100,11 @@ public class MicrosoftBrowserAuthTest {
         HttpURLConnection connection=(HttpURLConnection)new URL(url).openConnection();connection.setConnectTimeout(1000);connection.setReadTimeout(1000);
         try {int status=connection.getResponseCode();try(InputStream in=status<400?connection.getInputStream():connection.getErrorStream()){
             String page=read(in);assertFalse(page.contains("mock-code"));assertFalse(page.contains("raw-secret"));
+            if (status==200 || status==409) {
+                assertTrue(page,page.contains("Neutron"));assertFalse(page.contains("Pulsar"));
+                assertEquals("no-store",connection.getHeaderField("Cache-Control"));
+                assertEquals("no-referrer",connection.getHeaderField("Referrer-Policy"));
+            }
         }return status;}finally{connection.disconnect();}
     }
     static void assertClosed(URI authorization) throws Exception {
@@ -115,19 +119,18 @@ public class MicrosoftBrowserAuthTest {
             assertClosed(services.authorization.get());
         }
     }
-    @Test public void bothLocalhostAddressFamiliesCanDeliverOneAttemptWhenIpv6IsAvailable() throws Exception {
+    @Test public void eachLoopbackAddressFamilyAcceptsOnlyOneResponsePerAttempt() throws Exception {
         boolean ipv6;
         try(java.net.ServerSocket probe=new java.net.ServerSocket()) {
             probe.bind(new InetSocketAddress(InetAddress.getByName("::1"),0));ipv6=true;
         } catch(IOException | UnsupportedOperationException unavailable) {ipv6=false;}
-        final boolean supportsIpv6=ipv6;
-        try(Services services=new Services()) {
+        for(String host:ipv6?Arrays.asList("127.0.0.1","[::1]"):Collections.singletonList("127.0.0.1"))try(Services services=new Services()) {
             MicrosoftBrowserAuth auth=services.auth(uri->{
                 Map<String,String> query=MicrosoftBrowserAuth.query(uri.getRawQuery());
                 URI redirect=URI.create(query.get("redirect_uri"));
                 String params="?"+MicrosoftBrowserAuth.form(MicrosoftBrowserAuth.params("state",query.get("state"),"code","mock-code"));
-                assertEquals(200,request("http://127.0.0.1:"+redirect.getPort()+"/callback"+params));
-                if(supportsIpv6)assertEquals(200,request("http://[::1]:"+redirect.getPort()+"/callback"+params));
+                assertEquals(200,request("http://"+host+":"+redirect.getPort()+"/callback"+params));
+                assertEquals(409,request("http://127.0.0.1:"+redirect.getPort()+"/callback"+params));
             },2000);
             assertEquals("BrowserPlayer",auth.login(()->true).getUsername());
             assertEquals(5,services.calls.size());assertClosed(services.authorization.get());
@@ -190,6 +193,7 @@ public class MicrosoftBrowserAuthTest {
             try{services.auth().login(()->true);fail();}catch(LoginCoordinator.LoginUnavailableException expected){
                 String message=expected.getUserMessage();assertFalse(message.contains("raw-secret"));
                 assertTrue(message,error.equals("invalid_grant")?message.contains("try again"):message.contains("registration"));
+                assertEquals(!error.equals("invalid_grant"),expected.isSetupRequired());
             }
             assertEquals(Collections.singletonList("/token"),services.calls);assertClosed(services.authorization.get());
         }
@@ -213,11 +217,72 @@ public class MicrosoftBrowserAuthTest {
             assertTrue(services.calls.isEmpty());assertClosed(services.authorization.get());
         }
     }
+    @Test public void everyAttemptUsesFreshStateAndPkceWhileKeepingBrowserAccountSelection() throws Exception {
+        try(Services services=new Services()) {
+            MicrosoftBrowserAuth auth=services.auth();
+            auth.login(()->true);
+            Map<String,String> first=MicrosoftBrowserAuth.query(services.authorization.get().getRawQuery());
+            String firstVerifier=services.verifier.get();
+            auth.login(()->true);
+            Map<String,String> second=MicrosoftBrowserAuth.query(services.authorization.get().getRawQuery());
+            assertNotEquals(first.get("state"),second.get("state"));
+            assertNotEquals(first.get("code_challenge"),second.get("code_challenge"));
+            assertNotEquals(firstVerifier,services.verifier.get());
+            assertEquals("select_account",second.get("prompt"));assertClosed(services.authorization.get());
+        }
+    }
+    @Test public void malformedSuccessfulServiceResponsesAreRedactedAndIdentifyTheFailingStage() throws Exception {
+        Map<String,String> stages=MicrosoftBrowserAuth.params("/token","Microsoft","/xbox","Xbox Live",
+                "/xsts","Xbox authorization","/minecraft","Minecraft Services","/profile","Minecraft profile");
+        for(Map.Entry<String,String> stage:stages.entrySet())for(String body:Arrays.asList("{raw-secret-invalid-json","null","[]"))
+                try(Services services=new Services()) {
+                    services.failStage=stage.getKey();services.failStatus=200;services.errorBody=body;
+                    try { services.auth().login(()->true);fail(); }
+                    catch(LoginCoordinator.LoginUnavailableException expected) {
+                        assertTrue(expected.getUserMessage(),expected.getUserMessage().contains(stage.getValue()));
+                        assertFalse(expected.getUserMessage().contains("raw-secret"));
+                    }
+                    assertClosed(services.authorization.get());
+                }
+    }
+    @Test public void unsupportedMicrosoftTokenTypeStopsBeforeXboxExchange() throws Exception {
+        try(Services services=new Services()) {
+            services.failStage="/token";services.failStatus=200;
+            services.errorBody="{\"access_token\":\"raw-secret\",\"token_type\":\"unsupported\"}";
+            try { services.auth().login(()->true);fail(); }
+            catch(LoginCoordinator.LoginUnavailableException expected) {
+                assertTrue(expected.getUserMessage().contains("unsupported token"));
+                assertFalse(expected.getUserMessage().contains("raw-secret"));
+            }
+            assertEquals(Collections.singletonList("/token"),services.calls);
+        }
+    }
+    @Test public void callbackRegistrationFailureRequestsSetupAndDoesNotExchangeTokens() throws Exception {
+        try(Services services=new Services()) {
+            MicrosoftBrowserAuth auth=services.auth(uri->callback(uri,null,"invalid_client",null),2000);
+            try { auth.login(()->true);fail(); }
+            catch(LoginCoordinator.LoginUnavailableException expected) { assertTrue(expected.isSetupRequired()); }
+            assertTrue(services.calls.isEmpty());assertClosed(services.authorization.get());
+        }
+    }
+    @Test public void disconnectedTokenServiceReportsConnectionFailureWithoutExposingCallback() throws Exception {
+        try(Services services=new Services()) {
+            MicrosoftBrowserAuth auth=services.auth(uri->{
+                callback(uri,"mock-code",null,null);services.server.stop(0);
+            },2000);
+            try { auth.login(()->true);fail(); }
+            catch(LoginCoordinator.LoginUnavailableException expected) {
+                assertTrue(expected.getUserMessage(),expected.getUserMessage().contains("connect to Microsoft"));
+                assertFalse(expected.getUserMessage().contains("mock-code"));
+            }
+            assertTrue(services.calls.isEmpty());assertClosed(services.authorization.get());
+        }
+    }
     @Test public void missingClientIdStopsBeforeBrowserOrNetworkWithSetupGuidance() throws Exception {
         try(Services services=new Services()) {
             AtomicBoolean opened=new AtomicBoolean();
             String base="http://127.0.0.1:"+services.server.getAddress().getPort();
-            MicrosoftBrowserAuth auth=new MicrosoftBrowserAuth("",new MicrosoftBrowserAuth.Endpoints(base+"/authorize",base+"/token",base+"/xbox",base+"/xsts",base+"/minecraft",base+"/profile",base+"/store"),uri->opened.set(true),2000);
+            MicrosoftBrowserAuth auth=new MicrosoftBrowserAuth("",new MicrosoftBrowserAuth.Endpoints(base+"/authorize",base+"/token",base+"/xbox",base+"/xsts",base+"/minecraft",base+"/profile"),uri->opened.set(true),2000);
             try{auth.login(()->true);fail();}catch(LoginCoordinator.LoginUnavailableException expected){
                 assertEquals(MicrosoftBrowserAuth.SETUP,expected.getUserMessage());
                 assertTrue(expected.isSetupRequired());
@@ -229,7 +294,7 @@ public class MicrosoftBrowserAuthTest {
         String previous=System.getProperty("neutron.microsoft.clientId");
         try(Services services=new Services()) {
             String base="http://127.0.0.1:"+services.server.getAddress().getPort();
-            MicrosoftBrowserAuth configured=new MicrosoftBrowserAuth(null,new MicrosoftBrowserAuth.Endpoints(base+"/authorize",base+"/token",base+"/xbox",base+"/xsts",base+"/minecraft",base+"/profile",base+"/store"),uri->{
+            MicrosoftBrowserAuth configured=new MicrosoftBrowserAuth(null,new MicrosoftBrowserAuth.Endpoints(base+"/authorize",base+"/token",base+"/xbox",base+"/xsts",base+"/minecraft",base+"/profile"),uri->{
                 services.authorization.set(uri);callback(uri,"mock-code",null,null);
             },2000);
             System.setProperty("neutron.microsoft.clientId","  "+CLIENT+"  ");

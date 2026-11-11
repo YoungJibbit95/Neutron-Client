@@ -60,7 +60,7 @@ public final class LoginCoordinator {
 
         @Override public void run() {
             if (!started.compareAndSet(false, true) || !isCurrent(ticket)) return;
-            client.accept(() -> { if (isCurrent(ticket)) status = request.isBrowserLogin() ? "&6Preparing Microsoft sign-in. Complete the login window..." : "&6Logging in..."; });
+            client.accept(() -> { if (isCurrent(ticket)) status = request.isBrowserLogin() ? "&6Complete Microsoft sign-in in your default browser..." : "&6Logging in..."; });
             try {
                 Session session = authenticator.authenticate(request, () -> isCurrent(ticket));
                 if (session == null || session.getUsername() == null || !session.getUsername().matches("[a-zA-Z0-9_]{1,16}")
