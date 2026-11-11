@@ -77,10 +77,19 @@ final class WorldUnloadNativeCheck {
             set(RenderGlobal.class,global,"renderEnv",new RenderEnv(Blocks.air.getDefaultState(),BlockPos.ORIGIN));
             for(String field:new String[]{"renderInfos","renderInfosEntities","renderInfosTileEntities"})set(RenderGlobal.class,global,field,new ArrayList<>());
             set(RenderGlobal.class,global,"chunksToUpdate",new LinkedHashSet<>());
+            set(RenderGlobal.class,global,"chunksToUpdateForced",new LinkedHashSet<>());
+            set(RenderGlobal.class,global,"chunksToResortTransparency",new LinkedHashSet<>());
+            set(RenderGlobal.class,global,"preferNormalChunkUpdate",true);
             first.addWorldAccess(global);
             mc.gameSettings.useVbo=true;mc.gameSettings.ofRenderRegions=false;
             require(OpenGlHelper.useVbo(),"Real VBO support required for unload coverage");
             frustum=new ViewFrustum(first,0,global,RenderChunk::new);set(RenderGlobal.class,global,"viewFrustum",frustum);
+            RenderChunk repositioned=frustum.renderChunks[0];BlockPos originalPosition=repositioned.getPosition();
+            repositioned.setNeedsUpdate(false);repositioned.setPosition(originalPosition.add(16,0,0));
+            require(repositioned.isNeedsUpdate(),"Repositioning a clean renderer did not schedule its new location");
+            repositioned.setPosition(originalPosition);
+            for(String field:new String[]{"chunksToUpdate","chunksToUpdateForced","chunksToResortTransparency"})
+                ((Set)get(RenderGlobal.class,global,field)).add(repositioned);
             List<VertexBuffer> buffers=new ArrayList<>();List<Integer> ids=new ArrayList<>();
             for(RenderChunk chunk:frustum.renderChunks)for(int layer=0;layer<EnumWorldBlockLayer.values().length;layer++){
                 VertexBuffer buffer=chunk.getVertexBufferByLayer(layer);buffer.func_181722_a(BufferUtils.createByteBuffer(32));
@@ -97,6 +106,9 @@ final class WorldUnloadNativeCheck {
             require(mc.theWorld==null&&global.getWorld()==null,"World exit retained renderer world");
             require(first.removes==1,"World exit did not remove renderer world access exactly once");
             require(get(RenderGlobal.class,global,"viewFrustum")==null,"World exit retained frustum");
+            for(String field:new String[]{"chunksToUpdate","chunksToUpdateForced","chunksToResortTransparency"})
+                require(((Set)get(RenderGlobal.class,global,field)).isEmpty(),"World exit retained pending work in "+field);
+            require(!(Boolean)get(RenderGlobal.class,global,"preferNormalChunkUpdate"),"World exit retained admission fairness state");
             for(int i=0;i<buffers.size();i++)require((Integer)get(VertexBuffer.class,buffers.get(i),"glBufferId")==-1&&!GL15.glIsBuffer(ids.get(i)),"World exit retained a native VBO");
             require(get(EffectRenderer.class,effects,"worldObj")==null&&effects.getStatistics().equals("0")&&((List)get(EffectRenderer.class,effects,"particleEmitters")).isEmpty(),"World exit retained particles or their world");
             mc.thePlayer=bare(Player.class);mc.loadWorld(next,"native rejoin check");

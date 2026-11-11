@@ -34,20 +34,18 @@ public class ChunkCacheOF implements IBlockAccess
     public ChunkCacheOF(ChunkCache chunkCache, BlockPos posFromIn, BlockPos posToIn, int subIn)
     {
         this.chunkCache = chunkCache;
-        int i = posFromIn.getX() - subIn >> 4;
-        int j = posFromIn.getY() - subIn >> 4;
-        int k = posFromIn.getZ() - subIn >> 4;
-        int l = posToIn.getX() + subIn >> 4;
-        int i1 = posToIn.getY() + subIn >> 4;
-        int j1 = posToIn.getZ() + subIn >> 4;
-        this.sizeX = l - i + 1 << 4;
-        this.sizeY = i1 - j + 1 << 4;
-        this.sizeZ = j1 - k + 1 << 4;
+        // This is a block lookup cache, not the backing chunk grid. Rounding
+        // the 20-block meshing halo to chunk boundaries allocates 48 cubed
+        // entries and clears them for every build. Outside queries already
+        // fall through to the unchanged backing ChunkCache.
+        this.posX = posFromIn.getX() - subIn;
+        this.posY = posFromIn.getY() - subIn;
+        this.posZ = posFromIn.getZ() - subIn;
+        this.sizeX = posToIn.getX() + subIn - this.posX + 1;
+        this.sizeY = posToIn.getY() + subIn - this.posY + 1;
+        this.sizeZ = posToIn.getZ() + subIn - this.posZ + 1;
         this.sizeXY = this.sizeX * this.sizeY;
         this.arraySize = this.sizeX * this.sizeY * this.sizeZ;
-        this.posX = i << 4;
-        this.posY = j << 4;
-        this.posZ = k << 4;
     }
 
     private int getPositionIndex(BlockPos pos)

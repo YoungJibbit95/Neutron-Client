@@ -19,6 +19,7 @@ public class ShaderUtil implements Utils, AutoCloseable {
     private final boolean directUniforms=getClass()==ShaderUtil.class
             ||getClass()==me.youngjibbit.utils.render.shader.ShaderUtil.class;
     private boolean closed;
+    private RenderState standaloneState;
     public ShaderUtil(String fragment,String vertex){this(fragmentSource(fragment),resource(vertex),0);}
     public ShaderUtil(String fragment){this(fragment,"Flauxy/Shaders/vertex.vsh");}
     public ShaderUtil(String source,boolean raw){this(source,resource("Flauxy/Shaders/vertex.vsh"),0);}
@@ -89,8 +90,25 @@ public class ShaderUtil implements Utils, AutoCloseable {
             throw new IllegalStateException("Bundled shader: " + path, ex);
         }
     }
-    public void init(){ensureOpen();glUseProgram(programID);}
-    public void unload(){glUseProgram(0);}
+    public void init(){
+        ensureOpen();
+        // Most call sites already own a RenderState/UiDrawState. Preserve an external
+        // shaderpack caller as well when legacy code invokes this API without a guard.
+        if(standaloneState==null&&net.minecraft.client.renderer.OpenGlHelper.shadersSupported
+                &&net.optifine.shaders.Shaders.shaderPackLoaded
+                &&!net.optifine.shaders.Shaders.isClientRenderActive())standaloneState=new RenderState();
+        glUseProgram(programID);
+        if(RenderDiagnostics.enabled)RenderDiagnostics.programBinds++;
+    }
+    public void unload(){
+        if(standaloneState!=null){
+            RenderState state=standaloneState;standaloneState=null;state.close();
+        }else{
+            // Within an explicitly owned client pass, program zero is the fixed-function baseline.
+            glUseProgram(0);
+            if(RenderDiagnostics.enabled)RenderDiagnostics.programBinds++;
+        }
+    }
     private void ensureOpen(){if(closed)throw new IllegalStateException("Shader is closed");}
     public int getProgramId(){ensureOpen();return programID;}
     public int getUniform(String name){
@@ -131,16 +149,26 @@ public class ShaderUtil implements Utils, AutoCloseable {
     }
     /** Rectangle dimensions, top-left texture UV origin (not endpoint coordinates). */
     public static void drawQuads(float x,float y,float width,float height){
-        if(RenderDiagnostics.enabled)RenderDiagnostics.shaderDraws++;
+        if(RenderDiagnostics.enabled){RenderDiagnostics.shaderDraws++;RenderDiagnostics.drawSubmissions++;}
         glBegin(GL_QUADS);glTexCoord2f(0,0);glVertex2f(x,y);glTexCoord2f(0,1);glVertex2f(x,y+height);glTexCoord2f(1,1);glVertex2f(x+width,y+height);glTexCoord2f(1,0);glVertex2f(x+width,y);glEnd();
     }
     /** Framebuffer UV origin: vertically flipped relative to the positioned rectangle overload. */
     public static void drawQuads(float width,float height){
-        if(RenderDiagnostics.enabled)RenderDiagnostics.shaderDraws++;
+        if(RenderDiagnostics.enabled){RenderDiagnostics.shaderDraws++;RenderDiagnostics.drawSubmissions++;}
         glBegin(GL_QUADS);glTexCoord2f(0,1);glVertex2f(0,0);glTexCoord2f(0,0);glVertex2f(0,height);glTexCoord2f(1,0);glVertex2f(width,height);glTexCoord2f(1,1);glVertex2f(width,0);glEnd();
     }
     public static void drawQuads(){ScaledResolution sr=GuiResolution.current(mc);drawQuads((float)sr.getScaledWidth_double(),(float)sr.getScaledHeight_double());}
     /** The legacy menu uses floor(width / scale), but a fractional height. Preserve that viewport contract. */
     public static void drawFixedQuads(){ScaledResolution sr=GuiResolution.current(mc);drawQuads((float)(mc.displayWidth/sr.getScaleFactor()),(float)mc.displayHeight/sr.getScaleFactor());}
-    @Override public void close(){if(closed)return;if(glGetInteger(GL_CURRENT_PROGRAM)==programID)glUseProgram(0);glDeleteProgram(programID);if(RenderDiagnostics.enabled)RenderDiagnostics.programDeletes++;uniforms.clear();closed=true;}
+    @Override public void close(){
+        if(closed)return;
+        if(standaloneState!=null)unload();
+        if(glGetInteger(GL_CURRENT_PROGRAM)==programID){
+            glUseProgram(0);
+            if(RenderDiagnostics.enabled)RenderDiagnostics.programBinds++;
+        }
+        glDeleteProgram(programID);
+        if(RenderDiagnostics.enabled)RenderDiagnostics.programDeletes++;
+        uniforms.clear();closed=true;
+    }
 }

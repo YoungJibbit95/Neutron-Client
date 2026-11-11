@@ -1,6 +1,7 @@
 package net.optifine.shaders;
 
 import com.google.common.base.Charsets;
+import me.youngjibbit.utils.render.RenderDiagnostics;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -382,6 +383,8 @@ public class Shaders
     private static boolean hasDeferredPrograms = false;
     static IntBuffer activeDrawBuffers = null;
     private static int activeCompositeMipmapSetting = 0;
+    private static ClientRenderState clientRenderState;
+    private static long renderResourceGeneration;
     public static Properties loadedShaders = null;
     public static Properties shadersConfig = null;
     public static ITextureObject defaultTexture = null;
@@ -3265,8 +3268,152 @@ public class Shaders
         }
     }
 
+    /**
+     * Enter a client-owned pass after its raw GL snapshot has been captured.
+     * Nested guards share the outer suspension; they restore their own GL state.
+     * The returned owner must close after its raw/cache restoration, including on failure.
+     */
+    public static ClientRenderState beginClientRender()
+    {
+        if (!shaderPackLoaded || clientRenderState != null)
+        {
+            return null;
+        }
+
+        ClientRenderState state = new ClientRenderState();
+        clientRenderState = state;
+        state.suspend();
+        return state;
+    }
+
+    /** Main-camera framebuffer identity; its depth can be read after the late hand/final pass. */
+    public static int getWorldFramebuffer()
+    {
+        return shaderPackLoaded && !isShadowPass ? dfb : 0;
+    }
+
+    /** Main-camera depth, never shadow depth. The caller must not write into this shared texture. */
+    public static int getWorldDepthTexture()
+    {
+        return shaderPackLoaded && !isShadowPass && dfb != 0 && usedDepthBuffers > 0
+                ? dfbDepthTextures.get(0) : 0;
+    }
+
+    /** Invalidate client-owned scene/depth snapshots when shader resources are rebuilt. */
+    public static long getRenderResourceGeneration()
+    {
+        return renderResourceGeneration;
+    }
+
+    public static int getRenderFrameCounter()
+    {
+        return frameCounter;
+    }
+
+    public static boolean isClientRenderActive()
+    {
+        return clientRenderState != null;
+    }
+
+    /** Render-thread-only bridge between raw client shaders and OptiFine's cached pipeline state. */
+    public static final class ClientRenderState implements AutoCloseable
+    {
+        private final Program program = activeProgram;
+        private final int programId = activeProgramID;
+        private final int rawProgram = GL11.glGetInteger(GL20.GL_CURRENT_PROGRAM);
+        private final int framebuffer = GL11.glGetInteger(EXTFramebufferObject.GL_FRAMEBUFFER_BINDING_EXT);
+        private final IntBuffer drawBuffers = activeDrawBuffers;
+        private final int mipmaps = activeCompositeMipmapSetting;
+        private final boolean renderingWorld = isRenderingWorld;
+        private final boolean renderingDfb = isRenderingDfb;
+        private final long generation = renderResourceGeneration;
+        // These are the logical states waiting behind shaderpack overrides, not only current GL.
+        private final GlAlphaState deferredAlpha = new GlAlphaState();
+        private final GlBlendState deferredBlend = new GlBlendState();
+        private boolean closed;
+
+        private ClientRenderState()
+        {
+            GlStateManager.getAlphaState(deferredAlpha);
+            GlStateManager.getBlendState(deferredBlend);
+        }
+
+        private void suspend()
+        {
+            // A client program has a different uniform-location namespace. Keep OF updates
+            // on program zero while callbacks invoke GlStateManager or model/layer helpers.
+            shaderUniforms.setProgram(0);
+            if (customUniforms != null)
+            {
+                customUniforms.setProgram(0);
+            }
+
+            updateAlphaBlend(program, ProgramNone);
+            activeProgram = ProgramNone;
+            activeProgramID = 0;
+            activeCompositeMipmapSetting = 0;
+            activeDrawBuffers = null;
+            isRenderingWorld = false;
+            isRenderingDfb = false;
+            GL20.glUseProgram(0);
+            if (RenderDiagnostics.enabled) RenderDiagnostics.programBinds++;
+            if (renderingDfb && framebuffer != 0 && framebuffer == dfb)
+            {
+                // Legacy client fragment shaders write color only, never gbuffer metadata.
+                GL11.glDrawBuffer(EXTFramebufferObject.GL_COLOR_ATTACHMENT0_EXT);
+            }
+        }
+
+        @Override public void close()
+        {
+            if (closed)
+            {
+                return;
+            }
+            closed = true;
+            boolean current = generation == renderResourceGeneration && shaderPackLoaded
+                    && program.getId() == programId
+                    && (programId == 0 || GL20.glIsProgram(programId));
+            try
+            {
+                // Restore the pending states first, then recreate the program's overrides.
+                // Uniform handles stay suspended throughout these cache setter calls.
+                if (program.getAlphaState() != null) GlStateManager.setAlphaState(deferredAlpha);
+                if (program.getBlendState() != null) GlStateManager.setBlendState(deferredBlend);
+                if (current)
+                {
+                    updateAlphaBlend(ProgramNone, program);
+                }
+                activeProgram = current ? program : ProgramNone;
+                activeProgramID = current ? programId : 0;
+                activeCompositeMipmapSetting = current ? mipmaps : 0;
+                activeDrawBuffers = current
+                        && GL11.glGetInteger(EXTFramebufferObject.GL_FRAMEBUFFER_BINDING_EXT) == framebuffer
+                        ? drawBuffers : null;
+                isRenderingWorld = current && renderingWorld;
+                isRenderingDfb = current && renderingDfb;
+                int restored = current && (rawProgram == 0 || GL20.glIsProgram(rawProgram)) ? rawProgram : 0;
+                GL20.glUseProgram(restored);
+                if (RenderDiagnostics.enabled) RenderDiagnostics.programBinds++;
+                shaderUniforms.setProgram(current ? programId : 0);
+                if (customUniforms != null)
+                {
+                    customUniforms.setProgram(current ? programId : 0);
+                }
+            }
+            finally
+            {
+                clientRenderState = null;
+            }
+        }
+    }
+
     public static void setDrawBuffers(IntBuffer drawBuffers)
     {
+        if (clientRenderState != null)
+        {
+            return;
+        }
         if (drawBuffers == null)
         {
             drawBuffers = drawBuffersNone;
@@ -3282,6 +3429,10 @@ public class Shaders
 
     public static void useProgram(Program program)
     {
+        if (clientRenderState != null)
+        {
+            return;
+        }
         checkGLError("pre-useProgram");
 
         if (isShadowPass)
@@ -3300,6 +3451,7 @@ public class Shaders
             int i = program.getId();
             activeProgramID = i;
             ARBShaderObjects.glUseProgramObjectARB(i);
+            if (RenderDiagnostics.enabled) RenderDiagnostics.programBinds++;
 
             if (checkGLError("useProgram") != 0)
             {
@@ -3307,6 +3459,7 @@ public class Shaders
                 i = program.getId();
                 activeProgramID = i;
                 ARBShaderObjects.glUseProgramObjectARB(i);
+                if (RenderDiagnostics.enabled) RenderDiagnostics.programBinds++;
             }
 
             shaderUniforms.setProgram(i);
@@ -3667,6 +3820,7 @@ public class Shaders
 
     public static void uninit()
     {
+        ++renderResourceGeneration;
         if (isShaderPackInitialized)
         {
             checkGLError("Shaders.uninit pre");
@@ -3780,6 +3934,7 @@ public class Shaders
 
     private static void setupFrameBuffer()
     {
+        ++renderResourceGeneration;
         if (dfb != 0)
         {
             EXTFramebufferObject.glDeleteFramebuffersEXT(dfb);
@@ -3793,6 +3948,7 @@ public class Shaders
         dfbDepthTextures.position(0);
         dfbColorTextures.position(0);
         EXTFramebufferObject.glBindFramebufferEXT(36160, dfb);
+        if (RenderDiagnostics.enabled) RenderDiagnostics.framebufferBinds++;
         GL20.glDrawBuffers(0);
         GL11.glReadBuffer(0);
 
@@ -3890,6 +4046,7 @@ public class Shaders
 
     private static void setupShadowFrameBuffer()
     {
+        ++renderResourceGeneration;
         if (usedShadowDepthBuffers != 0)
         {
             if (sfb != 0)
@@ -3901,6 +4058,7 @@ public class Shaders
 
             sfb = EXTFramebufferObject.glGenFramebuffersEXT();
             EXTFramebufferObject.glBindFramebufferEXT(36160, sfb);
+            if (RenderDiagnostics.enabled) RenderDiagnostics.framebufferBinds++;
             GL11.glDrawBuffer(0);
             GL11.glReadBuffer(0);
             GL11.glGenTextures((IntBuffer)sfbDepthTextures.clear().limit(usedShadowDepthBuffers));
@@ -4107,6 +4265,7 @@ public class Shaders
         ShadersRender.renderShadowMap(entityRenderer, 0, partialTicks, finishTimeNano);
         mc.mcProfiler.endSection();
         EXTFramebufferObject.glBindFramebufferEXT(36160, dfb);
+        if (RenderDiagnostics.enabled) RenderDiagnostics.framebufferBinds++;
 
         for (int j = 0; j < usedColorBuffers; ++j)
         {
@@ -4215,7 +4374,12 @@ public class Shaders
     {
         if (!isShadowPass)
         {
+            // endRender closes each main-camera eye. A following eye still needs
+            // its own final pass, including when EntityRenderer skips the hand.
+            isRenderingWorld = true;
+            isCompositeRendered = false;
             EXTFramebufferObject.glBindFramebufferEXT(36160, dfb);
+            if (RenderDiagnostics.enabled) RenderDiagnostics.framebufferBinds++;
             GL11.glViewport(0, 0, renderWidth, renderHeight);
             activeDrawBuffers = null;
             ShadersTex.bindNSTextures(defaultTexture.getMultiTexID());
@@ -4236,6 +4400,7 @@ public class Shaders
         {
             GL11.glViewport(0, 0, renderWidth, renderHeight);
             EXTFramebufferObject.glBindFramebufferEXT(36160, dfb);
+            if (RenderDiagnostics.enabled) RenderDiagnostics.framebufferBinds++;
             isRenderingDfb = true;
             GlStateManager.enableCull();
             GlStateManager.enableDepth();
@@ -4593,6 +4758,7 @@ public class Shaders
         if (!canRenderQuads())
         {
             GL11.glBegin(GL11.GL_TRIANGLE_STRIP);
+            if (RenderDiagnostics.enabled) RenderDiagnostics.drawSubmissions++;
             GL11.glTexCoord2f(0.0F, 0.0F);
             GL11.glVertex3f(0.0F, 0.0F, 0.0F);
             GL11.glTexCoord2f(1.0F, 0.0F);
@@ -4606,6 +4772,7 @@ public class Shaders
         else
         {
             GL11.glBegin(GL11.GL_QUADS);
+            if (RenderDiagnostics.enabled) RenderDiagnostics.drawSubmissions++;
             GL11.glTexCoord2f(0.0F, 0.0F);
             GL11.glVertex3f(0.0F, 0.0F, 0.0F);
             GL11.glTexCoord2f(1.0F, 0.0F);
@@ -5247,6 +5414,7 @@ public class Shaders
             {
                 GlStateManager.setActiveTexture(33996);
                 GL11.glCopyTexSubImage2D(GL11.GL_TEXTURE_2D, 0, 0, 0, 0, 0, renderWidth, renderHeight);
+                if (RenderDiagnostics.enabled) RenderDiagnostics.sceneCopies++;
                 GlStateManager.setActiveTexture(33984);
             }
 
@@ -5271,6 +5439,7 @@ public class Shaders
             GlStateManager.setActiveTexture(33995);
             checkGLError("pre copy depth");
             GL11.glCopyTexSubImage2D(GL11.GL_TEXTURE_2D, 0, 0, 0, 0, 0, renderWidth, renderHeight);
+            if (RenderDiagnostics.enabled) RenderDiagnostics.sceneCopies++;
             checkGLError("copy depth");
             GlStateManager.setActiveTexture(33984);
         }

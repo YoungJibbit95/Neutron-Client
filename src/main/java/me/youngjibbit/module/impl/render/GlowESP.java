@@ -174,7 +174,8 @@ public class GlowESP extends Module
 
     @Subscribe
     public final Listener<RenderChestEvent> onRenderChestEvent = new Listener<>(e-> {
-        if(!chests.getValue()||framebuffer==null)return;
+        // The mask is consumed by the main-camera HUD; shadow-camera geometry is not its input.
+        if(net.optifine.shaders.Shaders.isShadowPass||!chests.getValue()||framebuffer==null)return;
         boolean oldGlint=renderGlint;
         try(me.youngjibbit.utils.render.RenderState state=new me.youngjibbit.utils.render.RenderState()){
 
@@ -190,14 +191,14 @@ public class GlowESP extends Module
             if("Flame".equals(glowMode.getValue()))motionObjects.add(e.getEntity());
             chamsShader.unload();
 
-            this.mc.getFramebuffer().bindFramebuffer(false);
+            state.bindTarget();
         }
         } finally { renderGlint=oldGlint; }
     });
 
     @Subscribe
     public final Listener<RenderModelEvent> onRenderModelEvent = new Listener<>(e -> {
-        if(!e.isPost()||framebuffer==null||!entities.contains(e.getEntity()))return;
+        if(net.optifine.shaders.Shaders.isShadowPass||!e.isPost()||framebuffer==null||!entities.contains(e.getEntity()))return;
         boolean oldGlint=renderGlint;
         try(me.youngjibbit.utils.render.RenderState state=new me.youngjibbit.utils.render.RenderState()){
 
@@ -225,7 +226,7 @@ public class GlowESP extends Module
             chamsShader.unload();
 
 
-            mc.getFramebuffer().bindFramebuffer(false);
+            state.bindTarget();
         }
         } finally { renderGlint=oldGlint; }
     });

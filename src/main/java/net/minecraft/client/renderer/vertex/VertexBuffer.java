@@ -1,5 +1,6 @@
 package net.minecraft.client.renderer.vertex;
 
+import me.youngjibbit.utils.render.RenderDiagnostics;
 import java.nio.ByteBuffer;
 import net.minecraft.client.renderer.OpenGlHelper;
 import net.optifine.render.VboRange;
@@ -55,6 +56,7 @@ public class VertexBuffer
         else
         {
             GL11.glDrawArrays(mode, 0, this.count);
+            if (RenderDiagnostics.enabled) RenderDiagnostics.drawSubmissions++;
         }
     }
 

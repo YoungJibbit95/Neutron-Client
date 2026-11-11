@@ -66,6 +66,13 @@ public class VboRenderList extends ChunkRenderContainer
 
             OpenGlHelper.glBindBuffer(OpenGlHelper.GL_ARRAY_BUFFER, 0);
             GlStateManager.resetColor();
+            // Region draws are deferred until finishDraw. This layer-end timestamp is an
+            // upper bound on CPU submission, never a GPU completion or display timestamp.
+            if (me.youngjibbit.core.diagnostics.ChunkPipelineMetrics.INSTANCE.isRecording()
+                    && (!Config.isShaders() || !net.optifine.shaders.Shaders.isShadowPass))
+            {
+                for (RenderChunk submitted : this.renderChunks) submitted.onDrawSubmitted();
+            }
             this.renderChunks.clear();
         }
     }

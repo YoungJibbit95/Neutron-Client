@@ -767,6 +767,8 @@ public class Minecraft implements IThreadListener, IPlayerUsage
 
     public void refreshResources()
     {
+        me.youngjibbit.core.diagnostics.PerformanceCaptureSession.INSTANCE.abort("Resource reload");
+        if (this.entityRenderer != null) this.entityRenderer.releaseClientRenderResources();
         List<IResourcePack> list = Lists.newArrayList(this.defaultResourcePacks);
 
         for (ResourcePackRepository.Entry resourcepackrepository$entry : this.mcResourcePackRepository.getRepositoryEntries())
@@ -1038,7 +1040,15 @@ public class Minecraft implements IThreadListener, IPlayerUsage
         }
         finally
         {
-            Display.destroy();
+            try {
+                me.youngjibbit.core.diagnostics.PerformanceCaptureSession.INSTANCE.contextEnding("Client shutdown");
+            } finally {
+                try {
+                    if (this.entityRenderer != null) this.entityRenderer.releaseClientRenderResources();
+                } finally {
+                    Display.destroy();
+                }
+            }
 
             if (!this.hasCrashed)
             {
@@ -1206,6 +1216,7 @@ public class Minecraft implements IThreadListener, IPlayerUsage
         }
 
         this.mcProfiler.endSection();
+        me.youngjibbit.core.diagnostics.PerformanceCaptureSession.INSTANCE.frame(this);
     }
 
     public void updateDisplay()
@@ -1652,6 +1663,7 @@ public class Minecraft implements IThreadListener, IPlayerUsage
      */
     public void toggleFullscreen()
     {
+        me.youngjibbit.core.diagnostics.PerformanceCaptureSession.INSTANCE.abort("Fullscreen changed");
         try
         {
             this.fullscreen = !this.fullscreen;
@@ -1714,6 +1726,7 @@ public class Minecraft implements IThreadListener, IPlayerUsage
      */
     private void resize(int width, int height)
     {
+        me.youngjibbit.core.diagnostics.PerformanceCaptureSession.INSTANCE.abort("Window resized");
         this.displayWidth = Math.max(1, width);
         this.displayHeight = Math.max(1, height);
 
@@ -1729,6 +1742,8 @@ public class Minecraft implements IThreadListener, IPlayerUsage
 
     private void updateFramebufferSize()
     {
+        // Fullscreen without an open screen reaches this path without resize().
+        if (this.entityRenderer != null) this.entityRenderer.releaseClientRenderResources();
         this.framebufferMc.createBindFramebuffer(this.displayWidth, this.displayHeight);
 
         if (this.entityRenderer != null)
@@ -2381,6 +2396,10 @@ public class Minecraft implements IThreadListener, IPlayerUsage
      * par2Str is displayed on the loading screen to the user unloads the current world first
      */
     public void loadWorld(WorldClient worldClientIn, String loadingMessage) {
+        if (worldClientIn != this.theWorld) {
+            me.youngjibbit.core.diagnostics.PerformanceCaptureSession.INSTANCE.abort("World or dimension changed");
+            if (this.entityRenderer != null) this.entityRenderer.releaseClientRenderResources();
+        }
         if (me.youngjibbit.core.bootstrap.RuntimeServices.observation() != null)
             me.youngjibbit.core.bootstrap.RuntimeServices.observation().invalidateScene();
         if (getNetHandler() != null && getNetHandler().getNetworkManager().getClientPackets() != null)
