@@ -5,7 +5,7 @@ import java.util.function.DoubleSupplier;
 import java.util.function.LongSupplier;
 
 /**
- * Local, visible camera interpolation. A result grants no placement authority.
+ * Local interpolation of the accepted placement aim. A result grants no placement authority.
  * The Linear/Relative and inertia controls adapt the authorized Demise
  * RotationManager/RotationHandler reference at e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb.
  * Unlike that frame-driven handler, this controller consumes one player tick,
@@ -188,7 +188,7 @@ public final class NScaffoldRotationController {
         } finally { computing=false; }
     }
 
-    /** Only a proposal observed on the actual camera contributes to the pause threshold. */
+    /** Only a proposal observed in the accepted rotation contributes to the pause threshold. */
     private void observePrevious(float yaw,float pitch) {
         if(result==null || request==null)return;
         if(Math.abs(wrap((double)yaw-result.yaw))>1e-4 || Math.abs((double)pitch-result.pitch)>1e-4) {

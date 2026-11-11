@@ -1,9 +1,12 @@
-# NScaffold: sichtbare Bauhilfe
+# NScaffold: Bauhilfe mit stiller Rotation
 
-NScaffold ist ein eigenständiges Modul in der Kategorie **World**. Es richtet die
-tatsächliche Kamera auf eine erreichbare Platzierungsfläche aus und verwendet
-den normalen Minecraft-Controller. Die Kamera bleibt die normale Bewegungsbasis;
-Hotbar-Auswahl, Drehung und Handanimation sind sichtbar. Der folgende Stand
+NScaffold ist ein eigenständiges Modul in der Kategorie **World**. Es richtet seine
+Platzierungsrotation auf eine erreichbare Fläche aus und verwendet den normalen
+Minecraft-Controller. **Rotation und MoveFix sind standardmäßig still:** Die
+tatsächliche Kamera bleibt unter der Kontrolle des Spielers. Der gemeinsame
+RotationManager und dieselbe Bewegungskorrektur **Einfach / SIMPLE** wie beim
+bestehenden Scaffold übernehmen die getrennte Zielausrichtung und Eingabebasis.
+Hotbar-Auswahl und Handanimation bleiben sichtbar. Der folgende Stand
 ergänzt die Bau-Modi, Clutch-Hilfe und Rotationsoptionen auf der in
 [PR #181](https://github.com/YoungJibbit95/Neutron-Client/pull/181) integrierten
 Grundlage. Er ist weiterhin **kein vollständiger oder identischer Demise-Port**.
@@ -12,13 +15,14 @@ Die Herkunft und die verbleibenden Unterschiede stehen im
 
 ## Bedienung und Vorrang manueller Eingaben
 
-Normales Weiterbauen ist im Stillstand oder mit **S**, bei Bedarf zusammen mit
-**A/D**, vorgesehen. **W** und reine Seitwärtseingabe pausieren den normalen
-Bauplan mit **Hold back to bridge**. Diese reine Richtungspause erhält die
-beobachteten Boden-/Flugticks: Eine anschließend benötigte Clutch-Hilfe und ein
-Telly-Flugfenster verlieren dadurch nicht ihre bereits beobachtete Flugphase.
-Ein aktivierter Clutch-Plan kann auch bei Vorwärts- oder Seitwärtsbewegung
-übernommen werden, wenn er eine tatsächlich erreichbare Rettungsfläche findet.
+Normales Weiterbauen berücksichtigt **W, S, A/D**, diagonale Eingaben und
+Stillstand. Die Vorschau richtet sich nach Kamera und normalen Eingaben; die
+stille Platzierungsrotation dreht diese Vorschau nicht mit. MoveFix überträgt
+die Eingaben in die Zielausrichtung und wählt dabei die nächste zulässige
+Tastatur-Richtung. Auch Sprung- und Sprintprüfungen verwenden den gemeinsamen
+MoveFix-Pfad. Die geometrischen Grenzen des gewählten Bau-Modus gelten weiterhin.
+Ein aktivierter Clutch-Plan kann eine tatsächlich erreichbare Rettungsfläche
+übernehmen.
 
 **Breezily benötigt die seitlichen Eingaben des Spielers; Telly benötigt dessen
 normalen Sprung.** NScaffold setzt keine automatischen Sprint-, Sprung- oder
@@ -26,11 +30,17 @@ Strafe-Sequenzen. Die einzige optionale Eingabehilfe ist **Auto Sneak on Clutch*
 Sie ergänzt im laufenden normalen Eingabeereignis Sneaken mit dessen üblicher
 Verlangsamung und hält keine globale Taste fest.
 
-Eine manuelle Kameradrehung pausiert mit **Manual view** und löst die gehaltene
-Richtung. Solange die Kamera weiter manuell bewegt wird, fordert das Modul keine
-eigene Drehung oder Platzierung dagegen an. Bei ruhender Kamera kann ein neuer
-Plan aus der sichtbaren Ausgangsrichtung entstehen. Widersprüchliche oder
-abgebrochene Eingabeereignisse verwerfen einen vorbereiteten Plan.
+Die Kamera kann zwischen den Ticks frei bewegt werden, während die stille
+Zielrotation weiterläuft. Ändert sich die Kamera innerhalb eines bereits
+vorbereiteten Schritts, wird dessen veralteter Plan verworfen; die neue Ansicht
+wird niemals zurückgesetzt. Widersprüchliche oder abgebrochene
+Eingabeereignisse verwerfen ebenfalls den vorbereiteten Plan.
+
+Begrenzte Drehungen setzen auf der zuletzt angenommenen NScaffold-Rotation auf.
+Sie beginnen nicht jeden Tick erneut bei der unveränderten Kamera. Platzierungen
+bleiben an den tatsächlich angenommenen Zielstrahl gebunden. Beim Abschalten
+oder Szenenwechsel wird der eigene Rotationsbesitz freigegeben, ohne die Kamera
+zu bewegen.
 
 Der bestehende **Scaffold** hat Vorrang. Ein aktives Aura-Ziel, eine Aura-Aktion
 im aktuellen Tick oder laufende Itembenutzung pausiert NScaffold ebenfalls.
@@ -47,10 +57,10 @@ gewählten Modus keine Wirkung haben.
 
 | Einstellung | Standard / Bereich | Wirkung |
 | --- | --- | --- |
-| **Build Mode** | `Normal`; außerdem `Breezily`, `Telly` | Normal baut ohne zusätzliche Flugphase. Breezily verwendet seine feste sichtbare Winkelpräferenz. Telly wartet beim normalen Bauen auf das gewählte Flugfenster. |
+| **Build Mode** | `Normal`; außerdem `Breezily`, `Telly` | Normal baut ohne zusätzliche Flugphase. Breezily verwendet seine feste Winkelpräferenz. Telly wartet beim normalen Bauen auf das gewählte Flugfenster. |
 | **Straight Telly Ticks** | 4; 1–5 | Benötigte beobachtete Flugticks bei gerader Bewegung. Nur bei Telly sichtbar. |
 | **Diagonal Telly Ticks** | 2; 1–5 | Benötigte beobachtete Flugticks, wenn Vorwärts-/Rückwärts- und Seitwärtsachse gleichzeitig benutzt werden. |
-| **Visible Rotation** | `Standard`; außerdem `Godbridge`, `Center`, `Reverse` | Bestimmt das sichtbare Rotationsziel in Normal und Telly. Breezily verwendet stattdessen seine eigene Geometrie. |
+| **Visible Rotation** | `Standard`; außerdem `Godbridge`, `Center`, `Reverse` | Historischer Einstellungsname; bestimmt jetzt das stille Rotationsziel in Normal und Telly. Breezily verwendet stattdessen seine eigene Geometrie. |
 | **Static-ify** | Aus | Fordert bei Godbridge oder Reverse die feste Winkelpräferenz selbst an. Fehlt auf diesem Strahl eine benötigte reale Fläche, wartet der normale Planer. |
 | **Turn Speed** | 45°; 1–180° | Bisherige gemeinsame Winkelgrenze für Yaw/Pitch pro regulärem Bewegungsschritt. Gilt bei ausgeschalteten Advanced Rotations. |
 | **Godbridge Pitch** | 75,7°; 65–89° | Abwärtspräferenz bei Godbridge. Mit Static-ify ist dies beim Bewegen der feste angeforderte Pitch; im Stillstand gilt dann 90°. |
@@ -94,8 +104,8 @@ Gehaltene Pläne und vorhandene Blickstrahlen werden zusätzlich gezielt geprüf
 Es gibt keinen rekursiven Radius-Scan.
 
 - **Standard** hält einen brauchbaren Flächentreffer. Im Stillstand bleibt ein
-  gültiger konkreter Punkt während der sichtbaren Annäherung erhalten. Beim
-  Rückwärtslaufen wird dieselbe Fläche aus einer stabilen Abwärtspräferenz von
+  gültiger konkreter Punkt während der Annäherung erhalten. Beim
+  Bewegen wird dieselbe Fläche aus einer stabilen Abwärtspräferenz von
   75,7° korrigiert, damit ein früher steiler Winkel nicht unter die nächste Fläche
   zeigt. Ein bereits gültiger Strahl behält seine tatsächlichen Winkel.
 - **Godbridge** bevorzugt eine bewegungsbezogene 45°-Richtung und den
@@ -103,26 +113,28 @@ Es gibt keinen rekursiven Radius-Scan.
   begrenzte Korrekturen erfordern. Die bevorzugte Richtung bleibt über gewöhnliche
   Blockübergänge erhalten.
 - **Center** fordert den Mittelpunkt der tatsächlichen Stützflächen-Bounds an.
-  Ein bereits sichtbarer Randpunkt ersetzt diesen Mittelpunkt nicht. Beim
-  Bewegen können deshalb größere sichtbare Zielkorrekturen nötig werden.
+  Ein bereits getroffener Randpunkt ersetzt diesen Mittelpunkt nicht. Beim
+  Bewegen können deshalb größere Zielkorrekturen nötig werden.
 - **Reverse** bevorzugt eine Richtung entgegen der aufgenommenen Bewegung und
   behält eine nutzbare reale Fläche bei. Ohne Static-ify ist das eine geometrische
   Präferenz mit begrenzter Korrektur. Mit Static-ify wird ein fester Pitch von
   **80°** angefordert.
 - **Breezily** verwendet ein 45°-Raster mit **80°** Pitch bei gerader Bewegung,
   **75,7°** diagonal und **90°** im Stillstand. Die seitlichen Eingaben bleiben
-  manuell. Die eigene sichtbare Drehung wird nicht fortlaufend als neue Richtung
+  manuell. Die eigene stille Drehung wird nicht als neue Bewegungsrichtung
   zurückgeführt.
 
-Standard/Godbridge und dynamisches Reverse begrenzen die Korrektur bei gehaltener
-Rückwärtseingabe auf 18° um die aufgenommene Richtung. Center ist eine ausdrückliche
-Mittelpunktanforderung und hat diese Richtungsbegrenzung nicht. Feste Breezily-
+Godbridge begrenzt die geometrische Korrektur auf 18° um die aufgenommene Richtung;
+dynamisches Reverse verwendet diese Grenze bei Rückwärtseingabe. Standard kann
+mit der getrennten Bewegungsbasis eine erreichbare Fläche in jeder Eingaberichtung
+aufnehmen. Center ist eine ausdrückliche Mittelpunktanforderung und hat diese
+Richtungsbegrenzung ebenfalls nicht. Feste Breezily-
 beziehungsweise Static-ify-Ziele werden nur angeboten, wenn ihr **eigener
 Wunschstrahl** bereits eine benötigte reale Fläche auf der begrenzten Route trifft.
 Andernfalls gibt es für diesen normalen Bauplan kein beliebiges Ersatzziel.
 
 **Rotationsziel und Platzierungspunkt sind unterschiedliche Schritte.** Center
-oder ein fester Winkel bezeichnet das angeforderte Ziel. Die sichtbare
+oder ein fester Winkel bezeichnet das angeforderte Ziel. Die stille
 Interpolation kann mehrere Ticks brauchen. Sobald ihr tatsächlich angenommener
 Zwischenwinkel dieselbe zulässige Stützfläche trifft, darf der normale
 Controllerpfad bereits dort platzieren. Es wird also weder eine Platzierung
@@ -141,7 +153,7 @@ normale Reichweite nicht.
 | --- | --- | --- |
 | **Clutch** | Aus | Aktiviert die zusätzliche Rettungsplanung vor dem gewöhnlichen Bauplan. |
 | **Clutch Criteria** | `MouseOver` | MouseOver reagiert, wenn kein brauchbarer aktueller Strahl auf die Rettungsroute zeigt oder der Spieler stillsteht. Prediction berücksichtigt bevorstehende Lücken beziehungsweise einen aktuellen ungestützten Fall. |
-| **Clutch Rotation Mode** | `Center` | Center benutzt den realen Flächenmittelpunkt. Normal bevorzugt einen brauchbaren Blickstrahl beziehungsweise einen nahen sichtbaren Punkt und kann dessen Winkel halten. |
+| **Clutch Rotation Mode** | `Center` | Center benutzt den realen Flächenmittelpunkt. Normal bevorzugt einen brauchbaren Zielstrahl beziehungsweise einen nahen erreichbaren Punkt und kann dessen Winkel halten. |
 | **Fast Clutch Always** | Aus | Behandelt jeden gefundenen Clutch-Plan als dringlich. Nur mit Advanced Rotations wirksam und sichtbar. |
 | **Fast Clutch on Miss** | Aus | Dringlichkeit, wenn der aktuelle Strahl nicht dieselbe gewählte Stützfläche trifft. |
 | **Fast Clutch Prediction** | Aus | Dringlichkeit bei vorausliegender Lücke oder einem aktuellen ungestützten Fall. Die drei Fast-Schalter können kombiniert werden. |
@@ -172,7 +184,8 @@ identische Kopie der wall-clock-Timer des Originals.
 
 Die Sneak-Hilfe wirkt nur bei weiterhin gültigem Kontext, tatsächlicher Bewegung
 und aktuellem Bodenkontakt. Ein abgebrochenes Eingabeereignis, bereits manuell
-gesetztes Sneaken, Springen, manuelle Kamerabewegung oder ein Modulkonflikt hat
+gesetztes Sneaken, Springen, eine innerhalb des vorbereiteten Schritts geänderte
+Kamerabasis oder ein Modulkonflikt hat
 Vorrang. Bei Anwendung wird die normale Vorwärts-/Seitwärtsachse mit 0,3
 skaliert. Es wird keine Taste über mehrere Ereignisse festgehalten.
 
@@ -201,7 +214,7 @@ zweites Drehbudget frei.
 | **Accelerate** | Aus | Mischt vorherige und aktuelle Winkeländerung, getrennt nach Achse. |
 | **Yaw / Pitch Accel Factor** | Je 0,25; 0,01–0,9 | Gewicht des vorherigen Schritts. Ein größerer Wert bedeutet mehr Trägheit, nicht sofort höhere Geschwindigkeit. Gegenläufige oder überschießende Schritte werden begrenzt. |
 | **Imperfect Correlation** | Aus | Variiert die beiden Achsgrenzen unabhängig um bis zu ±10 % ihres gewählten Basiswerts. Die jeweiligen eingestellten Maxima bleiben bindend. |
-| **Short Stop** | Aus | Ermöglicht kurze Pausen nach tatsächlich auf der Kamera beobachteter Drehstrecke. Nicht ausgeführte Vorschläge bauen keine Strecke auf. |
+| **Short Stop** | Aus | Ermöglicht kurze Pausen nach tatsächlich angenommener Drehstrecke. Nicht ausgeführte Vorschläge bauen keine Strecke auf. |
 | **Short Stop Duration (ms)** | 50; 25–1000 ms | Pausenlänge nach monotoner Zeit. Die Fortsetzung erfolgt bei einer späteren regulären Tick-Anfrage. |
 | **Rotation Diff Buildup to Stop** | 180°; 50–720° | Aufsummierte tatsächlich beobachtete Winkelstrecke bis zur nächsten Schwelle. |
 | **Max Threshold Attempts to Stop** | 1; 0–5 | Anzahl übersprungener Schwellenüberschreitungen vor einer Pause. 0 pausiert bereits an der ersten Schwelle. |
@@ -224,7 +237,10 @@ auch für Clutch der normale Turn-Speed-Wert maßgeblich.
 Die bisherigen **ersten zehn Einstellungen** bis einschließlich der beiden
 Smart-Disable-Werte behalten ihre Reihenfolge und Identitäten. Die alten
 Visible-Rotation-Indizes 0/1 bleiben Standard/Godbridge; Center und Reverse
-wurden angehängt. Alle weiteren Erweiterungswerte beginnen erst mit Build Mode.
+wurden angehängt. Name und gespeicherte ID `visible_rotation` bleiben für alte
+Profile erhalten. Die gewählte Zielart arbeitet auch bei geladenen älteren
+Profilen still mit aktivem MoveFix. Alle weiteren Erweiterungswerte beginnen
+erst mit Build Mode.
 
 Beim Laden eines älteren Profils mit einem NScaffold-Eintrag setzt
 [ConfigManager](../src/main/java/me/youngjibbit/config/ConfigManager.java) darin
@@ -267,9 +283,10 @@ Referenz ist die vom Nutzer zur Nutzung freigegebene Demise-Quelle bei Commit
 
 Die Neutron-Implementierung übernimmt verwandte Einstellungen und geometrische
 Ideen in den vorhandenen Controllerpfad. Sie verwendet eine eigene begrenzte
-Suche, physische Clutch-Kurzprojektion und tickbezogene sichtbare Interpolation.
-Der globale Demise-Slot-/Paket-/Eingabeverbund, verborgene Rotation,
-Bewegungskorrektur und prüfungsspezifische Varianten wurden nicht importiert.
+Suche, physische Clutch-Kurzprojektion und tickbezogene stille Interpolation.
+Stille Rotation und Bewegungskorrektur verwenden Neutrons vorhandenen gemeinsamen
+Scaffold-Pfad. Der globale Demise-Slot-/Paket-/Eingabeverbund und
+prüfungsspezifische Varianten wurden nicht importiert.
 Sprint-, Tower-, blockzählende Sprung-/Sneak- und weitere Originaloptionen bleiben
 im [Funktionsvergleich](NSCAFFOLD-DEMISE-PARITY.md) als fehlend oder abweichend
 ausgewiesen. Gemeinsame Namen belegen keine identischen Spielabläufe.
@@ -282,6 +299,8 @@ sowie `NScaffoldModeControllerTest`, `NScaffoldModesPlannerTest`,
 `NScaffoldClutchPlannerTest` und `NScaffoldRotationControllerTest`. Sie behandeln
 unter anderem Tickbudgets, Flug-/Bodenfolgen, echte Flächen und Reichweite,
 fest angeforderte Winkel, Lifecycle-Abbruch, Achsgrenzen und Short Stops.
+Zusätzliche Regressionen prüfen die unveränderte Kamera, die fortgesetzte stille
+Annäherung, getrennte Bewegungs- und Zielwinkel sowie den gemeinsamen MoveFix.
 Die vorhandene Mehrtick-Geometrieprüfung für Standard/Godbridge mit S, S+A und
 S+D verwendet keine vollständige vertikale Spielphysik. Synthetische Fixtures
 ersetzen keine Live-Spielprüfung mit realer Kollision und Eingabe.

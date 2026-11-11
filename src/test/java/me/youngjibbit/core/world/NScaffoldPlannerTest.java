@@ -115,6 +115,54 @@ public class NScaffoldPlannerTest {
         assertFalse(planner.onRoute(decision.target,sample(new Vec3(3.5,64,.5),0,0,0,0,false),()->true));
     }
 
+    @Test public void silentAimCannotRedirectForwardBackwardSidewaysOrDiagonalSearch() {
+        for(int forward=-1;forward<=1;forward++)for(int strafe=-1;strafe<=1;strafe++) {
+            if(forward==0 && strafe==0)continue;
+            Vec3 feet=new Vec3(strafe<0?.1:.9,64,forward<0?.1:.9);
+            Set<BlockPos> expected=new HashSet<>();expected.add(new BlockPos(strafe,63,forward));
+            if(forward!=0 && strafe!=0) {
+                expected.add(new BlockPos(strafe,63,0));expected.add(new BlockPos(0,63,forward));
+            }
+            for(float aimYaw:new float[]{0,90,180,-90}) {
+                EmptyAccess access=new EmptyAccess();access.occupied.add(new BlockPos(0,63,0));
+                NScaffoldPlanner planner=new NScaffoldPlanner(access);
+                NScaffoldPlanner.Sample silent=new NScaffoldPlanner.Sample(feet,feet.addVector(0,1.62,0),
+                        aimYaw,75.7f,forward,strafe,63,.65,NScaffoldPlanner.RotationStyle.STANDARD,false,75.7f,0);
+                assertNull(planner.plan(silent,()->true));
+                assertEquals("the search follows input, never silent aim="+aimYaw,expected,access.destinations);
+            }
+        }
+    }
+
+    @Test public void aNewCameraHeadingUpdatesTheRouteIndependentlyOfTheHeldAim() {
+        EmptyAccess access=new EmptyAccess();access.occupied.add(new BlockPos(0,63,0));
+        NScaffoldPlanner planner=new NScaffoldPlanner(access);Vec3 feet=new Vec3(.5,64,.5);
+        for(float cameraYaw:new float[]{0,90,180,-90}) {
+            access.destinations.clear();
+            NScaffoldPlanner.Sample silent=new NScaffoldPlanner.Sample(feet,feet.addVector(0,1.62,0),
+                    90,75.7f,1,0,63,.65,NScaffoldPlanner.RotationStyle.STANDARD,false,75.7f,cameraYaw);
+            assertNull(planner.plan(silent,()->true));
+            BlockPos goal=new BlockPos(.5-Math.sin(Math.toRadians(cameraYaw))*.65,63,
+                    .5+Math.cos(Math.toRadians(cameraYaw))*.65);
+            assertEquals(1,access.destinations.size());assertTrue(access.destinations.contains(goal));
+        }
+    }
+
+    @Test public void postPhysicsRouteUsesCameraInputInsteadOfTheOppositeAcceptedAim() {
+        ScaffoldPlacementTest.Fixture f=new ScaffoldPlacementTest.Fixture();
+        f.world.cells.clear();f.world.block(new BlockPos(0,63,0));f.world.feet=new Vec3(.5,64,1.05);
+        NScaffoldPlanner planner=new NScaffoldPlanner(f.service);
+        NScaffoldPlanner.Sample outside=new NScaffoldPlanner.Sample(f.world.feet,f.world.eyes(),
+                0,0,1,0,63,.65,NScaffoldPlanner.RotationStyle.STANDARD,false,75.7f,0);
+        NScaffoldPlanner.Decision decision=planner.plan(outside,()->true);assertNotNull(decision);
+        assertEquals(new BlockPos(0,63,1),decision.target.getDestination());
+        assertEquals(180,Math.abs(decision.yaw),.001);
+        f.world.feet=new Vec3(.5,64,.95);
+        NScaffoldPlanner.Sample moved=new NScaffoldPlanner.Sample(f.world.feet,f.world.eyes(),
+                decision.yaw,decision.pitch,1,0,63,.65,NScaffoldPlanner.RotationStyle.STANDARD,false,75.7f,0);
+        assertTrue(planner.onRoute(decision.target,moved,()->true));
+    }
+
     @Test public void visibleTurnBudgetUsesTheShortPathAndRejectsNonfiniteInput() {
         float[] small=NScaffoldPlanner.turn(0,0,90,60,10);
         float[] large=NScaffoldPlanner.turn(0,0,90,60,100);

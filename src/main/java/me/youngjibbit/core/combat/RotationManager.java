@@ -264,10 +264,18 @@ public final class RotationManager {
         try {
             Pulsar.BUS.post(preparation);
             if (sequence != preparingSequence || !collecting || observation.getCurrentStep() != step) return;
+            Request requested = winner;
             resolve(preparation.motion());
             if (sequence != preparingSequence || !collecting || observation.getCurrentStep() != step) return;
-            MoveFixController.Mode mode = RotationCorrections.movementModeFor(winner == null ? null : winner.source);
+            if (requested != null && requested.guarded && winner != requested) return;
+            Request preparedRequest = winner;
+            MoveFixController.Mode mode = RotationCorrections.movementModeFor(preparedRequest == null ? null : preparedRequest.source);
             if (sequence != preparingSequence || !collecting || observation.getCurrentStep() != step) return;
+            if (preparedRequest != null && preparedRequest.guarded
+                    && !guardedRequestCurrent(preparedRequest, preparingSequence)) {
+                if (sequence == preparingSequence && winner == preparedRequest) winner = null;
+                return;
+            }
             movementFrame = new MovementFrame(observation, step, scene, pipeline, winner, preparation,
                     preparation.motion().getYaw(), preparation.motion().getPitch(), mode);
             if (!movementFrame.current()) { movementFrame = null; return; }
@@ -384,6 +392,28 @@ public final class RotationManager {
         offer(new Request(source,priority,yaw,pitch,false,0,0,()->true));
     }
 
+    /** Silent request whose caller retains its frame/lifecycle validity through acceptance. */
+    public void request(String source, int priority, float yaw, float pitch, BooleanSupplier valid) {
+        if (valid == null) return;
+        offer(new Request(source,priority,yaw,pitch,false,0,0,valid,true));
+    }
+
+    /** A callback cannot validate a replaced request, a new frame, or its own recursive check. */
+    private boolean guardedRequestCurrent(Request request, long motionSequence) {
+        if (!request.guarded) return true;
+        if (!collecting || sequence != motionSequence || winner != request
+                || request.guardRejected || request.checkingGuard) return false;
+        request.checkingGuard = true;
+        boolean allowed = false;
+        try {
+            allowed = request.valid.getAsBoolean();
+            return allowed && collecting && sequence == motionSequence && winner == request;
+        } finally {
+            request.checkingGuard = false;
+            if (!allowed) request.guardRejected = true;
+        }
+    }
+
     /** Mark an early Adaptive hold whose local movement stays in the camera input frame. */
     public boolean requestBridgeMovement(AdaptiveBridgePlanner.Scope scope,float yaw,float pitch) {
         if(Thread.currentThread()!=bridgeOwningThread || movementFrame!=null
@@ -471,6 +501,12 @@ public final class RotationManager {
         resolvedTicket = null;
         MovementFrame prepared = movementFrame;
         if (prepared != null && prepared.current()) {
+            Request preparedRequest = winner;
+            if (preparedRequest != null && preparedRequest == prepared.request && preparedRequest.guarded
+                    && !guardedRequestCurrent(preparedRequest, resolvingSequence)) {
+                if (sequence != resolvingSequence || movementFrame != prepared || !prepared.current()) return;
+                if (winner == preparedRequest) winner = null;
+            }
             BridgeFinalization bridge=bridgeFinalization;
             if(bridge!=null && bridge.movement==prepared && bridge.current()) {
                 event.setRotations(bridge.request.yaw,bridge.request.pitch);
@@ -494,8 +530,7 @@ public final class RotationManager {
             }
             event.setRotations(prepared.rotation.yaw, prepared.rotation.pitch);
             if (winner != null && ("aura".equals(winner.source) || "scaffold".equals(winner.source) || "nscaffold".equals(winner.source) || isReleaseSource(winner.source))) {
-                resolvedRequest = winner; resolvedFrame = new Object();
-                resolvedTicket = new ResolvedC03SendTicket(winner, resolvedFrame, Float.NaN, Float.NaN);
+                recordResolvedRequest(winner);
             }
             return;
         }
@@ -522,6 +557,11 @@ public final class RotationManager {
             else winner = visibleAssistStop.next();
         }
         if (winner==null) return;
+        Request selected = winner;
+        if (selected.guarded && !guardedRequestCurrent(selected, resolvingSequence)) {
+            if (sequence == resolvingSequence && winner == selected) winner = null;
+            return;
+        }
         if (winner.visible) {
             String confirmed=getConfirmedOwner();
             if (mc==null || mc.thePlayer==null || motionPlayer.get()!=mc.thePlayer || motionWorld.get()!=mc.theWorld
@@ -541,11 +581,19 @@ public final class RotationManager {
         }
         event.setRotations(winner.yaw,winner.pitch);
         if ("scaffold".equals(winner.source) || "nscaffold".equals(winner.source) || "aura".equals(winner.source) || isReleaseSource(winner.source)) {
-            resolvedRequest = winner;
-            resolvedFrame = new Object();
-            // Bind the resolve lifetime now; a later getter cannot rebind it to another tick/scene.
-            resolvedTicket = new ResolvedC03SendTicket(resolvedRequest, resolvedFrame, Float.NaN, Float.NaN);
+            recordResolvedRequest(winner);
         }
+    }
+
+    /** Bind the resolve lifetime now; scene callbacks cannot overwrite a newer guarded frame. */
+    private void recordResolvedRequest(Request request) {
+        final long motionSequence = sequence;
+        final Object frame = new Object();
+        resolvedRequest = request;
+        resolvedFrame = frame;
+        ResolvedC03SendTicket ticket = new ResolvedC03SendTicket(request, frame, Float.NaN, Float.NaN);
+        if (!request.guarded || collecting && sequence == motionSequence && winner == request
+                && resolvedRequest == request && resolvedFrame == frame) resolvedTicket = ticket;
     }
 
     /** Capture immediately after resolve, before constructing this frame's C03.
@@ -839,11 +887,15 @@ public final class RotationManager {
             if (!sameFrame() || !sameObjects() || observation == null || observation != RuntimeServices.observation()
                     || outerTick < 0 || observation.getActiveOuterTickId() != outerTick
                     || scene == null || !scene.isValid() || scene.isSuspended()) return false;
+            if (request.guarded && !guardedRequestCurrent(request, motionSequence)) return false;
             // Sampling maintains existing observer identity/generation bookkeeping, never action quota.
             SceneContext fresh = observation.captureScene();
             return fresh.isValid() && !fresh.isSuspended() && scene.sameSceneAs(fresh)
+                    && (!request.guarded || guardedRequestCurrent(request, motionSequence))
                     && sameFrame() && sameObjects() && observation == RuntimeServices.observation()
                     && observation.getActiveOuterTickId() == outerTick
+                    && (!request.guarded || observation.getObservedConnectionGeneration() == scene.getConnectionGeneration()
+                        && observation.getObservedSuspensionRevision() == suspensionRevision)
                     && (release == null || currentRotationRelease() == release)
                     && (bridge==null || bridge.current())
                     && (request.bridgeCandidate==null || bridgeCandidateCurrent(request.bridgeCandidate))
@@ -875,6 +927,15 @@ public final class RotationManager {
 
     public void finishMotion(float yaw, float pitch, boolean packetAccepted) {
         final long finishingSequence = sequence;
+        final Request finishingRequest = winner;
+        boolean requestCurrent = true;
+        if (packetAccepted && finishingRequest != null && finishingRequest.guarded) {
+            requestCurrent = guardedRequestCurrent(finishingRequest, finishingSequence);
+            if (sequence != finishingSequence || !collecting) return;
+            // A same-frame withdrawal cannot undo factual transport. Finish its
+            // numeric bookkeeping, but a replacement request did not send this pose.
+            requestCurrent &= winner == finishingRequest;
+        }
         final MovementFrame appliedMovement = movementFrame;
         movementFrame = null;
         bridgeCandidate=null;bridgeFinalization=null;
@@ -895,7 +956,7 @@ public final class RotationManager {
         hasEffective = true;
         effectiveYaw = yaw;
         effectivePitch = clamp(pitch, -90, 90);
-        owner = winner != null && Math.abs(MathHelper.wrapAngleTo180_float(winner.yaw - yaw)) < .001f
+        owner = requestCurrent && winner != null && Math.abs(MathHelper.wrapAngleTo180_float(winner.yaw - yaw)) < .001f
                 && Math.abs(winner.pitch - pitch) < .001f ? winner.source : null;
         if (rotationRelease != null && rotationRelease.releaseSource.equals(owner)) {
             rotationRelease.lastYaw = effectiveYaw;
@@ -1823,12 +1884,18 @@ public final class RotationManager {
         final boolean visible;
         final float cameraYaw,cameraPitch;
         final BooleanSupplier valid;
+        final boolean guarded;
+        boolean checkingGuard, guardRejected;
         BridgeMotionScope bridgeScope;
         BridgeRotationCandidate bridgeCandidate;
         VisibleAssistStop visibleStep;
         Request(String source,int priority,float yaw,float pitch,boolean visible,float cameraYaw,float cameraPitch,BooleanSupplier valid) {
+            this(source,priority,yaw,pitch,visible,cameraYaw,cameraPitch,valid,false);
+        }
+        Request(String source,int priority,float yaw,float pitch,boolean visible,float cameraYaw,float cameraPitch,
+                BooleanSupplier valid,boolean guarded) {
             this.source=source;this.priority=priority;this.yaw=yaw;this.pitch=pitch;
-            this.visible=visible;this.cameraYaw=cameraYaw;this.cameraPitch=cameraPitch;this.valid=valid;
+            this.visible=visible;this.cameraYaw=cameraYaw;this.cameraPitch=cameraPitch;this.valid=valid;this.guarded=guarded;
         }
     }
 }
