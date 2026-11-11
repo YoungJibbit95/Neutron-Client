@@ -116,7 +116,7 @@ public final class IslandCompactRenderCheck {
                 SessionInfoRenderCheck.require(glGetError()==GL_NO_ERROR,"Island target header GL error");
                 images.add(SessionInfoRenderCheck.capture());captions.add("Fixed logo / clock header · target reveal "+opening);
             }
-            SessionInfoRenderCheck.sheet("island-target-header-contour.png",captions,images);
+            SessionInfoRenderCheck.sheet("island-target-header-contour.png",captions,images,true);
             images.clear();captions.clear();
             IslandStateMachine.Scaffold observed=IslandObservations.scaffold(new ScaffoldActivitySnapshot(
                     1,100,1,0,33,"Adaptive Bridge","Godbridge",ScaffoldActivitySnapshot.Status.SEARCHING),100);

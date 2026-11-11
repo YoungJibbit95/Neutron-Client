@@ -35,6 +35,8 @@ public final class InventoryAssistOverlay {
             UIUtils.drawDecorationRound(x, y, w, h, 4, new java.awt.Color(0xEE151924, true));
             String title = compact ? preview.warning ? "Resync" : preview.waiting ? "Waiting" : "Auto " + preview.label
                     : preview.owner + " · " + preview.label;
+            if (compact && !preview.warning && !preview.waiting && font.getStringWidth(title) > w - 12)
+                title = preview.label;
             font.drawString(font.trimStringToWidth(title, w - 12), x + 6, y + (compact ? 2 : 4), 0xFFF0F3FF);
             if (!compact) font.drawString(font.trimStringToWidth(preview.waiting ? "Manual input remains available"
                     : "Mouse or keyboard input pauses assistance", w - 12), x + 6, y + 15, 0xFFADB4C8);

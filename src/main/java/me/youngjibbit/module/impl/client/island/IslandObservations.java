@@ -28,6 +28,8 @@ public final class IslandObservations {
             case PLACING:status="Placing";break;
             case EDGE_GUARD:status="Edge guard";break;
             case RECOVERING:status="Recovering";break;
+            case WAITING:status="Waiting";break;
+            case PAUSED:status="Paused";break;
             default:return null;
         }
         IslandStateMachine.Scaffold view=IslandStateMachine.Scaffold.observed(snapshot.getBlockCount(),

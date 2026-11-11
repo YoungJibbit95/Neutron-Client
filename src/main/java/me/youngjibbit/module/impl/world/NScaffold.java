@@ -1,6 +1,8 @@
 package me.youngjibbit.module.impl.world;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.core.activity.ActivityInventoryContext;
+import me.youngjibbit.core.activity.ScaffoldActivitySnapshot;
 import me.youngjibbit.core.bootstrap.RuntimeServices;
 import me.youngjibbit.core.combat.RotationManager;
 import me.youngjibbit.core.contract.AutomationEligibility.ModuleAction;
@@ -14,6 +16,7 @@ import me.youngjibbit.core.world.PlacementTarget;
 import me.youngjibbit.core.world.ScaffoldPlacementService;
 import me.youngjibbit.event.motion.EventMotion;
 import me.youngjibbit.event.motion.EventRotation;
+import me.youngjibbit.event.packet.EventPacket;
 import me.youngjibbit.event.packet.TickEvent;
 import me.youngjibbit.event.player.MovementInputEvent;
 import me.youngjibbit.event.world.WorldEvent;
@@ -33,6 +36,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.client.settings.GameSettings;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.network.play.server.S2DPacketOpenWindow;
+import net.minecraft.network.play.server.S2EPacketCloseWindow;
+import net.minecraft.network.play.server.S2FPacketSetSlot;
+import net.minecraft.network.play.server.S30PacketWindowItems;
 import net.minecraft.util.MathHelper;
 import net.minecraft.util.Vec3;
 
@@ -60,6 +69,22 @@ public final class NScaffold extends Module {
     private int height;
     private SceneContext observedViewScene;
     private float observedYaw,observedPitch;
+    private final java.util.function.LongSupplier activityClock=System::nanoTime;
+    private long activitySequence,activityRevision,activityPlacements;
+    private ActivityView activityView;
+
+    /** No retained entity/world/stack: the inventory guard uses weak identities and copied facts. */
+    private static final class ActivityView {
+        final ScaffoldActivitySnapshot snapshot;
+        final ActivityInventoryContext inventory;
+        final RuntimeObservation observation;
+        final long generation,connectionGeneration,suspensionRevision;
+        ActivityView(ScaffoldActivitySnapshot snapshot,ActivityInventoryContext inventory,
+                     RuntimeObservation observation,long generation,long connectionGeneration,long suspensionRevision) {
+            this.snapshot=snapshot;this.inventory=inventory;this.observation=observation;
+            this.generation=generation;this.connectionGeneration=connectionGeneration;this.suspensionRevision=suspensionRevision;
+        }
+    }
 
     private static final class Frame {
         final Minecraft client;
@@ -94,14 +119,80 @@ public final class NScaffold extends Module {
         godbridgePitch.setVisibility(module->"Godbridge".equals(mode.getValue()));
         enableSmartDisable();
     }
-    @Override public void onEnable(){invalidate(Status.WAITING);super.onEnable();}
+    @Override public void onEnable(){activityPlacements=0;invalidate(Status.WAITING);super.onEnable();}
     @Override public void onDisable(){try{invalidate(Status.OFF);}finally{super.onDisable();}}
     @Override public void onValueChange(){invalidate(isToggled()?Status.WAITING:Status.OFF);}
     public Status getStatus(){return status;}
 
+    /** Pure bounded cache validation: no scene sampling, inventory scan, planner, rotation or cache writes. */
+    public ScaffoldActivitySnapshot getActivitySnapshot() {
+        ActivityView view=activityView;
+        Minecraft client=Minecraft.getMinecraft();
+        ModuleManager modules=Pulsar.INSTANCE.getMm();
+        if(view==null || !isToggled() || generation!=view.generation || !basic(client)
+                || modules==null || modules.getModule(NScaffold.class)!=this
+                || RuntimeServices.observation()!=view.observation
+                || view.observation.getObservedConnectionGeneration()!=view.connectionGeneration
+                || view.observation.getObservedSuspensionRevision()!=view.suspensionRevision
+                || !view.snapshot.isFresh(activityClock.getAsLong()) || !view.inventory.isCurrent(client))return null;
+        return view==activityView && isToggled() && generation==view.generation
+                && modules==Pulsar.INSTANCE.getMm() && modules.getModule(NScaffold.class)==this
+                && Minecraft.getMinecraft()==client && RuntimeServices.observation()==view.observation
+                && view.observation.getObservedConnectionGeneration()==view.connectionGeneration
+                && view.observation.getObservedSuspensionRevision()==view.suspensionRevision ? view.snapshot:null;
+    }
+
+    private void clearActivity(){activityRevision++;activityView=null;}
+
+    /** Called only by existing producer updates, after their current status/action is known. */
+    private void publishActivity(Frame frame,long expectedGeneration) {
+        if(!activityCurrent(frame,expectedGeneration))return;
+        final long revision=activityRevision,placements=activityPlacements;
+        final long suspension=frame.observation.getObservedSuspensionRevision();
+        final Status observedStatus=status;
+        final long now=activityClock.getAsLong();
+        ActivityInventoryContext before=ActivityInventoryContext.capture(frame.client);
+        if(before==null || !activityCurrent(frame,expectedGeneration) || revision!=activityRevision)return;
+        int count=frame.placement.getBlockCount(),slot=frame.placement.getBlockSlot();
+        if(slot<0 || slot>=9)slot=-1;
+        ItemStack stack=slot<0?null:frame.player.inventory.getStackInSlot(slot);
+        int item=stack==null?-1:Math.max(-1,Item.getIdFromItem(stack.getItem()));
+        int metadata=stack==null?-1:Math.max(-1,stack.getMetadata());
+        ActivityInventoryContext captured=slot<0?ActivityInventoryContext.capture(frame.client)
+                :ActivityInventoryContext.capture(frame.client,36+slot);
+        if(captured==null || !before.sameScene(frame.client) || !activityCurrent(frame,expectedGeneration)
+                || revision!=activityRevision || placements!=activityPlacements || observedStatus!=status
+                || frame.observation.getObservedSuspensionRevision()!=suspension)return;
+        ScaffoldActivitySnapshot.Status visible;
+        switch(observedStatus) {
+            case SEARCHING:visible=ScaffoldActivitySnapshot.Status.SEARCHING;break;
+            case ALIGNING:visible=ScaffoldActivitySnapshot.Status.ALIGNING;break;
+            case BUILDING:visible=ScaffoldActivitySnapshot.Status.PLACING;break;
+            case WAITING:visible=ScaffoldActivitySnapshot.Status.WAITING;break;
+            case OFF:return;
+            default:visible=ScaffoldActivitySnapshot.Status.PAUSED;break;
+        }
+        count=Math.max(-1,count);
+        String profile=mode.getValue();
+        ActivityView previous=activityView;
+        if(previous==null || previous.snapshot.getPlacementCount()!=placements
+                || !previous.snapshot.hasSameFacts(item,metadata,count,"NScaffold",profile,visible))activitySequence++;
+        activityView=new ActivityView(new ScaffoldActivitySnapshot(activitySequence,now,item,metadata,count,
+                "NScaffold",profile,visible,placements),captured,frame.observation,expectedGeneration,
+                frame.scene.getConnectionGeneration(),suspension);
+    }
+
+    private boolean activityCurrent(Frame frame,long expectedGeneration) {
+        if(generation!=expectedGeneration || !frameObjectsCurrent(frame) || !basic(frame.client))return false;
+        return generation==expectedGeneration && frameObjectsCurrent(frame)
+                && frame.player.openContainer!=null && frame.player.openContainer==frame.player.inventoryContainer
+                && frame.observation.getObservedConnectionGeneration()==frame.scene.getConnectionGeneration();
+    }
+
     private void invalidate(Status next) {
         Frame previous=context;
         generation++;prepared=null;context=null;heightKnown=false;observedViewScene=null;
+        clearActivity();
         if(planner!=null)planner.reset();
         // An old callback never resets a replacement manager or another player/connection's owner.
         if(previous!=null && RuntimeServices.rotation()==previous.rotations
@@ -116,7 +207,10 @@ public final class NScaffold extends Module {
                 "Manual view":mode==null?"Visible":mode.getValue()+" / Visible";
     }
     private void stop(Frame frame,Status next) {
-        if(frame!=null && frame.generation==generation)invalidate(next);
+        if(frame!=null && frame.generation==generation) {
+            long nextGeneration=generation+1;
+            invalidate(next);publishActivity(frame,nextGeneration);
+        }
     }
     private void rememberView(Frame frame) {
         if(!identities(frame))return;
@@ -125,8 +219,11 @@ public final class NScaffold extends Module {
     private void pauseForManualView(Frame frame) {
         if(!identities(frame))return;
         SceneContext scene=frame.scene;float yaw=frame.player.rotationYaw,pitch=frame.player.rotationPitch;
+        long nextGeneration=generation+1;
         invalidate(Status.MANUAL_VIEW);
+        if(generation!=nextGeneration || !frameObjectsCurrent(frame))return;
         observedViewScene=scene;observedYaw=yaw;observedPitch=pitch;
+        publishActivity(frame,nextGeneration);
     }
     private static boolean differentView(float yaw,float pitch,float referenceYaw,float referencePitch) {
         return !Float.isFinite(yaw)||!Float.isFinite(pitch)
@@ -134,6 +231,11 @@ public final class NScaffold extends Module {
     }
 
     @Subscribe private final Listener<WorldEvent> worldChanged=new Listener<>(event->invalidate(isToggled()?Status.WAITING:Status.OFF));
+    @Subscribe private final Listener<EventPacket> activityPackets=new Listener<>(event->{
+        if(event.isPost() && event.isInbound() && (event.getPacket() instanceof S2FPacketSetSlot
+                || event.getPacket() instanceof S30PacketWindowItems || event.getPacket() instanceof S2DPacketOpenWindow
+                || event.getPacket() instanceof S2EPacketCloseWindow))clearActivity();
+    });
     @Subscribe private final Listener<TickEvent> contextTick=new Listener<>(event->{
         Frame previous=context;
         if(previous!=null && !sceneCurrent(previous))stop(previous,Status.WAITING);
@@ -186,17 +288,20 @@ public final class NScaffold extends Module {
         conflict=conflict(frame);
         if(conflict!=null){stop(frame,conflict);return;}
         if(decision==null) {
-            frame.rotations.reset(ROTATION_SOURCE);status=Status.SEARCHING;rememberView(frame);return;
+            frame.rotations.reset(ROTATION_SOURCE);status=Status.SEARCHING;rememberView(frame);
+            publishActivity(frame,frame.generation);return;
         }
         if(!autoSlot.getValue() && decision.target.getSlot()!=frame.player.inventory.currentItem) {
-            frame.rotations.reset(ROTATION_SOURCE);status=Status.WAITING;return;
+            frame.rotations.reset(ROTATION_SOURCE);status=Status.WAITING;publishActivity(frame,frame.generation);return;
         }
         frame.target=decision.target;prepared=frame;
         float[] pose=NScaffoldPlanner.turn(frame.yaw,frame.pitch,decision.yaw,decision.pitch,turnSpeed.getValue().floatValue());
         if(pose==null || !actionCurrent(frame)){stop(frame,Status.WAITING);return;}
         frame.rotations.requestVisible(ROTATION_SOURCE,ROTATION_PRIORITY,pose[0],pose[1],frame.yaw,frame.pitch,
                 ()->actionCurrent(frame));
-        if(stepCurrent(frame)) {status=Status.ALIGNING;info=mode.getValue()+" / Visible";}
+        if(stepCurrent(frame)) {
+            status=Status.ALIGNING;info=mode.getValue()+" / Visible";publishActivity(frame,frame.generation);
+        }
     }
 
     private void place(EventMotion event) {
@@ -216,13 +321,16 @@ public final class NScaffold extends Module {
         rememberView(frame);
         if(!planner.onRoute(frame.target,sample(frame,frame.player.rotationYaw,frame.player.rotationPitch),
                 ()->actionCurrent(frame)) || !actionCurrent(frame)) {
-            if(stepCurrent(frame)){prepared=null;frame.rotations.reset(ROTATION_SOURCE);status=Status.WAITING;}
+            if(stepCurrent(frame)){
+                prepared=null;frame.rotations.reset(ROTATION_SOURCE);status=Status.WAITING;
+                publishActivity(frame,frame.generation);
+            }
             else stop(frame,Status.WAITING);
             return;
         }
         PlacementTarget aligned=frame.placement.alignAcceptedHit(frame.target,frame.rotations,ROTATION_SOURCE);
         if(!actionCurrent(frame))return;
-        if(aligned==null){status=Status.ALIGNING;prepared=null;return;}
+        if(aligned==null){status=Status.ALIGNING;prepared=null;publishActivity(frame,frame.generation);return;}
         frame.placing=true;frame.placementX=frame.player.posX;frame.placementY=frame.player.posY;frame.placementZ=frame.player.posZ;
         boolean placed=frame.placement.placeWithAuthority(aligned,frame.rotations,false,frame.sequence,
                 delay.getValue().longValue(),false,swing.getValue(),false,ROTATION_SOURCE,
@@ -232,8 +340,9 @@ public final class NScaffold extends Module {
                 frame.rotations.getEffectiveYaw(),frame.rotations.getEffectivePitch())){pauseForManualView(frame);return;}
         prepared=null;
         if(!sceneCurrent(frame)){stop(frame,Status.WAITING);return;}
-        if(placed){planner.placed();status=Status.BUILDING;}
+        if(placed){planner.placed();status=Status.BUILDING;activityPlacements++;}
         else status=Status.ALIGNING;
+        publishActivity(frame,frame.generation);
     }
 
     private Frame capture() {
@@ -271,7 +380,10 @@ public final class NScaffold extends Module {
                 && client.thePlayer.sendQueue.getNetworkManager().isChannelOpen();
     }
     private boolean identities(Frame frame) {
-        return frame!=null && isToggled() && generation==frame.generation && Minecraft.getMinecraft()==frame.client
+        return frame!=null && generation==frame.generation && frameObjectsCurrent(frame);
+    }
+    private boolean frameObjectsCurrent(Frame frame) {
+        return frame!=null && isToggled() && Minecraft.getMinecraft()==frame.client
                 && frame.client.thePlayer==frame.player && frame.client.theWorld==frame.world
                 && Pulsar.INSTANCE.getMm()==frame.modules && frame.modules.getModule(NScaffold.class)==this
                 && RuntimeServices.rotation()==frame.rotations && RuntimeServices.observation()==frame.observation

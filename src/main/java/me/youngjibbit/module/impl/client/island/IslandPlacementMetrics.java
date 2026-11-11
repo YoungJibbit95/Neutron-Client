@@ -2,6 +2,7 @@ package me.youngjibbit.module.impl.client.island;
 
 /** A bounded measured placement rate and history. State transitions never count as clicks. */
 public final class IslandPlacementMetrics {
+    private static final Object LEGACY_PRODUCER=new Object();
     private static final long SECOND = 1_000_000_000L, SAMPLE = 125_000_000L;
     private static final int HISTORY = 16, CAPACITY = 128;
     private final long[] events = new long[CAPACITY];
@@ -9,6 +10,7 @@ public final class IslandPlacementMetrics {
     private int start, size;
     private long previousCount = -1, lastNow, lastSample;
     private boolean initialized;
+    private java.lang.ref.WeakReference<Object> producer=new java.lang.ref.WeakReference<>(null);
 
     public static final class Snapshot {
         public final int cps;
@@ -27,9 +29,20 @@ public final class IslandPlacementMetrics {
     }
 
     public Snapshot sample(long placements, long now) {
-        if (placements < 0) { reset(); return new Snapshot(0, false, history.clone()); }
-        if (!initialized || now < lastNow || placements < previousCount || now - lastNow > 600_000_000L) {
-            reset(); initialized = true; previousCount = placements; lastSample = now;
+        return sample(LEGACY_PRODUCER,placements,now);
+    }
+
+    /**
+     * Consecutive counts must belong to the same live producer identity, not just the same label.
+     * Absence and decreasing counts start a new baseline; completely unobserved toggle cycles
+     * cannot be inferred from a cumulative count and are not synthesized here.
+     */
+    public Snapshot sample(Object source,long placements,long now) {
+        if (source==null || placements < 0) { reset(); return new Snapshot(0, false, history.clone()); }
+        if (producer.get()!=source || !initialized || now < lastNow
+                || placements < previousCount || now - lastNow > 600_000_000L) {
+            reset(); producer=new java.lang.ref.WeakReference<>(source);
+            initialized = true; previousCount = placements; lastSample = now;
         }
         long change = Math.min(CAPACITY, placements - previousCount);
         for (int i = 0; i < change; i++) {
@@ -52,6 +65,7 @@ public final class IslandPlacementMetrics {
 
     public void reset() {
         start = size = 0; previousCount = -1; lastNow = lastSample = 0; initialized = false;
+        producer.clear();
         java.util.Arrays.fill(history, 0);
     }
 }

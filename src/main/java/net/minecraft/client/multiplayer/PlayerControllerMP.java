@@ -63,6 +63,10 @@ public class PlayerControllerMP
 
     /** Index of the current item held by the player in the inventory hotbar */
     private int currentPlayerItem;
+    /** Local callback identity for guarded mining; not a network sequence. */
+    private long miningRevision;
+    private boolean guardedMiningInProgress;
+    private boolean guardedMiningResetInProgress;
 
     public PlayerControllerMP(Minecraft mcIn, NetHandlerPlayClient p_i45062_2_)
     {
@@ -124,6 +128,7 @@ public class PlayerControllerMP
      */
     public boolean onPlayerDestroyBlock(BlockPos pos, EnumFacing side)
     {
+        miningRevision++;
         if (this.currentGameType.isAdventure())
         {
             if (this.currentGameType == WorldSettings.GameType.SPECTATOR)
@@ -202,6 +207,7 @@ public class PlayerControllerMP
      */
     public boolean clickBlock(BlockPos loc, EnumFacing face)
     {
+        miningRevision++;
         if (this.currentGameType.isAdventure())
         {
             if (this.currentGameType == WorldSettings.GameType.SPECTATOR)
@@ -278,6 +284,7 @@ public class PlayerControllerMP
      */
     public void resetBlockRemoving()
     {
+        miningRevision++;
         if (this.isHittingBlock)
         {
             this.netClientHandler.addToSendQueue(new C07PacketPlayerDigging(C07PacketPlayerDigging.Action.ABORT_DESTROY_BLOCK, this.currentBlock, EnumFacing.DOWN));
@@ -289,6 +296,7 @@ public class PlayerControllerMP
 
     public boolean onPlayerDamageBlock(BlockPos posBlock, EnumFacing directionFacing)
     {
+        miningRevision++;
         this.syncCurrentPlayItem();
 
         if (this.blockHitDelay > 0)
@@ -340,6 +348,241 @@ public class PlayerControllerMP
         else
         {
             return this.clickBlock(posBlock, directionFacing);
+        }
+    }
+
+    /**
+     * Normal mining for an automatic caller with an explicit block snapshot.
+     * Manual callers continue to use the unchanged two-argument flow above.
+     */
+    public boolean onPlayerDamageBlock(BlockPos pos,EnumFacing face,IBlockState expected,
+                                      java.util.function.BooleanSupplier validMining,
+                                      java.util.function.BooleanSupplier validLifecycle) {
+        if(validMining==null || validLifecycle==null)return false;
+        if(guardedMiningInProgress || guardedMiningResetInProgress || pos==null || face==null || expected==null)return false;
+        guardedMiningInProgress=true;
+        MiningContext context=new MiningContext(pos,face,expected,validMining,validLifecycle,++miningRevision);
+        boolean success=false;
+        try {
+            if(!context.target() || !syncCurrentPlayItemChecked(context::target) || !context.target())return false;
+            if(currentGameType==WorldSettings.GameType.SPECTATOR)return false;
+            boolean border=context.world.getWorldBorder().contains(pos);
+            if(!context.target() || !border)return false;
+            if(currentGameType.isAdventure() && !context.player.isAllowEdit()) {
+                ItemStack item=context.player.getHeldItem();
+                boolean allowed=item!=null && item.canDestroy(expected.getBlock());
+                if(!context.target() || !allowed)return false;
+            }
+            if(blockHitDelay>0){blockHitDelay--;return success=context.current();}
+            if(currentGameType.isCreative()) {
+                if(!sendMining(C07PacketPlayerDigging.Action.START_DESTROY_BLOCK,pos,face,context::target))return false;
+                boolean fire=context.world.extinguishFire(context.player,pos,face);
+                if(!context.current())return false;
+                success=fire || destroyGuarded(context);
+                if(success && context.current())blockHitDelay=5;
+                return success && context.current();
+            }
+            boolean same=isHittingBlock && isHittingPosition(pos);
+            if(!context.target())return false;
+            Block block=expected.getBlock();
+            if(block.getMaterial()==Material.air)return false;
+            if(same) {
+                float hardness=block.getPlayerRelativeBlockHardness(context.player,context.world,pos);
+                if(!context.target())return false;
+                curBlockDamageMP+=hardness;context.touched=true;
+                if(stepSoundTickCounter%4.0F==0.0F) {
+                    mc.getSoundHandler().playSound(new PositionedSoundRecord(new ResourceLocation(block.stepSound.getStepSound()),
+                            (block.stepSound.getVolume()+1.0F)/8.0F,block.stepSound.getFrequency()*.5F,
+                            pos.getX()+.5F,pos.getY()+.5F,pos.getZ()+.5F));
+                    if(!context.target())return false;
+                }
+                stepSoundTickCounter++;
+                if(curBlockDamageMP>=1.0F) {
+                    if(!stopMining(context,face))return false;
+                    if(!destroyGuarded(context) || !context.current())return false;
+                    isHittingBlock=false;curBlockDamageMP=0;stepSoundTickCounter=0;blockHitDelay=5;
+                }
+                context.world.sendBlockBreakProgress(context.player.getEntityId(),pos,(int)(curBlockDamageMP*10)-1);
+                return success=context.current();
+            }
+            // An automated caller must release its own old block separately.
+            // It cannot abort or inherit a manual operation at another block/tool.
+            if(isHittingBlock)return false;
+            if(!startMining(context,face))return false;
+            if(!context.target())return false;
+            if(curBlockDamageMP==0) {
+                block.onBlockClicked(context.world,pos,context.player);
+                if(!context.target())return false;
+            }
+            float hardness=block.getPlayerRelativeBlockHardness(context.player,context.world,pos);
+            if(!context.target())return false;
+            if(hardness>=1) {
+                return success=destroyGuarded(context);
+            }
+            isHittingBlock=true;currentBlock=pos;currentItemHittingBlock=context.held;
+            curBlockDamageMP=0;stepSoundTickCounter=0;context.touched=true;
+            context.world.sendBlockBreakProgress(context.player.getEntityId(),pos,-1);
+            return success=context.current();
+        } finally {
+            try {
+                if(!success && context.touched && context.objects() && context.revision==miningRevision && isMiningBlock(pos))
+                    resetBlockRemoving(pos,context.revision,context::lifecycleCurrent);
+            } finally { guardedMiningInProgress=false; }
+        }
+    }
+
+    /** Read-only: no mining progress or action is produced. */
+    public boolean isMiningBlock(BlockPos pos) {
+        return isHittingBlock && pos!=null && pos.equals(currentBlock);
+    }
+    public long getMiningRevision(){return miningRevision;}
+
+    /** Normal abort with lifetime checks around existing transport/world callbacks. */
+    public boolean resetBlockRemoving(java.util.function.BooleanSupplier validMining) {
+        if(validMining==null){resetBlockRemoving();return true;}
+        return resetBlockRemoving(currentBlock,miningRevision,validMining);
+    }
+
+    /** Release only the exact controller operation previously acquired by this caller. */
+    public boolean resetBlockRemoving(BlockPos ownedBlock,long ownedRevision,java.util.function.BooleanSupplier validMining) {
+        if(validMining==null || guardedMiningResetInProgress || miningRevision!=ownedRevision
+                || !isMiningBlock(ownedBlock))return false;
+        guardedMiningResetInProgress=true;
+        MiningContext context=new MiningContext(ownedBlock,EnumFacing.DOWN,null,validMining,validMining,ownedRevision);
+        try {
+            if(!context.current())return false;
+            context.revision=++miningRevision;
+            return sendMining(C07PacketPlayerDigging.Action.ABORT_DESTROY_BLOCK,ownedBlock,EnumFacing.DOWN,context::current);
+        } finally {
+            try {
+                // Cancellation or Disable cannot leave stale local damage behind.
+                // A reentrant manual action changes revision and always wins.
+                if(context.objects() && miningRevision==context.revision && isMiningBlock(ownedBlock)) {
+                    clearLocalMining();
+                    if(context.current())context.world.sendBlockBreakProgress(context.player.getEntityId(),ownedBlock,-1);
+                }
+            } finally { guardedMiningResetInProgress=false; }
+        }
+    }
+
+    /** World/session loss drops only owned local progress; no packet or old-world callback is replayed. */
+    public boolean discardBlockRemoving(BlockPos ownedBlock,long ownedRevision) {
+        if(miningRevision!=ownedRevision || !isMiningBlock(ownedBlock))return false;
+        miningRevision++;clearLocalMining();return true;
+    }
+
+    private void clearLocalMining() {
+        isHittingBlock=false;curBlockDamageMP=0;stepSoundTickCounter=0;currentItemHittingBlock=null;
+    }
+
+    private boolean sendMining(C07PacketPlayerDigging.Action action,BlockPos pos,EnumFacing face,
+                               java.util.function.BooleanSupplier current) {
+        if(!current.getAsBoolean())return false;
+        C07PacketPlayerDigging request=new C07PacketPlayerDigging(action,pos,face);
+        net.minecraft.network.Packet<?> accepted=netClientHandler.addToSendQueueTracked(request,
+                outgoing->outgoing==request && current.getAsBoolean());
+        return accepted==request && current.getAsBoolean();
+    }
+
+    private boolean startMining(MiningContext context,EnumFacing face) {
+        if(!context.target())return false;
+        C07PacketPlayerDigging request=new C07PacketPlayerDigging(C07PacketPlayerDigging.Action.START_DESTROY_BLOCK,context.pos,face);
+        net.minecraft.network.Packet<?> accepted=netClientHandler.addToSendQueueGuarded(request,context::target,outgoing->{
+            // Local ownership is visible before POST callbacks can disable the initiator.
+            if(outgoing==request && context.objects() && context.revision==miningRevision) {
+                currentBlock=context.pos;currentItemHittingBlock=context.held;isHittingBlock=true;
+                curBlockDamageMP=0;stepSoundTickCounter=0;context.touched=true;
+            }
+        });
+        return accepted==request && context.target();
+    }
+
+    private boolean stopMining(MiningContext context,EnumFacing face) {
+        if(!context.target())return false;
+        C07PacketPlayerDigging request=new C07PacketPlayerDigging(C07PacketPlayerDigging.Action.STOP_DESTROY_BLOCK,context.pos,face);
+        net.minecraft.network.Packet<?> accepted=netClientHandler.addToSendQueueGuarded(request,context::target,outgoing->{
+            if(outgoing==request && context.objects() && context.revision==miningRevision)clearLocalMining();
+        });
+        return accepted==request && context.target();
+    }
+
+    private boolean destroyGuarded(MiningContext context) {
+        if(!context.target())return false;
+        ItemStack held=context.player.getHeldItem();
+        if(currentGameType.isCreative() && held!=null && held.getItem() instanceof ItemSword)return false;
+        Block block=context.expected.getBlock();
+        context.world.playAuxSFX(2001,context.pos,Block.getStateId(context.expected));
+        if(!context.target())return false;
+        // Instant mining has no STOP phase. Clear before the destructive world callback,
+        // so a nested Disable or manual mining operation cannot inherit this progress.
+        if(context.revision==miningRevision && isMiningBlock(context.pos))clearLocalMining();
+        boolean removed=context.world.setBlockToAir(context.pos);
+        if(!context.current() || !removed)return false;
+        block.onBlockDestroyedByPlayer(context.world,context.pos,context.expected);
+        if(!context.current())return false;
+        currentBlock=new BlockPos(currentBlock.getX(),-1,currentBlock.getZ());
+        if(!currentGameType.isCreative() && held!=null) {
+            context.toolMutation=true;
+            held.onBlockDestroyed(context.world,block,context.pos,context.player);
+            if(!context.current())return false;
+            if(held.stackSize==0){context.toolConsumed=true;context.player.destroyCurrentEquippedItem();}
+        }
+        return context.current();
+    }
+
+    private final class MiningContext {
+        final EntityPlayerSP player=mc.thePlayer;
+        final WorldClient world=mc.theWorld;
+        final WorldSettings.GameType gameType=currentGameType;
+        final me.youngjibbit.core.network.PacketPipeline packets=netClientHandler.getNetworkManager().getClientPackets();
+        final long epoch=packets==null?-1:packets.getContextVersion();
+        final int slot=player==null || player.inventory==null?-1:player.inventory.currentItem;
+        final ItemStack held=player==null || player.inventory==null?null:player.inventory.getCurrentItem();
+        final ItemStack heldSnapshot=held==null?null:held.copy();
+        final BlockPos pos;final EnumFacing face;final IBlockState expected;
+        final java.util.function.BooleanSupplier valid,lifecycle;
+        long revision;boolean touched,toolMutation,toolConsumed;
+        MiningContext(BlockPos pos,EnumFacing face,IBlockState expected,java.util.function.BooleanSupplier valid,
+                      java.util.function.BooleanSupplier lifecycle,long revision) {
+            this.pos=pos;this.face=face;this.expected=expected;this.valid=valid;this.lifecycle=lifecycle;this.revision=revision;
+        }
+        boolean objects() {
+            return mc.playerController==PlayerControllerMP.this && player!=null && world!=null && mc.thePlayer==player
+                    && mc.theWorld==world && player.worldObj==world && player.sendQueue==netClientHandler
+                    && currentGameType==gameType && packets!=null && packets.isActive() && packets.getContextVersion()==epoch
+                    && netClientHandler.getNetworkManager().getClientPackets()==packets
+                    && netClientHandler.getNetworkManager().isChannelOpen() && player.inventory!=null;
+        }
+        boolean current() {
+            if(miningRevision!=revision || !lifecycleCurrent())return false;
+            boolean allowed=valid.getAsBoolean();
+            return allowed && lifecycleCurrent() && miningRevision==revision && objects()
+                    && (expected==null || player.inventory.currentItem==slot && sameHeld());
+        }
+        /** Cleanup may outlive action permission, but never the caller's scene/generation. */
+        boolean lifecycleCurrent() {
+            if(!objects())return false;
+            boolean allowed=lifecycle.getAsBoolean();
+            return allowed && objects();
+        }
+        boolean sameHeld() {
+            ItemStack actual=player.inventory.getCurrentItem();
+            return toolConsumed && actual==null || actual==held && (toolMutation || ItemStack.areItemStacksEqual(heldSnapshot,actual));
+        }
+        boolean target() {
+            if(!current())return false;
+            IBlockState actual=world.getBlockState(pos);
+            if(!current() || !java.util.Objects.equals(actual,expected))return false;
+            Vec3 eyes=player.getPositionEyes(1),look=player.getLook(1);
+            float reach=getBlockReachDistance();
+            if(!current() || !me.youngjibbit.core.world.BedBreakerPlanner.finite(eyes)
+                    || !me.youngjibbit.core.world.BedBreakerPlanner.finite(look)
+                    || !Float.isFinite(reach) || reach<=0 || reach>5)return false;
+            MovingObjectPosition hit=world.rayTraceBlocks(eyes,
+                    eyes.addVector(look.xCoord*reach,look.yCoord*reach,look.zCoord*reach),false,false,false);
+            if(!current() || !me.youngjibbit.core.world.BedBreakerPlanner.matches(hit,pos,eyes,reach) || hit.sideHit!=face)return false;
+            actual=world.getBlockState(pos);
+            return current() && java.util.Objects.equals(actual,expected);
         }
     }
 

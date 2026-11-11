@@ -75,7 +75,7 @@ final class ThemeLogoRenderCheck {
             }
             settings.reducedMotion.setValue(true);BufferedImage still=draw(renderer);advance(nanos,8);
             SessionInfoRenderCheck.require(differences(still,draw(renderer))==0,"Logo ignores reduced motion");
-            SessionInfoRenderCheck.sheet("island-logo-gradients.png",labels,images);
+            SessionInfoRenderCheck.sheet("island-logo-gradients.png",labels,images,true);
 
             Object oldProgram=SessionInfoRenderCheck.get(renderer,"shader");
             ((SimpleReloadableResourceManager)SessionInfoRenderCheck.mc.getResourceManager()).reloadResources(

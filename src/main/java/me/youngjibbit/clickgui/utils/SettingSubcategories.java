@@ -50,6 +50,7 @@ public final class SettingSubcategories {
         }
         if ("bedbreaker".equals(module)) {
             if (has(id,"aim","rotat","turn")) return "Aiming";
+            if ("swing".equals(id)) return "Interaction";
             return "Targets";
         }
         if ("targetesp".equals(module)) {

@@ -77,6 +77,29 @@ lokalen Annahme des zugehörigen tatsächlichen Bewegungswinkels und einer erneu
 Sichtlinienprüfung von der zuletzt gemeldeten Augenposition. Ein lokaler
 Controller-Erfolg ist keine Bestätigung des Servers.
 
+## Island-Status
+
+NScaffold liefert der Island einen unveränderlichen Aktivitäts-Snapshot mit dem
+beobachteten Blocktyp, dessen Metadaten, dem brauchbaren Hotbar-Blockvorrat und
+dem gewählten Rotationsmodus. **Searching**, **Aligning** und **Placing** stammen
+aus den jeweiligen Modulschritten; **Waiting** und **Paused** kennzeichnen
+Warten beziehungsweise eine bewusste Unterbrechung. Eine Pause wird damit nicht
+als neue Suche oder erfolgreiche Platzierung ausgegeben.
+
+Der Platzierungszähler wächst seit dem Einschalten ausschließlich nach einem
+lokal erfolgreichen Controller-Aufruf in der weiterhin gültigen Szene.
+Suchschritte, Drehungen, abgelehnte Versuche und doppelte POST-Ereignisse erhöhen
+ihn nicht. Er ist keine Bestätigung des Servers. Die Island kann daraus ihre
+Aktivitätsanzeige ableiten, ohne selbst auf den Builder zuzugreifen.
+
+`getActivitySnapshot()` prüft lediglich den gecachten Datensatz, seine maximale
+Lebensdauer von 600 ms sowie begrenzte Identitäts- und Inventarbedingungen. Der
+Getter verändert den Cache nicht und führt weder Inventarscan noch Zielsuche,
+Rotationsanforderung oder Controller-Aktion aus. Menüs, beobachtete
+Unterbrechungen und Welt-/Verbindungswechsel verwerfen die Darstellung alter
+Daten; eingehende Inventarkorrekturen löschen den Cache im Ereignispfad.
+Neue Daten entstehen ausschließlich in den vorhandenen Modulschritten.
+
 ## TargetESP
 
 Die Hitpoint-Auswahl **Active** berücksichtigt auch NScaffold. Die eigene Auswahl
@@ -120,7 +143,9 @@ Rotationsquelle, sichtbare Slotwahl und das gemeinsame Tickbudget.
 `NScaffoldFlowTest` prüft den echten Modulablauf mit synthetischer Welt- und
 Controllergrenze, einschließlich Konflikten, sichtbarer Bewegungsbasis,
 manuellen Kameradrehungen und Abbrüchen innerhalb der letzten Ray-Abfrage des
-Controller-Gates. Die TargetESP-Tests prüfen die unabhängige neue Quelle und
+Controller-Gates. Die Aktivitätsprüfungen behandeln erfolgreiche und abgelehnte
+Platzierungen, unveränderte Renderabfragen, ehrliche Pausen, Ablauf der
+Cache-Lebensdauer und Szenen-/Inventarkorrekturen. Die TargetESP-Tests prüfen die unabhängige neue Quelle und
 deren rein beobachtende Verarbeitung.
 
 Diese Fixtures ersetzen keine Spielprüfung mit realer Kollision und tatsächlicher

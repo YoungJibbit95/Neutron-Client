@@ -55,6 +55,8 @@ public final class InventoryAssistRenderCheck {
     }
     private static void require(boolean ok, String why) { SessionInfoRenderCheck.require(ok, why); }
     private static void resources(Minecraft mc, File out) throws Exception {
+        mc.getLanguageManager().onResourceManagerReload(mc.getResourceManager());
+        require("Crafting".equals(I18n.format("container.crafting")), "Real English inventory locale was not loaded");
         SessionInfoRenderCheck.set(mc, "mcResourcePackRepository", new ResourcePackRepository(new File(out, "packs"),
                 new File(out, "server-packs"), new DefaultResourcePack(Collections.emptyMap()), new IMetadataSerializer(), mc.gameSettings));
         TextureManager textures = new TextureManager(mc.getResourceManager()); SessionInfoRenderCheck.set(mc, "renderEngine", textures);
@@ -77,14 +79,16 @@ public final class InventoryAssistRenderCheck {
         player.worldObj = RotationBehaviorHookTest.bare(WorldClient.class);
         SessionInfoRenderCheck.set(player, "activePotionsMap", new HashMap<>());
         player.inventoryContainer = new ContainerPlayer(player.inventory, false, player); player.openContainer = player.inventoryContainer;
-        NoActions actions = new NoActions(mc); InventoryAssistSession session = new InventoryAssistSession("Stealer");
+        NoActions actions = new NoActions(mc); InventoryAssistSession session = null;
         try {
             mc.thePlayer = player; mc.theWorld = (WorldClient)player.worldObj; mc.playerController = actions;
             resources(mc, out); Theme.setDefaultTheme(Theme.SynthWave);
             GuiContainer last = null;
             for (int kind = 0; kind < 4; kind++) {
-                session.clear(); Arrays.fill(player.inventory.mainInventory, null);
+                if (session != null) session.clear();
+                Arrays.fill(player.inventory.mainInventory, null);
                 boolean playerInventory = kind == 2, compact = kind == 3;
+                session = new InventoryAssistSession(playerInventory ? "InvManager" : "Stealer");
                 int size = kind == 0 ? 27 : 54;
                 GuiContainer screen; int source, companion;
                 if (playerInventory) {
@@ -107,6 +111,7 @@ public final class InventoryAssistRenderCheck {
                 require(screen.inventoryAssistSlotVisible(source), "Source slot is not in the actual visible GUI");
                 require(!session.ready(mc, playerInventory ? "Swap" : "Transfer", source, 0, playerInventory ? 2 : 1, companion, 100, 300), "Unrendered proposal was ready");
                 InventoryAssistSession.Preview preview = screen.inventoryAssistPreview(); require(preview != null, "Preview was not installed");
+                require((playerInventory ? "InvManager" : "Stealer").equals(preview.owner), "Preview identifies the wrong module");
                 require(screen.inventoryAssistPresentedAt(preview.token) == Long.MIN_VALUE, "Update pretended to draw the preview");
                 for (int frame = 0; frame < 3; frame++) { SessionInfoRenderCheck.backdrop(); screen.drawScreen(-1, -1, 0); }
                 require(screen.inventoryAssistPresentedAt(preview.token) != Long.MIN_VALUE, "Real GuiContainer render omitted the overlay");
@@ -137,7 +142,7 @@ public final class InventoryAssistRenderCheck {
             report.addProperty("steady_program_creates", RenderDiagnostics.programCreates);
             System.out.println("PASS: visible inventory assistance, real 27/54/player slots, visible render acknowledgement, resize cancellation, compact layout, GL restoration, bounded resources, no input or inventory actions");
         } finally {
-            RenderDiagnostics.enabled = false; session.clear(); mc.currentScreen = oldScreen; mc.thePlayer = oldPlayer;
+            RenderDiagnostics.enabled = false; if (session != null) session.clear(); mc.currentScreen = oldScreen; mc.thePlayer = oldPlayer;
             mc.theWorld = oldWorld; mc.playerController = oldController; UiEffects.invalidate();
             Files.write(new File(out, "inventory-assist-report.json").toPath(), new GsonBuilder().setPrettyPrinting().create().toJson(report).getBytes(StandardCharsets.UTF_8));
         }

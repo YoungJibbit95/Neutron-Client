@@ -1,19 +1,31 @@
 package me.youngjibbit.core.world;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.core.activity.ScaffoldActivitySnapshot;
 import me.youngjibbit.core.bootstrap.ClientRuntime;
 import me.youngjibbit.core.combat.RotationBehaviorHookTest;
 import me.youngjibbit.core.combat.RotationManager;
 import me.youngjibbit.event.motion.EventMotion;
 import me.youngjibbit.event.motion.EventRotation;
+import me.youngjibbit.event.EventFlow;
+import me.youngjibbit.event.packet.EventPacket;
 import me.youngjibbit.event.player.MovementInputEvent;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.ModuleManager;
 import me.youngjibbit.module.impl.combat.Aura;
 import me.youngjibbit.module.impl.world.NScaffold;
 import me.zero.alpine.event.EventPhase;
+import net.minecraft.client.gui.GuiChat;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.settings.KeyBinding;
+import net.minecraft.entity.player.InventoryPlayer;
+import net.minecraft.entity.player.PlayerCapabilities;
+import net.minecraft.init.Blocks;
+import net.minecraft.init.Bootstrap;
+import net.minecraft.inventory.ContainerPlayer;
+import net.minecraft.item.Item;
+import net.minecraft.item.ItemStack;
+import net.minecraft.network.play.server.S2FPacketSetSlot;
 import net.minecraft.util.BlockPos;
 import net.minecraft.util.MovementInput;
 import net.minecraft.util.MovingObjectPosition;
@@ -21,6 +33,8 @@ import net.minecraft.util.Vec3;
 import org.junit.Test;
 import java.lang.reflect.Field;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 import static org.junit.Assert.*;
 
 /** Real module, visible rotation arbitration and placement service; synthetic world/controller boundary. */
@@ -30,11 +44,13 @@ public class NScaffoldFlowTest {
     }
     private static final class Run implements AutoCloseable {
         final RotationBehaviorHookTest.Fixture f=new RotationBehaviorHookTest.Fixture();
-        int lateRayCountdown;
+        int lateRayCountdown,rayReads,stackReads;
         Runnable afterLateRay=()->{};
         final ScaffoldPlacementTest.WorldAccess world=new ScaffoldPlacementTest.WorldAccess(){
             @Override public void selectSlot(int slot){super.selectSlot(slot);f.player.inventory.currentItem=slot;}
+            @Override public ItemStack stack(int slot){stackReads++;return super.stack(slot);}
             @Override public MovingObjectPosition rayTrace(Vec3 from,Vec3 to) {
+                rayReads++;
                 MovingObjectPosition result=super.rayTrace(from,to);
                 if(lateRayCountdown>0 && --lateRayCountdown==0)afterLateRay.run();
                 return result;
@@ -64,6 +80,17 @@ public class NScaffoldFlowTest {
             f.mc.gameSettings.keyBindAttack=RotationBehaviorHookTest.bare(KeyBinding.class);
             f.mc.gameSettings.mouseSensitivity=.5f;
             module.getNumberSetting("Turn Speed").setValue(180D);module.setToggled(true);
+        }
+        AtomicLong activity()throws Exception {
+            Bootstrap.register();
+            f.player.capabilities=new PlayerCapabilities();
+            world.inventory[3]=new ItemStack(Blocks.planks,64,2);
+            f.player.inventory.mainInventory[3]=world.inventory[3];
+            f.player.inventoryContainer=new ContainerPlayer(f.player.inventory,false,f.player);
+            f.player.openContainer=f.player.inventoryContainer;
+            AtomicLong clock=new AtomicLong(1_000_000_000L);
+            field(NScaffold.class,"activityClock").set(module,(LongSupplier)clock::get);
+            return clock;
         }
         void tick(){tick(true,()->{});}
         void tick(boolean accepted,Runnable afterResolve) {
@@ -260,6 +287,127 @@ public class NScaffoldFlowTest {
             assertEquals(2,r.world.clicks);assertEquals(2,r.world.swings);
             assertTrue(r.world.cells.containsKey(destination));
             assertEquals(NScaffold.Status.BUILDING,r.module.getStatus());
+        }
+    }
+
+    @Test public void activityCountsSuccessfulPlacementsAndReadingItNeverRunsTheBuilder()throws Exception {
+        try(Run r=new Run()) {
+            r.activity();r.world.success=false;r.tick();
+            ScaffoldActivitySnapshot failed=r.module.getActivitySnapshot();
+            assertNotNull(failed);assertEquals(0,failed.getPlacementCount());assertEquals(64,failed.getBlockCount());
+            assertEquals(ScaffoldActivitySnapshot.Status.ALIGNING,failed.getStatus());
+            assertEquals(1,r.world.clicks);assertEquals(0,r.world.swings);
+
+            r.world.success=true;r.tick();
+            ScaffoldActivitySnapshot placed=r.module.getActivitySnapshot();assertNotNull(placed);
+            assertEquals(1,placed.getPlacementCount());assertEquals(63,placed.getBlockCount());
+            assertEquals(Item.getIdFromItem(Item.getItemFromBlock(Blocks.planks)),placed.getItemId());
+            assertEquals(2,placed.getMetadata());assertEquals("NScaffold",placed.getApproach());
+            assertEquals("Standard",placed.getProfile());assertEquals(ScaffoldActivitySnapshot.Status.PLACING,placed.getStatus());
+            int reads=r.stackReads,rays=r.rayReads,slots=r.world.slots.size();
+            long motion=r.f.runtime.getRotationManager().getMotionSequence();
+            float yaw=r.f.player.rotationYaw,pitch=r.f.player.rotationPitch;
+            Object cache=field(NScaffold.class,"activityView").get(r.module);
+            for(int i=0;i<100;i++)assertSame(placed,r.module.getActivitySnapshot());
+            assertSame(cache,field(NScaffold.class,"activityView").get(r.module));
+            assertEquals(reads,r.stackReads);assertEquals(rays,r.rayReads);assertEquals(slots,r.world.slots.size());
+            assertEquals(2,r.world.clicks);assertEquals(1,r.world.swings);assertEquals(63,r.world.inventory[3].stackSize);
+            assertEquals(yaw,r.f.player.rotationYaw,0);assertEquals(pitch,r.f.player.rotationPitch,0);
+            assertEquals(motion,r.f.runtime.getRotationManager().getMotionSequence());
+            assertEquals("nscaffold",r.f.runtime.getRotationManager().getConfirmedOwner());
+        }
+    }
+
+    @Test public void activityPausesAndWaitingDoNotPretendToSearchOrPlace()throws Exception {
+        try(Run r=new Run()) {
+            r.activity();
+            field(KeyBinding.class,"pressed").setBoolean(r.f.mc.gameSettings.keyBindForward,true);
+            r.tick();ScaffoldActivitySnapshot paused=r.module.getActivitySnapshot();assertNotNull(paused);
+            assertEquals(ScaffoldActivitySnapshot.Status.PAUSED,paused.getStatus());assertEquals(0,paused.getPlacementCount());
+            assertEquals(64,paused.getBlockCount());assertEquals(0,r.world.clicks);
+            field(KeyBinding.class,"pressed").setBoolean(r.f.mc.gameSettings.keyBindForward,false);
+            r.module.getBooleanSetting("Auto Select Blocks").setValue(false);r.tick();
+            ScaffoldActivitySnapshot waiting=r.module.getActivitySnapshot();assertNotNull(waiting);
+            assertEquals(ScaffoldActivitySnapshot.Status.WAITING,waiting.getStatus());assertEquals(0,waiting.getPlacementCount());
+            assertEquals(0,r.world.clicks);assertTrue(r.world.slots.isEmpty());
+        }
+    }
+
+    @Test public void activityHeartbeatsRefreshTimeWithoutInventingProgressOrChangingFactSequence()throws Exception {
+        try(Run r=new Run()) {
+            AtomicLong clock=r.activity();r.tick();r.tick();
+            ScaffoldActivitySnapshot first=r.module.getActivitySnapshot();assertNotNull(first);
+            assertEquals(ScaffoldActivitySnapshot.Status.SEARCHING,first.getStatus());assertEquals(1,first.getPlacementCount());
+            clock.addAndGet(50_000_000L);r.tick();
+            ScaffoldActivitySnapshot second=r.module.getActivitySnapshot();assertNotNull(second);
+            assertNotSame(first,second);assertEquals(first.getSequence(),second.getSequence());
+            assertEquals(first.getPlacementCount(),second.getPlacementCount());assertEquals(1,r.world.clicks);
+            assertEquals(clock.get(),second.getObservedAtNanos());
+            Object cache=field(NScaffold.class,"activityView").get(r.module);
+            clock.addAndGet(ScaffoldActivitySnapshot.TTL_NANOS+1);
+            assertNull(r.module.getActivitySnapshot());assertSame(cache,field(NScaffold.class,"activityView").get(r.module));
+            r.tick();assertNotNull(r.module.getActivitySnapshot());assertEquals(1,r.world.clicks);
+        }
+    }
+
+    @Test public void activityRejectsMenuRoundTripsAndChangedConnectionOrWorldWithoutReaderMutation()throws Exception {
+        try(Run r=new Run()) {
+            r.activity();r.tick();assertNotNull(r.module.getActivitySnapshot());
+            Object cache=field(NScaffold.class,"activityView").get(r.module);
+            r.f.mc.currentScreen=RotationBehaviorHookTest.bare(GuiChat.class);
+            assertNull(r.module.getActivitySnapshot());assertSame(cache,field(NScaffold.class,"activityView").get(r.module));
+            r.f.runtime.getObservation().captureScene(); // The normal observer records entry into suspension.
+            r.f.mc.currentScreen=null;
+            assertNull("Closing a menu cannot revive a pre-suspension snapshot",r.module.getActivitySnapshot());
+            r.tick();assertNotNull(r.module.getActivitySnapshot());
+            r.f.mc.theWorld=RotationBehaviorHookTest.bare(net.minecraft.client.multiplayer.WorldClient.class);
+            assertNull(r.module.getActivitySnapshot());
+            r.f.runtime.getObservation().invalidateScene();r.f.mc.theWorld=r.f.world;
+            assertNull("A -> B -> A cannot revive the old connection generation",r.module.getActivitySnapshot());
+        }
+        try(Run r=new Run()) {
+            r.activity();r.tick();assertNotNull(r.module.getActivitySnapshot());
+            r.f.network.getClientPackets().worldChanged();assertNull(r.module.getActivitySnapshot());
+        }
+    }
+
+    @Test public void inventoryCorrectionsAndReentrantEnableCannotRepublishOldActivity()throws Exception {
+        try(Run r=new Run()) {
+            r.activity();r.tick();assertEquals(1,r.module.getActivitySnapshot().getPlacementCount());
+            EventPacket packet=new EventPacket(new S2FPacketSetSlot(0,39,r.world.inventory[3]),r.f.network.getClientPackets());
+            packet.setEventFlow(EventFlow.INBOUND);packet.setEventPhase(EventPhase.POST);Pulsar.BUS.post(packet);
+            assertNull(r.module.getActivitySnapshot());r.tick();
+            assertEquals(1,r.module.getActivitySnapshot().getPlacementCount());assertEquals(1,r.world.clicks);
+            r.world.cells.remove(new BlockPos(0,63,0));
+            r.world.onClick=()->{r.module.setToggled(false);r.module.setToggled(true);};r.tick();
+            assertEquals(1,r.world.clicks);assertNull(r.module.getActivitySnapshot());
+            r.world.onClick=()->{};r.tick();
+            assertEquals(2,r.world.clicks);assertEquals(1,r.module.getActivitySnapshot().getPlacementCount());
+        }
+    }
+
+    @Test public void reenableInsideThePublicationStackReadCannotPublishOrExecuteTheOldFrame()throws Exception {
+        try(Run r=new Run()) {
+            r.activity();final boolean[] armed={true},fired={false};
+            InventoryPlayer observed=new InventoryPlayer(r.f.player){
+                @Override public ItemStack getStackInSlot(int slot) {
+                    if(slot==3 && armed[0]) {
+                        armed[0]=false;fired[0]=true;
+                        r.module.setToggled(false);r.module.setToggled(true);
+                    }
+                    return super.getStackInSlot(slot);
+                }
+            };
+            observed.mainInventory[3]=r.world.inventory[3];r.f.player.inventory=observed;
+            r.f.player.inventoryContainer=new ContainerPlayer(observed,false,r.f.player);
+            r.f.player.openContainer=r.f.player.inventoryContainer;
+            r.tick();
+            assertTrue("The snapshot's original stack read must be exercised",fired[0]);
+            assertTrue(r.module.isToggled());assertNull(r.module.getActivitySnapshot());
+            assertEquals(NScaffold.Status.WAITING,r.module.getStatus());
+            assertEquals(0,r.world.clicks);assertEquals(0,r.world.swings);assertTrue(r.world.slots.isEmpty());
+            assertEquals(0,r.f.player.rotationYaw,0);assertEquals(0,r.f.player.rotationPitch,0);
+            r.tick();assertEquals(1,r.world.clicks);assertEquals(1,r.module.getActivitySnapshot().getPlacementCount());
         }
     }
 }

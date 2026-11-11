@@ -4,6 +4,37 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class IslandPlacementMetricsTest {
+    @Test public void switchingIndependentProducersBeginsANewBaselineWithoutCrossSourceClicks() {
+        IslandPlacementMetrics metrics=new IslandPlacementMetrics();Object a=new Object(),b=new Object();
+        assertEquals(0,metrics.sample(a,8,0).cps);
+        assertEquals(0,metrics.sample(b,64,125_000_000L).cps);
+        assertEquals(1,metrics.sample(b,65,250_000_000L).cps);
+        IslandPlacementMetrics.Snapshot returned=metrics.sample(a,8,375_000_000L);
+        assertEquals(0,returned.cps);assertTrue(returned.known);
+        for(int i=0;i<returned.samples();i++)assertEquals(0,returned.sample(i),0);
+        assertEquals(1,metrics.sample(a,9,500_000_000L).cps);
+    }
+    @Test public void sameProducerCounterResetAndObservedReenableDiscardThePreviousRunHistory() {
+        IslandPlacementMetrics metrics=new IslandPlacementMetrics();Object producer=new Object();
+        metrics.sample(producer,8,0);assertEquals(1,metrics.sample(producer,9,125_000_000L).cps);
+        IslandPlacementMetrics.Snapshot restarted=metrics.sample(producer,0,250_000_000L);
+        assertEquals(0,restarted.cps);
+        for(int i=0;i<restarted.samples();i++)assertEquals(0,restarted.sample(i),0);
+        assertEquals(1,metrics.sample(producer,1,375_000_000L).cps);
+        assertFalse(metrics.sample(null,-1,400_000_000L).known);
+        assertEquals(0,metrics.sample(producer,64,500_000_000L).cps);
+        assertEquals(1,metrics.sample(producer,65,625_000_000L).cps);
+        metrics.reset();assertEquals(0,metrics.sample(producer,90,750_000_000L).cps);
+    }
+    @Test public void equalDisplayLabelsCannotMergeReplacementProducerInstances() {
+        IslandPlacementMetrics metrics=new IslandPlacementMetrics();
+        Object first=new String("Scaffold"),replacement=new String("Scaffold");
+        assertEquals(first,replacement);assertNotSame(first,replacement);
+        metrics.sample(first,1,0);assertEquals(1,metrics.sample(first,2,125_000_000L).cps);
+        assertEquals(0,metrics.sample(replacement,100,250_000_000L).cps);
+        assertEquals(1,metrics.sample(replacement,101,375_000_000L).cps);
+        assertFalse(metrics.sample(null,101,500_000_000L).known);
+    }
     @Test public void measuredCpsCountsOnlyConfirmedDeltasAndNotRepeatedFrames() {
         IslandPlacementMetrics metrics=new IslandPlacementMetrics();
         assertEquals(0,metrics.sample(20,0).cps);

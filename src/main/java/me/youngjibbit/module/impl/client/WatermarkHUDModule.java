@@ -224,7 +224,10 @@ public class WatermarkHUDModule extends Module {
         if(!islandScaffold.getValue()||mc.theWorld==null||mc.thePlayer==null||Pulsar.INSTANCE.getMm()==null)return null;
         me.youngjibbit.module.impl.world.Scaffold scaffold=(me.youngjibbit.module.impl.world.Scaffold)
                 Pulsar.INSTANCE.getMm().getModule(me.youngjibbit.module.impl.world.Scaffold.class);
-        return scaffold==null||!scaffold.isToggled()?null:IslandObservations.scaffold(scaffold.getActivitySnapshot(),now);
+        if(scaffold!=null&&scaffold.isToggled())return IslandObservations.scaffold(scaffold.getActivitySnapshot(),now);
+        me.youngjibbit.module.impl.world.NScaffold nscaffold=(me.youngjibbit.module.impl.world.NScaffold)
+                Pulsar.INSTANCE.getMm().getModule(me.youngjibbit.module.impl.world.NScaffold.class);
+        return nscaffold==null||!nscaffold.isToggled()?null:IslandObservations.scaffold(nscaffold.getActivitySnapshot(),now);
     }
 
     private IslandStateMachine.InventoryActivity islandInventorySnapshot(long now){
@@ -299,8 +302,12 @@ public class WatermarkHUDModule extends Module {
         }
 
         IslandStateMachine.Scaffold scaffoldView=islandScaffoldSnapshot(now);
+        ModuleManager placementModules=Pulsar.INSTANCE.getMm();
+        Module placementProducer=scaffoldView==null||placementModules==null?null:placementModules.getModule(
+                "NScaffold".equals(scaffoldView.approach)?me.youngjibbit.module.impl.world.NScaffold.class
+                        :me.youngjibbit.module.impl.world.Scaffold.class);
         final IslandPlacementMetrics.Snapshot placementMetrics=islandPlacements.sample(
-                scaffoldView==null?-1:scaffoldView.placementCount,now);
+                placementProducer,scaffoldView==null?-1:scaffoldView.placementCount,now);
         NotificationManager.IslandNotification notification=canPresentIslandNotifications()
                 ?NotificationManager.islandNotification():null;
         IslandStateMachine.Selection selected=islandState.resolve(islandEpoch,System.nanoTime(),
