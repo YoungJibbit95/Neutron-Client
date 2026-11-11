@@ -1,5 +1,6 @@
 package net.minecraft.client.renderer;
 
+import me.youngjibbit.utils.render.RenderDiagnostics;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
@@ -680,6 +681,7 @@ public class GlStateManager
     public static void glDrawArrays(int p_glDrawArrays_0_, int p_glDrawArrays_1_, int p_glDrawArrays_2_)
     {
         GL11.glDrawArrays(p_glDrawArrays_0_, p_glDrawArrays_1_, p_glDrawArrays_2_);
+        if (RenderDiagnostics.enabled) RenderDiagnostics.drawSubmissions++;
 
         if (Config.isShaders() && !creatingDisplayList)
         {
@@ -691,6 +693,7 @@ public class GlStateManager
                 {
                     Shaders.uniform_instanceId.setValue(j);
                     GL11.glDrawArrays(p_glDrawArrays_0_, p_glDrawArrays_1_, p_glDrawArrays_2_);
+                    if (RenderDiagnostics.enabled) RenderDiagnostics.drawSubmissions++;
                 }
 
                 Shaders.uniform_instanceId.setValue(0);
@@ -701,6 +704,7 @@ public class GlStateManager
     public static void callList(int list)
     {
         GL11.glCallList(list);
+        if (RenderDiagnostics.enabled) RenderDiagnostics.drawSubmissions++;
 
         if (Config.isShaders() && !creatingDisplayList)
         {
@@ -712,6 +716,7 @@ public class GlStateManager
                 {
                     Shaders.uniform_instanceId.setValue(j);
                     GL11.glCallList(list);
+                    if (RenderDiagnostics.enabled) RenderDiagnostics.drawSubmissions++;
                 }
 
                 Shaders.uniform_instanceId.setValue(0);
@@ -722,6 +727,7 @@ public class GlStateManager
     public static void callLists(IntBuffer p_callLists_0_)
     {
         GL11.glCallLists(p_callLists_0_);
+        if (RenderDiagnostics.enabled) RenderDiagnostics.drawSubmissions++;
 
         if (Config.isShaders() && !creatingDisplayList)
         {
@@ -733,6 +739,7 @@ public class GlStateManager
                 {
                     Shaders.uniform_instanceId.setValue(j);
                     GL11.glCallLists(p_callLists_0_);
+                    if (RenderDiagnostics.enabled) RenderDiagnostics.drawSubmissions++;
                 }
 
                 Shaders.uniform_instanceId.setValue(0);
@@ -775,6 +782,7 @@ public class GlStateManager
     public static void glCopyTexSubImage2D(int p_glCopyTexSubImage2D_0_, int p_glCopyTexSubImage2D_1_, int p_glCopyTexSubImage2D_2_, int p_glCopyTexSubImage2D_3_, int p_glCopyTexSubImage2D_4_, int p_glCopyTexSubImage2D_5_, int p_glCopyTexSubImage2D_6_, int p_glCopyTexSubImage2D_7_)
     {
         GL11.glCopyTexSubImage2D(p_glCopyTexSubImage2D_0_, p_glCopyTexSubImage2D_1_, p_glCopyTexSubImage2D_2_, p_glCopyTexSubImage2D_3_, p_glCopyTexSubImage2D_4_, p_glCopyTexSubImage2D_5_, p_glCopyTexSubImage2D_6_, p_glCopyTexSubImage2D_7_);
+        if (RenderDiagnostics.enabled) RenderDiagnostics.sceneCopies++;
     }
 
     public static void glGetTexImage(int p_glGetTexImage_0_, int p_glGetTexImage_1_, int p_glGetTexImage_2_, int p_glGetTexImage_3_, IntBuffer p_glGetTexImage_4_)
@@ -951,6 +959,7 @@ public class GlStateManager
     public static void glMultiDrawArrays(int p_glMultiDrawArrays_0_, IntBuffer p_glMultiDrawArrays_1_, IntBuffer p_glMultiDrawArrays_2_)
     {
         GL14.glMultiDrawArrays(p_glMultiDrawArrays_0_, p_glMultiDrawArrays_1_, p_glMultiDrawArrays_2_);
+        if (RenderDiagnostics.enabled) RenderDiagnostics.drawSubmissions++;
 
         if (Config.isShaders() && !creatingDisplayList)
         {
@@ -962,6 +971,7 @@ public class GlStateManager
                 {
                     Shaders.uniform_instanceId.setValue(j);
                     GL14.glMultiDrawArrays(p_glMultiDrawArrays_0_, p_glMultiDrawArrays_1_, p_glMultiDrawArrays_2_);
+                    if (RenderDiagnostics.enabled) RenderDiagnostics.drawSubmissions++;
                 }
 
                 Shaders.uniform_instanceId.setValue(0);

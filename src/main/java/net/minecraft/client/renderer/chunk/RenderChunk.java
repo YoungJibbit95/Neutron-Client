@@ -44,7 +44,6 @@ import net.optifine.reflect.ReflectorForge;
 import net.optifine.render.AabbFrame;
 import net.optifine.render.RenderEnv;
 import net.optifine.shaders.SVertexBuilder;
-import me.youngjibbit.core.diagnostics.ChunkPipelineMetrics;
 
 public class RenderChunk
 {
@@ -361,7 +360,10 @@ public class RenderChunk
                     this.renderGlobal.func_181023_a(removed, added);
                 }
             }
-            generator.getCompiledChunk().setRenderTrace(generator.getTrace());
+            if (generator.getType() == ChunkCompileTaskGenerator.Type.REBUILD_CHUNK)
+                generator.getCompiledChunk().setRenderTrace(generator.getTrace());
+            else
+                generator.getCompiledChunk().setSortTrace(generator.getTrace());
             this.setCompiledChunk(generator.getCompiledChunk());
             generator.setStatus(ChunkCompileTaskGenerator.Status.DONE);
             return true;
@@ -404,8 +406,7 @@ public class RenderChunk
     /** Call only after an actual draw submission using this compiled revision. */
     public void onDrawSubmitted()
     {
-        ChunkPipelineMetrics.Trace trace = this.compiledChunk.getRenderTrace();
-        if (trace != null) trace.drawn();
+        this.compiledChunk.onDrawSubmitted();
     }
 
     protected void finishCompileTask()

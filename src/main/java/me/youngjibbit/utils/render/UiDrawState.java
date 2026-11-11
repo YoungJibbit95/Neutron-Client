@@ -2,6 +2,8 @@ package me.youngjibbit.utils.render;
 
 import java.nio.FloatBuffer;
 import net.minecraft.client.renderer.GlStateManager;
+import net.minecraft.client.renderer.OpenGlHelper;
+import net.optifine.shaders.Shaders;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL13;
 import org.lwjgl.opengl.GL14;
@@ -25,6 +27,8 @@ final class UiDrawState implements UiDrawScope {
     private final float alphaReference = glGetFloat(GL_ALPHA_TEST_REF);
     private final float red, green, blue, opacity;
     private final int texture0, texture2, texture3;
+    private final Shaders.ClientRenderState shaderState;
+    private boolean closed;
 
     static UiDrawScope capture(ShaderUtil shader) {
         // The public legacy fields can contain subclasses with arbitrary rendering callbacks.
@@ -43,11 +47,23 @@ final class UiDrawState implements UiDrawScope {
         GL13.glActiveTexture(GL13.GL_TEXTURE3); texture3 = glGetInteger(GL_TEXTURE_BINDING_2D);
         GL13.glActiveTexture(active);
         glPushAttrib(GL_ENABLE_BIT | GL_COLOR_BUFFER_BIT | GL_CURRENT_BIT | GL_TEXTURE_BIT);
+        shaderState = OpenGlHelper.shadersSupported ? Shaders.beginClientRender() : null;
     }
 
     @Override public void close() {
+        if (closed) return;
+        closed = true;
+        try {
+            restore();
+        } finally {
+            if (shaderState != null) shaderState.close();
+        }
+    }
+
+    private void restore() {
         // Switching away can finish deletion of an already deletion-pending caller program.
         glUseProgram(program == 0 || glIsProgram(program) ? program : 0);
+        if (RenderDiagnostics.enabled) RenderDiagnostics.programBinds++;
         glPopAttrib();
         // Match RenderState's setters: these also honor OptiFine locks and shader uniforms.
         if (blend) GlStateManager.enableBlend(); else GlStateManager.disableBlend();

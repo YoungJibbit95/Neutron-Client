@@ -14,6 +14,7 @@ final class RenderStateBuffers {
 
     // LWJGL's glGet overloads require capacity 16 even for four-component values.
     final IntBuffer scissor = BufferUtils.createIntBuffer(16);
+    final IntBuffer viewport = BufferUtils.createIntBuffer(16);
     final FloatBuffer projection = BufferUtils.createFloatBuffer(16);
     final FloatBuffer model = BufferUtils.createFloatBuffer(16);
     final FloatBuffer color = BufferUtils.createFloatBuffer(16);
@@ -29,6 +30,7 @@ final class RenderStateBuffers {
         RenderStateBuffers buffers = IDLE.get().pollFirst();
         if (buffers == null) return new RenderStateBuffers();
         buffers.scissor.clear();
+        buffers.viewport.clear();
         buffers.projection.clear();
         buffers.model.clear();
         buffers.color.clear();

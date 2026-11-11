@@ -1,5 +1,6 @@
 package net.minecraft.client.renderer;
 
+import me.youngjibbit.utils.render.RenderDiagnostics;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.FloatBuffer;
@@ -917,6 +918,7 @@ public class WorldRenderer
             int j = p_draw_1_ * 4;
             int k = i * 4;
             GL11.glDrawArrays(this.drawMode, j, k);
+            if (RenderDiagnostics.enabled) RenderDiagnostics.drawSubmissions++;
         }
     }
 

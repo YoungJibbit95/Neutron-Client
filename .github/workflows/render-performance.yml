@@ -5,11 +5,21 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'src/main/java/me/youngjibbit/utils/**'
+      - 'src/main/java/me/youngjibbit/core/diagnostics/**'
       - 'src/main/java/me/youngjibbit/theme/ThemeCatalog.java'
-      - 'src/main/java/net/minecraft/client/shader/Framebuffer.java'
+      - 'src/main/java/net/minecraft/client/Minecraft.java'
+      - 'src/main/java/net/minecraft/client/renderer/**'
+      - 'src/main/java/net/minecraft/client/shader/**'
+      - 'src/main/java/net/minecraft/client/network/NetHandlerPlayClient.java'
+      - 'src/main/java/net/minecraft/client/multiplayer/ChunkProviderClient.java'
+      - 'src/main/java/net/minecraft/src/Config.java'
+      - 'src/main/java/net/optifine/**'
       - 'src/main/resources/**'
+      - 'src/test/java/me/youngjibbit/core/diagnostics/**'
       - 'src/test/java/me/youngjibbit/module/impl/render/**'
       - 'src/test/java/me/youngjibbit/utils/font/**'
+      - 'src/test/java/net/minecraft/client/renderer/**'
+      - 'src/test/java/net/optifine/**'
       - '.github/scripts/*render_performance.py'
       - '.github/workflows/render-performance.yml'
   workflow_dispatch:

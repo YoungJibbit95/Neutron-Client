@@ -67,7 +67,7 @@ test_classpath="$repo_root/target/test-classes:$repo_root/target/classes:$depend
 collect_screenshots() (
   local name="$1" preview image destination
   shopt -s nullglob
-  for preview in gui-preview dropdown-preview arraylist-preview session-preview theme-preview settings-preview neutron-ui-preview shader-preview hud-preview armor-preview chat-preview trash-preview target-esp-preview; do
+  for preview in gui-preview dropdown-preview arraylist-preview session-preview theme-preview settings-preview neutron-ui-preview shader-preview hud-preview armor-preview chat-preview trash-preview target-esp-preview shader-world-overlay-preview; do
     for image in "$fixtures/$name/$preview/"*.png; do
       destination="$screenshots/$name/$preview"
       mkdir -p "$destination" && cp -- "$image" "$destination/" || return "$?"
@@ -208,9 +208,27 @@ suite_chat() {
   require_images chat chat-preview
 }
 
+suite_shader_bridge() {
+  run_check shader_bridge me.youngjibbit.utils.render.ShaderCompatibilityNativeCheck \
+    'PASS: actual GL programs/uniforms, MRT attachment isolation'
+}
+suite_world_bridge() {
+  run_check world_bridge me.youngjibbit.utils.render.ShaderWorldOverlayNativeCheck \
+    'PASS: actual per-eye final-pass flags, deferred world camera/eyes, late hand depth, direct alpha/additive final-color blending' &&
+  require_images world_bridge shader-world-overlay-preview
+}
+suite_gpu_queries() {
+  run_check gpu_queries me.youngjibbit.core.diagnostics.GpuPassTimingsNativeCheck \
+    'PASS: real asynchronous'
+}
+suite_performance_capture() {
+  run_check performance_capture me.youngjibbit.core.diagnostics.PerformanceCaptureNativeCheck \
+    'PASS: real GL capture orchestration, frame/CPU/GPU CSV join'
+}
+
 failed_suites=()
 suite_results=()
-for suite in panel dropdown arraylist session shader_modes target_esp trash chat; do
+for suite in panel dropdown arraylist session shader_modes target_esp trash chat shader_bridge world_bridge gpu_queries performance_capture; do
   suite_result=0
   "suite_$suite" 2>&1 | tee "$logs/$suite-suite.log" || suite_result=$?
   suite_results+=("$suite: exit $suite_result")
@@ -228,13 +246,14 @@ printf '%s\n' '::group::Native UI visual review copies'
 printf '%s\n' '::endgroup::'
 
 if (( ${#failed_suites[@]} != 0 )); then
-  printf 'FAIL: Native UI suites failed: %s. All eight suites were attempted; see each suite log.\n' \
+  printf 'FAIL: Native UI suites failed: %s. All twelve suites were attempted; see each suite log.\n' \
     "${failed_suites[*]}" | tee "$logs/summary.log"
   exit 1
 fi
 
 printf '%s\n' \
-  'PASS: Eight separate native JVMs completed with production shaders, FBO/readback and fixture diagnostics enabled.' \
+  'PASS: Twelve separate native JVMs completed with production shaders, FBO/readback and fixture diagnostics enabled.' \
   'Coverage: panel/subcategories, dropdown/library/config actions, Arraylist, compact TargetHUD/SessionInfo/ArmorHUD, compact Island/docking, animated chat/input/links/resize, Theme editor, Client settings, Library transitions, searchable Trash menu, TargetESP production halo/hitpoint and Flame/Neon/Lines ESP/UI contours.' \
-  'Not covered: game-world rendering, native Display/fullscreen/VSync, multiplayer or full client bootstrap.' \
+  'Additional coverage: shaderpack program/uniform/MRT boundaries, deferred world camera/private depth/final-color blend, asynchronous GPU query lifecycle, capture CSV/JSON/frame joins and settings/context abort.' \
+  'Not covered: actual external shaderpacks, game-world rendering, native Display/fullscreen/VSync, multiplayer or full client bootstrap.' \
   | tee "$logs/summary.log"

@@ -168,7 +168,7 @@ public class ChunkUploadGroupTest {
         boolean published;
         public FixtureChunk() { super(null, null, BlockPos.ORIGIN, 0); }
         @Override public void setNeedsUpdate(boolean value) { }
-        @Override public void setCompiledChunk(CompiledChunk compiled) { published = true; }
+        @Override public void setCompiledChunk(CompiledChunk compiled) { super.setCompiledChunk(compiled); published = true; }
     }
     private static <T> T bare(Class<T> type) throws Exception {
         Field field = sun.misc.Unsafe.class.getDeclaredField("theUnsafe"); field.setAccessible(true);

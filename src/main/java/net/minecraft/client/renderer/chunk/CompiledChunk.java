@@ -38,9 +38,27 @@ public class CompiledChunk
     private WorldRenderer.State state;
     private BitSet[] animatedSprites = new BitSet[RenderChunk.ENUM_WORLD_BLOCK_LAYERS.length];
     private volatile ChunkPipelineMetrics.Trace renderTrace;
+    private volatile ChunkPipelineMetrics.Trace sortTrace;
 
-    public void setRenderTrace(ChunkPipelineMetrics.Trace trace) { this.renderTrace = trace; }
+    /** Keep the geometry's rebuild trace until submission, even if it is resorted first. */
+    public void setRenderTrace(ChunkPipelineMetrics.Trace trace) {
+        if (this != DUMMY) this.renderTrace = trace;
+    }
     public ChunkPipelineMetrics.Trace getRenderTrace() { return this.renderTrace; }
+    public void setSortTrace(ChunkPipelineMetrics.Trace trace) {
+        if (this != DUMMY) this.sortTrace = trace;
+    }
+    public ChunkPipelineMetrics.Trace getSortTrace() { return this.sortTrace; }
+
+    /** Owner-thread publication and drawing cannot interleave; retain at most two traces. */
+    public void onDrawSubmitted() {
+        ChunkPipelineMetrics.Trace rebuild = this.renderTrace;
+        ChunkPipelineMetrics.Trace sort = this.sortTrace;
+        this.renderTrace = null;
+        this.sortTrace = null;
+        if (rebuild != null) rebuild.drawn();
+        if (sort != null && sort != rebuild) sort.drawn();
+    }
 
     public boolean isEmpty()
     {
