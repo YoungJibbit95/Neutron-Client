@@ -1,0 +1,18 @@
+DISPLAY=:97 LIBGL_ALWAYS_SOFTWARE=1 GALLIUM_DRIVER=llvmpipe LP_NUM_THREADS=2 -Djava.awt.headless=true
+Exception in thread "main" java.lang.ExceptionInInitializerError
+	at org.lwjgl.opengl.Pbuffer.createPbuffer(Pbuffer.java:234)
+	at org.lwjgl.opengl.Pbuffer.<init>(Pbuffer.java:219)
+	at org.lwjgl.opengl.Pbuffer.<init>(Pbuffer.java:190)
+	at me.youngjibbit.core.diagnostics.GpuPassTimingsNativeCheck.main(GpuPassTimingsNativeCheck.java:18)
+Caused by: java.lang.RuntimeException: org.lwjgl.LWJGLException: Could not open X display connection
+	at org.lwjgl.opengl.Display.<clinit>(Display.java:141)
+	... 4 more
+Caused by: org.lwjgl.LWJGLException: Could not open X display connection
+	at org.lwjgl.opengl.LinuxDisplay.openDisplay(Native Method)
+	at org.lwjgl.opengl.LinuxDisplay.incDisplay(LinuxDisplay.java:305)
+	at org.lwjgl.opengl.LinuxDisplay.internAtom(LinuxDisplay.java:629)
+	at org.lwjgl.opengl.LinuxDisplay.init(LinuxDisplay.java:734)
+	at org.lwjgl.opengl.Display.<clinit>(Display.java:138)
+	... 4 more
+
+exit=1

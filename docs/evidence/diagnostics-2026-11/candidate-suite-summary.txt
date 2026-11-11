@@ -1,0 +1,25 @@
+Verbatim failure-summary excerpt; full original was retained locally as evidence/candidate-tests.log.
+Original SHA-256: e13d72567d9282756c7446e6691e47efa7f5207493863d226299521b3352a28e
+Original lines 3879..3899
+
+[ERROR] Failures: 
+[ERROR]   JavaFxRuntimeTest.realJava8WebViewLoadsLocalHtmlAndJavascriptWithoutOpeningAWindow:26 Picked up JAVA_TOOL_OPTIONS: -Djava.io.tmpdir=/workspace/scratch/8e1b58fba226/toolchain/tmp -Djava.awt.headless=true
+java.io.IOException: The bundled sign-in window requires Windows x64 and Java 8.
+	at me.youngjibbit.account.JavaFxRuntime.load(JavaFxRuntime.java:23)
+	at me.youngjibbit.account.JavaFxRuntimeProbe.main(JavaFxRuntimeProbe.java:12)
+ expected:<0> but was:<1>
+[ERROR]   NetworkResearchHarnessTest.mainAcceptsValidUtf8FromProcessStdin:177 expected:<[]> but was:<[Picked up JAVA_TOOL_OPTIONS: -Djava.io.tmpdir=/workspace/scratch/8e1b58fba226/toolchain/tmp -Djava.awt.headless=true
+]>
+[ERROR]   NetworkResearchHarnessTest.mainRejectsMalformedUtf8OnStdinWithoutAReport:195 Picked up JAVA_TOOL_OPTIONS: -Djava.io.tmpdir=/workspace/scratch/8e1b58fba226/toolchain/tmp -Djava.awt.headless=true
+Research harness: recording at $: Input length = 1
+
+[ERROR]   SmartDisableLifecycleTest.deathAndWorldOptionsAreIndependent:91
+[ERROR]   SmartDisableLifecycleTest.deathStopsBeforeUpdateAndNeverAutomaticallyReenablesAfterRespawn:75
+[ERROR]   SmartDisableLifecycleTest.enablingInMenusAllowsFirstJoinButStopsOnTheNextWorld:135
+[ERROR]   SmartDisableLifecycleTest.nonClientThreadNotificationsDoNotMutateTheModule:174
+[ERROR]   SmartDisableLifecycleTest.onlyTheObservedConnectionEndStopsTheModule:147
+[ERROR]   SmartDisableLifecycleTest.unloadStopsExactlyOnceEvenWhenCleanupPublishesNestedEvents:105
+[ERROR]   SmartDisableLifecycleTest.worldAndPlayerIdentityChangesStopBeforeDirectRotationOrMotionEvents:120
+[ERROR]   FontAtlasMetricsTest.unicodeAndSupplementaryCharactersHaveVisibleAdvances:27
+[INFO] 
+[ERROR] Tests run: 2240, Failures: 11, Errors: 0, Skipped: 3
