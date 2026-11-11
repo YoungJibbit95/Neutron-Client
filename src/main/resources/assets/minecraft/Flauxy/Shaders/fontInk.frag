@@ -5,6 +5,7 @@ uniform sampler2D glyph;
 uniform vec4 first, second;
 uniform bool themed, haloTheme;
 uniform float haloStrength, haloRadius;
+uniform int inkPass; // 0: legacy combined, 1: all halos, 2: sharp ink over the complete halo layer
 
 float coverage(vec2 uv) {
     vec4 box=gl_TexCoord[1];
@@ -28,6 +29,7 @@ void main(){
     float chroma=max(gl_Color.r,max(gl_Color.g,gl_Color.b))-min(gl_Color.r,min(gl_Color.g,gl_Color.b));
     vec3 sharp=chroma>.08?gl_Color.rgb:gl_Color.rgb*palette.rgb;
     float alpha=ink*gl_Color.a*palette.a;
+    if(inkPass==2){gl_FragColor=vec4(sharp,alpha);return;}
     float halo=0.0;
     if(haloStrength>0.0){
         vec2 d=gl_TexCoord[2].st*haloRadius;
@@ -57,6 +59,7 @@ void main(){
         halo=effect.a*support*haloStrength*gl_Color.a*haloPalette.a*(1.0-ink);
         haloInk=effect.rgb;
     }
+    if(inkPass==1){gl_FragColor=vec4(haloInk,halo);return;}
     float outAlpha=alpha+halo*(1.0-alpha);
     gl_FragColor=vec4((sharp*alpha+haloInk*halo*(1.0-alpha))/max(outAlpha,.00001),outAlpha);
 }

@@ -7,6 +7,7 @@ import org.lwjgl.opengl.GL20;
 
 /**
  * One glyph-atlas shader for sharp text and its optional halo.
+ * Flame/Neon use a halo traversal followed by sharp ink with the same program.
  * No framebuffer, deferred draw, per-character program switch or additional blur pass.
  */
 public final class FontInk {
@@ -59,6 +60,7 @@ public final class FontInk {
         shader.setUniformi("themed",gradient?1:0);
         shader.setUniformf("haloStrength",0);
         shader.setUniformi("fxMode",0);
+        shader.setUniformi("inkPass",0);
         UiEffects.upload(shader,theme);
         color("first",theme.getPrimaryGradientRGB());
         color("second",theme.getSecondaryGradientRGB());
@@ -90,10 +92,15 @@ public final class FontInk {
         return own?previous:-1;
     }
 
+    /** Called between complete string meshes, never inside an atlas batch. */
+    public static void haloOnly(){shader.setUniformi("inkPass",1);}
+    public static void inkOnly(){shader.setUniformi("inkPass",2);}
+
     public static void end(int previous){
         if(previous<0)return;
         shader.setUniformf("haloStrength",0);
         shader.setUniformi("fxMode",0);
+        shader.setUniformi("inkPass",0);
         GL20.glUseProgram(previous);
     }
 

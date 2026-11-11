@@ -63,7 +63,7 @@ Frühere geometrische Einträge unter `gradient_method` werden beim Import norma
 
 Ein ausdrücklich gespeicherter gültiger `ui_glow_mode` hat Vorrang, unabhängig von der Schlüsselreihenfolge. Ein neuer `ui_glow_mode = Lines` ist ungültig. Die Auswahl von Lines in ESP, GlowESP oder Nametags bleibt davon unberührt. Beim nächsten Speichern werden die getrennten Schlüssel verwendet.
 
-Die UI-Anbindung nutzt vorhandene Glow-Flächen, Clipping und Textregeln. Feste semantische Farben werden weiter berücksichtigt. Der direkte `FontInk`-Pfad hält das Leuchten **kompakt im bestehenden Glyphenatlas**: begrenzte Abtastungen innerhalb der gepolsterten Glyphenzelle, eine kleine Effektweite und darüber die scharfe Schrift. Dafür entstehen keine zusätzlichen Text-FBOs oder Blur-Durchläufe. Bestehende `TextEffects`-Capture-Pfade behalten ihre eigene Renderkette; diese Aussage gilt nicht pauschal für sämtliche Text-Renderer.
+Die UI-Anbindung nutzt vorhandene Glow-Flächen, Clipping und Textregeln. Feste semantische Farben werden weiter berücksichtigt. Der direkte `FontInk`-Pfad hält das Leuchten **kompakt im bestehenden Glyphenatlas**: begrenzte Abtastungen innerhalb der gepolsterten Glyphenzelle, eine kleine Effektweite und darüber die scharfe Schrift. Dafür entstehen keine zusätzlichen Text-FBOs oder Blur-Durchläufe. Flame und Neon zeichnen zuerst die Halos des gesamten Schriftzugs und danach seine scharfen Glyphen im selben Programm; dadurch überdecken benachbarte Halos keine deckenden Textpixel. Standard-Text bleibt bei einem Durchlauf. Bestehende `TextEffects`-Capture-Pfade behalten ihre eigene Renderkette; diese Aussage gilt nicht pauschal für sämtliche Text-Renderer.
 
 ## Technischer Aufbau und Kostenmodell
 
