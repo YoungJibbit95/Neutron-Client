@@ -20,6 +20,7 @@ public final class TextEffects implements AutoCloseable {
     private final Framebuffer[] buffers=new Framebuffer[3];
     private int width,height;
     private float localPhase,lastLocalTime;
+    private final EffectMotion effectMotion=new EffectMotion();
     public void draw(TTFFontRenderer font,String text,float x,float y,int first,int second,int style,boolean animate,float speed,boolean glow,float strength,float radius,boolean shadow){
         if(text==null||text.isEmpty())return;
         float[] bounds=ScreenRect.project(x,y,font.getWidth(text),font.getHeight(text));
@@ -46,10 +47,12 @@ public final class TextEffects implements AutoCloseable {
             }
         }
         glow=glow&&UiEffects.glowEnabled()&&strength>0;strength=UiEffects.glowAlpha(strength);radius=localRadius?radius:UiEffects.glowRadius(radius);
+        boolean shapedGlow=glow&&ContourEffects.specialUi();
         float time=UiEffects.time();if(animate&&UiEffects.motion())localPhase=(localPhase+Math.max(0,time-lastLocalTime)*speed)%1;lastLocalTime=time;
         if(UiEffects.options().configured&&!UiEffects.options().gradients)style=0;
         Minecraft mc=Minecraft.getMinecraft();ScaledResolution sr=new ScaledResolution(mc);
         try(RenderState state=new RenderState()){
+            if(shapedGlow)GL14.glBlendEquation(GL14.GL_FUNC_ADD);
             ensure(mc.displayWidth,mc.displayHeight,glow);target(buffers[0]);
             // Retain the caller's model/projection for glyph capture, suppress only its clip and depth.
             capturing=true;
@@ -67,6 +70,14 @@ public final class TextEffects implements AutoCloseable {
             me.youngjibbit.utils.Theme globalTheme=me.youngjibbit.utils.Theme.resolve(me.youngjibbit.utils.Theme.getDefaultTheme());
             color(s,"globalFirst",globalTheme.getPrimaryGradientRGB());color(s,"globalSecond",globalTheme.getSecondaryGradientRGB());
             s.setUniformi("style",style);s.setUniformf("phase",animate?localPhase:-1);s.setUniformf("strength",glow?strength:0);
+            s.setUniformf("haloDistanceScale",Math.max(1,Math.min(120,Math.round(radius*sr.getScaleFactor()))));
+            if(shapedGlow){
+                String mode=ContourEffects.uiMode();float scale=sr.getScaleFactor();
+                effectMotion.sample(UiEffects.time(),(bounds[0]+bounds[2]*.5f)*scale,(bounds[1]+bounds[3]*.5f)*scale,
+                        bounds[2]*scale,bounds[3]*scale,mc.displayWidth,mc.displayHeight,"Flame".equals(mode)&&UiEffects.motion()&&UiEffects.options().ambient);
+                ContourEffects.upload(s,globalTheme,mode,scale,radius,bounds[0]*scale,bounds[1]*scale,bounds[2]*scale,bounds[3]*scale,
+                        effectMotion.flowX(),effectMotion.flowY(),effectMotion.energy());
+            }else{effectMotion.reset();s.setUniformi("fxMode",0);}
             ShaderUtil.drawQuads();s.unload();if(RenderDiagnostics.enabled)RenderDiagnostics.composites++;
         }
     }
@@ -78,6 +89,7 @@ public final class TextEffects implements AutoCloseable {
     private static void texture(int unit,int id){GlStateManager.setActiveTexture(GL13.GL_TEXTURE0+unit);GL13.glActiveTexture(GL13.GL_TEXTURE0+unit);GlStateManager.bindTexture(id);glBindTexture(GL_TEXTURE_2D,id);}
     private static void color(ShaderUtil s,String name,int rgb){s.setUniformf(name,(rgb>>16&255)/255f,(rgb>>8&255)/255f,(rgb&255)/255f,(rgb>>>24)/255f);}
     @Override public void close(){
+        effectMotion.reset();
         if(buffers[0]==null&&buffers[1]==null&&buffers[2]==null)return;
         try(RenderState state=new RenderState()){for(int i=0;i<3;i++)if(buffers[i]!=null){buffers[i].deleteFramebuffer();buffers[i]=null;}}
     }

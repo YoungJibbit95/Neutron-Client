@@ -1,48 +1,48 @@
 package me.youngjibbit.utils.render;
 
-import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.utils.Theme;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GlStateManager;
+import org.lwjgl.opengl.GL14;
 import static org.lwjgl.opengl.GL11.*;
 
-/** Shared effect uniforms and procedural outlines; no per-entity framebuffer allocation. */
+/** Analytic outlines use the same contour lighting as silhouette and UI compositors. */
 public final class EspEffectStyle {
-    public static void upload(ShaderUtil shader, Theme theme, String mode, boolean useTheme, float intensity) {
-        ClientSettings settings=ClientSettings.current();
-        float rate=.18f, detail=.5f, segments=4f, strength=1f;
-        if(settings!=null){
-            if("Flame".equals(mode)){rate=settings.flameSpeed.getValue().floatValue();detail=settings.flameHeight.getValue().floatValue();}
-            else if("Neon".equals(mode)){detail=settings.neonCore.getValue().floatValue();strength=settings.neonGlow.getValue().floatValue();}
-            else if("Lines".equals(mode)){segments=settings.lineSegments.getValue().floatValue();detail=settings.lineTrail.getValue().floatValue();}
-        }
-        shader.setUniformf("phase",UiEffects.time()*rate);
-        shader.setUniformf("speed",segments);
-        shader.setUniformf("param2",detail);
-        shader.setUniformf("intensity",Math.max(0,intensity*strength));
-        shader.setUniformi("useTheme",useTheme?1:0);
-        palette(shader,"primaryColor",theme.getPrimaryGradientRGB());
-        palette(shader,"secondaryColor",theme.getSecondaryGradientRGB());
-    }
-
-    public static void drawRectangle(ShaderUtil shader, Theme theme, String mode,
-                                     float x,float y,float width,float height,int primary,int secondary) {
-        if(width<=0||height<=0)return;
-        try(RenderState state=new RenderState()){
-            GlStateManager.enableBlend();
-            glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-            shader.init();
-            try{
-                upload(shader,theme,mode,true,1);
-                shader.setUniformi("rectangleMask",1);
-                shader.setUniformf("rectSize",width,height);
-                palette(shader,"primaryColor",primary);
-                palette(shader,"secondaryColor",secondary);
-                ShaderUtil.drawQuads(x,y,width,height);
-            }finally{shader.unload();}
-        }
-    }
-    private static void palette(ShaderUtil shader,String uniform,int rgb){
-        shader.setUniformf(uniform,((rgb>>16)&255)/255f,((rgb>>8)&255)/255f,(rgb&255)/255f);
-    }
     private EspEffectStyle() { }
+    public static void upload(ShaderUtil shader,Theme theme,String mode,boolean useTheme,float intensity) {
+        Minecraft mc=Minecraft.getMinecraft();float scale=GuiResolution.current().getScaleFactor();
+        ContourEffects.upload(shader,theme,mode,scale,ContourEffects.extent(),0,0,mc.displayWidth,mc.displayHeight,0,0,0);
+        shader.setUniformi("useTheme",useTheme?1:0);
+        shader.setUniformf("effectOpacity",Math.max(0,intensity));
+    }
+    public static void drawRectangle(ShaderUtil shader,Theme theme,String mode,float x,float y,float width,float height,int primary,int secondary) {
+        drawRectangle(shader,theme,mode,x,y,width,height,primary,secondary,0,0,0);
+    }
+    public static void drawRectangle(ShaderUtil shader,Theme theme,String mode,float x,float y,float width,float height,
+                                     int primary,int secondary,float motionX,float motionY,float energy) {
+        if(shader==null||width<=0||height<=0||!Float.isFinite(x+y+width+height))return;
+        // ESP and Nametags already supply untransformed overlay coordinates.
+        // Re-projecting here repeats matrix readbacks for every visible entity.
+        float scale=GuiResolution.current().getScaleFactor();
+        float pxX=x*scale,pxY=y*scale,pxW=width*scale,pxH=height*scale;
+        float extent=ContourEffects.extent(),padding=ContourEffects.padding(mode,extent);
+        Minecraft mc=Minecraft.getMinecraft();
+        try(RenderState state=new RenderState()) {
+            state.screenSpace();state.bindTarget();state.restoreClip();
+            GlStateManager.enableBlend();glEnable(GL_BLEND);GlStateManager.disableAlpha();glDisable(GL_ALPHA_TEST);
+            GlStateManager.disableDepth();glDisable(GL_DEPTH_TEST);glDisable(GL_CULL_FACE);glDepthMask(false);
+            glColorMask(true,true,true,true);GL14.glBlendEquation(GL14.GL_FUNC_ADD);
+            GL14.glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);
+            shader.init();
+            try {
+                ContourEffects.upload(shader,theme,mode,scale,extent,pxX,pxY,pxW,pxH,motionX,motionY,energy);
+                ContourEffects.palette(shader,"fxPrimary",primary);ContourEffects.palette(shader,"fxSecondary",secondary);
+                shader.setUniformf("effectResolution",mc.displayWidth,mc.displayHeight);
+                shader.setUniformf("effectRect",pxX,pxY,pxW,pxH);
+                shader.setUniformf("effectRadius",Math.min(2*scale,Math.min(pxW,pxH)*.5f));
+                shader.setUniformf("effectOpacity",1);
+                ShaderUtil.drawQuads(x-padding,y-padding,width+padding*2,height+padding*2);
+            } finally {shader.unload();}
+        }
+    }
 }

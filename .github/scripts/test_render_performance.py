@@ -7,6 +7,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import os
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
@@ -31,6 +32,78 @@ def report(value=1):
 
 
 class RenderPerformanceEvidenceTest(unittest.TestCase):
+    @staticmethod
+    def resource_pom(root, extra=""):
+        (root / "pom.xml").write_text('''<project xmlns="http://maven.apache.org/POM/4.0.0"><build><resources>
+          <resource><directory>src/main/resources</directory></resource>
+          <resource><directory>src/main/resources/assets/minecraft/Flauxy/Shaders</directory>
+            <targetPath>assets/minecraft/Tenacity/Shaders</targetPath>
+            <includes><include>gradient.frag</include></includes></resource>
+          ''' + extra + '</resources></build></project>')
+
+    def test_baseline_resources_keep_original_shaders_and_no_current_fallback(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            self.resource_pom(root)
+            shared = "src/main/resources/fonts/Shared Font Ω.ttf"
+            changed = "src/main/resources/assets/minecraft/Flauxy/Shaders/gradient.frag"
+            deleted = "src/main/resources/old-only.frag"
+            added = "src/main/resources/new-only.frag"
+            for path, content in ((shared, b"shared-font"), (changed, b"current-shader"), (added, b"new-only")):
+                item = root / path; item.parent.mkdir(parents=True, exist_ok=True); item.write_bytes(content)
+            original = {changed: b"original-shader", deleted: b"original-deleted-shader"}
+            with patch.object(checks, "ROOT", root), patch.object(checks, "tracked_paths", return_value=[shared, changed, deleted]), \
+                    patch.object(checks, "git", return_value="\0".join((changed, deleted, added))), \
+                    patch.object(checks, "repository_file", side_effect=lambda _base, path: original[path]) as read:
+                view, manifest = checks.baseline_resources("a" * 40)
+                self.assertTrue((view / "fonts/Shared Font Ω.ttf").is_symlink())
+                self.assertEqual(b"shared-font", (view / "fonts/Shared Font Ω.ttf").read_bytes())
+                self.assertEqual(b"original-shader", (view / "assets/minecraft/Flauxy/Shaders/gradient.frag").read_bytes())
+                self.assertEqual(b"original-shader", (view / "assets/minecraft/Tenacity/Shaders/gradient.frag").read_bytes())
+                self.assertEqual(b"original-deleted-shader", (view / "old-only.frag").read_bytes())
+                self.assertFalse((view / "new-only.frag").exists())
+                self.assertEqual(2, read.call_count)
+                self.assertEqual(3, manifest["tracked_resource_count"])
+                self.assertEqual(1, manifest["linked_unchanged_count"])
+                self.assertEqual(2, len(manifest["materialized_original_resources"]))
+                self.assertFalse(manifest["current_classes_fallback"])
+                baseline = checks.revision_classpath(root / "baseline-classes", view, "dependency.jar", "baseline")
+                current = checks.revision_classpath(root / "baseline-classes", view, "dependency.jar", "current")
+                self.assertNotIn(str(root / "target/classes"), baseline.split(os.pathsep))
+                self.assertIn(str(root / "target/test-classes"), baseline.split(os.pathsep))
+                self.assertIn(str(root / "target/classes"), current.split(os.pathsep))
+                self.assertEqual(str(root / "target/test-classes"), current.split(os.pathsep)[0])
+                self.assertEqual(str(root / "target/test-classes"), baseline.split(os.pathsep)[1])
+                with self.assertRaises(RuntimeError):
+                    checks.baseline_resources("a" * 40)
+
+    def test_resource_reconstruction_rejects_unimplemented_build_semantics(self):
+        extras = [
+            '<resource><directory>src/main/resources</directory><filtering>true</filtering></resource>',
+            '<resource><directory>src/main/resources</directory><includes><include>**/*.frag</include></includes></resource>',
+            '<resource><directory>../outside</directory></resource>',
+            '<resource><directory>src/main/resources</directory><targetPath>../outside</targetPath></resource>',
+        ]
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            with patch.object(checks, "ROOT", root):
+                for extra in extras:
+                    self.resource_pom(root, extra)
+                    with self.assertRaises(RuntimeError):
+                        checks.resource_rules()
+
+    def test_dependency_or_build_change_still_blocks_baseline_comparison(self):
+        for changed in ("pom.xml", "src/build/javafx8.xml"):
+            with tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                def git(*arguments):
+                    return changed if arguments[-1] == "src/build" else ""
+                with patch.object(checks, "ROOT", root), patch.object(checks, "git", side_effect=git), \
+                        patch.object(checks, "run") as execute:
+                    with self.assertRaisesRegex(RuntimeError, "unchanged dependencies/build rules"):
+                        checks.baseline_classes("a" * 40, "dependency.jar", root / "output", root / "javac")
+                    execute.assert_not_called()
+
     def test_baseline_requires_full_nonzero_sha(self):
         self.assertEqual("a" * 40, checks.validate_sha("A" * 40))
         for value in ("main", "abc123", "0" * 40, "a" * 40 + "; command"):

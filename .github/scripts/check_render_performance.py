@@ -16,6 +16,7 @@ import subprocess
 import statistics
 import sys
 import time
+import xml.etree.ElementTree as ET
 from urllib.request import urlopen
 import zipfile
 import io
@@ -89,9 +90,9 @@ def baseline_classes(base, dependency_classpath, output, javac):
     classes.mkdir(parents=True, exist_ok=True)
     paths = [p for p in git("ls-tree", "-r", "--name-only", base, "--", "src/main/java").splitlines() if p.endswith(".java")]
     changed = set(git("diff", "--name-only", base, "HEAD", "--", "src/main/java").splitlines())
-    unsupported = git("diff", "--name-only", base, "HEAD", "--", "pom.xml", "src/build", "src/main/resources")
+    unsupported = git("diff", "--name-only", base, "HEAD", "--", "pom.xml", "src/build")
     if unsupported:
-        raise RuntimeError("Source-only comparison requires unchanged dependencies/resources: " + unsupported)
+        raise RuntimeError("Native comparison requires unchanged dependencies/build rules: " + unsupported)
     sources, materialized = [], []
     for path in paths:
         source = ROOT / path
@@ -106,6 +107,107 @@ def baseline_classes(base, dependency_classpath, output, javac):
     argument_file.write_text("\n".join('"' + arg.replace("\\", "\\\\").replace('"', '\\"') + '"' for arg in arguments), encoding="utf-8")
     run([javac, "-J-Xmx2g", "@" + str(argument_file)], output / "compile-baseline.log")
     return classes, materialized, len(sources)
+
+
+def tracked_paths(base, prefix):
+    # NUL delimiters retain spaces and non-ASCII resource names without git quoting.
+    return [path for path in subprocess.check_output(
+        ["git", "ls-tree", "-rz", "--name-only", base, "--", prefix], cwd=ROOT
+    ).decode("utf-8").split("\0") if path]
+
+
+def repository_file(base, path):
+    return subprocess.check_output(["git", "show", base + ":" + path], cwd=ROOT)
+
+
+def resource_rules():
+    """Read the project's unfiltered Maven resources, including its shader aliases.
+
+    Filtering or wildcard aliases need an explicit implementation before they can
+    be compared. Silently using the current build output would contaminate BASE.
+    """
+    ns = {"m": "http://maven.apache.org/POM/4.0.0"}
+    rules = []
+    for resource in ET.parse(ROOT / "pom.xml").getroot().findall("m:build/m:resources/m:resource", ns):
+        directory = resource.findtext("m:directory", default="", namespaces=ns)
+        target = resource.findtext("m:targetPath", default="", namespaces=ns)
+        includes = [node.text or "" for node in resource.findall("m:includes/m:include", ns)]
+        if (resource.findtext("m:filtering", default="false", namespaces=ns) != "false"
+                or resource.find("m:excludes", ns) is not None
+                or any(any(mark in name for mark in ("*", "?", "[")) for name in includes)):
+            raise RuntimeError("Unsupported filtered/wildcard Maven resource rule; implement it before comparing")
+        if (not directory.startswith("src/main/resources") or "${" in directory + target
+                or Path(directory).is_absolute() or Path(target).is_absolute()
+                or ".." in Path(directory).parts or ".." in Path(target).parts):
+            raise RuntimeError("Unsupported Maven resource directory/target: " + directory)
+        rules.append((Path(directory), Path(target), tuple(includes)))
+    if not rules:
+        raise RuntimeError("No Maven resource rules found for the baseline")
+    if (Path("src/main/resources"), Path(""), ()) not in rules:
+        raise RuntimeError("Baseline resources require the project's complete unfiltered resource root")
+    return rules
+
+
+def baseline_resources(base):
+    """Give BASE its own complete resource namespace, without copying shared assets.
+
+    Original changed/deleted files are materialized from the immutable commit;
+    unchanged files are symlinked. The baseline JVM must not include target/classes
+    as a fallback, so newly added current-only shaders cannot leak into this view.
+    """
+    destination = ROOT / "target/render-baseline-resources"
+    if destination.exists() and any(destination.iterdir()):
+        raise RuntimeError("Use a fresh target/render-baseline-resources directory")
+    destination.mkdir(parents=True, exist_ok=True)
+    paths = tracked_paths(base, "src/main/resources")
+    changed = set(filter(None, git("diff", "--name-only", "-z", base, "HEAD", "--", "src/main/resources").split("\0")))
+    rules = resource_rules()
+    linked, materialized, aliases = [], [], []
+    originals = {}
+    for path in paths:
+        relative = Path(path).relative_to("src/main/resources")
+        if ".." in relative.parts:
+            raise RuntimeError("Invalid resource path: " + path)
+        original = destination / relative
+        original.parent.mkdir(parents=True, exist_ok=True)
+        source = ROOT / path
+        if path in changed or not source.is_file():
+            data = repository_file(base, path)
+            original.write_bytes(data)
+            materialized.append({"path": path, "bytes": len(data), "sha256": hashlib.sha256(data).hexdigest()})
+        else:
+            original.symlink_to(source.resolve())
+            linked.append(path)
+        originals[path] = original
+    # Reproduce explicit aliases declared by Maven (currently Flauxy -> Tenacity).
+    for directory, target, includes in rules:
+        for path, original in originals.items():
+            try:
+                relative = Path(path).relative_to(directory)
+            except ValueError:
+                continue
+            if includes and relative.as_posix() not in includes:
+                continue
+            alias = destination / target / relative
+            if alias == original:
+                continue
+            if alias.exists() or alias.is_symlink():
+                raise RuntimeError("Overlapping Maven resource alias: " + str(alias))
+            alias.parent.mkdir(parents=True, exist_ok=True)
+            alias.symlink_to(original)
+            aliases.append({"source": path, "target": str(alias.relative_to(destination))})
+    return destination, {"tracked_resource_count": len(paths), "linked_unchanged_count": len(linked),
+                         "materialized_original_resources": materialized, "maven_aliases": aliases,
+                         "current_classes_fallback": False}
+
+
+def revision_classpath(baseline, resources, dependency_classpath, revision):
+    tests = str(ROOT / "target/test-classes")
+    # Keep the original test-resource precedence on both sides. Only BASE loses
+    # the current production fallback; all of its original classes were compiled.
+    entries = ([str(baseline), tests, str(resources)] if revision == "baseline"
+               else [tests, str(ROOT / "target/classes")])
+    return os.pathsep.join(entries + [dependency_classpath])
 
 
 def compare_pixels(before, after, expected_sizes=None):
@@ -318,6 +420,8 @@ def main():
         raise RuntimeError("Render comparison requires the same Java 8 toolchain for both revisions")
     git("cat-file", "-e", args.base + "^{commit}")
     head = git("rev-parse", "HEAD")
+    if git("status", "--porcelain", "--untracked-files=no"):
+        raise RuntimeError("Native revision evidence requires a clean tracked working tree")
     dependency_classpath = (ROOT / args.classpath).read_text(encoding="utf-8").strip()
     if not dependency_classpath:
         raise RuntimeError("Empty dependency classpath; run Maven test-compile and dependency:build-classpath first")
@@ -329,13 +433,15 @@ def main():
     run(["glxinfo", "-B"], output / "glxinfo.log", timeout=30, env=environment)
     run(["glxinfo", "-t"], output / "glxinfo-configs.log", timeout=30, env=environment)
     baseline, materialized, source_count = baseline_classes(args.base, dependency_classpath, output, javac)
+    resources, resource_manifest = baseline_resources(args.base)
     natives = ROOT / "target/render-native-libraries"
     native_libraries(natives)
-    classpath = os.pathsep.join([str(ROOT / "target/test-classes"), str(ROOT / "target/classes"), dependency_classpath])
+    classpath = revision_classpath(baseline, resources, dependency_classpath, "current")
     common = [java, "-Xms256m", "-Xmx1024m", "-Djava.awt.headless=true",
               "-Dorg.lwjgl.librarypath=" + str(natives), "-Djava.library.path=" + str(natives)]
     summary = {"format_version": 2, "baseline_commit": args.base, "current_commit": head, "java": version.strip(),
                "baseline_sources_compiled": source_count, "materialized_original_sources": materialized,
+               "baseline_resource_view": resource_manifest,
                "status": "incomplete", "phase": "render_trials", "trials": [], "pair_orders": orders,
                "requested_pairs": args.pairs, "completed_pairs": 0, "exact_rgba_pairs": 0,
                "warmup_frames": args.warmup, "samples_per_jvm": args.samples, "pixel_parity": False,
@@ -349,8 +455,8 @@ def main():
     write_report(output, summary)
 
     def execute_revision(name, directory, log):
-        prefix = str(baseline) + os.pathsep if name == "baseline" else ""
-        run(common + ["-cp", prefix + classpath, BENCHMARK, directory, str(args.warmup), str(args.samples)],
+        own_classpath = revision_classpath(baseline, resources, dependency_classpath, name)
+        run(common + ["-cp", own_classpath, BENCHMARK, directory, str(args.warmup), str(args.samples)],
             log, cwd=directory, env=environment)
 
     try:
@@ -372,11 +478,11 @@ def main():
             write_report(output, summary)
         summary["current_native_checks_passed"] = True
         for name in ("baseline", "current"):
-            prefix = str(baseline) + os.pathsep if name == "baseline" else ""
+            own_classpath = revision_classpath(baseline, resources, dependency_classpath, name)
             summary["phase"] = "font_metrics/" + name
             summary["font_metrics"][name] = "incomplete"
             write_report(output, summary)
-            run(common + ["-cp", prefix + classpath, "me.youngjibbit.utils.font.FontMetricsBenchmark"],
+            run(common + ["-cp", own_classpath, "me.youngjibbit.utils.font.FontMetricsBenchmark"],
                 output / (name + "-font-metrics.log"), cwd=output, env=environment)
             summary["font_metrics"][name] = "passed"
         summary["phase"] = "complete"

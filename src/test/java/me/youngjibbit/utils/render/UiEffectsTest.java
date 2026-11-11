@@ -32,6 +32,18 @@ public class UiEffectsTest {
   settings.textMotion.setValue("Static");assertFalse(settings.textSpeed.isVisible());settings.textMotion.setValue("Animated");assertTrue(settings.textSpeed.isVisible());
   settings.synchronize.setValue(true);settings.gradientMotion.setValue("Theme");assertTrue(settings.direction.isVisible());assertFalse(settings.gradientSpeed.isVisible());settings.gradientMotion.setValue("Animated");assertTrue(settings.gradientSpeed.isVisible());
  }
+ @Test public void geometricGlowControlsDoNotRetunePaletteSpeedOrPhase(){
+  advanceTo(1000000000L);
+  UiEffects.Gradient baseline=UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.GLOW);
+  for(String mode:new String[]{"Flame","Neon","Standard"}){
+   settings.uiGlowMode.setValue(mode);settings.neonGlow.setValue(2D);settings.flameSpeed.setValue(1.2);
+   settings.lineSegments.setValue(16D);settings.lineSpacing.setValue(7D);
+   UiEffects.Gradient gradient=UiEffects.gradient(Theme.SynthWave,UiEffects.Channel.GLOW);
+   assertEquals(baseline.axis,gradient.axis);assertEquals(baseline.mode,gradient.mode);
+   assertEquals(baseline.speed,gradient.speed,0);assertEquals(baseline.phase,gradient.phase,0);
+   assertEquals(baseline.position(40,60,120,140),gradient.position(40,60,120,140),0);
+  }
+ }
  @Test public void localAnimatedThemeUsesItsOwnSpeedAndThePausedUiClock(){
   Theme local=Theme.custom("custom:00000000-0000-0000-0000-000000000022","Local clock",java.util.Arrays.asList(java.awt.Color.RED,java.awt.Color.BLUE),false,true,.3f,java.awt.Color.BLACK,java.awt.Color.WHITE,java.awt.Color.GREEN,.75f,9,.8f,1);
   settings.gradientMotion.setValue("Theme");advanceTo(1000000000L);assertEquals(.3f,UiEffects.gradient(local,UiEffects.Channel.TEXT).phase,.00001);

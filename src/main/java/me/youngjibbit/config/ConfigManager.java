@@ -495,6 +495,9 @@ public class ConfigManager {
                     parseSetting(plan, change, value.getKey(), raw);
                 }
             }
+            // Old geometric effects occupied the palette selector. An explicit new
+            // UI mode wins regardless of JSON key order; Lines has no UI counterpart.
+            if(change.legacyUiGlowMode!=null)defaultSetting(change,"ui_glow_mode",change.legacyUiGlowMode);
             // Old HUD files explicitly stored local effect choices. Preserve them instead of silently inheriting new defaults.
             Value<?> effectSource=module.getValueByName("effects_source");
             if(effectSource!=null&&!change.values.containsKey(effectSource)&&change.values.keySet().stream().anyMatch(value->Arrays.asList("background","blur","glow","bloom","blur_strength","gradient_speed","theme").contains(value.getId())))change.values.put(effectSource,"Local");
@@ -702,6 +705,13 @@ public class ConfigManager {
             if (json != null && json.isJsonObject()) json = json.getAsJsonObject().get("value");
             if (json == null || !json.isJsonPrimitive() || !json.getAsJsonPrimitive().isString()) throw new IllegalArgumentException("Expected choice: " + label);
             String requested=json.getAsString();
+            if("client_settings".equals(change.module.getId()) && "gradient_method".equals(value.getId())) {
+                if("Flame".equalsIgnoreCase(requested)||"Neon".equalsIgnoreCase(requested)||"Lines".equalsIgnoreCase(requested)) {
+                    change.legacyUiGlowMode="Flame".equalsIgnoreCase(requested)?"Flame":"Neon".equalsIgnoreCase(requested)?"Neon":"Standard";
+                    requested="Flow";
+                    plan.migratedModes++;
+                }
+            }
             if(change.module.getId().equals("aimassist") && value.getId().equals("rotations") && requested.equalsIgnoreCase("Smooth")) {requested="Legit";plan.migratedModes++;}
             decoded = null;
             for (String option : ((ComboValue) value).getOptions()) if (option.equalsIgnoreCase(requested)) decoded = option;
@@ -820,6 +830,7 @@ public class ConfigManager {
         final Map<Value<?>, Object> values = new LinkedHashMap<>();
         Boolean enabled;
         boolean legacyRotation,legacyScaffold,legacyBacktrack,legacyLag,legacyTickbase,currentNetwork;
+        String legacyUiGlowMode;
         Integer key;
         boolean desired;
         Change(Module module) { this.module = module; }

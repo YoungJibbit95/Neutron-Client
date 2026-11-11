@@ -58,6 +58,7 @@ public final class FontInk {
         shader.setUniformi("glyph",0);
         shader.setUniformi("themed",gradient?1:0);
         shader.setUniformf("haloStrength",0);
+        shader.setUniformi("fxMode",0);
         UiEffects.upload(shader,theme);
         color("first",theme.getPrimaryGradientRGB());
         color("second",theme.getSecondaryGradientRGB());
@@ -76,6 +77,15 @@ public final class FontInk {
             shader.setUniformf("haloStrength",glow?Math.min(1,c.textGlowStrength.getValue().floatValue()*c.glowIntensity.getValue().floatValue()):0);
             shader.setUniformf("haloRadius",glow?c.textGlowRadius.getValue().floatValue()*2:0);
             shader.setUniformi("haloTheme",glow&&"Theme".equals(c.textGlowColor.getValue())?1:0);
+            if(glow&&ContourEffects.specialUi()){
+                String mode=ContourEffects.uiMode();
+                // Glyph cells own four logical pixels of padding. Keep the special
+                // text treatment inside that allocation instead of enlarging atlases.
+                float extent=Math.max(.5f,Math.min(.7f,c.textGlowRadius.getValue().floatValue()*.35f));
+                net.minecraft.client.Minecraft mc=net.minecraft.client.Minecraft.getMinecraft();
+                ContourEffects.upload(shader,Theme.resolve(Theme.getDefaultTheme()),mode,GuiResolution.current().getScaleFactor(),extent,
+                        0,0,mc.displayWidth,mc.displayHeight,0,0,0);
+            }else shader.setUniformi("fxMode",0);
         }
         return own?previous:-1;
     }
@@ -83,6 +93,7 @@ public final class FontInk {
     public static void end(int previous){
         if(previous<0)return;
         shader.setUniformf("haloStrength",0);
+        shader.setUniformi("fxMode",0);
         GL20.glUseProgram(previous);
     }
 

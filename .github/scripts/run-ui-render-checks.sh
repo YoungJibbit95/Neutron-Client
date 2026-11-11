@@ -67,12 +67,21 @@ test_classpath="$repo_root/target/test-classes:$repo_root/target/classes:$depend
 collect_screenshots() (
   local name="$1" preview image destination
   shopt -s nullglob
-  for preview in gui-preview dropdown-preview arraylist-preview session-preview theme-preview settings-preview neutron-ui-preview; do
+  for preview in gui-preview dropdown-preview arraylist-preview session-preview theme-preview settings-preview neutron-ui-preview shader-preview; do
     for image in "$fixtures/$name/$preview/"*.png; do
       destination="$screenshots/$name/$preview"
       mkdir -p "$destination" && cp -- "$image" "$destination/" || return "$?"
     done
   done
+  # Exact evidence names only: no fixture homes/configs/runtime data are copied.
+  if [[ "$name" == shader_modes ]]; then
+    destination="$screenshots/$name/shader-preview"
+    for image in "$fixtures/$name/shader-preview/flame-motion.gif" "$fixtures/$name/shader-preview/shader-modes.json"; do
+      if [[ -f "$image" ]]; then
+        mkdir -p "$destination" && cp -- "$image" "$destination/" || return "$?"
+      fi
+    done
+  fi
 )
 
 require_marker() {
@@ -153,10 +162,24 @@ suite_session() {
   require_images session settings-preview &&
   require_images session neutron-ui-preview
 }
+suite_shader_modes() {
+  run_check shader_modes me.youngjibbit.module.impl.render.ShaderModesRenderCheck \
+    'PASS: shader modes actual exterior geometry' &&
+  require_marker shader_modes 'PASS: fixed mask pass count for 1/12 entities and 2/16 lines' &&
+  require_images shader_modes shader-preview &&
+  [[ -s "$screenshots/shader_modes/shader-preview/flame-motion.gif" ]] &&
+  python3 - "$screenshots/shader_modes/shader-preview/shader-modes.json" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding='utf-8') as source:
+    report = json.load(source)
+assert report['status'] == 'passed', report
+assert len(report['measurements']) == 6, 'Missing shader-mode timing evidence'
+PY
+}
 
 failed_suites=()
 suite_results=()
-for suite in panel dropdown arraylist session; do
+for suite in panel dropdown arraylist session shader_modes; do
   suite_result=0
   "suite_$suite" 2>&1 | tee "$logs/$suite-suite.log" || suite_result=$?
   suite_results+=("$suite: exit $suite_result")
@@ -167,13 +190,13 @@ done
 printf '%s\n' "${suite_results[@]}" | tee "$logs/suites.log"
 
 if (( ${#failed_suites[@]} != 0 )); then
-  printf 'FAIL: Native UI suites failed: %s. All four suites were attempted; see each suite log.\n' \
+  printf 'FAIL: Native UI suites failed: %s. All five suites were attempted; see each suite log.\n' \
     "${failed_suites[*]}" | tee "$logs/summary.log"
   exit 1
 fi
 
 printf '%s\n' \
-  'PASS: Four separate native JVMs completed with production shaders, FBO/readback and fixture diagnostics enabled.' \
-  'Coverage: panel/subcategories, dropdown/library/config actions, Arraylist, SessionInfo, Theme editor, Client settings and Library transitions.' \
+  'PASS: Five separate native JVMs completed with production shaders, FBO/readback and fixture diagnostics enabled.' \
+  'Coverage: panel/subcategories, dropdown/library/config actions, Arraylist, SessionInfo, Theme editor, Client settings, Library transitions and Flame/Neon/Lines ESP/UI contours.' \
   'Not covered: game-world rendering, native Display/fullscreen/VSync, multiplayer or full client bootstrap.' \
   | tee "$logs/summary.log"

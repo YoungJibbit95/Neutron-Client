@@ -31,6 +31,9 @@ public class ShaderUtil implements Utils, AutoCloseable {
         try{
             if(fragment.contains("// UI_GRADIENT"))fragment=fragment.replace("// UI_GRADIENT",resource("Flauxy/Shaders/uiGradient.glsl"));if(fragment.contains("// UI_SURFACE"))fragment=fragment.replace("// UI_SURFACE",resource("Flauxy/Shaders/uiSurface.glsl"));
             if(fragment.contains("// UI_GLASS"))fragment=fragment.replace("// UI_GLASS",resource("Flauxy/Shaders/uiGlass.glsl"));
+            if(fragment.contains("// CONTOUR_EFFECTS"))fragment=fragment.replace("// CONTOUR_EFFECTS",resource("pulsar/shader/esp/contourEffects.glsl"));
+            if(fragment.contains("// CONTOUR_RECT"))fragment=fragment.replace("// CONTOUR_RECT",resource("pulsar/shader/esp/contourRect.glsl"));
+            if(fragment.contains("// CONTOUR_FIELD"))fragment=fragment.replace("// CONTOUR_FIELD",resource("pulsar/shader/esp/contourField.glsl"));
             fs=compile(fragment,GL_FRAGMENT_SHADER);vs=compile(vertex,GL_VERTEX_SHADER);
             glAttachShader(program,fs);glAttachShader(program,vs);attached=true;glLinkProgram(program);
             if(glGetProgrami(program,GL_LINK_STATUS)==0)throw new IllegalStateException("Shader link failed: "+glGetProgramInfoLog(program,4096));

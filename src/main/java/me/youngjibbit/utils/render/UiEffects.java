@@ -145,22 +145,13 @@ public final class UiEffects {
             axis=c.orbitDirection.getValue().equals("Clockwise")?0:-1;
             speed=c.orbitSpeed.getValue().floatValue();
         }
-        // Flame / Neon / Lines: override mode, axis is unused (0), speed and param2 are mode-specific.
-        if(mode>=2&&c!=null){
-            if(c.gradientMethod.getValue().equals("Flame")){mode=6; axis=0; speed=c.flameSpeed.getValue().floatValue();}
-            else if(c.gradientMethod.getValue().equals("Neon")){mode=7; axis=0; speed=c.neonGlow.getValue().floatValue();}
-            else if(c.gradientMethod.getValue().equals("Lines")){mode=8; axis=0; speed=c.lineSegments.getValue().floatValue();}
-        }
         float phase=(float)phases[i];
         // A Local custom theme can animate even when the selected Global preset is static.
         if(motion.equals("Theme")&&theme!=globalTheme)phase=(float)((elapsed*speed)%1);
-        // Set param2 for Flame/Neon/Lines modes.
+        // Palette motion is independent of the selected geometric glow effect.
         float param2=0;
         if(c!=null){
             if(c.gradientMethod.getValue().equals("Perimeter Orbit"))param2=c.orbitTrail.getValue().floatValue();
-            else if(c.gradientMethod.getValue().equals("Flame"))param2=c.flameHeight.getValue().floatValue();
-            else if(c.gradientMethod.getValue().equals("Neon"))param2=c.neonCore.getValue().floatValue();
-            else if(c.gradientMethod.getValue().equals("Lines"))param2=c.lineTrail.getValue().floatValue();
         }
         return new Gradient(axis,mode,phase,speed,param2);
     }
@@ -187,10 +178,9 @@ public final class UiEffects {
             shader.setUniformf(n,g.axis,o.gradients?g.mode:0,g.phase);
             if(channel==Channel.TEXT)textGradient=g;
         }
-        // Extra shader parameter for Flame/Neon/Lines modes (passed via TEXT channel).
+        // Perimeter trail is shared with the corresponding palette coordinate domain.
         Gradient tg=textGradient;
         shader.setUniformf("uiShaderParam2",tg.param2);
-        shader.setUniformf("uiShaderSpeed",tg.speed);
         shader.setUniformf("uiGradientRadius",gradientRadius(orbit,o.roundness)*scale);
     }
     public static int gradientColor(Theme theme,Channel channel,float x,float y){
@@ -216,29 +206,6 @@ public final class UiEffects {
                 float sample=PerimeterOrbit.sample(x,y,w,h,radius,phase,
                         axis>=0?PerimeterOrbit.Direction.CLOCKWISE:PerimeterOrbit.Direction.COUNTERCLOCKWISE);
                 return (float)Math.pow(sample,1+6*(1-Math.max(0,Math.min(1,param2))));
-            }
-            if(mode==6){
-                // Flame: animated flicker within the theme gradient range.
-                // speed controls flicker frequency, phase is base offset.
-                float flicker=(float)Math.sin(2*Math.PI*(t+phase)*speed*3f)*0.5f+0.5f;
-                float flutter=(float)Math.sin(2*Math.PI*(t+phase)*speed*7f+1.3f)*0.25f+0.75f;
-                return Math.max(0,Math.min(1,t*flicker*flutter*param2));
-            }
-            if(mode==7){
-                // Neon: sharp core with soft outer falloff, animating intensity.
-                // speed=glow intensity, param2=core sharpness (0-1).
-                float core=.5f-.5f*(float)Math.cos(2*Math.PI*(t-phase));
-                float glow=1f-(float)Math.abs(t-.5f)*2f;
-                return Math.max(0,Math.min(1,core*glow*(param2+.4f*(float)Math.sin(2*Math.PI*phase))));
-            }
-            if(mode==8){
-                // Lines: discrete gradient segments ("orbit trail") moving along the contour.
-                // speed=segment count, param2=trail length (0-1).
-                float segments=speed*12f+2f;
-                float pos=(t*segments+phase)%1f;
-                float band=1f/segments;
-                float inBand=(pos>=phase%1f&&pos<(phase%1f)+band*param2)?1f:.2f;
-                return Math.max(0,Math.min(1,pos*inBand));
             }
             return Math.max(0,Math.min(1,t));
         }

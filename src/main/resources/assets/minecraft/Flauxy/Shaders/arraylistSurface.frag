@@ -17,6 +17,7 @@ uniform float glassInk;
 // UI_GLASS
 uniform float refraction,tint,edgeLight,surfaceOpacity;
 // UI_GRADIENT
+// CONTOUR_EFFECTS
 
 vec2 quadrant(float q) {
     return vec2((q < 0.5 || q > 2.5) ? 1.0 : -1.0, q < 1.5 ? 1.0 : -1.0);
@@ -69,8 +70,16 @@ void main() {
     vec4 result = vec4(0.0);
     // Exclusion is geometric, independent of the translucent background opacity.
     if (glowing && d > 0.0) {
-        float a = texture2D(halo,uv).a * glowAlpha * accent.a;
-        result = vec4(accent.rgb*a,a);
+        if(fxMode>0){
+            vec2 screen=vec2(gl_FragCoord.x,resolution.y-gl_FragCoord.y);
+            float warped=contourDistance(fxWarp(screen)/guiScale)*guiScale;
+            vec4 effect=fxShadeContour(d*guiScale,warped,screen);
+            float a=effect.a*glowAlpha*accent.a*(1.0-coverage);
+            result=vec4(effect.rgb*a,a);
+        }else{
+            float a = texture2D(halo,uv).a * glowAlpha * accent.a;
+            result = vec4(accent.rgb*a,a);
+        }
     }
     vec3 inside = gradientFill ? mix(primary.rgb,secondary.rgb,(uiEnabled?uiPosition(uiBorder):clamp((p.x-shapeBounds.x)/max(1.0,shapeBounds.z),0.0,1.0))) : surfaceColor;
     float alpha = coverage*fillAlpha;

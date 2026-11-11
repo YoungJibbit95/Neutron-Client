@@ -31,6 +31,7 @@ public final class ArrayListSurface implements AutoCloseable {
     private static net.minecraft.client.resources.IResourceManager shaderResources;
     private final UiEffects.LocalSurface local;
     private final String diagnosticName;
+    private final EffectMotion effectMotion=new EffectMotion();
     public ArrayListSurface(){this(null);}
     public ArrayListSurface(me.youngjibbit.module.Module owner){local=owner==null?null:new UiEffects.LocalSurface(owner);diagnosticName=owner==null?"Shared surfaces":owner.getName();owners.add(this);}
     private static ShaderUtil shader(){
@@ -210,6 +211,9 @@ public final class ArrayListSurface implements AutoCloseable {
         capturedClean=capturedSoft=0;
         UiEffects.SurfacePolicy policy=UiEffects.surface(local,theme,background,blur,glow,outlineAlpha,surfaceStyle);
         background=policy.background;blur=policy.blur;glow=policy.glow&&(!theme.isCustom()||theme.getGlowStrength()>0);outlineAlpha=policy.outline;
+        boolean shapedGlow=glow&&ContourEffects.specialUi();
+        String glowMode=shapedGlow?ContourEffects.uiMode():"Standard";
+        float glowExtent=UiEffects.glowRadius(theme.isCustom()?theme.getGlowRadius():9);
         boolean glass=background&&(policy.style==3);
         if(policy.style>=0)gradientFill=policy.style==1;
         Minecraft mc=Minecraft.getMinecraft();
@@ -234,7 +238,8 @@ public final class ArrayListSurface implements AutoCloseable {
             boolean cleanScene=background&&policy.style>=0||glass;
             float effectiveRadius=sceneBlurRadius(blurRadius);
             boolean computeBlur=blur&&!(borrow&&parent.blurred&&Math.abs(parent.radius-effectiveRadius)<.01f);
-            ensureBuffers(mc.displayWidth,mc.displayHeight,glow,computeBlur,cleanScene&&!borrow);
+            // Analytic contours need no halo capture or blur. Standard retains its existing cache.
+            ensureBuffers(mc.displayWidth,mc.displayHeight,glow&&!shapedGlow,computeBlur,cleanScene&&!borrow);
             state.bindTarget();prepare();
             int clean=borrow?parent.clean:0,soft=borrow&&parent.blurred?parent.soft:0;
             if(!borrow&&(blur||cleanScene)){
@@ -243,7 +248,7 @@ public final class ArrayListSurface implements AutoCloseable {
             if(computeBlur){GaussianBlur.renderScene(buffers[1],buffers[3],clean,effectiveRadius*sr.getScaleFactor());soft=buffers[3].framebufferTexture;}
             if(!blur)soft=clean;
             int haloTexture=0;
-            if (glow) {
+            if (glow&&!shapedGlow) {
                 int scale = sr.getScaleFactor();
                 int radius = Math.max(1,Math.min(120, Math.round(UiEffects.glowRadius(theme.isCustom() ? theme.getGlowRadius() : 9) * scale)));
                 Framebuffer halo=haloCache.get(mc.displayWidth,mc.displayHeight,scale,radius,shape.corners,
@@ -260,6 +265,15 @@ public final class ArrayListSurface implements AutoCloseable {
             shader.setUniformi("scene",0); shader.setUniformi("halo",1);shader.setUniformi("snapshot",2);
             shader.setUniformi("replaceScene",borrow&&parent.replacing&&policy.style>=0?1:0);shader.setUniformi("substance",policy.style);shader.setUniformf("globalOpacity",policy.opacity);shader.setUniformf("gradientStrength",policy.fillStrength);shader.setUniformf("surfaceOpacity",Math.max(0,Math.min(1,opacity)));shader.setUniformi("glass",glass?1:0);UiEffects.Options effects=UiEffects.options();shader.setUniformf("refraction",effects.refraction);shader.setUniformf("tint",effects.tint);shader.setUniformf("edgeLight",effects.edge);shader.setUniformi("glassClear",effects.glassClear?1:0);shader.setUniformf("glassInk",UiEffects.ink(theme));
             UiEffects.upload(shader,theme,policy.gradient);
+            if(shapedGlow){
+                float scale=sr.getScaleFactor();
+                effectMotion.sample(UiEffects.time(),(shape.left+shape.right)*.5f*scale,(shape.top+shape.bottom)*.5f*scale,
+                        (shape.right-shape.left)*scale,(shape.bottom-shape.top)*scale,mc.displayWidth,mc.displayHeight,
+                        "Flame".equals(glowMode)&&UiEffects.motion()&&UiEffects.options().ambient);
+                ContourEffects.upload(shader,theme,glowMode,scale,glowExtent,
+                        shape.left*scale,shape.top*scale,(shape.right-shape.left)*scale,(shape.bottom-shape.top)*scale,
+                        effectMotion.flowX(),effectMotion.flowY(),effectMotion.energy());
+            }else{effectMotion.reset();shader.setUniformi("fxMode",0);}
             shader.setUniformi("gradientFill",gradientFill?1:0);shader.setUniformi("backgroundEnabled",background?1:0);
             shader.setUniformi("blurred",blur?1:0); shader.setUniformi("glowing",glow?1:0);
             shader.setUniformf("fillAlpha",background?(policy.style>=0&&surfaceStyle<0?theme.getBackground().getAlpha()/255f:theme.isCustom()&&surfaceStyle<0?theme.getBackground().getAlpha()/255f:fillAlpha):0);
@@ -273,8 +287,9 @@ public final class ArrayListSurface implements AutoCloseable {
             color(shader,"outlineColor",theme.getAccentColor().getRGB());
             color(shader,"primary",theme.getPrimaryGradientRGB()); color(shader,"secondary",theme.getSecondaryGradientRGB());
             GlStateManager.enableBlend(); glEnable(GL_BLEND);
+            if(shapedGlow)org.lwjgl.opengl.GL14.glBlendEquation(org.lwjgl.opengl.GL14.GL_FUNC_ADD);
             GlStateManager.blendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA); glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-            float pad=glow?UiEffects.glowRadius(theme.isCustom()?theme.getGlowRadius():9)*2+4:2;
+            float pad=glow?(shapedGlow?ContourEffects.padding(glowMode,glowExtent):glowExtent*2+4):2;
             state.restoreClip();
             ShaderUtil.drawQuads(shape.left-pad,shape.top-pad,shape.right-shape.left+pad*2,shape.bottom-shape.top+pad*2);
             shader.unload();
@@ -407,6 +422,7 @@ public final class ArrayListSurface implements AutoCloseable {
         glColor4f(1,1,1,1); GlStateManager.color(1,1,1,1);
     }
     @Override public void close() {
+        effectMotion.reset();
         capturedClean=capturedSoft=0;
         boolean any=false;for(Framebuffer buffer:buffers)any|=buffer!=null;if(!any)return;
         try (RenderState state=new RenderState()) {

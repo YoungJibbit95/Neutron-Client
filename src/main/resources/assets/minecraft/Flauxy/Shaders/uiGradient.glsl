@@ -5,7 +5,6 @@ uniform vec4 uiGradientBounds; // inherited screen-space domain for ordinary mod
 uniform vec4 uiOrbitBounds; // actual component contour, used only by mode 5
 uniform vec3 uiText, uiBorder, uiGlow; // signed axis, mode, phase
 uniform float uiGradientRadius;
-uniform float uiShaderSpeed;
 uniform float uiShaderParam2;
 // Original Neutron arc-length implementation, matching PerimeterOrbit.contour.
 float uiContour(vec2 point, vec2 size, float radius) {
@@ -50,20 +49,7 @@ float uiPosition(vec3 channel){
   float sample=.5+.5*cos(6.28318530718*(contour-travel));
   return pow(clamp(sample,0.0,1.0),1.0+6.0*(1.0-clamp(uiShaderParam2,0.0,1.0)));
  }
- if(channel.y<6.5){
-  float flicker=sin(6.28318530718*(t+channel.z)*uiShaderSpeed*3.0)*.5+.5;
-  float flutter=sin(6.28318530718*(t+channel.z)*uiShaderSpeed*7.0+1.3)*.25+.75;
-  return clamp(t*flicker*flutter*uiShaderParam2,0.0,1.0);
- }
- if(channel.y<7.5){
-  float core=.5-.5*cos(6.28318530718*(t-channel.z));
-  float glow=1.0-abs(t-.5)*2.0;
-  return clamp(core*glow*(uiShaderParam2+.4*sin(6.28318530718*channel.z)),0.0,1.0);
- }
- float segments=uiShaderSpeed*12.0+2.0;
- float pos=fract(t*segments+channel.z),phase=fract(channel.z);
- float inBand=pos>=phase&&pos<phase+(1.0/segments)*uiShaderParam2?1.0:.2;
- return clamp(pos*inBand,0.0,1.0);
+ return clamp(t,0.0,1.0);
 }
 
 // Explicit border source; palette stops remain intact when the Accent option is used.

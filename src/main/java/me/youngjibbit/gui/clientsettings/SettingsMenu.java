@@ -166,10 +166,11 @@ public class SettingsMenu extends GuiScreen {
     private String description(){String name=names().isEmpty()?"":names().get(group);switch(name){
         case "Appearance":return "Choose the surface, opacity and border of your UI.";
         case "Blur / Liquid Glass":return "Tune scene softness, refraction, tint and edge light.";
-        case "Glow":return "Surface glow. Global off also disables text glow.";
+        case "Glow":return "Choose Standard, Flame or Neon for the UI. Global off also disables text glow.";
         case "Gradients / Motion":return "Shared colors and motion, with optional separate channels.";
         case "HUD behavior":return "Arrange HUDs in chat. F7 toggles alignment guides.";
         case "Typography":return ClientSettings.current()!=null&&!ClientSettings.current().glow.getValue()?"Text glow is paused while Global Glow is off.":"UI font and text glow. Icons and explicit HUD fonts stay separate.";
+        case "World effects":return "Flame and Neon also tune UI glow. Lines controls affect ESP contours only.";
         default:return "Choose how, where and for how long notifications appear.";}}
     @Override public void drawScreen(int mx,int my,float partialTicks){
         UiEffects.beginFrame();layout();
