@@ -3,3 +3,6 @@
 
 # Preserve the upstream license bytes in Windows checkouts and packaged resources.
 /src/main/resources/META-INF/licenses/Audiowide-OFL.txt text eol=lf
+
+# Preserve pinned upstream Git-blob bytes for the Demise reference resources.
+/src/test/resources/demise-reference/*.java.txt text eol=lf

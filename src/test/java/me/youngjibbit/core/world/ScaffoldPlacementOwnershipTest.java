@@ -4,7 +4,8 @@ import net.minecraft.util.BlockPos;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
-public class NScaffoldPlacementTest {
+/** Shared legacy placement service ownership tests; Demise uses its normal controller path. */
+public class ScaffoldPlacementOwnershipTest {
     private static void accept(ScaffoldPlacementTest.Fixture f,String source,boolean accepted) {
         ScaffoldRotationPlan pose=ScaffoldRotationPlan.build("Back",f.world.wireEyes(),f.plan.getHitVec());
         f.rotations.beginMotion(0,0);f.rotations.request(source,15,pose.getYaw(),pose.getPitch());

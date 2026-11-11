@@ -1,6 +1,7 @@
 package me.youngjibbit.config;
 
-import me.youngjibbit.core.world.NScaffoldRotationController;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.impl.world.NScaffold;
 import me.youngjibbit.value.Value;
@@ -11,7 +12,6 @@ import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
 
-import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -25,178 +25,270 @@ import java.util.Map;
 
 import static org.junit.Assert.*;
 
-/** Real module/profile boundaries: older imports cannot inherit a warm extension setup. */
+/** Demise's complete Scaffold profile and migration from the former bounded planner. */
 public class NScaffoldExtensionConfigTest {
-    @Rule public TemporaryFolder temporary=new TemporaryFolder();
+    @Rule public TemporaryFolder temporary = new TemporaryFolder();
 
-    private ConfigManager manager(NScaffold module,Path dir) {
-        return new ConfigManager(dir,Collections.<Module>singletonList(module),()->false,message->{});
+    private ConfigManager manager(NScaffold module, Path directory) {
+        return new ConfigManager(directory, Collections.<Module>singletonList(module), () -> false, message -> {});
     }
     private static String v2(String settings) {
-        return "{\"version\":2,\"modules\":{\"nscaffold\":{\"settings\":{"+settings+"}}}}";
+        return "{\"version\":2,\"modules\":{\"nscaffold\":{\"settings\":{" + settings + "}}}}";
     }
-    private static void write(Path dir,String name,String content)throws Exception {
-        Files.write(dir.resolve(name+".json"),content.getBytes(StandardCharsets.UTF_8));
+    private static void write(Path directory, String name, String content) throws Exception {
+        Files.write(directory.resolve(name + ".json"), content.getBytes(StandardCharsets.UTF_8));
     }
-    private static String read(Path dir,String name)throws Exception {
-        return new String(Files.readAllBytes(dir.resolve(name+".json")),StandardCharsets.UTF_8);
+    private static String read(Path directory, String name) throws Exception {
+        return new String(Files.readAllBytes(directory.resolve(name + ".json")), StandardCharsets.UTF_8);
     }
     private static Map<String,Object> values(NScaffold module) {
-        Map<String,Object> result=new LinkedHashMap<>();
-        for(Value<?> value:module.getValues())result.put(value.getId(),value.getValue());
+        Map<String,Object> result = new LinkedHashMap<>();
+        for (Value<?> value : module.getValues()) result.put(value.getId(), value.getValue());
         return result;
     }
-    private static void warmEveryExtension(NScaffold module) {
-        boolean extension=false;
-        for(Value<?> value:module.getValues()) {
-            if("build_mode".equals(value.getId()))extension=true;
-            if(!extension)continue;
-            if(value instanceof CheckBoxValue)((CheckBoxValue)value).setValue(!(Boolean)value.getDefaultValue());
-            else if(value instanceof ComboValue) {
-                ComboValue choice=(ComboValue)value;
-                for(String option:choice.getOptions())if(!option.equals(value.getDefaultValue())) {
-                    choice.setValue(option);break;
+    private static void warmEverySetting(NScaffold module) {
+        for (Value<?> value : module.getValues()) {
+            if (value instanceof CheckBoxValue) ((CheckBoxValue) value).setValue(!(Boolean) value.getDefaultValue());
+            else if (value instanceof ComboValue) {
+                ComboValue choice = (ComboValue) value;
+                for (String option : choice.getOptions()) if (!option.equals(value.getDefaultValue())) {
+                    choice.setValue(option);
+                    break;
                 }
-            } else if(value instanceof SliderValue) {
-                SliderValue slider=(SliderValue)value;
-                double original=((Number)value.getDefaultValue()).doubleValue();
-                slider.setValue(original==slider.getMin()?slider.getMax():slider.getMin());
-            } else fail("Unhandled NScaffold extension value: "+value.getId());
-            assertNotEquals("Warm profile must differ: "+value.getId(),value.getDefaultValue(),value.getValue());
+            } else if (value instanceof SliderValue) {
+                SliderValue slider = (SliderValue) value;
+                slider.setValue((Double) value.getDefaultValue() == slider.getMin() ? slider.getMax() : slider.getMin());
+            } else fail("Unhandled Scaffold setting: " + value.getId());
+            assertNotEquals("Warm profile must differ: " + value.getId(), value.getDefaultValue(), value.getValue());
         }
     }
-    private static void assertExtensionDefaults(NScaffold module) {
-        boolean extension=false;
-        for(Value<?> value:module.getValues()) {
-            if("build_mode".equals(value.getId()))extension=true;
-            if(extension)assertEquals(value.getId(),value.getDefaultValue(),value.getValue());
-        }
-        assertEquals("Normal",module.getModeSetting("Build Mode").getValue());
-        assertFalse(module.getBooleanSetting("Clutch").getValue());
-        assertFalse(module.getBooleanSetting("Advanced Rotations").getValue());
+    private static Map<String,Object> originalDefaults() {
+        Map<String,Object> defaults = new LinkedHashMap<>();
+        Object[][] entries = {
+                {"mode", "Normal"}, {"straight_telly_ticks", 4D}, {"diagonal_telly_ticks", 2D},
+                {"rotations", "Normal"}, {"static_ify", false}, {"clutch", false},
+                {"clutch_criteria", "MouseOver"}, {"clutch_rotation_mode", "Center"},
+                {"instant_rot_always", false}, {"instant_rot_on_miss", false}, {"instant_rot_predict", false},
+                {"auto_sneak_on_clutch", false}, {"ground_ticks_to_sneak", 5D},
+                {"silent", true}, {"extra_smoothing_factor", (double) .15F}, {"smooth_mode", "Linear"},
+                {"accelerate", false}, {"yaw_accel_factor", .25D}, {"pitch_accel_factor", .25D},
+                {"imperfect_correlation", false}, {"yaw_rotation_speed_(min)", 180D},
+                {"yaw_rotation_speed_(max)", 180D}, {"pitch_rotation_speed_(min)", 180D},
+                {"pitch_rotation_speed_(max)", 180D}, {"movement_correction", "Silent"},
+                {"short_stop", false}, {"duration", 50D}, {"rotation_diff_buildup_to_stop", 180D},
+                {"max_threshold_attempts_to_stop", 1D}, {"sprint_mode", "Normal"}, {"speed_mode", "None"},
+                {"swing", true}, {"raytrace", true}, {"keepy", false}, {"speed_keepy", false},
+                {"jump", false}, {"safewalk", false}, {"safewalk_when_no_data", false},
+                {"hover", false}, {"sneak", false}, {"target_block_esp", false}, {"strict_raytrace", false},
+                {"blocks_to_jump", 6D}, {"only_straight", true}, {"blocks_to_sneak", 7D},
+                {"only_sneak_on_ground", true}, {"tower", "Jump"}, {"tower_move", "Jump"},
+                {"pulldown_motion", (double) .95f}
+        };
+        for (Object[] entry : entries) defaults.put((String) entry[0], entry[1]);
+        return defaults;
     }
 
-    @Test public void originalOrdinalsAndChoicesArePreservedBeforeOneUniqueExtensionBlock() {
-        NScaffold module=new NScaffold();List<String> ids=new ArrayList<>();
-        for(Value<?> value:module.getValues())ids.add(value.getId());
-        assertEquals(Arrays.asList("visible_rotation","turn_speed","godbridge_pitch","look_ahead","keep_height",
-                "auto_select_blocks","placement_delay","swing","smart_disable_on_death","smart_disable_on_world_change"),
-                ids.subList(0,10));
-        assertEquals(Arrays.asList("build_mode","straight_telly_ticks","diagonal_telly_ticks","static_ify","clutch",
-                "clutch_criteria","clutch_rotation_mode","fast_clutch_always","fast_clutch_on_miss","fast_clutch_prediction",
-                "auto_sneak_on_clutch","ground_ticks_to_sneak","advanced_rotations","smooth_mode","extra_smoothing_factor",
-                "yaw_rotation_speed_(min)","yaw_rotation_speed_(max)","pitch_rotation_speed_(min)","pitch_rotation_speed_(max)",
-                "accelerate","yaw_accel_factor","pitch_accel_factor","imperfect_correlation","short_stop",
-                "short_stop_duration_(ms)","rotation_diff_buildup_to_stop","max_threshold_attempts_to_stop"),ids.subList(10,ids.size()));
-        assertEquals(ids.size(),new HashSet<>(ids).size());
-        ComboValue rotation=module.getModeSetting("Visible Rotation");
-        assertEquals("Standard",rotation.getOptions()[0]);assertEquals("Godbridge",rotation.getOptions()[1]);
-        rotation.setSelectedIndex(1);assertEquals("Godbridge",rotation.getValue());
-        rotation.setSelectedIndex(0);assertEquals("Standard",rotation.getValue());
-        assertArrayEquals(new String[]{"Normal","Breezily","Telly"},module.getModeSetting("Build Mode").getOptions());
+    @Test public void allScaffoldControlsAndOriginalChoicesAreRegisteredOnce() {
+        NScaffold module = new NScaffold();
+        assertEquals(originalDefaults(), values(module));
+        List<String> ids = new ArrayList<>();
+        for (Value<?> value : module.getValues()) ids.add(value.getId());
+        assertEquals(49, ids.size());
+        assertEquals(ids.size(), new HashSet<>(ids).size());
+        assertArrayEquals(new String[]{"Normal", "Breezily", "Telly"}, module.getModeSetting("Mode").getOptions());
+        assertArrayEquals(new String[]{"Normal", "Center", "GodBridge", "Reverse"}, module.getModeSetting("Rotations").getOptions());
+        assertArrayEquals(new String[]{"MouseOver", "Prediction"}, module.getModeSetting("Clutch criteria").getOptions());
+        assertArrayEquals(new String[]{"Normal", "Center"}, module.getModeSetting("Clutch rotation mode").getOptions());
+        assertArrayEquals(new String[]{"Linear", "Relative"}, module.getModeSetting("Smooth mode").getOptions());
+        assertArrayEquals(new String[]{"Silent", "Strict", "None"}, module.getModeSetting("Movement correction").getOptions());
+        assertArrayEquals(new String[]{"Normal", "Silent", "Ground", "Air", "None"}, module.getModeSetting("Sprint mode").getOptions());
+        assertArrayEquals(new String[]{"Tick", "Exempt", "Diagonal", "None"}, module.getModeSetting("Speed mode").getOptions());
+        for (String tower : Arrays.asList("Tower", "Tower move"))
+            assertArrayEquals(new String[]{"Jump", "Vanilla", "PullDown", "NCP"}, module.getModeSetting(tower).getOptions());
+        for (String obsolete : Arrays.asList("Advanced Rotations", "Turn Speed", "Visible Rotation", "Build Mode",
+                "Godbridge Pitch", "Look Ahead", "Auto Select Blocks", "Placement Delay",
+                "Smart Disable on Death", "Smart Disable on World Change"))
+            assertNull(obsolete, module.getValueByName(obsolete));
     }
 
-    @Test public void coldAndWarmOldVersionTwoAndLegacyImportsRestoreOriginalBehavior()throws Exception {
-        String[] profiles={v2("\"visible_rotation\":\"Godbridge\",\"turn_speed\":23,\"keep_height\":true"),
-                "{\"NScaffold\":{\"Visible Rotation\":\"Godbridge\",\"Turn Speed\":23,\"Keep Height\":true}}",
+    @Test public void coldAndWarmVersionTwoFlatAndArrayImportsMigrateEquivalentSettings() throws Exception {
+        String[] profiles = {
+                v2("\"visible_rotation\":\"Godbridge\",\"build_mode\":\"Telly\",\"keep_height\":true,"
+                        + "\"fast_clutch_always\":true,\"fast_clutch_prediction\":true,\"short_stop_duration_(ms)\":250,"
+                        + "\"turn_speed\":23,\"advanced_rotations\":false,\"smart_disable_on_death\":true"),
+                "{\"NScaffold\":{\"Visible Rotation\":{\"value\":\"Godbridge\"},\"Build Mode\":\"Telly\",\"Keep Height\":true,"
+                        + "\"Fast Clutch Always\":true,\"Fast Clutch Prediction\":true,\"Short Stop Duration (ms)\":250,"
+                        + "\"Turn Speed\":23,\"Advanced Rotations\":false,\"Smart Disable on Death\":true}}",
                 "{\"NScaffold\":{\"settings\":[{\"name\":\"Visible Rotation\",\"value\":\"Godbridge\"},"
-                        +"{\"name\":\"Turn Speed\",\"value\":23},{\"name\":\"Keep Height\",\"value\":true}]}}"};
-        for(String profile:profiles)for(boolean warm:new boolean[]{false,true}) {
-            NScaffold module=new NScaffold();Path dir=temporary.newFolder().toPath();ConfigManager config=manager(module,dir);
-            if(warm)warmEveryExtension(module);
-            write(dir,"Old",profile);assertTrue(config.getLastError(),config.loadConfig("Old"));
-            assertExtensionDefaults(module);
-            assertEquals("Godbridge",module.getModeSetting("Visible Rotation").getValue());
-            assertEquals(1,module.getModeSetting("Visible Rotation").getSelectedIndex());
-            assertEquals(23,module.getNumberSetting("Turn Speed").getValue(),0);
-            assertTrue(module.getBooleanSetting("Keep Height").getValue());
-            assertEquals(profile,read(dir,"Old"));
+                        + "{\"name\":\"Build Mode\",\"value\":\"Telly\"},{\"name\":\"Keep Height\",\"value\":true},"
+                        + "{\"name\":\"Fast Clutch Always\",\"value\":true},{\"name\":\"Fast Clutch Prediction\",\"value\":true},"
+                        + "{\"name\":\"Short Stop Duration (ms)\",\"value\":250},{\"name\":\"Turn Speed\",\"value\":23},"
+                        + "{\"name\":\"Advanced Rotations\",\"value\":false},{\"name\":\"Smart Disable on Death\",\"value\":true}]}}"
+        };
+        Map<String,Object> expected = originalDefaults();
+        expected.put("rotations", "GodBridge"); expected.put("mode", "Telly"); expected.put("keepy", true);
+        expected.put("instant_rot_always", true); expected.put("instant_rot_predict", true); expected.put("duration", 250D);
+        for (String profile : profiles) for (boolean warm : new boolean[]{false, true}) {
+            NScaffold module = new NScaffold(); Path directory = temporary.newFolder().toPath();
+            ConfigManager config = manager(module, directory);
+            if (warm) warmEverySetting(module);
+            write(directory, "Old", profile);
+            assertTrue(config.getLastError(), config.loadConfig("Old"));
+            assertEquals(expected, values(module));
+            assertEquals(profile, read(directory, "Old"));
         }
     }
 
-    @Test public void everyExplicitExtensionValueRoundTripsIncludingFalseAndZero()throws Exception {
-        NScaffold module=new NScaffold();Path dir=temporary.newFolder().toPath();ConfigManager config=manager(module,dir);
-        warmEveryExtension(module);
-        module.getModeSetting("Build Mode").setValue("Telly");
-        module.getModeSetting("Visible Rotation").setValue("Reverse");
-        module.getBooleanSetting("Auto Select Blocks").setValue(false);
-        module.getNumberSetting("Ground Ticks to Sneak").setValue(0D);
-        module.getNumberSetting("Max Threshold Attempts to Stop").setValue(0D);
-        Map<String,Object> expected=values(module);
-        assertTrue(config.getLastError(),config.saveConfig("Extended"));String serialized=config.serialize();
-        for(Value<?> value:module.getValues())value.reset();
-        assertTrue(config.getLastError(),config.loadConfig("Extended"));
-        assertEquals(expected,values(module));assertEquals(serialized,config.serialize());
-        assertEquals("Telly",module.getModeSetting("Build Mode").getValue());
-        assertEquals("Reverse",module.getModeSetting("Visible Rotation").getValue());
-        assertFalse(module.getBooleanSetting("Auto Select Blocks").getValue());
-        assertEquals(0,module.getNumberSetting("Ground Ticks to Sneak").getValue(),0);
-        assertEquals(0,module.getNumberSetting("Max Threshold Attempts to Stop").getValue(),0);
+    @Test public void standardAliasUsesNormalAndDoesNotTurnLegacyTurnSpeedIntoFrameSpeed() throws Exception {
+        NScaffold module = new NScaffold(); Path directory = temporary.newFolder().toPath();
+        ConfigManager config = manager(module, directory); warmEverySetting(module);
+        write(directory, "Original", v2("\"visible_rotation\":\"Standard\",\"turn_speed\":1,"
+                + "\"godbridge_pitch\":89,\"look_ahead\":1,\"auto_select_blocks\":false,\"placement_delay\":500,"
+                + "\"advanced_rotations\":false,\"smart_disable_on_death\":false,\"smart_disable_on_world_change\":false"));
+        assertTrue(config.getLastError(), config.loadConfig("Original"));
+        assertEquals(originalDefaults(), values(module));
     }
 
-    @Test public void partialModernImportsKeepExplicitChoicesAndResetOnlyOmittedExtensions()throws Exception {
-        List<String> entries=Arrays.asList("\"build_mode\":\"Telly\"","\"clutch\":true","\"advanced_rotations\":true",
-                "\"smooth_mode\":\"Relative\"","\"extra_smoothing_factor\":0.33","\"short_stop\":true",
-                "\"ground_ticks_to_sneak\":0","\"max_threshold_attempts_to_stop\":0");
-        for(boolean reversed:new boolean[]{false,true}) {
-            NScaffold module=new NScaffold();Path dir=temporary.newFolder().toPath();ConfigManager config=manager(module,dir);
-            warmEveryExtension(module);module.getNumberSetting("Look Ahead").setValue(.83);
-            List<String> order=new ArrayList<>(entries);if(reversed)Collections.reverse(order);
-            String profile=v2(String.join(",",order));write(dir,"Partial",profile);
-            assertTrue(config.getLastError(),config.loadConfig("Partial"));
-            assertEquals("Telly",module.getModeSetting("Build Mode").getValue());
-            assertTrue(module.getBooleanSetting("Clutch").getValue());
-            assertTrue(module.getBooleanSetting("Advanced Rotations").getValue());
-            assertEquals("Relative",module.getModeSetting("Smooth Mode").getValue());
-            assertEquals(.33,module.getNumberSetting("Extra Smoothing Factor").getValue(),0);
-            assertTrue(module.getBooleanSetting("Short Stop").getValue());
-            assertEquals(0,module.getNumberSetting("Ground Ticks to Sneak").getValue(),0);
-            assertEquals(0,module.getNumberSetting("Max Threshold Attempts to Stop").getValue(),0);
-            assertFalse(module.getBooleanSetting("Static-ify").getValue());
-            assertFalse(module.getBooleanSetting("Fast Clutch Always").getValue());
-            assertFalse(module.getBooleanSetting("Auto Sneak on Clutch").getValue());
-            assertEquals(.25,module.getNumberSetting("Yaw Accel Factor").getValue(),0);
-            assertEquals(.83,module.getNumberSetting("Look Ahead").getValue(),0);
-            assertEquals(profile,read(dir,"Partial"));
+    @Test public void everyOriginalSettingRoundTripsIncludingHiddenChoicesFalseAndZero() throws Exception {
+        NScaffold module = new NScaffold(); Path directory = temporary.newFolder().toPath();
+        ConfigManager config = manager(module, directory); warmEverySetting(module);
+        module.getModeSetting("Mode").setValue("Telly");
+        module.getModeSetting("Rotations").setValue("Reverse");
+        module.getModeSetting("Tower move").setValue("PullDown");
+        module.getNumberSetting("Ground ticks to sneak").setValue(0D);
+        module.getNumberSetting("Blocks to jump").setValue(0D);
+        module.getNumberSetting("Max threshold attempts to stop").setValue(0D);
+        Map<String,Object> expected = values(module);
+        assertTrue(config.getLastError(), config.saveConfig("Demise")); String serialized = config.serialize();
+        for (Value<?> value : module.getValues()) value.reset();
+        assertTrue(config.getLastError(), config.loadConfig("Demise"));
+        assertEquals(expected, values(module)); assertEquals(serialized, config.serialize());
+        assertFalse(module.getBooleanSetting("Silent").getValue());
+        assertFalse(module.getBooleanSetting("RayTrace").getValue());
+        assertEquals(0D, module.getNumberSetting("Blocks to jump").getValue(), 0);
+    }
+
+    @Test public void explicitOriginalKeysWinOverAliasesRegardlessOfJsonOrder() throws Exception {
+        List<String> entries = Arrays.asList("\"build_mode\":\"Telly\"", "\"mode\":\"Normal\"",
+                "\"visible_rotation\":\"Godbridge\"", "\"rotations\":\"Center\"",
+                "\"keep_height\":true", "\"keepy\":false", "\"fast_clutch_always\":true", "\"instant_rot_always\":false",
+                "\"fast_clutch_on_miss\":true", "\"instant_rot_on_miss\":false",
+                "\"fast_clutch_prediction\":true", "\"instant_rot_predict\":false",
+                "\"short_stop_duration_(ms)\":250", "\"duration\":25");
+        Map<String,Object> expected = originalDefaults(); expected.put("rotations", "Center"); expected.put("duration", 25D);
+        for (boolean reversed : new boolean[]{false, true}) {
+            NScaffold module = new NScaffold(); Path directory = temporary.newFolder().toPath();
+            ConfigManager config = manager(module, directory); warmEverySetting(module);
+            List<String> order = new ArrayList<>(entries); if (reversed) Collections.reverse(order);
+            String profile = v2(String.join(",", order)); write(directory, "Mixed", profile);
+            assertTrue(config.getLastError(), config.loadConfig("Mixed"));
+            assertEquals(expected, values(module)); assertEquals(profile, read(directory, "Mixed"));
         }
     }
 
-    @Test public void anAbsentModuleIsNotAccidentallyResetByAnotherProfile()throws Exception {
-        NScaffold module=new NScaffold();Path dir=temporary.newFolder().toPath();ConfigManager config=manager(module,dir);
-        warmEveryExtension(module);Map<String,Object> before=values(module);
-        write(dir,"Absent","{\"version\":2,\"modules\":{}}");
-        assertTrue(config.getLastError(),config.loadConfig("Absent"));assertEquals(before,values(module));
+    @Test public void partialOriginalProfileRestoresOmittedDefaultsWithoutLeakingWarmState() throws Exception {
+        NScaffold module = new NScaffold(); Path directory = temporary.newFolder().toPath();
+        ConfigManager config = manager(module, directory); warmEverySetting(module);
+        write(directory, "Partial", v2("\"mode\":\"Telly\",\"silent\":false,\"movement_correction\":\"Strict\","
+                + "\"clutch\":true,\"instant_rot_on_miss\":true,\"ground_ticks_to_sneak\":0,\"raytrace\":false"));
+        assertTrue(config.getLastError(), config.loadConfig("Partial"));
+        Map<String,Object> expected = originalDefaults(); expected.put("mode", "Telly"); expected.put("silent", false);
+        expected.put("movement_correction", "Strict"); expected.put("clutch", true);
+        expected.put("instant_rot_on_miss", true); expected.put("ground_ticks_to_sneak", 0D); expected.put("raytrace", false);
+        assertEquals(expected, values(module));
+        write(directory, "Reset", v2("")); assertTrue(config.getLastError(), config.loadConfig("Reset"));
+        assertEquals(originalDefaults(), values(module));
     }
 
-    @Test public void invalidModesRejectTheWholeImportAndLeaveFilesUnchanged()throws Exception {
-        NScaffold module=new NScaffold();Path dir=temporary.newFolder().toPath();ConfigManager config=manager(module,dir);
-        warmEveryExtension(module);module.getNumberSetting("Turn Speed").setValue(17D);
-        String before=config.serialize();
-        assertTrue(config.getLastError(),config.saveConfig("Preserve"));String preserved=read(dir,"Preserve");
-        for(String id:Arrays.asList("build_mode","visible_rotation","clutch_criteria","clutch_rotation_mode","smooth_mode")) {
-            String invalid=v2("\"turn_speed\":99,\"advanced_rotations\":false,\""+id+"\":\"Unknown choice\"");
-            write(dir,"Invalid",invalid);
-            assertFalse(id,config.loadConfig("Invalid"));assertEquals(before,config.serialize());
-            assertEquals(invalid,read(dir,"Invalid"));
-            assertFalse(config.saveConfig("Preserve",invalid));assertEquals(preserved,read(dir,"Preserve"));
+    @Test public void absentModuleDoesNotChangeItsExistingProfile() throws Exception {
+        NScaffold module = new NScaffold(); Path directory = temporary.newFolder().toPath();
+        ConfigManager config = manager(module, directory); warmEverySetting(module); Map<String,Object> before = values(module);
+        write(directory, "Absent", "{\"version\":2,\"modules\":{}}");
+        assertTrue(config.getLastError(), config.loadConfig("Absent")); assertEquals(before, values(module));
+    }
+
+    @Test public void invalidOriginalAndLegacyChoicesRejectWholeImportWithoutChangingFiles() throws Exception {
+        NScaffold module = new NScaffold(); Path directory = temporary.newFolder().toPath();
+        ConfigManager config = manager(module, directory); warmEverySetting(module);
+        String before = config.serialize(); assertTrue(config.getLastError(), config.saveConfig("Preserve"));
+        List<String> modes = new ArrayList<>(Arrays.asList("build_mode", "visible_rotation"));
+        for (Value<?> value : module.getValues()) if (value instanceof ComboValue) modes.add(value.getId());
+        for (String id : modes) {
+            String invalid = v2("\"ground_ticks_to_sneak\":0,\"" + id + "\":\"Unknown choice\"");
+            write(directory, "Invalid", invalid);
+            assertFalse(id, config.loadConfig("Invalid")); assertEquals(before, config.serialize());
+            assertEquals(invalid, read(directory, "Invalid"));
+            assertFalse(config.saveConfig("Preserve", invalid)); assertEquals(before, read(directory, "Preserve"));
         }
     }
 
-    @Test public void crossedImportedLimitsReachTheRealModuleControllerAsNormalizedRanges()throws Exception {
-        NScaffold module=new NScaffold();Path dir=temporary.newFolder().toPath();ConfigManager config=manager(module,dir);
-        String profile=v2("\"advanced_rotations\":true,\"extra_smoothing_factor\":1,"
-                +"\"yaw_rotation_speed_(min)\":80,\"yaw_rotation_speed_(max)\":10,"
-                +"\"pitch_rotation_speed_(min)\":60,\"pitch_rotation_speed_(max)\":20");
-        write(dir,"Crossed",profile);assertTrue(config.getLastError(),config.loadConfig("Crossed"));
-        Method method=NScaffold.class.getDeclaredMethod("rotationSettings");method.setAccessible(true);
-        NScaffoldRotationController.Settings settings=(NScaffoldRotationController.Settings)method.invoke(module);
-        assertEquals(10,settings.yawMinimum,0);assertEquals(80,settings.yawMaximum,0);
-        assertEquals(20,settings.pitchMinimum,0);assertEquals(60,settings.pitchMaximum,0);
-        NScaffoldRotationController.Step turn=new NScaffoldRotationController(()->0,()->0)
-                .update(0,0,0,90,0,false,false,settings);
-        assertNotNull(turn);assertEquals(10,turn.yaw,0);assertEquals(0,turn.pitch,0);
-        assertEquals(80,module.getNumberSetting("Yaw Rotation Speed (min)").getValue(),0);
-        assertEquals(10,module.getNumberSetting("Yaw Rotation Speed (max)").getValue(),0);
-        assertEquals(profile,read(dir,"Crossed"));
+    @Test public void retiredControlsAndAliasesStillRejectMalformedValuesAndDuplicates() throws Exception {
+        NScaffold module = new NScaffold(); Path directory = temporary.newFolder().toPath();
+        ConfigManager config = manager(module, directory); warmEverySetting(module); String before = config.serialize();
+        String[] invalidSettings = {"\"advanced_rotations\":\"false\"", "\"turn_speed\":0", "\"look_ahead\":1.1",
+                "\"smart_disable_on_death\":1", "\"fast_clutch_on_miss\":\"true\"",
+                "\"short_stop_duration_(ms)\":24", "\"build_mode\":\"Normal\",\"Build Mode\":\"Telly\"",
+                "\"rotations\":\"Normal\",\"Rotations\":\"Center\""};
+        for (String settings : invalidSettings) {
+            write(directory, "Invalid", v2(settings)); assertFalse(settings, config.loadConfig("Invalid"));
+            assertEquals(before, config.serialize());
+        }
+    }
+
+    @Test public void crossedSpeedEndpointsArePreservedExactlyAsStored() throws Exception {
+        NScaffold module = new NScaffold(); Path directory = temporary.newFolder().toPath(); ConfigManager config = manager(module, directory);
+        String profile = v2("\"extra_smoothing_factor\":1,\"yaw_rotation_speed_(min)\":80,\"yaw_rotation_speed_(max)\":10,"
+                + "\"pitch_rotation_speed_(min)\":60,\"pitch_rotation_speed_(max)\":20");
+        write(directory, "Crossed", profile); assertTrue(config.getLastError(), config.loadConfig("Crossed"));
+        assertEquals(80D, module.getNumberSetting("Yaw rotation speed (min)").getValue(), 0);
+        assertEquals(10D, module.getNumberSetting("Yaw rotation speed (max)").getValue(), 0);
+        assertEquals(60D, module.getNumberSetting("Pitch rotation speed (min)").getValue(), 0);
+        assertEquals(20D, module.getNumberSetting("Pitch rotation speed (max)").getValue(), 0);
+        assertEquals(profile, read(directory, "Crossed"));
+    }
+
+    @Test public void fractionalSourceSettingsAreNotQuantizedToUiSteps() throws Exception {
+        NScaffold module = new NScaffold(); Path directory = temporary.newFolder().toPath(); ConfigManager config = manager(module, directory);
+        String profile = v2("\"straight_telly_ticks\":4.75,\"diagonal_telly_ticks\":2.75,\"ground_ticks_to_sneak\":4.5,"
+                + "\"blocks_to_jump\":6.5,\"blocks_to_sneak\":7.5,\"duration\":37.5,"
+                + "\"rotation_diff_buildup_to_stop\":180.5,\"max_threshold_attempts_to_stop\":1.5");
+        write(directory, "Fractional", profile); assertTrue(config.getLastError(), config.loadConfig("Fractional"));
+        Map<String,Object> expected = originalDefaults();
+        expected.put("straight_telly_ticks", 4.75D); expected.put("diagonal_telly_ticks", 2.75D);
+        expected.put("ground_ticks_to_sneak", 4.5D); expected.put("blocks_to_jump", 6.5D);
+        expected.put("blocks_to_sneak", 7.5D); expected.put("duration", 37.5D);
+        expected.put("rotation_diff_buildup_to_stop", 180.5D); expected.put("max_threshold_attempts_to_stop", 1.5D);
+        assertEquals(expected, values(module));
+        assertTrue(config.getLastError(), config.saveConfig("FractionalRoundtrip"));
+        for (Value<?> value : module.getValues()) value.reset();
+        assertTrue(config.getLastError(), config.loadConfig("FractionalRoundtrip")); assertEquals(expected, values(module));
+    }
+
+    @Test public void automaticStateDropsKnownLegacyFieldsAndPreservesUnknownData() throws Exception {
+        NScaffold module = new NScaffold(); Path directory = temporary.newFolder().toPath(); ConfigManager config = manager(module, directory);
+        JsonObject root = new JsonParser().parse(v2("\"Visible Rotation\":\"Reverse\",\"build_mode\":\"Telly\","
+                + "\"turn_speed\":45,\"advanced_rotations\":false,\"smart_disable_on_world_change\":false,\"future_option\":17")).getAsJsonObject();
+        root.addProperty("future_metadata", "keep"); root.getAsJsonObject("modules").add("future_module", new JsonObject());
+        write(directory, ".last-state", root.toString()); config.initialize(Collections.emptyList());
+        assertTrue(config.getLastError(), config.saveDefaultConfig());
+        JsonObject saved = new JsonParser().parse(read(directory, ".last-state")).getAsJsonObject();
+        JsonObject settings = saved.getAsJsonObject("modules").getAsJsonObject("nscaffold").getAsJsonObject("settings");
+        assertEquals(50, settings.size()); assertEquals(17, settings.get("future_option").getAsInt());
+        assertEquals("Reverse", settings.get("rotations").getAsString()); assertEquals("Telly", settings.get("mode").getAsString());
+        for (String old : Arrays.asList("Visible Rotation", "build_mode", "turn_speed", "advanced_rotations", "smart_disable_on_world_change"))
+            assertFalse(old, settings.has(old));
+        assertEquals("keep", saved.get("future_metadata").getAsString()); assertTrue(saved.getAsJsonObject("modules").has("future_module"));
+        NScaffold restored = new NScaffold(); ConfigManager reload = manager(restored, directory); reload.initialize(Collections.emptyList());
+        assertEquals(values(module), values(restored)); assertTrue(reload.getLastError(), reload.saveDefaultConfig());
+    }
+
+    @Test public void knownLegacyAutomaticProfileRemainsWritable() throws Exception {
+        NScaffold module = new NScaffold(); Path directory = temporary.newFolder().toPath(); ConfigManager config = manager(module, directory);
+        write(directory, ".last-state", "{\"NScaffold\":{\"Visible Rotation\":\"Standard\",\"Advanced Rotations\":false,"
+                + "\"Keep Height\":true,\"Smart Disable on Death\":true,\"Smart Disable on World Change\":true}}");
+        config.initialize(Collections.emptyList()); assertTrue(config.getLastError(), config.saveDefaultConfig());
+        JsonObject saved = new JsonParser().parse(read(directory, ".last-state")).getAsJsonObject();
+        assertEquals(2, saved.get("version").getAsInt());
+        assertTrue(saved.getAsJsonObject("modules").getAsJsonObject("nscaffold").getAsJsonObject("settings").get("keepy").getAsBoolean());
     }
 }

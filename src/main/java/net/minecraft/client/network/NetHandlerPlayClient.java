@@ -978,6 +978,7 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
             gameController.playerController.observeOutboundSlot(this, ((C09PacketHeldItemChange)packet).getSlotId());
         if (packet instanceof C03PacketPlayer) {
             C03PacketPlayer movement = (C03PacketPlayer)packet;
+            me.youngjibbit.core.world.DemiseRotationHooks.acceptedPacket(this, movement);
             if (movement.isMoving() && gameController != null && gameController.thePlayer != null && gameController.thePlayer.sendQueue == this)
                 gameController.thePlayer.observeAcceptedPosition(movement.getPositionX(), movement.getPositionY(), movement.getPositionZ());
             if (movement.getRotating()) me.youngjibbit.core.bootstrap.RuntimeServices.rotation().observeOutboundRotation(movement.getYaw(), movement.getPitch());

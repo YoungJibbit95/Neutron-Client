@@ -1,0 +1,55 @@
+{
+  "repository": "YoungJibbit95/DemisePrivate",
+  "commit": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+  "notes": [
+    "Only selected exact source excerpts are materialized. Git blob IDs identify complete upstream files and were verified in JAVA-SCAN-MANIFEST.json.",
+    "FastPlace guards only its additional frame-driven path, not its ordinary right-click timer assignment.",
+    "Speed has only two direct Scaffold conditions, both inside BMC Low; no generic cross-mode guard."
+  ],
+  "sources": [
+    {
+      "source_path": "src/main/java/wtf/demise/features/modules/impl/player/FastPlace.java",
+      "source_git_blob": "8b2c096046ac244da5234bd1d16b85510584ea06",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/features/modules/impl/player/FastPlace.java",
+      "excerpts": [
+        {
+          "start_line": 17,
+          "end_line": 24,
+          "sha256": "3cdbc03528f580d26970da1a446bd7cc727bc7775004483614ecbaefcd6655d2"
+        },
+        {
+          "start_line": 26,
+          "end_line": 54,
+          "sha256": "ef46c5df87871649615ae31c016a36f2ab5ace4b74fb89908c9ffc8b3eafbe46"
+        }
+      ]
+    },
+    {
+      "source_path": "src/main/java/wtf/demise/features/modules/impl/movement/Speed.java",
+      "source_git_blob": "f87c8d1a8613a83f66bee70f59d2cfac02cb52b5",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/features/modules/impl/movement/Speed.java",
+      "excerpts": [
+        {
+          "start_line": 23,
+          "end_line": 25,
+          "sha256": "ecf6601274a6aca5d8a07aefa2c588656a5c24ad4e8e5a9d9af05ff2db5ec1ff"
+        },
+        {
+          "start_line": 53,
+          "end_line": 53,
+          "sha256": "168af069a8e37b2d22cabe8c92b6e6b2ecf114bc53b7c058cf6ce6cb250042ad"
+        },
+        {
+          "start_line": 86,
+          "end_line": 98,
+          "sha256": "41068cf07f4a0003cce806063c8bebfab3e291c41d19a51ad41a6774033475a7"
+        },
+        {
+          "start_line": 194,
+          "end_line": 234,
+          "sha256": "1c3fba95c5aa50d98e93efd64152841f5e7eb4b4d9eb43d6a63cfde114918eeb"
+        }
+      ]
+    }
+  ]
+}

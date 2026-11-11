@@ -9,6 +9,7 @@ import me.youngjibbit.utils.render.UiEffects;
 import me.youngjibbit.gui.HudSpring;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.value.impl.SliderValue;
+import me.youngjibbit.value.impl.DemiseSliderValue;
 import java.awt.Color;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -51,7 +52,7 @@ public class ClickSlider extends Component.Sub<SliderValue> {
     }
     public boolean isEditing(){return editing;}
     public void cancelInput(){editing=false;dragging=false;error=false;}
-    private void beginInput(){dragging=false;editing=true;replaceInput=true;error=false;input=Double.toString(value.getValue());}
+    private void beginInput(){dragging=false;editing=true;replaceInput=true;error=false;input=value instanceof DemiseSliderValue?((DemiseSliderValue)value).displayValue():Double.toString(value.getValue());}
     public ClickSlider(SliderValue value,float x,float y,float width,float height){super(value,x,y,width,height);setWidth(width);}
     private boolean compact(){return width<160;}
     @Override public void setWidth(float next) {
@@ -107,7 +108,7 @@ public class ClickSlider extends Component.Sub<SliderValue> {
         else GuiStyle.panel(valueX(),badgeY(),valueWidth(),badgeHeight(),3,editing?1:isMouseOver(mouseX,mouseY)?.5f:.12f,new Color(29,31,36));
         drawFeedback();
         try(GuiClip ignored=GuiClip.push(new ClipRect(valueX()+3,badgeY()+1,valueWidth()-6,badgeHeight()-2))){
-            String text=editing?input+(error?" !":"_"):BigDecimal.valueOf(value.getValue()).stripTrailingZeros().toPlainString();
+            String text=editing?input+(error?" !":"_"):value instanceof DemiseSliderValue?((DemiseSliderValue)value).displayValue():BigDecimal.valueOf(value.getValue()).stripTrailingZeros().toPlainString();
             if(!editing)text=ClickControlStyle.fit(font,text,valueWidth()-8);
             font.drawString(text,Math.min(valueX()+4,valueX()+valueWidth()-4-font.getWidth(text)),labelY,error?0xffff9c95:ink);
         }
@@ -144,7 +145,7 @@ public class ClickSlider extends Component.Sub<SliderValue> {
         drawFeedback();
         try (GuiClip ignored = GuiClip.push(new ClipRect(valueX()+3, badgeY()+1, valueWidth()-6, badgeHeight()-2))) {
             String text = editing ? input + (error ? " !" : "_")
-                    : BigDecimal.valueOf(value.getValue()).stripTrailingZeros().toPlainString();
+                    : value instanceof DemiseSliderValue?((DemiseSliderValue)value).displayValue():BigDecimal.valueOf(value.getValue()).stripTrailingZeros().toPlainString();
             font.drawString(text, valueX() + valueWidth() - 5 - font.getWidth(text), y + 4, error ? 0xffff9c95 : ink);
         }
     }
@@ -152,7 +153,8 @@ public class ClickSlider extends Component.Sub<SliderValue> {
     private void updateValue(int mouseX){
         double progress=Math.max(0,Math.min(1,(mouseX-trackX())/trackWidth()));
         double next=value.getMin()+progress*(value.getMax()-value.getMin());
-        value.setValue(BigDecimal.valueOf(next).setScale(2,RoundingMode.HALF_UP).doubleValue());
+        if(value instanceof DemiseSliderValue)((DemiseSliderValue)value).setFromUi(next);
+        else value.setValue(BigDecimal.valueOf(next).setScale(2,RoundingMode.HALF_UP).doubleValue());
         if (panelStyle || compact()&&
                 me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(
                         me.youngjibbit.theme.ThemeMode.selected()))
@@ -174,13 +176,13 @@ public class ClickSlider extends Component.Sub<SliderValue> {
         if(editing){
             if(key==org.lwjgl.input.Keyboard.KEY_ESCAPE){cancelInput();return;}
             if(key==org.lwjgl.input.Keyboard.KEY_RETURN||key==org.lwjgl.input.Keyboard.KEY_NUMPADENTER){
-                try{double next=Double.parseDouble(input);if(!Double.isFinite(next)||next<value.getMin()||next>value.getMax())throw new NumberFormatException();value.setValue(next);cancelInput();}catch(NumberFormatException ex){error=true;}return;
+                try{double next=Double.parseDouble(input);if(!Double.isFinite(next)||next<value.getMin()||next>value.getMax())throw new NumberFormatException();if(value instanceof DemiseSliderValue)((DemiseSliderValue)value).setFromUi(next);else value.setValue(next);cancelInput();}catch(NumberFormatException ex){error=true;}return;
             }
             if(key==org.lwjgl.input.Keyboard.KEY_A&&org.lwjgl.input.Keyboard.isCreated()&&net.minecraft.client.gui.GuiScreen.isCtrlKeyDown()){replaceInput=true;return;}
             if(key==org.lwjgl.input.Keyboard.KEY_BACK){input=replaceInput?"":input.substring(0,Math.max(0,input.length()-1));replaceInput=false;error=false;return;}
             if("0123456789.-+eE".indexOf(typedChar)>=0&&(replaceInput||input.length()<32)){input=replaceInput?String.valueOf(typedChar):input+typedChar;replaceInput=false;error=false;}return;
         }
         if(key==org.lwjgl.input.Keyboard.KEY_RETURN||key==org.lwjgl.input.Keyboard.KEY_NUMPADENTER){beginInput();return;}
-        if(key==org.lwjgl.input.Keyboard.KEY_LEFT||key==org.lwjgl.input.Keyboard.KEY_RIGHT){double step=value.isInteger()?1:(value.getMax()-value.getMin())/100;value.setValue(value.getValue()+(key==org.lwjgl.input.Keyboard.KEY_LEFT?-step:step));}
+        if(key==org.lwjgl.input.Keyboard.KEY_LEFT||key==org.lwjgl.input.Keyboard.KEY_RIGHT){if(value instanceof DemiseSliderValue)((DemiseSliderValue)value).stepFromUi(key==org.lwjgl.input.Keyboard.KEY_LEFT?-1:1);else{double step=value.isInteger()?1:(value.getMax()-value.getMin())/100;value.setValue(value.getValue()+(key==org.lwjgl.input.Keyboard.KEY_LEFT?-step:step));}}
     }
 }

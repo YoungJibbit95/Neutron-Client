@@ -231,6 +231,8 @@ public abstract class AbstractClientPlayer extends EntityPlayer
      */
     public Vec3 getLook(float partialTicks)
     {
+        Vec3 demise = me.youngjibbit.core.world.DemiseRotationHooks.lookVector(this);
+        if (demise != null) return demise;
         return this.getVectorForRotation(this.rotationPitch, this.rotationYaw);
     }
 

@@ -182,6 +182,7 @@ public enum Pulsar implements Subscriber {
         me.youngjibbit.utils.render.ArrayListSurface.releaseResources();
         me.youngjibbit.utils.render.TextEffects.releaseResources();
         me.youngjibbit.utils.render.Blur.releaseResources();
+        me.youngjibbit.utils.render.DemiseScaffoldEffects.releaseResources();
         me.youngjibbit.utils.render.UIUtils.releaseResources();
         me.youngjibbit.utils.render.GuiShaderBloom.releaseResources();
         me.youngjibbit.utils.render.shader.blur.GaussianBlur.releaseResources();

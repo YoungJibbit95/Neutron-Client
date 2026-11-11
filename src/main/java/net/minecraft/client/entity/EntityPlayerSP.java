@@ -218,8 +218,10 @@ public class EntityPlayerSP extends AbstractClientPlayer
             rotations = RuntimeServices.rotation();
             rotations.bindConnection(this.sendQueue.getNetworkManager().getClientPackets());
             if (rotations.isPreparedMovementClaimed()) return;
-            if (!rotations.resumePreparedMovement(this, this.worldObj))
+            if (!rotations.resumePreparedMovement(this, this.worldObj)) {
                 rotations.beginMotion(this, this.worldObj, this.rotationYaw, this.rotationPitch);
+                me.youngjibbit.core.world.DemiseRotationHooks.prepareRotation();
+            }
             motionSequence = rotations.getMotionSequence();
             motionEvent.setEventPhase(EventPhase.PRE);
             try {
@@ -254,6 +256,7 @@ public class EntityPlayerSP extends AbstractClientPlayer
         if (flag != serverSprintState)
         {
             C0BPacketEntityAction sprintAction = new C0BPacketEntityAction(this, flag
+                    && !me.youngjibbit.module.impl.world.NScaffold.silentSprint(this)
                     ? C0BPacketEntityAction.Action.START_SPRINTING : C0BPacketEntityAction.Action.STOP_SPRINTING);
             if (connection.addToSendQueueGuarded(sprintAction,
                     () -> currentFrame.getAsBoolean() && this.isSprinting() == flag) == sprintAction
@@ -295,6 +298,7 @@ public class EntityPlayerSP extends AbstractClientPlayer
 
             double posX = motionEvent.getX(), posY = motionEvent.getY(), posZ = motionEvent.getZ();
             float rotationYaw = motionEvent.getYaw(), rotationPitch = motionEvent.getPitch();
+            me.youngjibbit.core.world.DemiseRotationHooks.motion(this, rotationYaw, rotationPitch);
             boolean onGround = motionEvent.isOnGround();
 
             double d3 = rotationYaw - this.lastReportedYaw;
@@ -387,6 +391,7 @@ public class EntityPlayerSP extends AbstractClientPlayer
                 // Keep confirmed wire angles separate. The renderer owns cosmetic head/body angles.
                 this.serverYaw = rotationYaw;
                 this.serverPitch = rotationPitch;
+                me.youngjibbit.core.world.DemiseRotationHooks.modelAfterMotion(this, rotationYaw, rotationPitch);
             }
 
             EventMotion postMotionEvent = new EventMotion(posX, posY, posZ, rotationYaw, rotationPitch, onGround);
@@ -403,6 +408,12 @@ public class EntityPlayerSP extends AbstractClientPlayer
                 && connection.getNetworkManager().getClientPackets() == packets && packets.getContextVersion() == contextVersion;
     }
 
+
+    @Override
+    public void moveEntity(double x, double y, double z) {
+        me.youngjibbit.event.motion.EventMove move = me.youngjibbit.core.world.DemiseRotationHooks.move(this, x, y, z);
+        super.moveEntity(move.getX(), move.getY(), move.getZ());
+    }
 
     /**
      * Called when player presses the drop item key
@@ -859,6 +870,7 @@ public class EntityPlayerSP extends AbstractClientPlayer
      */
     public void onLivingUpdate()
     {
+        me.youngjibbit.core.world.DemiseRotationHooks.update(this);
         RuntimeServices.rotation().prepareMovement(this);
         Pulsar.INSTANCE.BUS.post(new LivingEvent());
 

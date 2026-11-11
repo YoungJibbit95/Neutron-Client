@@ -101,6 +101,8 @@ public abstract class Entity implements ICommandSender
     public float entityCollisionReduction;
     protected Random rand = new Random();
     public int ticksExisted;
+    /** Demise's consecutive ground counters, sampled at the start of Entity.onUpdate. */
+    public int onGroundTicks, offGroundTicks;
     public int fireResistance = 1;
     public int fire;
     protected boolean inWater;
@@ -288,6 +290,7 @@ public abstract class Entity implements ICommandSender
      */
     public void setAngles(float yaw, float pitch)
     {
+        me.youngjibbit.core.world.DemiseRotationHooks.angle(this);
         float f = this.rotationPitch;
         float f1 = this.rotationYaw;
         this.rotationYaw = (float)((double)this.rotationYaw + (double)yaw * 0.15D);
@@ -302,6 +305,13 @@ public abstract class Entity implements ICommandSender
      */
     public void onUpdate()
     {
+        if (this.onGround) {
+            this.offGroundTicks = 0;
+            this.onGroundTicks++;
+        } else {
+            this.onGroundTicks = 0;
+            this.offGroundTicks++;
+        }
         this.onEntityUpdate();
     }
 
@@ -523,7 +533,8 @@ public abstract class Entity implements ICommandSender
             double d3 = x;
             double d4 = y;
             double d5 = z;
-            boolean flag = this.onGround && this.isSneaking() && this instanceof EntityPlayer;
+            boolean flag = this.onGround && this.isSneaking() && this instanceof EntityPlayer
+                    || me.youngjibbit.module.impl.world.NScaffold.safeWalk(this);
 
             if (flag)
             {

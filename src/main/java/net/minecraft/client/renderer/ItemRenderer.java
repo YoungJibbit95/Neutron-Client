@@ -768,7 +768,7 @@ public class ItemRenderer
     {
         this.prevEquippedProgress = this.equippedProgress;
         EntityPlayer entityplayer = this.mc.thePlayer;
-        ItemStack itemstack = entityplayer.inventory.getCurrentItem();
+        ItemStack itemstack = me.youngjibbit.module.impl.world.NScaffold.displayedStack(entityplayer);
         boolean flag = false;
 
         if (this.itemToRender != null && itemstack != null)
@@ -777,12 +777,12 @@ public class ItemRenderer
             {
                 if (Reflector.ForgeItem_shouldCauseReequipAnimation.exists())
                 {
-                    boolean flag1 = Reflector.callBoolean(this.itemToRender.getItem(), Reflector.ForgeItem_shouldCauseReequipAnimation, new Object[] {this.itemToRender, itemstack, Boolean.valueOf(this.equippedItemSlot != entityplayer.inventory.currentItem)});
+                    boolean flag1 = Reflector.callBoolean(this.itemToRender.getItem(), Reflector.ForgeItem_shouldCauseReequipAnimation, new Object[] {this.itemToRender, itemstack, Boolean.valueOf(this.equippedItemSlot != me.youngjibbit.module.impl.world.NScaffold.displayedSlot(entityplayer))});
 
                     if (!flag1)
                     {
                         this.itemToRender = itemstack;
-                        this.equippedItemSlot = entityplayer.inventory.currentItem;
+                        this.equippedItemSlot = me.youngjibbit.module.impl.world.NScaffold.displayedSlot(entityplayer);
                         return;
                     }
                 }
@@ -807,7 +807,7 @@ public class ItemRenderer
         if (this.equippedProgress < 0.1F)
         {
             this.itemToRender = itemstack;
-            this.equippedItemSlot = entityplayer.inventory.currentItem;
+            this.equippedItemSlot = me.youngjibbit.module.impl.world.NScaffold.displayedSlot(entityplayer);
 
             if (Config.isShaders())
             {

@@ -71,7 +71,7 @@ public class WorldOverlayContractTest {
     @Test public void nativeDispatchWhenRequested() throws Exception {
         org.junit.Assume.assumeTrue(Boolean.getBoolean("pulsar.world.overlay.native"));
         for (Class<?> probe : new Class<?>[]{WorldOverlayNativeCheck.class,RendererReloadNativeCheck.class,
-                ShaderWorldOverlayNativeCheck.class,ShaderCompatibilityNativeCheck.class}) {
+                ShaderWorldOverlayNativeCheck.class,ShaderCompatibilityNativeCheck.class,DemiseScaffoldOverlayNativeCheck.class}) {
         Path log=Files.createTempFile(Paths.get(System.getProperty("user.dir")),"world-overlay-",".log");
         String javaExecutable=System.getProperty("os.name").startsWith("Windows")?"java.exe":"java";
         Process child=new ProcessBuilder(Paths.get(System.getProperty("java.home"),"bin",javaExecutable).toString(),

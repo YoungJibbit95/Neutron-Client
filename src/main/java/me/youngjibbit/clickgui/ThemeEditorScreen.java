@@ -241,7 +241,7 @@ public class ThemeEditorScreen extends GuiScreen {
         UIUtils.drawDecorationRound(track.x,track.y,track.width,track.height,1,LegacyUiStyle.alpha(LegacyUiStyle.MUTED,.18f));
         UIUtils.drawDecorationRound(track.x,track.y,Math.max(.01f,track.width*f),track.height,1,LegacyUiStyle.accent(Theme.getDefaultTheme(),.9f));
     }
-    private void updateSlider(int id,int mx){ClipRect track=sliderTrack(id);SliderValue v=sliders()[id-20];double t=Math.max(0,Math.min(1,(mx-track.x)/track.width));v.setValue(v.getMin()+t*(v.getMax()-v.getMin()));}
+    private void updateSlider(int id,int mx){ClipRect track=sliderTrack(id);SliderValue v=sliders()[id-20];double t=Math.max(0,Math.min(1,(mx-track.x)/track.width));if(v instanceof DemiseSliderValue)((DemiseSliderValue)v).setFromUi(v.getMin()+t*(v.getMax()-v.getMin()));else v.setValue(v.getMin()+t*(v.getMax()-v.getMin()));}
     @Override protected void mouseClicked(int mx,int my,int button)throws IOException{
         visualPressed=-1;
         if(pickerField>=0){
@@ -270,7 +270,7 @@ public class ThemeEditorScreen extends GuiScreen {
     /** The tab group has one keyboard stop; F6 changes its section. */
     private int[] focusOrder(){int[] fields=fields(),ids=new int[8+fields.length];int at=0;for(int id:new int[]{0,1,2,25+section})ids[at++]=id;for(int id:fields)ids[at++]=id;for(int id:new int[]{3,4,5,6})ids[at++]=id;return ids;}
     private void beginField(int id){drag=-1;editingField=id;buffer=id>=20?Double.toString(sliders()[id-20].getValue()):id==9?draft.title.getValue():rgba(colors()[id-10].getValue());originalName=draft.title.getValue();replaceInput=true;}
-    private boolean commitField(){if(editingField<0)return true;try{if(editingField>=20){SliderValue value=sliders()[editingField-20];double next=Double.parseDouble(buffer);if(!Double.isFinite(next)||next<value.getMin()||next>value.getMax())throw new IllegalArgumentException("Number must be within "+value.getMin()+" - "+value.getMax());value.setValue(next);}else if(editingField==9)draft.title.setValue(Theme.validName(buffer));else{if(!buffer.matches("[0-9a-fA-F]{8}"))throw new IllegalArgumentException("RGBA needs eight hex digits: RRGGBBAA");colors()[editingField-10].setColor(new Color(Integer.rotateRight((int)Long.parseLong(buffer,16),8),true));}editingField=-1;status="";return true;}catch(IllegalArgumentException ex){status=ex.getMessage();return false;}}
+    private boolean commitField(){if(editingField<0)return true;try{if(editingField>=20){SliderValue value=sliders()[editingField-20];double next=Double.parseDouble(buffer);if(!Double.isFinite(next)||next<value.getMin()||next>value.getMax())throw new IllegalArgumentException("Number must be within "+value.getMin()+" - "+value.getMax());if(value instanceof DemiseSliderValue)((DemiseSliderValue)value).setFromUi(next);else value.setValue(next);}else if(editingField==9)draft.title.setValue(Theme.validName(buffer));else{if(!buffer.matches("[0-9a-fA-F]{8}"))throw new IllegalArgumentException("RGBA needs eight hex digits: RRGGBBAA");colors()[editingField-10].setColor(new Color(Integer.rotateRight((int)Long.parseLong(buffer,16),8),true));}editingField=-1;status="";return true;}catch(IllegalArgumentException ex){status=ex.getMessage();return false;}}
     protected void activate(int id)throws IOException{
         if(id>=25&&id<=27){if(commitField()){section=id-25;focus=id;scroll=targetScroll=0;drag=-1;deleteConfirm=false;status="";layout();}return;}
         if(id==6&&!deleteConfirm){deleteConfirm=true;status="Delete this custom theme? Click Confirm delete or Cancel.";return;}
@@ -301,7 +301,7 @@ public class ThemeEditorScreen extends GuiScreen {
             if(editingField==9)draft.title.setValue(buffer);return;
         }
         if(key==Keyboard.KEY_ESCAPE){activate(4);return;}if(key==Keyboard.KEY_F6){activate(25+(section+(shiftDown()?2:1))%3);return;}if(key==Keyboard.KEY_TAB){nextFocus(shiftDown()?-1:1);return;}
-        if(focus>=20&&focus<=24&&enabled(focus)&&(key==Keyboard.KEY_LEFT||key==Keyboard.KEY_RIGHT)){SliderValue value=sliders()[focus-20];value.setValue(value.getValue()+(value.getMax()-value.getMin())/100*(key==Keyboard.KEY_LEFT?-1:1));return;}
+        if(focus>=20&&focus<=24&&enabled(focus)&&(key==Keyboard.KEY_LEFT||key==Keyboard.KEY_RIGHT)){SliderValue value=sliders()[focus-20];if(value instanceof DemiseSliderValue)((DemiseSliderValue)value).stepFromUi(key==Keyboard.KEY_LEFT?-1:1);else value.setValue(value.getValue()+(value.getMax()-value.getMin())/100*(key==Keyboard.KEY_LEFT?-1:1));return;}
         if(focus>=20&&focus<=24&&enabled(focus)&&(key==Keyboard.KEY_RETURN||key==Keyboard.KEY_NUMPADENTER||key==Keyboard.KEY_SPACE)){beginField(focus);return;}
         if(key==Keyboard.KEY_RETURN||key==Keyboard.KEY_NUMPADENTER||key==Keyboard.KEY_SPACE){ClipRect r=actionBounds(focus);mouseClicked((int)(r.x+r.width/2),(int)(r.y+r.height/2),0);mouseReleased(0,0,0);}
     }

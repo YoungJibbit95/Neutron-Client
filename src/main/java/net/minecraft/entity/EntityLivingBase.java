@@ -1874,7 +1874,7 @@ public abstract class EntityLivingBase extends Entity
 
         if (this.swingProgress > 0.0F)
         {
-            f1 = this.rotationYaw;
+            f1 = me.youngjibbit.core.world.DemiseRotationHooks.modelYaw(this, this.rotationYaw);
         }
 
         if (!this.onGround)
@@ -1934,9 +1934,10 @@ public abstract class EntityLivingBase extends Entity
 
     protected float func_110146_f(float p_110146_1_, float p_110146_2_)
     {
+        float modelYaw = me.youngjibbit.core.world.DemiseRotationHooks.modelYaw(this, this.rotationYaw);
         float f = MathHelper.wrapAngleTo180_float(p_110146_1_ - this.renderYawOffset);
         this.renderYawOffset += f * 0.3F;
-        float f1 = MathHelper.wrapAngleTo180_float(this.rotationYaw - this.renderYawOffset);
+        float f1 = MathHelper.wrapAngleTo180_float(modelYaw - this.renderYawOffset);
         boolean flag = f1 < -90.0F || f1 >= 90.0F;
 
         if (f1 < -75.0F)
@@ -1949,7 +1950,7 @@ public abstract class EntityLivingBase extends Entity
             f1 = 75.0F;
         }
 
-        this.renderYawOffset = this.rotationYaw - f1;
+        this.renderYawOffset = modelYaw - f1;
 
         if (f1 * f1 > 2500.0F)
         {
@@ -2022,6 +2023,7 @@ public abstract class EntityLivingBase extends Entity
         {
             this.worldObj.theProfiler.startSection("newAi");
             this.updateEntityActionState();
+            me.youngjibbit.core.world.DemiseRotationHooks.headAfterActionState(this);
             this.worldObj.theProfiler.endSection();
         }
 
