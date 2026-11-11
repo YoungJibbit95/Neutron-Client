@@ -97,7 +97,8 @@ public class TrashMenuScreen extends GuiScreen {
                 try (GuiClip panel = GuiClip.push(new ClipRect(x + 2, y + 2, w - 4, h - 4))) {
                     LegacyUiStyle.icon("delete", x + 15, y + 12, 14, theme.getPrimaryGradientRGB());
                     text("Trash", x + 37, y + 11, w - 150, LegacyUiStyle.ink(theme));
-                    text(store.keys().size() + " rules", x + w - 98, y + 12, 82, LegacyUiStyle.MUTED);
+                    int ruleCount = store.keys().size();
+                    text(ruleCount + (ruleCount == 1 ? " rule" : " rules"), x + w - 98, y + 12, 82, LegacyUiStyle.MUTED);
                     if (!compact()) text("Choose exact variants · Ctrl+F search · Ctrl+L filter · Ctrl+Z undo", x + 15, y + 30, w - 30, LegacyUiStyle.MUTED);
                     ClipRect search = searchBounds();
                     MenuSurface.card(search.x, search.y, search.width, search.height, theme, searchFocus, search.contains(mouseX, mouseY));

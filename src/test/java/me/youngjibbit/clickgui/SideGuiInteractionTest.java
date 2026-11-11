@@ -67,4 +67,14 @@ public class SideGuiInteractionTest {
             }
         }
     }
+    @Test public void nativeGuiScaleBoundsRemainExactWithoutFractionalRowDrift(){
+        for(int[] size:new int[][]{{480,320},{640,360},{367,245},{333,234}}){
+            screen.resize(size[0],size[1]);ClipRect window=screen.window();
+            for(int id=1;id<=6;id++){
+                ClipRect card=screen.tabBounds(id),clipped=card.intersect(window);
+                assertEquals("Width at GUI scale",card.width,clipped.width,0f);
+                assertEquals("Height at GUI scale",card.height,clipped.height,0f);
+            }
+        }
+    }
 }

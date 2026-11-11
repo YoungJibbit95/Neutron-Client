@@ -51,7 +51,8 @@ public class SideGuiScreen extends GuiScreen {
         int index=id==6?4:id-1;
         int cols=columns(),row=index/cols,column=index%cols;
         float top=h<240?58:78,gap=8,cell=(w-28-(cols-1)*gap)/cols;
-        float pitch=(Math.max(32,h-top-33)+gap)/((5+cols-1)/cols);
+        // Whole-pixel row spacing keeps the three-row grid's hit and clip edges identical.
+        float pitch=(float)Math.floor((Math.max(32,h-top-33)+gap)/((5+cols-1)/cols));
         if(index==4&&cols==2)cell=w-28;
         return new ClipRect(x+14+column*(cell+gap),y+top+row*pitch,cell,Math.max(18,pitch-gap));
     }

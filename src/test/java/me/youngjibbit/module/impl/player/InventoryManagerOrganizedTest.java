@@ -3,6 +3,7 @@ package me.youngjibbit.module.impl.player;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.combat.RotationBehaviorHookTest;
 import me.youngjibbit.core.inventory.*;
+import me.youngjibbit.core.world.Wave2IsolatedCase;
 import me.youngjibbit.event.update.EventUpdate;
 import net.minecraft.client.gui.inventory.GuiInventory;
 import net.minecraft.client.multiplayer.PlayerControllerMP;
@@ -16,6 +17,37 @@ import java.util.*;
 import static org.junit.Assert.*;
 
 public class InventoryManagerOrganizedTest {
+    // Fixture replaces Module.mc (static final) through Unsafe. A warmed shared
+    // JVM may keep a prior client's inventory in compiled scanner/action helpers.
+    // Use the existing client-lifetime isolation, retaining ordinary Java 8 JIT
+    // and every original assertion case; production has one stable client.
+    @Test public void actualContainerSwapsConvergeToNineConfiguredRolesOneActionPerUpdate() throws Exception {
+        Wave2IsolatedCase.run(Checks.class, "actualContainerSwapsConvergeToNineConfiguredRolesOneActionPerUpdate");
+    }
+    @Test public void customRoleReservationMovesStrayItemToFreeMainSlotWithoutDroppingIt() throws Exception {
+        Wave2IsolatedCase.run(Checks.class, "customRoleReservationMovesStrayItemToFreeMainSlotWithoutDroppingIt");
+    }
+    @Test public void keepArmorDoesNotDisableExplicitTrashAndNamedVariantRemainsProtected() throws Exception {
+        Wave2IsolatedCase.run(Checks.class, "keepArmorDoesNotDisableExplicitTrashAndNamedVariantRemainsProtected");
+    }
+    @Test public void cursorDeathNonInventoryAndForeignContainerPreventActions() throws Exception {
+        Wave2IsolatedCase.run(Checks.class, "cursorDeathNonInventoryAndForeignContainerPreventActions");
+    }
+    @Test public void deferredDropRechecksCursorWorldAndRuleRemoval() throws Exception {
+        Wave2IsolatedCase.run(Checks.class, "deferredDropRechecksCursorWorldAndRuleRemoval");
+    }
+    @Test public void protectedBlacklistedWeaponCannotMakeAnAllowedWeaponTrashInEitherLayout() throws Exception {
+        Wave2IsolatedCase.run(Checks.class, "protectedBlacklistedWeaponCannotMakeAnAllowedWeaponTrashInEitherLayout");
+    }
+    @Test public void clickFailureReleasesReentrancyGuardAndNeverQueuesFollowupAction() throws Exception {
+        Wave2IsolatedCase.run(Checks.class, "clickFailureReleasesReentrancyGuardAndNeverQueuesFollowupAction");
+    }
+    @Test public void startDelayBeginsWithAnEligibleInventoryContextAndDoesNotRestartPerAction() throws Exception {
+        Wave2IsolatedCase.run(Checks.class, "startDelayBeginsWithAnEligibleInventoryContextAndDoesNotRestartPerAction");
+    }
+    @Test public void unloadRevokesLegacyClickEvenBeforeWorldReferenceChangesWithSmartDisableOff() throws Exception {
+        Wave2IsolatedCase.run(Checks.class, "unloadRevokesLegacyClickEvenBeforeWorldReferenceChangesWithSmartDisableOff");
+    }
     private static final class Clicks extends PlayerControllerMP {
         int calls, mode, wire; boolean fail, recurse;
         Clicks(net.minecraft.client.Minecraft mc) { super(mc, null); }
@@ -43,6 +75,7 @@ public class InventoryManagerOrganizedTest {
         f.mc.inGameHasFocus = false; // An ordinary open inventory releases gameplay focus.
         Clicks c = new Clicks(f.mc); f.mc.playerController = c; return c;
     }
+    public static final class Checks {
     @Test public void actualContainerSwapsConvergeToNineConfiguredRolesOneActionPerUpdate() throws Exception {
         Bootstrap.register(); try (RotationBehaviorHookTest.Fixture f = new RotationBehaviorHookTest.Fixture()) {
             Clicks clicks = prepare(f); InventoryManager m = manager();
@@ -200,5 +233,6 @@ public class InventoryManagerOrganizedTest {
                 assertNull(InventoryManagerSafetyTest.field(m, "trashOwner"));
             } finally { Pulsar.BUS.unsubscribe(watch); m.setToggled(false); }
         }
+    }
     }
 }
