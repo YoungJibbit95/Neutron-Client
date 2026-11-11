@@ -166,6 +166,7 @@ public abstract class RendererLivingEntity<T extends EntityLivingBase> extends R
             float f7 = entity == this.renderManager.livingPlayer
                     ? entity.prevRotationPitchHead + (entity.rotationPitchHead - entity.prevRotationPitchHead) * partialTicks
                     : entity.prevRotationPitch + (entity.rotationPitch - entity.prevRotationPitch) * partialTicks;
+            f7 = me.youngjibbit.core.world.DemiseRotationHooks.renderPitch(entity, partialTicks, f7);
             me.youngjibbit.core.combat.BodyRotationController.Pose pose =
                     me.youngjibbit.core.combat.RotationCorrections.renderPose(entity, f);
             if (pose != null) {

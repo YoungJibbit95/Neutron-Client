@@ -391,6 +391,7 @@ public class GuiIngame extends Gui
 
     /** The native Event2D owner is also exercised by the combined offscreen HUD regression. */
     private void renderClientHud(float partialTicks,ScaledResolution resolution) {
+        me.youngjibbit.module.impl.world.NScaffold.renderTargetShaders();
         me.youngjibbit.utils.render.HudDrag.context(me.youngjibbit.module.impl.render.Diagnostics.editing(mc.currentScreen), org.lwjgl.input.Mouse.isCreated() && org.lwjgl.input.Mouse.isButtonDown(0));
         final Event2D event=new Event2D(partialTicks,resolution);
         try(me.youngjibbit.utils.render.RenderState state=new me.youngjibbit.utils.render.RenderState()){
@@ -414,7 +415,7 @@ public class GuiIngame extends Gui
         int hotbarY = s.getScaledHeight() - 26;
         int hotbarWidth = 184;
         int hotbarHeight = 24;
-        int selectedSlotX = hotbarX + Wrapper.mc.thePlayer.inventory.currentItem * 20;
+        int selectedSlotX = hotbarX + me.youngjibbit.module.impl.world.NScaffold.displayedSlot(Wrapper.mc.thePlayer) * 20;
 
         hotbarSurface.panel(hotbarX,hotbarY,hotbarWidth,hotbarHeight,5,currentTheme,true,true,true,8,90/255f,.65f,()->{});hotbarSceneReady=true;
         int selectedColor = me.youngjibbit.utils.render.UiEffects.gradientColor(currentTheme,
@@ -1176,7 +1177,7 @@ public class GuiIngame extends Gui
 
         if (this.mc.thePlayer != null)
         {
-            ItemStack itemstack = this.mc.thePlayer.inventory.getCurrentItem();
+            ItemStack itemstack = me.youngjibbit.module.impl.world.NScaffold.displayedStack(this.mc.thePlayer);
 
             if (itemstack == null)
             {

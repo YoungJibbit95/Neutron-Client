@@ -40,4 +40,10 @@ public class SliderValue extends Value<Double>
         double clamped = Math.max(min, Math.min(max, value));
         super.setValue(integer ? (double) Math.round(clamped) : clamped);
     }
+
+    /** Lets a source-specific value retain its own storage semantics without changing normal sliders. */
+    protected final void storeValue(Double value)
+    {
+        super.setValue(value);
+    }
 }

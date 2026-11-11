@@ -7,6 +7,7 @@ import me.youngjibbit.utils.animations.ContinualAnimation;
 import me.youngjibbit.utils.render.UiEffects;
 import me.youngjibbit.utils.render.UIUtils;
 import me.youngjibbit.value.impl.SliderValue;
+import me.youngjibbit.value.impl.DemiseSliderValue;
 
 import java.awt.*;
 import java.math.BigDecimal;
@@ -52,13 +53,15 @@ public class iOSSlider extends iOSComponent.Sub<SliderValue>
         labelFont.drawString(me.youngjibbit.clickgui.utils.ClickControlStyle.fit(labelFont,value.getName(),width-80),x+10,y+3,currentTheme.getTextColor().getRGB());
 
         me.youngjibbit.utils.font.TTFFontRenderer numberFont=Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 19");
-        String number=me.youngjibbit.clickgui.utils.ClickControlStyle.fit(numberFont,BigDecimal.valueOf(value.getValue()).stripTrailingZeros().toPlainString(),62);
+        String number=me.youngjibbit.clickgui.utils.ClickControlStyle.fit(numberFont,value instanceof DemiseSliderValue?((DemiseSliderValue)value).displayValue():BigDecimal.valueOf(value.getValue()).stripTrailingZeros().toPlainString(),62);
         numberFont.drawString(number,x+width-12-numberFont.getWidth(number),y+3,currentTheme.getTextColor().getRGB());
 
         double difference = Math.min(TRACK_WIDTH, Math.max(0, mouseX - trackX));
         if (dragging)
         {
-            if (difference == 0)
+            if (value instanceof DemiseSliderValue) {
+                ((DemiseSliderValue) value).setFromUi((difference / TRACK_WIDTH) * (value.getMax() - value.getMin()) + value.getMin());
+            } else if (difference == 0)
             {
                 value.setValue(value.getMin());
             } else {

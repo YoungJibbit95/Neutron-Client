@@ -1,0 +1,103 @@
+{
+  "repository": "YoungJibbit95/DemisePrivate",
+  "commit": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+  "notes": [
+    "Only the listed excerpts are materialized; source_git_blob identifies the complete original file.",
+    "Source lines and embedded copyright/license notices are unchanged.",
+    "Neutron already has ActiveRenderInfo getters and org.lwjgl.util.glu.GLU; their API names differ from the pinned source."
+  ],
+  "sources": [
+    {
+      "source_path": "src/main/java/wtf/demise/utils/render/RenderUtils.java",
+      "source_git_blob": "c9ffb4e28a4229761624ef89572021674e33cd76",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/render/RenderUtils.java",
+      "purpose": "Target block ESP rendering and all direct local geometry/color/projection helpers",
+      "excerpts": [
+        {
+          "start_line": 1,
+          "end_line": 35,
+          "sha256": "050d3c0ee4b2479f22027380955533ef59787162c2cce35f17fb8bc138279282"
+        },
+        {
+          "start_line": 109,
+          "end_line": 124,
+          "sha256": "fb8630d1113a2c31ad69117137c3297606c8a13bab5f2efe73518c25c33655cf"
+        },
+        {
+          "start_line": 250,
+          "end_line": 361,
+          "sha256": "59edb906c0382fdd6436b4ba0c0089d7eb65e9e3ab938646321dfc4f986eb506"
+        },
+        {
+          "start_line": 705,
+          "end_line": 731,
+          "sha256": "3d23cd1a8d42af13c8f0695cbe61877610ef01288a271ffee410e967e13dce37"
+        },
+        {
+          "start_line": 750,
+          "end_line": 801,
+          "sha256": "b82d6c0406099776a4184c1ceb2e969de0648fe7923340236b98bb8cebd46f5b"
+        }
+      ]
+    },
+    {
+      "source_path": "src/main/java/net/minecraft/client/renderer/ActiveRenderInfo.java",
+      "source_git_blob": "03b6bcb60feac94202500cb7b0ea50b18940b3d6",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/net/minecraft/client/renderer/ActiveRenderInfo.java",
+      "purpose": "Cached world-view matrices and viewport producer",
+      "excerpts": [
+        {
+          "start_line": 1,
+          "end_line": 46,
+          "sha256": "bf41d83f4946ee5640fc43c8d4cea7ddb3dc114911a3b1f6dc1783a4df60f841"
+        }
+      ]
+    },
+    {
+      "source_path": "src/main/java/org/lwjglx/util/glu/GLU.java",
+      "source_git_blob": "d78989997936c0b33a6449e3cd86f5413affa7f5",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/org/lwjglx/util/glu/GLU.java",
+      "purpose": "GLU projection entry point; original copyright/license notice retained",
+      "excerpts": [
+        {
+          "start_line": 1,
+          "end_line": 40,
+          "sha256": "80bcd8ebb922aa50ea4e6fd3f676ed986ae0ee1b96003afdcdc665acb0be0a53"
+        },
+        {
+          "start_line": 291,
+          "end_line": 308,
+          "sha256": "63828e4739ea005b76bca3f142775170b493f03d381b71758d9e7b02ae39b945"
+        }
+      ]
+    },
+    {
+      "source_path": "src/main/java/org/lwjglx/util/glu/Project.java",
+      "source_git_blob": "ce25df3635e2b32c551a3b9c953d97fbca8a386c",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/org/lwjglx/util/glu/Project.java",
+      "purpose": "Projection matrix-vector math; original copyright/license and author notices retained",
+      "excerpts": [
+        {
+          "start_line": 1,
+          "end_line": 49,
+          "sha256": "82fd8152104b3dc631c93ee35cafca969f7024a99c071a26dd5892eba26e9baa"
+        },
+        {
+          "start_line": 62,
+          "end_line": 63,
+          "sha256": "a2e17ee244d30e2ae407c1d5c138bf62ebfba2d32968656bb20d4240fe8cd8ec"
+        },
+        {
+          "start_line": 78,
+          "end_line": 94,
+          "sha256": "a2e39b8af9279d174c13ed6c5f59e124d742702f9878276abf2d62e3af8522b5"
+        },
+        {
+          "start_line": 280,
+          "end_line": 327,
+          "sha256": "0cf774cff0d610befed4e4794265daf752797dd7f1fb7832817dc8826a42a780"
+        }
+      ]
+    }
+  ]
+}

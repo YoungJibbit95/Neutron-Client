@@ -273,6 +273,7 @@ public class ConfigManager {
                 + (plan.legacyAssist==0?"":"; historical AimAssist modes use the shared bounded camera path; broken negative-noise speeds and repeated jitter are not reproduced")
                 + (plan.migratedDefaults==0?"":"; new optional rotation features defaulted off for legacy profiles")
                 + (plan.legacyScaffold==0?"":"; historical Scaffold uses the shared Godbridge plan; face raycasts remain mandatory")
+                + (plan.migratedNScaffold==0?"":"; NScaffold settings migrated to Demise; obsolete planner controls removed")
                 + (plan.legacyNetwork==0?"":"; historical network options migrated to bounded FIFO windows/earned-step budgets; ping, velocity and corrections remain immediate")
                 + (plan.migratedNetworkPolicies==0?"":"; network policies normalized: prior Combat target selection retained, Min Range uses Min Server Distance, Delay uses Release Cooldown MS after successful release (no additional enable wait)")
                 + (plan.clampedLegacyDelays==0?"":"; legacy delay requests above the shared 500 ms bound were capped explicitly")
@@ -422,6 +423,10 @@ public class ConfigManager {
             if (data.has("settings")) {
                 JsonObject settings = new JsonObject();
                 for (Map.Entry<String, JsonElement> setting : data.getAsJsonObject("settings").entrySet()) {
+                    // Aliases and retired fields have already been decoded into
+                    // the active values; keep only their current representation.
+                    if ("nscaffold".equals(module.getId()) && (nScaffoldAlias(setting.getKey()) != null
+                            || retiredNScaffoldSetting(setting.getKey()))) continue;
                     Value<?> value = module.getValueByName(setting.getKey());
                     settings.add(value == null ? setting.getKey() : value.getId(), setting.getValue());
                 }
@@ -507,15 +512,14 @@ public class ConfigManager {
                 if ("invmanager".equals(module.getId())) defaultSetting(change, "drop_order", "Priority");
                 else defaultSetting(change, "pick_profile", "Shuffle");
             }
-            // The original NScaffold settings end at Smart Disable. Missing
-            // extension fields must not inherit a previous profile's clutch,
-            // Telly gate or independent interpolation. Explicit new values win.
+            // A present NScaffold profile owns its complete Demise setup. Current
+            // keys win over aliases; omitted values must not inherit warm state.
             if ("nscaffold".equals(module.getId())) {
-                boolean extension=false;
-                for(Value<?> value:module.getValues()) {
-                    if("build_mode".equals(value.getId()))extension=true;
-                    if(extension && !change.values.containsKey(value))change.values.put(value,value.getDefaultValue());
-                }
+                for (Map.Entry<Value<?>,Object> alias : change.nScaffoldAliases.entrySet())
+                    if (!change.values.containsKey(alias.getKey())) change.values.put(alias.getKey(), alias.getValue());
+                for (Value<?> value : module.getValues())
+                    if (!change.values.containsKey(value)) change.values.put(value, value.getDefaultValue());
+                if (change.migratedNScaffold) plan.migratedNScaffold++;
             }
             // Old geometric effects occupied the palette selector. An explicit new
             // UI mode wins regardless of JSON key order; Lines has no UI counterpart.
@@ -590,6 +594,35 @@ public class ConfigManager {
         return names;
     }
     private static String normalizedName(String name) {return name.toLowerCase(Locale.ROOT).replace("_","").replace(" ","");}
+    /** Only renames with a corresponding Demise setting belong in this table. */
+    private static String nScaffoldAlias(String name) {
+        switch (normalizedName(name)) {
+            case "buildmode": return "mode";
+            case "visiblerotation": return "rotations";
+            case "keepheight": return "keepy";
+            case "fastclutchalways": return "instant_rot_always";
+            case "fastclutchonmiss": return "instant_rot_on_miss";
+            case "fastclutchprediction": return "instant_rot_predict";
+            case "shortstopduration(ms)": return "duration";
+            default: return null;
+        }
+    }
+    private static boolean retiredNScaffoldSetting(String name) {
+        return Arrays.asList("turnspeed", "godbridgepitch", "lookahead", "autoselectblocks",
+                "placementdelay", "advancedrotations", "smartdisableondeath", "smartdisableonworldchange")
+                .contains(normalizedName(name));
+    }
+    private static void validateRetiredNScaffoldSetting(String name, JsonElement json) {
+        String id = normalizedName(name), label = "nscaffold." + name;
+        if (Arrays.asList("autoselectblocks", "advancedrotations", "smartdisableondeath", "smartdisableonworldchange").contains(id)) {
+            bool(json, label);
+            return;
+        }
+        double value = number(json, label);
+        double min = "turnspeed".equals(id) ? 1 : "godbridgepitch".equals(id) ? 65 : 0;
+        double max = "turnspeed".equals(id) ? 180 : "godbridgepitch".equals(id) ? 89 : "lookahead".equals(id) ? 1 : 500;
+        if (value < min || value > max) throw new IllegalArgumentException("Number out of range: " + label);
+    }
     private static void defaultSetting(Change change,String name,Object value) {Value<?> setting=change.module.getValueByName(name);if(setting!=null && !change.values.containsKey(setting))change.values.put(setting,value);}
     private static void migrateNetworkOptions(Plan plan,Change change) {
         String id=change.module.getId();
@@ -653,6 +686,25 @@ public class ConfigManager {
     }
 
     private void parseSetting(Plan plan, Change change, String id, JsonElement json) {
+        boolean nScaffoldAlias = false;
+        if ("nscaffold".equals(change.module.getId())) {
+            JsonElement raw = json != null && json.isJsonObject() ? json.getAsJsonObject().get("value") : json;
+            if (retiredNScaffoldSetting(id)) {
+                validateRetiredNScaffoldSetting(id, raw);
+                change.migratedNScaffold = true;
+                return;
+            }
+            String replacement = nScaffoldAlias(id);
+            if (replacement != null) {
+                if ("rotations".equals(replacement) && raw != null && raw.isJsonPrimitive()
+                        && raw.getAsJsonPrimitive().isString() && "Standard".equalsIgnoreCase(raw.getAsString()))
+                    raw = new JsonPrimitive("Normal");
+                id = replacement;
+                json = raw;
+                nScaffoldAlias = true;
+                change.migratedNScaffold = true;
+            }
+        }
         if (change.module.getId().equals("velocity") && normalizedName(id).equals("mode")) {
             JsonElement raw = json != null && json.isJsonObject() ? json.getAsJsonObject().get("value") : json;
             if (raw != null && raw.isJsonPrimitive() && raw.getAsJsonPrimitive().isString()) {
@@ -676,7 +728,8 @@ public class ConfigManager {
         }
         Value<?> value = change.module.getValueByName(id);
         if (value == null) { plan.unknown++; return; }
-        if (change.values.containsKey(value)) throw new IllegalArgumentException("Duplicate setting: " + id);
+        Map<Value<?>,Object> destination = nScaffoldAlias ? change.nScaffoldAliases : change.values;
+        if (destination.containsKey(value)) throw new IllegalArgumentException("Duplicate setting: " + id);
         String label = change.module.getId() + "." + value.getId();
         Object decoded;
         if (value instanceof ColorValue) {
@@ -706,6 +759,15 @@ public class ConfigManager {
         } else if (value instanceof SliderValue) {
             SliderValue slider = (SliderValue) value;
             double number = number(json, label);
+            double minimum = slider.getMin(), maximum = slider.getMax();
+            if (slider instanceof DemiseSliderValue) {
+                // The original stores floats. A saved 0.01F widens to a Double
+                // slightly below 0.01D; validate in the original numeric domain
+                // so a module's own legal boundary values remain loadable.
+                number = (double) (float) number;
+                minimum = (double) (float) minimum;
+                maximum = (double) (float) maximum;
+            }
             if(number==Math.rint(number) && ((change.legacyBacktrack && value.getId().equals("delay") && number>500 && number<=2000)
                     || (change.legacyLag && value.getId().equals("window_ticks") && number>10 && number<=20))) {
                 number=slider.getMax();plan.clampedLegacyDelays++;
@@ -713,7 +775,7 @@ public class ConfigManager {
             if(change.legacyRotation && value.getId().equals("octaves") && number>=.1 && number<=10 && number!=Math.rint(number)) {
                 number=Math.max(1,(int)number);plan.migratedOctaves++;
             }
-            if (number < slider.getMin() || number > slider.getMax() || (slider.isInteger() && number != Math.rint(number))) throw new IllegalArgumentException("Number out of range: " + label);
+            if (number < minimum || number > maximum || (slider.isInteger() && number != Math.rint(number))) throw new IllegalArgumentException("Number out of range: " + label);
             decoded = number;
         } else if (value instanceof MoveFixValue) {
             JsonElement legacy=json!=null && json.isJsonObject()?json.getAsJsonObject().get("value"):json;
@@ -760,7 +822,7 @@ public class ConfigManager {
         } else {
             throw new IllegalArgumentException("Unsupported setting type: " + label);
         }
-        change.values.put(value, decoded);
+        destination.put(value, decoded);
     }
 
     private void apply(Plan plan) {
@@ -849,14 +911,15 @@ public class ConfigManager {
     private static final class Plan {
         final JsonObject root;
         final List<Change> changes = new ArrayList<>();
-        int unknown, migratedRotations, migratedOctaves, migratedTiming, migratedModes, migratedTargetHudModes, legacyAssist, migratedDefaults, legacyScaffold, legacyNetwork, clampedLegacyDelays, migratedNetworkPolicies;
+        int unknown, migratedRotations, migratedOctaves, migratedTiming, migratedModes, migratedTargetHudModes, legacyAssist, migratedDefaults, legacyScaffold, migratedNScaffold, legacyNetwork, clampedLegacyDelays, migratedNetworkPolicies;
         Plan(JsonObject root) { this.root = root; }
     }
     private static final class Change {
         final Module module;
         final Map<Value<?>, Object> values = new LinkedHashMap<>();
+        final Map<Value<?>, Object> nScaffoldAliases = new LinkedHashMap<>();
         Boolean enabled;
-        boolean legacyRotation,legacyScaffold,legacyBacktrack,legacyLag,legacyTickbase,currentNetwork;
+        boolean legacyRotation,legacyScaffold,legacyBacktrack,legacyLag,legacyTickbase,currentNetwork,migratedNScaffold;
         String legacyUiGlowMode;
         Integer key;
         boolean desired;

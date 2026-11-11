@@ -47,6 +47,8 @@ public class MovementInputFromOptions extends MovementInput
         this.jump = this.gameSettings.keyBindJump.isKeyDown();
         this.sneak = this.gameSettings.keyBindSneak.isKeyDown();
 
+        me.youngjibbit.core.world.DemiseRotationHooks.input(this);
+
         if (this.sneak)
         {
             this.moveStrafe = (float)((double)this.moveStrafe * 0.3D);

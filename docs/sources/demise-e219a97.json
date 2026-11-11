@@ -1,0 +1,84 @@
+{
+  "repository": "YoungJibbit95/DemisePrivate",
+  "commit": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+  "license_note": "Pinned README states AGPL-3. Root LICENSE returned 404. User explicitly confirms permission to use source. Original source notices preserved.",
+  "files": [
+    {
+      "path": "src/main/java/wtf/demise/features/modules/impl/player/Scaffold.java",
+      "blob": "f5cbead2aa1d666af66946173fa358b626ac9244",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/features/modules/impl/player/Scaffold.java",
+      "bytes": 32218,
+      "sha256": "f2073ae35fca8635a1c0b52e77f8c80ea64660e7a43b5595384d6c6f1bfe08ca"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/player/rotation/RotationManager.java",
+      "blob": "e17d1fe4a7cd0702025e3f870f57ab454b91f3a2",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/player/rotation/RotationManager.java",
+      "bytes": 7396,
+      "sha256": "a8b876a3389168eced65b7598d65c01f6fc572018489682c186a38e27a2e5e67"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/player/rotation/RotationHandler.java",
+      "blob": "29555b7cfca3b1e5cccad94e4d5ed06902784a31",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/player/rotation/RotationHandler.java",
+      "bytes": 11747,
+      "sha256": "324af8fe2070b8afda50ed2588ef93a78da0efc87055f3850646b6c1c5c9589f"
+    },
+    {
+      "path": "README.md",
+      "blob": "ac3c47ef7c38a6180b201f2bea2b586a43f9de7b",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/README.md",
+      "bytes": 3548,
+      "sha256": "be318f5c0e5d3c1c89e8cff46d27418426b9fc17aa5218071b8b4a45ffac30c9"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/player/MoveUtil.java",
+      "blob": "bd1c4a35710e21784f5150f15f6730b23cab874d",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/player/MoveUtil.java",
+      "bytes": 12983,
+      "sha256": "01f9f5d549bd1343f01b3614fa57ea32485540336fedebc1ca6f9bdf79b8f7f3"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/player/rotation/RotationUtils.java",
+      "blob": "8b6b870489603d843635776e4f4545f3466f7696",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/player/rotation/RotationUtils.java",
+      "bytes": 8949,
+      "sha256": "f17e645758b358d2281c576583819efdcfea092dfb9edd60759dc7eb6dba1622"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/misc/SpoofSlotUtils.java",
+      "blob": "4659402d96b5cd55b5d998acda2c4759c009553b",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/misc/SpoofSlotUtils.java",
+      "bytes": 957,
+      "sha256": "10d24fc8082a35f6a02b6f5a8b1aed7796d4f279d6ce976014928a8887489a23"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/player/InventoryUtils.java",
+      "blob": "7d32830c403183569ec235fa92563e0f5e97b2a5",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/player/InventoryUtils.java",
+      "bytes": 13726,
+      "sha256": "41550869fa595a5258e45a66c0fd4a7615700f2cac5142e72abd627f11c024e7"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/player/PlayerUtils.java",
+      "blob": "a97ea2d49db30ce5088d665ae900d3cf99541e33",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/player/PlayerUtils.java",
+      "bytes": 12942,
+      "sha256": "19814aef41766e5a148516a7a0bd9f5285335d884d68c0987717a495d7f63429"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/math/TimerUtils.java",
+      "blob": "f199879f05ee0815948abb43a4ecfe9c6c61d201",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/math/TimerUtils.java",
+      "bytes": 775,
+      "sha256": "bd8aaadaf520204ea9b44785372c5f92955929a61c5c4f3a636b00a0618f7222"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/math/MathUtils.java",
+      "blob": "ddac1882345afeaad801759e11f1320126fc5740",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/math/MathUtils.java",
+      "bytes": 6257,
+      "sha256": "f18586db1a4b870146f38903a1864f9cde7c04830d16fd29f5a8294d762224a7"
+    }
+  ]
+}

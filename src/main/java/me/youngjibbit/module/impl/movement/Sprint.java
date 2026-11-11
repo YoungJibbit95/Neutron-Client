@@ -35,6 +35,7 @@ public final class Sprint extends Module
 
     @Subscribe
     private final Listener<EventUpdate> onUpdate = new Listener<>(e -> {
+        if (me.youngjibbit.module.impl.world.NScaffold.ownsSprintInput()) return;
         if (mc.thePlayer.isCollidedHorizontally) return;
         if(!MoveUtil.hasMovementInput(mc.thePlayer)) return;
         if (mc.thePlayer.moveForward < 0) return;

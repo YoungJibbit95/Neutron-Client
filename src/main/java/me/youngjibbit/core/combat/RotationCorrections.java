@@ -157,6 +157,8 @@ public final class RotationCorrections {
                                         float rawStrafe, float rawForward) {
         if (selected == null || selected.movement == MoveFixController.Mode.OFF || selected.preserveHeading)
             return rawForward;
+        // Demise rewrites keyboard axes before slowdown. Sprint consumes those axes directly.
+        if (NScaffold.ROTATION_SOURCE.equals(selected.owner)) return rawForward;
         return MoveFixController.correct(rawStrafe, rawForward, cameraYaw,
                 selected.yaw, selected.movement).forward;
     }
@@ -168,7 +170,8 @@ public final class RotationCorrections {
     public static float directMotionYaw(float cameraYaw, float cameraDirectionYaw, float strafe, float forward) {
         Selection selected = currentMovement();
         if (selected == null || selected.movement == MoveFixController.Mode.OFF || selected.preserveHeading) return cameraDirectionYaw;
-        if (selected.movement == MoveFixController.Mode.ROTATION_BOUND
+        if (NScaffold.ROTATION_SOURCE.equals(selected.owner)
+                || selected.movement == MoveFixController.Mode.ROTATION_BOUND
                 || selected.movement == MoveFixController.Mode.LEGACY_STRICT)
             return selected.yaw + (cameraDirectionYaw - cameraYaw);
         // Rounded key reconstruction needs the original axes, including diagonal keys.
@@ -183,6 +186,11 @@ public final class RotationCorrections {
         // keys; vanilla still applies sneak/item strength and its diagonal cap once.
         // The selected placement yaw and its packet/action authority are untouched.
         if (selected.preserveHeading) return;
+        if (NScaffold.ROTATION_SOURCE.equals(selected.owner)) {
+            // RotationHandler.onStrafe changes only yaw; onMove has already fixed raw axes.
+            event.setYaw(selected.yaw);
+            return;
+        }
         MoveFixController.Input input = MoveFixController.correct(event.getStrafe(), event.getForward(), event.getYaw(), selected.yaw, selected.movement);
         event.setStrafe(input.strafe); event.setForward(input.forward); event.setYaw(selected.yaw);
     }
@@ -206,6 +214,11 @@ public final class RotationCorrections {
                     release.yaw, release.pitch, vanillaBodyYaw, release.progress);
         }
         Selection selected = current();
+        // NScaffold uses the original EntityLivingBase model fields and vanilla interpolation.
+        if (selected != null && NScaffold.ROTATION_SOURCE.equals(selected.owner)) {
+            BODY.reset();
+            return null;
+        }
         return BODY.sampleFrame(mc.getRenderFrameSequence(), mc.thePlayer, mc.theWorld, selected == null ? null : selected.owner,
                 selected == null ? BodyRotationController.Mode.VANILLA : selected.body,
                 selected == null ? 0 : selected.yaw, selected == null ? 0 : selected.pitch, vanillaBodyYaw, System.nanoTime());

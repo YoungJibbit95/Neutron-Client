@@ -262,6 +262,7 @@ public final class RotationManager {
                 new EventMotion(player.posX, player.getEntityBoundingBox().minY, player.posZ,
                         player.rotationYaw, player.rotationPitch, player.onGround));
         try {
+            me.youngjibbit.core.world.DemiseRotationHooks.prepareRotation();
             Pulsar.BUS.post(preparation);
             if (sequence != preparingSequence || !collecting || observation.getCurrentStep() != step) return;
             Request requested = winner;

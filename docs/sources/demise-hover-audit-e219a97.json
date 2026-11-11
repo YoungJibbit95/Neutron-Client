@@ -1,0 +1,346 @@
+{
+  "repository": "YoungJibbit95/DemisePrivate",
+  "commit": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+  "source_tree": "87c59de9309fe12f781f2d6d4439c4bf9b1b31c7",
+  "scope": "Every .java blob under src at the pinned commit; text fetched into memory, only targeted references materialized.",
+  "pattern": "Hover|[Ss]caffold|\\.addons\\b",
+  "file_count": 2367,
+  "source_bytes": 12459760,
+  "failed_reads": 0,
+  "all_returned_blob_ids_match_tree": true,
+  "full_manifest_sha256": "652ce19c998dbfff9d232acc323cccd3e2a3b130dd9cedd6a809e07b23dacd41",
+  "source_entries_sha256": "32447d0476dc14eff859d9ce8e97d4f3197b025efecf50ab5b447e3b4677ecfc",
+  "finding": "The only Scaffold setting-name literal Hover registers the option. No behavioral consumer exists in the pinned Java source; other Hover matches are GUI/chat state.",
+  "scaffold_consumers": [
+    {
+      "path": "src/main/java/wtf/demise/features/modules/impl/exploit/Disabler.java",
+      "sha": "fd50cf958577a41ab3c591a44d37c2a77c38a4e6",
+      "matches": [
+        {
+          "line": 24,
+          "text": "import wtf.demise.features.modules.impl.player.Scaffold;"
+        },
+        {
+          "line": 128,
+          "text": "                if (!packet.isMoving() && !packet.getRotating() && !mc.thePlayer.isUsingItem() && !Demise.INSTANCE.getModuleManager().getModule(Scaffold.class).isEnabled()) {"
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/modules/impl/legit/AutoRod.java",
+      "sha": "6ffce64fabf7cdc9467a691af64c72a7b978d637",
+      "matches": [
+        {
+          "line": 20,
+          "text": "import wtf.demise.features.modules.impl.player.Scaffold;"
+        },
+        {
+          "line": 68,
+          "text": "            if (!getModule(Scaffold.class).isEnabled()) {"
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/modules/impl/legit/LegitScaffold.java",
+      "sha": "712b718b612c640e26877ad0c67600062555b8d5",
+      "matches": [
+        {
+          "line": 16,
+          "text": "@ModuleInfo(name = \"LegitScaffold\", description = \"Automatically sneaks at the edge of blocks.\")"
+        },
+        {
+          "line": 17,
+          "text": "public class LegitScaffold extends Module {"
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/modules/impl/misc/CheatDetector.java",
+      "sha": "b3e8bbf25c65b40ffbe1ce0cbe4657d682301dc6",
+      "matches": [
+        {
+          "line": 18,
+          "text": "import wtf.demise.features.modules.impl.misc.cheatdetector.impl.player.LegitScaffoldCheck;"
+        },
+        {
+          "line": 20,
+          "text": "import wtf.demise.features.modules.impl.misc.cheatdetector.impl.player.scaffold.ScaffoldCheck;"
+        },
+        {
+          "line": 38,
+          "text": "            new BoolValue(\"Scaffold\", true),"
+        },
+        {
+          "line": 40,
+          "text": "            new BoolValue(\"Legit scaffold\", true)"
+        },
+        {
+          "line": 56,
+          "text": "                new ScaffoldCheck(),"
+        },
+        {
+          "line": 59,
+          "text": "                new LegitScaffoldCheck()"
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/modules/impl/misc/cheatdetector/impl/player/LegitScaffoldCheck.java",
+      "sha": "dd9156717693b8ff15796320bfd2b215fe5ece1d",
+      "matches": [
+        {
+          "line": 17,
+          "text": "public class LegitScaffoldCheck extends Check {"
+        },
+        {
+          "line": 24,
+          "text": "        return \"Legit scaffold\";"
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/modules/impl/misc/cheatdetector/impl/player/scaffold/ScaffoldCheck.java",
+      "sha": "0c3fb74ec693c8504e5fe9d62bb47079ba98c5d5",
+      "matches": [
+        {
+          "line": 1,
+          "text": "package wtf.demise.features.modules.impl.misc.cheatdetector.impl.player.scaffold;"
+        },
+        {
+          "line": 8,
+          "text": "import wtf.demise.features.modules.impl.misc.cheatdetector.impl.player.scaffold.subchecks.ScaffoldA;"
+        },
+        {
+          "line": 9,
+          "text": "import wtf.demise.features.modules.impl.misc.cheatdetector.impl.player.scaffold.subchecks.ScaffoldB;"
+        },
+        {
+          "line": 10,
+          "text": "import wtf.demise.features.modules.impl.misc.cheatdetector.impl.player.scaffold.subchecks.ScaffoldC;"
+        },
+        {
+          "line": 15,
+          "text": "public class ScaffoldCheck extends Check {"
+        },
+        {
+          "line": 18,
+          "text": "        return \"Scaffold\";"
+        },
+        {
+          "line": 21,
+          "text": "    private final List<Check> checks = Arrays.asList(new ScaffoldA(), new ScaffoldB(), new ScaffoldC());"
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/modules/impl/misc/cheatdetector/impl/player/scaffold/subchecks/ScaffoldA.java",
+      "sha": "ec0692e3b0e3f765154efd676d5eedd37400eef7",
+      "matches": [
+        {
+          "line": 1,
+          "text": "package wtf.demise.features.modules.impl.misc.cheatdetector.impl.player.scaffold.subchecks;"
+        },
+        {
+          "line": 13,
+          "text": "import static wtf.demise.features.modules.impl.misc.cheatdetector.impl.player.scaffold.ScaffoldCheck.blocksPlacedMap;"
+        },
+        {
+          "line": 15,
+          "text": "public class ScaffoldA extends Check {"
+        },
+        {
+          "line": 19,
+          "text": "        return \"Scaffold A\";"
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/modules/impl/misc/cheatdetector/impl/player/scaffold/subchecks/ScaffoldB.java",
+      "sha": "3877d82af667ddbe38cacbb86cb7d88e09c80734",
+      "matches": [
+        {
+          "line": 1,
+          "text": "package wtf.demise.features.modules.impl.misc.cheatdetector.impl.player.scaffold.subchecks;"
+        },
+        {
+          "line": 13,
+          "text": "import static wtf.demise.features.modules.impl.misc.cheatdetector.impl.player.scaffold.ScaffoldCheck.blocksPlacedMap;"
+        },
+        {
+          "line": 15,
+          "text": "public class ScaffoldB extends Check {"
+        },
+        {
+          "line": 19,
+          "text": "        return \"Scaffold B\";"
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/modules/impl/misc/cheatdetector/impl/player/scaffold/subchecks/ScaffoldC.java",
+      "sha": "3fd7d216208b4b8bcd22ff08d9295f4d6f5dfac3",
+      "matches": [
+        {
+          "line": 1,
+          "text": "package wtf.demise.features.modules.impl.misc.cheatdetector.impl.player.scaffold.subchecks;"
+        },
+        {
+          "line": 13,
+          "text": "import static wtf.demise.features.modules.impl.misc.cheatdetector.impl.player.scaffold.ScaffoldCheck.blocksPlacedMap;"
+        },
+        {
+          "line": 15,
+          "text": "public class ScaffoldC extends Check {"
+        },
+        {
+          "line": 21,
+          "text": "        return \"Scaffold C\";"
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/modules/impl/misc/KillInsults.java",
+      "sha": "345f6764a6e38797b5b7ad056fc2d9ef37aeff56",
+      "matches": [
+        {
+          "line": 134,
+          "text": "            \"It's not BlockFly it's Scaffold in demise!\","
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/modules/impl/movement/Speed.java",
+      "sha": "f87c8d1a8613a83f66bee70f59d2cfac02cb52b5",
+      "matches": [
+        {
+          "line": 11,
+          "text": "import wtf.demise.features.modules.impl.player.Scaffold;"
+        },
+        {
+          "line": 198,
+          "text": "                            if (MoveUtil.getSpeedEffect() == 0 || getModule(Scaffold.class).isEnabled()) {"
+        },
+        {
+          "line": 203,
+          "text": "                            if (!getModule(Scaffold.class).isEnabled()) {"
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/modules/impl/movement/Sprint.java",
+      "sha": "2b35440b30d115af20c3b9a495d138b8bd7006ee",
+      "matches": [
+        {
+          "line": 8,
+          "text": "import wtf.demise.features.modules.impl.player.Scaffold;"
+        },
+        {
+          "line": 19,
+          "text": "        if (!isEnabled(Scaffold.class)) {"
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/modules/impl/movement/TargetStrafe.java",
+      "sha": "cdfbe0c23ce5f459a6b79f831e5d40f6d7080905",
+      "matches": [
+        {
+          "line": 17,
+          "text": "import wtf.demise.features.modules.impl.player.Scaffold;"
+        },
+        {
+          "line": 58,
+          "text": "        Module scaffold = getModule(Scaffold.class);"
+        },
+        {
+          "line": 61,
+          "text": "        if (scaffold == null || scaffold.isEnabled() || killaura == null || !killaura.isEnabled()) {"
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/modules/impl/player/FastPlace.java",
+      "sha": "8b2c096046ac244da5234bd1d16b85510584ea06",
+      "matches": [
+        {
+          "line": 28,
+          "text": "        if (ignoreTickCycle.get() && !getModule(Scaffold.class).isEnabled()) {"
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/modules/impl/player/Scaffold.java",
+      "sha": "f5cbead2aa1d666af66946173fa358b626ac9244",
+      "matches": [
+        {
+          "line": 43,
+          "text": "@ModuleInfo(name = \"Scaffold\", description = \"Automatically places blocks bellow you.\")"
+        },
+        {
+          "line": 44,
+          "text": "public class Scaffold extends Module {"
+        },
+        {
+          "line": 71,
+          "text": "            new BoolValue(\"Hover\", false),"
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/modules/ModuleManager.java",
+      "sha": "7958a5b6cb745ccee96ba651940ef4402ecc2003",
+      "matches": [
+        {
+          "line": 31,
+          "text": "            CombatHelper.class, HitBox.class, HitSelect.class, JumpReset.class, LegitScaffold.class, NoHitDelay.class,"
+        },
+        {
+          "line": 43,
+          "text": "            FastUse.class, Manager.class, NoFall.class, Scaffold.class, Stealer.class, TellyBridge.class"
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/player/rotation/RotationHandler.java",
+      "sha": "29555b7cfca3b1e5cccad94e4d5ed06902784a31",
+      "matches": [
+        {
+          "line": 12,
+          "text": "import wtf.demise.features.modules.impl.player.Scaffold;"
+        },
+        {
+          "line": 110,
+          "text": "            } else if (abs(getAngleDifference((float) toDegrees(MoveUtil.getDirection()), currentRotation[0])) > 90 && !mc.thePlayer.omniSprint && !Demise.INSTANCE.getModuleManager().getModule(Scaffold.class).isEnabled()) {"
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/player/rotation/RotationUtils.java",
+      "sha": "8b6b870489603d843635776e4f4545f3466f7696",
+      "matches": [
+        {
+          "line": 7,
+          "text": "import wtf.demise.features.modules.impl.player.Scaffold;"
+        }
+      ]
+    },
+    {
+      "path": "src/main/java/net/minecraft/client/entity/EntityPlayerSP.java",
+      "sha": "471c255be4b9c75553175619bebbc96c2b20a277",
+      "matches": [
+        {
+          "line": 37,
+          "text": "import wtf.demise.features.modules.impl.player.Scaffold;"
+        },
+        {
+          "line": 123,
+          "text": "        if (flag != this.serverSprintState && !Demise.INSTANCE.getModuleManager().getModule(Sprint.class).silent.get() && !(Demise.INSTANCE.getModuleManager().getModule(Scaffold.class).isEnabled() && Demise.INSTANCE.getModuleManager().getModule(Scaffold.class).sprintMode.is(\"Silent\"))) {"
+        },
+        {
+          "line": 134,
+          "text": "        if (flag != this.serverSprintState && !(!Demise.INSTANCE.getModuleManager().getModule(Sprint.class).silent.get() && !(Demise.INSTANCE.getModuleManager().getModule(Scaffold.class).isEnabled() && Demise.INSTANCE.getModuleManager().getModule(Scaffold.class).sprintMode.is(\"Silent\")))) {"
+        }
+      ]
+    }
+  ]
+}

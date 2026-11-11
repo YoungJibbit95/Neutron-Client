@@ -67,7 +67,7 @@ test_classpath="$repo_root/target/test-classes:$repo_root/target/classes:$depend
 collect_screenshots() (
   local name="$1" preview image destination
   shopt -s nullglob
-  for preview in gui-preview dropdown-preview arraylist-preview session-preview theme-preview settings-preview neutron-ui-preview shader-preview hud-preview armor-preview chat-preview trash-preview target-esp-preview inventory-assist-preview diagnostics-preview neutron20-preview shader-world-overlay-preview; do
+  for preview in gui-preview dropdown-preview arraylist-preview session-preview theme-preview settings-preview neutron-ui-preview shader-preview hud-preview armor-preview chat-preview trash-preview target-esp-preview inventory-assist-preview diagnostics-preview neutron20-preview shader-world-overlay-preview demise-scaffold-overlay-preview; do
     for image in "$fixtures/$name/$preview/"*.png; do
       destination="$screenshots/$name/$preview"
       mkdir -p "$destination" && cp -- "$image" "$destination/" || return "$?"
@@ -243,6 +243,11 @@ suite_world_bridge() {
     'PASS: actual per-eye final-pass flags, deferred world camera/eyes, late hand depth, direct alpha/additive final-color blending' &&
   require_images world_bridge shader-world-overlay-preview
 }
+suite_demise_scaffold() {
+  run_check demise_scaffold me.youngjibbit.utils.render.DemiseScaffoldOverlayNativeCheck \
+    'PASS: actual Demise cube, black/colored masks, blur/glow composition, GPU pixels, GL/matrix/FBO restoration, mask reuse and disposal.' &&
+  require_images demise_scaffold demise-scaffold-overlay-preview
+}
 suite_gpu_queries() {
   run_check gpu_queries me.youngjibbit.core.diagnostics.GpuPassTimingsNativeCheck \
     'PASS: real asynchronous'
@@ -254,7 +259,7 @@ suite_performance_capture() {
 
 failed_suites=()
 suite_results=()
-for suite in panel dropdown arraylist session shader_modes target_esp trash inventory_assist chat diagnostics neutron20 shader_bridge world_bridge gpu_queries performance_capture; do
+for suite in panel dropdown arraylist session shader_modes target_esp trash inventory_assist chat diagnostics neutron20 shader_bridge world_bridge demise_scaffold gpu_queries performance_capture; do
   suite_result=0
   "suite_$suite" 2>&1 | tee "$logs/$suite-suite.log" || suite_result=$?
   suite_results+=("$suite: exit $suite_result")
@@ -272,14 +277,14 @@ printf '%s\n' '::group::Native UI visual review copies'
 printf '%s\n' '::endgroup::'
 
 if (( ${#failed_suites[@]} != 0 )); then
-  printf 'FAIL: Native UI suites failed: %s. All fifteen suites were attempted; see each suite log.\n' \
+  printf 'FAIL: Native UI suites failed: %s. All sixteen suites were attempted; see each suite log.\n' \
     "${failed_suites[*]}" | tee "$logs/summary.log"
   exit 1
 fi
 
 printf '%s\n' \
-  'PASS: Fifteen separate native JVMs completed with production shaders, FBO/readback and fixture diagnostics enabled.' \
+  'PASS: Sixteen separate native JVMs completed with production shaders, FBO/readback and fixture diagnostics enabled.' \
   'Coverage: panel/subcategories, dropdown/library/config actions, Arraylist, compact TargetHUD/SessionInfo/ArmorHUD, Island header/docking/original-logo gradients, animated chat/input/links/resize, Theme editor, Client settings, Library transitions, searchable Trash menu, visible inventory assistance, TargetESP production halo/hitpoint, Flame/Neon/Lines ESP/UI contours, diagnostics graphs and independent Nametags/Keystrokes data/motion/lifecycle.' \
-  'Additional coverage: shaderpack program/uniform/MRT boundaries, deferred world camera/private depth/final-color blend, asynchronous GPU query lifecycle, capture CSV/JSON/frame joins and settings/context abort.' \
+  'Additional coverage: shaderpack program/uniform/MRT boundaries, deferred world camera/private depth/final-color blend, original Demise Scaffold target cube/masks and blur/glow composition, asynchronous GPU query lifecycle, capture CSV/JSON/frame joins and settings/context abort.' \
   'Not covered: actual external shaderpacks, game-world rendering, native Display/fullscreen/VSync, multiplayer or full client bootstrap.' \
   | tee "$logs/summary.log"

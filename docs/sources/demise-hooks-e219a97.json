@@ -1,0 +1,239 @@
+{
+  "repository": "YoungJibbit95/DemisePrivate",
+  "commit": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+  "notes": [
+    "Only the listed excerpts are materialized; source_git_blob identifies the complete upstream file, not an excerpt.",
+    "All line ranges refer to the pinned original source. No source lines were modified.",
+    "Code search returned incomplete_results=true and also missed known control terms. It does not establish global absence of Hover consumers."
+  ],
+  "sources": [
+    {
+      "repository": "YoungJibbit95/DemisePrivate",
+      "commit": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+      "source_path": "src/main/java/net/minecraft/client/entity/EntityPlayerSP.java",
+      "source_git_blob": "471c255be4b9c75553175619bebbc96c2b20a277",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/net/minecraft/client/entity/EntityPlayerSP.java",
+      "purpose": "Player tick and placement/update ordering; rotation/head consumers; sprint state consumer",
+      "excerpts": [
+        {
+          "start_line": 93,
+          "end_line": 110,
+          "sha256": "59c92d6658f25af040036ad73412992911496a713d9621390e73fd9ca7071259"
+        },
+        {
+          "start_line": 114,
+          "end_line": 137,
+          "sha256": "36e689d1bd5d5adeab3a8a5b01ba58d90fb08bffdddea7f8566fa6a474610e05"
+        },
+        {
+          "start_line": 152,
+          "end_line": 185,
+          "sha256": "8a8274c272634ee1e8d3721047163bc34f536aab3e9be2cf2e8de5ca127f3105"
+        },
+        {
+          "start_line": 194,
+          "end_line": 212,
+          "sha256": "b20be1f2ba4117a2987b06e02a8b276b4089bbeaceb06d65b39b4d49b9fbf1cf"
+        },
+        {
+          "start_line": 506,
+          "end_line": 508,
+          "sha256": "300f3a4c20038569d3447c78d0d3cc43849a5b3393955eb9a1d3825c5f27ad47"
+        },
+        {
+          "start_line": 560,
+          "end_line": 564,
+          "sha256": "3add432246ba85bafae8bf7605b8e368647350d96043ee1952f2bfcd574b90ab"
+        },
+        {
+          "start_line": 670,
+          "end_line": 670,
+          "sha256": "f46ee4d9e622f06efabae441c4c1717a77c4f40cd637500d84f1e4ae89785c12"
+        }
+      ]
+    },
+    {
+      "repository": "YoungJibbit95/DemisePrivate",
+      "commit": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+      "source_path": "src/main/java/net/minecraft/util/MovementInputFromOptions.java",
+      "source_git_blob": "0e73f35c5c4809dddfe29613b3892c77cd678be2",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/net/minecraft/util/MovementInputFromOptions.java",
+      "purpose": "Physical keys, MoveInputEvent, then sneak scaling",
+      "excerpts": [
+        {
+          "start_line": 13,
+          "end_line": 53,
+          "sha256": "a30a2e65e44970449205b858090fa7458416c8f818e7680b3be19b6211c7a689"
+        }
+      ]
+    },
+    {
+      "repository": "YoungJibbit95/DemisePrivate",
+      "commit": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+      "source_path": "src/main/java/net/minecraft/entity/Entity.java",
+      "source_git_blob": "b2bb5141d923dc011e9729b64dd2d8951482663d",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/net/minecraft/entity/Entity.java",
+      "purpose": "AngleEvent producer, ground counters, SafeWalkEvent producer",
+      "excerpts": [
+        {
+          "start_line": 224,
+          "end_line": 245,
+          "sha256": "d7a5491e80a8f46ceb244ef20ddded2f43f588ddbef9ce8a8e0c46d02a7b1d86"
+        },
+        {
+          "start_line": 403,
+          "end_line": 414,
+          "sha256": "d22e0b8005af7d53e62b5918050d15e980386a94eef1f9aebfe06b6f32e475e7"
+        }
+      ]
+    },
+    {
+      "repository": "YoungJibbit95/DemisePrivate",
+      "commit": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+      "source_path": "src/main/java/net/minecraft/client/renderer/ItemRenderer.java",
+      "source_git_blob": "5f296ea16fc5d05e36614657aa475b26e0bd4377",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/net/minecraft/client/renderer/ItemRenderer.java",
+      "purpose": "Displayed held item consumes cosmetic slot selection",
+      "excerpts": [
+        {
+          "start_line": 486,
+          "end_line": 520,
+          "sha256": "7f6e6eb73a286219fd443436708dda9fc1be6070eb3b585d71ec891dd1c552d3"
+        }
+      ]
+    },
+    {
+      "repository": "YoungJibbit95/DemisePrivate",
+      "commit": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+      "source_path": "src/main/java/net/minecraft/client/gui/GuiIngame.java",
+      "source_git_blob": "d09755860d92e0d88d3e30d11933ca3c30b5afaf",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/net/minecraft/client/gui/GuiIngame.java",
+      "purpose": "Shader pass, hotbar selected slot, selected item name consumers",
+      "excerpts": [
+        {
+          "start_line": 299,
+          "end_line": 300,
+          "sha256": "a19168b8a7cff17fcfdedea42eb4a598353c921146557aa82d5904bda2e6ebbb"
+        },
+        {
+          "start_line": 315,
+          "end_line": 323,
+          "sha256": "238e1bd7d55e4ebe1e043e21bce9a4d59c1e84098696b64d8db3ccb1cda1d9be"
+        },
+        {
+          "start_line": 927,
+          "end_line": 946,
+          "sha256": "be4b56dbd04002fc8191ca481cfbd28f6b2575355f369a38dce8083496d15a02"
+        }
+      ]
+    },
+    {
+      "repository": "YoungJibbit95/DemisePrivate",
+      "commit": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+      "source_path": "src/main/java/wtf/demise/features/modules/impl/visual/Shaders.java",
+      "source_git_blob": "b4634f190586411cdf36875944cdf4e6d3e64f63",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/features/modules/impl/visual/Shaders.java",
+      "purpose": "BLUR, GLOW and SHADOW event producers",
+      "excerpts": [
+        {
+          "start_line": 26,
+          "end_line": 59,
+          "sha256": "b0a2d2a38c0cedad6873af76a7052a62d1d8793457970a5f6aaaa74d8d5c31a4"
+        }
+      ]
+    },
+    {
+      "repository": "YoungJibbit95/DemisePrivate",
+      "commit": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+      "source_path": "src/main/java/wtf/demise/gui/ingame/CustomWidgets.java",
+      "source_git_blob": "8484553c6adbcce4a77604d98cd4e10b772c8b97",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/gui/ingame/CustomWidgets.java",
+      "purpose": "Custom hotbar cosmetic slot and block counter consumers",
+      "excerpts": [
+        {
+          "start_line": 133,
+          "end_line": 140,
+          "sha256": "a7960a251f40f5951c4032cc97b8fd658ad4aa0e06e4c862593235563b444e71"
+        },
+        {
+          "start_line": 280,
+          "end_line": 325,
+          "sha256": "4e9facd89329b9535bb7e983cfe87e963d1de44d67144e9b6f35f9c32c3dbb2f"
+        }
+      ]
+    },
+    {
+      "repository": "YoungJibbit95/DemisePrivate",
+      "commit": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+      "source_path": "src/main/java/wtf/demise/events/impl/player/MoveInputEvent.java",
+      "source_git_blob": "67f4bb97beb8ddae99c6c2da82b1ec2230b417f9",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/events/impl/player/MoveInputEvent.java",
+      "purpose": "Input event definition",
+      "excerpts": [
+        {
+          "start_line": 1,
+          "end_line": 16,
+          "sha256": "bc91b6f5592ff88b20e32304cdc5fd1635053b4266ff779dc151f86d1487764e"
+        }
+      ]
+    },
+    {
+      "repository": "YoungJibbit95/DemisePrivate",
+      "commit": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+      "source_path": "src/main/java/wtf/demise/events/impl/player/SafeWalkEvent.java",
+      "source_git_blob": "b6abc7842710847b7a993ef023dc7272ebb2e09e",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/events/impl/player/SafeWalkEvent.java",
+      "purpose": "SafeWalk cancellation definition",
+      "excerpts": [
+        {
+          "start_line": 1,
+          "end_line": 8,
+          "sha256": "9b17d6b8e2b8fefb77890038dc7a0071269f2f3062eb215f205c92a7c3a7f92e"
+        }
+      ]
+    },
+    {
+      "repository": "YoungJibbit95/DemisePrivate",
+      "commit": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+      "source_path": "src/main/java/wtf/demise/events/impl/player/UpdateEvent.java",
+      "source_git_blob": "f693f9c923f65fc7ac38f25deca67d37ed09c32b",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/events/impl/player/UpdateEvent.java",
+      "purpose": "Update event definition",
+      "excerpts": [
+        {
+          "start_line": 1,
+          "end_line": 9,
+          "sha256": "05aeb179c26b8ceacb3924e36db78f6d5335db70eaf8391eadfa34b8a00eccf9"
+        }
+      ]
+    },
+    {
+      "repository": "YoungJibbit95/DemisePrivate",
+      "commit": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+      "source_path": "src/main/java/wtf/demise/events/impl/render/ShaderEvent.java",
+      "source_git_blob": "8a5b7bc18ccebf96f242341dd3680a75b59905e7",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/events/impl/render/ShaderEvent.java",
+      "purpose": "Shader event definition",
+      "excerpts": [
+        {
+          "start_line": 1,
+          "end_line": 20,
+          "sha256": "5c039d52ffbc53c5af4b7da132bb393b33ae154d766b43ef8c1210482d53e32b"
+        }
+      ]
+    },
+    {
+      "source_path": "src/main/java/net/minecraft/client/entity/AbstractClientPlayer.java",
+      "source_git_blob": "4a156b7f12c004d3c6b4906cc3052eebefacb79d",
+      "source_url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/net/minecraft/client/entity/AbstractClientPlayer.java",
+      "purpose": "LookEvent producer and RotationHandler-driven look vector",
+      "excerpts": [
+        {
+          "start_line": 175,
+          "end_line": 192,
+          "sha256": "1a145ae0d914dc9347ff7cc3866a1d281e79af843ee7a74160e3ba630df84a49"
+        }
+      ]
+    }
+  ]
+}
