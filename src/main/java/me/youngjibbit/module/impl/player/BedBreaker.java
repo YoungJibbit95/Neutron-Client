@@ -179,7 +179,11 @@ public final class BedBreaker extends Module {
         BedBreakerPlanner.Target chosen = select(frame);
         if (!current(frame) || !admitted(frame)) return false;
         if (chosen == null) { boolean had = owned != null; stopMining(frame); if (current(frame)) { frame.rotations.reset(ROTATION_SOURCE); state(Status.SEARCHING); } return had; }
-        if (owned != null && !owned.target.pos.equals(chosen.pos)) { stopMining(frame); return true; }
+        if (owned != null && !owned.target.pos.equals(chosen.pos)) {
+            // An abort is this input tick's transition; a duplicate hook cannot start the replacement.
+            mineBudget.claim(frame.player, frame.world, 1);
+            stopMining(frame); return true;
+        }
         // This input stage precedes this tick's movement packet. Only the preceding
         // accepted server pose grants mining authority; camera picking stays independent.
         if (!rotationReady(frame)) {
