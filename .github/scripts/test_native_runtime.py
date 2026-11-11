@@ -1,6 +1,6 @@
 """APT bootstrap regression checks; all process calls are mocked on every OS."""
 
-from contextlib import redirect_stderr
+from contextlib import redirect_stderr, redirect_stdout
 import importlib.util
 import io
 import os
@@ -68,11 +68,14 @@ class NativeRuntimeTest(unittest.TestCase):
         if len(self.calls) in self.failures:
             raise self.failures[len(self.calls)]
 
-    def install(self, profile="legacy-ui"):
-        with redirect_stderr(io.StringIO()):
+    def install(self, profile="legacy-ui", package_states=None):
+        states = [EXPECTED_PACKAGES.get(profile, ()), ()] if package_states is None else package_states
+        with patch.object(native, "missing_packages", side_effect=states) as query, \
+                redirect_stderr(io.StringIO()), redirect_stdout(io.StringIO()):
+            self.package_query = query
             native.install_runtime(profile, runner=self.run_apt, temp_parent=self.parent)
 
-    def fail(self, call_number, code=100):
+    def fail_apt(self, call_number, code=100):
         error = subprocess.CalledProcessError(code, ["mock-apt"])
         self.failures[call_number] = error
         return error
@@ -96,8 +99,49 @@ class NativeRuntimeTest(unittest.TestCase):
                 self.assertTrue(all(not source_overrides(call) for call in self.calls))
                 self.assert_cleaned()
 
+    def test_complete_native_runtime_needs_no_apt_or_network(self):
+        for profile in EXPECTED_PACKAGES:
+            with self.subTest(profile=profile):
+                self.install(profile, package_states=[()])
+                self.package_query.assert_called_once_with(EXPECTED_PACKAGES[profile])
+                self.assertEqual([], self.calls)
+                self.assert_cleaned()
+
+    def test_only_missing_packages_are_installed_then_the_whole_profile_is_verified(self):
+        missing = ("mesa-utils", "libglu1-mesa")
+        self.install(package_states=[missing, ()])
+        command = self.calls[1]
+        self.assertEqual(missing, tuple(command[command.index("--") + 1:]))
+        self.assertEqual(2, self.package_query.call_count)
+        for call in self.package_query.call_args_list:
+            self.assertEqual((EXPECTED_PACKAGES["legacy-ui"],), call.args)
+
+    def test_successful_apt_exit_cannot_hide_missing_or_broken_packages(self):
+        with self.assertRaisesRegex(RuntimeError, "remain unavailable: mesa-utils"):
+            self.install(package_states=[("mesa-utils",), ("mesa-utils",)])
+        self.assertEqual(2, len(self.calls))
+        self.assert_cleaned()
+
+    def test_fallback_also_requires_the_complete_installed_profile(self):
+        self.fail_apt(1)
+        with self.assertRaisesRegex(RuntimeError, "remain unavailable: libglx-mesa0"):
+            self.install(package_states=[("mesa-utils",), ("libglx-mesa0",)])
+        self.assertEqual(3, len(self.calls))
+        self.assertEqual(2, self.package_query.call_count)
+        self.assert_cleaned()
+
+    def test_package_database_failure_never_falls_back_to_network_installation(self):
+        for error in (subprocess.CalledProcessError(2, ["dpkg-query"]),
+                      subprocess.TimeoutExpired(["dpkg-query"], 15),
+                      RuntimeError("invalid package database")):
+            with self.subTest(error=type(error).__name__):
+                with self.assertRaises(type(error)):
+                    self.install(package_states=[error])
+                self.assertEqual([], self.calls)
+                self.assert_cleaned()
+
     def test_failed_update_skips_primary_install_and_isolates_both_fallback_calls(self):
-        self.fail(1)
+        self.fail_apt(1)
         observed = []
 
         def inspect(command):
@@ -137,7 +181,7 @@ class NativeRuntimeTest(unittest.TestCase):
         self.assert_cleaned()
 
     def test_install_failure_retries_the_exact_profile_once(self):
-        self.fail(2)
+        self.fail_apt(2)
         self.install("render-performance")
         self.assertEqual(4, len(self.calls))
         for command in (self.calls[1], self.calls[3]):
@@ -146,8 +190,8 @@ class NativeRuntimeTest(unittest.TestCase):
         self.assert_cleaned()
 
     def test_fallback_update_failure_propagates_without_install_or_another_retry(self):
-        self.fail(1)
-        expected = self.fail(2, 101)
+        self.fail_apt(1)
+        expected = self.fail_apt(2, 101)
         with self.assertRaises(subprocess.CalledProcessError) as caught:
             self.install()
         self.assertIs(expected, caught.exception)
@@ -155,8 +199,8 @@ class NativeRuntimeTest(unittest.TestCase):
         self.assert_cleaned()
 
     def test_fallback_install_failure_propagates_and_cleans_temporary_lists(self):
-        self.fail(1)
-        expected = self.fail(3, 102)
+        self.fail_apt(1)
+        expected = self.fail_apt(3, 102)
         with self.assertRaises(subprocess.CalledProcessError) as caught:
             self.install()
         self.assertIs(expected, caught.exception)
@@ -164,8 +208,8 @@ class NativeRuntimeTest(unittest.TestCase):
         self.assert_cleaned()
 
     def test_bounded_process_timeout_can_use_only_the_single_fallback(self):
-        self.fail(1, 124)
-        self.fail(3, 124)
+        self.fail_apt(1, 124)
+        self.fail_apt(3, 124)
         with self.assertRaises(subprocess.CalledProcessError) as caught:
             self.install()
         self.assertEqual(124, caught.exception.returncode)
@@ -173,7 +217,7 @@ class NativeRuntimeTest(unittest.TestCase):
         self.assert_cleaned()
 
     def test_unexpected_fallback_process_error_still_cleans_temporary_files(self):
-        self.fail(1)
+        self.fail_apt(1)
         self.failures[2] = OSError("mock executable disappeared")
         with self.assertRaisesRegex(OSError, "disappeared"):
             self.install()
@@ -181,7 +225,7 @@ class NativeRuntimeTest(unittest.TestCase):
         self.assert_cleaned()
 
     def test_temp_permissions_allow_apt_traversal_without_other_user_writes(self):
-        self.fail(1)
+        self.fail_apt(1)
         actual_chmod = Path.chmod
         modes = []
 
@@ -230,6 +274,9 @@ class NativeRuntimeTest(unittest.TestCase):
         with patch.object(native, "require_noble_root", side_effect=RuntimeError("wrong runner")), patch.object(native, "install_runtime") as install, redirect_stderr(io.StringIO()):
             self.assertEqual(1, native.main(["legacy-ui"]))
             install.assert_not_called()
+        with patch.object(native, "require_noble_root"), patch.object(native, "install_runtime") as install, redirect_stderr(io.StringIO()):
+            install.side_effect = subprocess.TimeoutExpired(["dpkg-query"], 15)
+            self.assertEqual(1, native.main(["legacy-ui"]))
 
     def test_cli_requires_linux_root_and_noble_before_using_ubuntu_sources(self):
         with patch.object(native.sys, "platform", "win32"):
@@ -251,6 +298,72 @@ class NativeRuntimeTest(unittest.TestCase):
                 self.assertIn("- '.github/scripts/test_native_runtime.py'", workflow)
                 self.assertIn("runs-on: ubuntu-24.04", workflow)
                 self.assertNotIn("sudo apt-get", workflow)
+
+
+class InstalledPackageTest(unittest.TestCase):
+    def setUp(self):
+        self.architecture = "amd64\n"
+        self.database = ""
+        self.calls = []
+
+    def query(self, command, **kwargs):
+        self.calls.append(command)
+        self.assertTrue(kwargs["check"])
+        self.assertTrue(kwargs["capture_output"])
+        self.assertTrue(kwargs["text"])
+        self.assertEqual(15, kwargs["timeout"])
+        self.assertEqual("C", kwargs["env"]["LC_ALL"])
+        self.assertNotIn("shell", kwargs)
+        if command[0] == "/usr/bin/dpkg":
+            self.assertEqual(["/usr/bin/dpkg", "--print-architecture"], command)
+            output = self.architecture
+        else:
+            self.assertEqual([
+                "/usr/bin/dpkg-query", "--show",
+                "--showformat=${Package}\\t${Architecture}\\t${Status}\\n",
+            ], command)
+            output = self.database
+        return subprocess.CompletedProcess(command, 0, stdout=output)
+
+    def missing(self, packages):
+        return native.missing_packages(packages, runner=self.query)
+
+    def test_installed_native_all_and_held_packages_satisfy_requirements(self):
+        self.database = ("xvfb\tamd64\tinstall ok installed\n"
+                         "fonts-dejavu-core\tall\tinstall ok installed\n"
+                         "mesa-utils\tamd64\thold ok installed\n")
+        self.assertEqual((), self.missing(("xvfb", "fonts-dejavu-core", "mesa-utils")))
+        self.assertEqual(2, len(self.calls))
+
+    def test_missing_foreign_partial_and_reinstall_required_packages_do_not_qualify(self):
+        self.database = ("libgl1-mesa-dri\ti386\tinstall ok installed\n"
+                         "mesa-utils\tamd64\tinstall ok half-configured\n"
+                         "xauth\tamd64\tdeinstall ok config-files\n"
+                         "xvfb\tamd64\tinstall reinstreq installed\n"
+                         "fonts-dejavu-core\tall\tinstall ok installed\n")
+        packages = ("libgl1-mesa-dri", "mesa-utils", "xauth", "xvfb", "absent", "fonts-dejavu-core")
+        self.assertEqual(packages[:-1], self.missing(packages))
+
+    def test_native_architecture_is_discovered_and_foreign_duplicate_does_not_hide_it(self):
+        self.architecture = "arm64\n"
+        self.database = ("xvfb\tamd64\tinstall ok installed\n"
+                         "xvfb\tarm64\tinstall ok installed\n"
+                         "mesa-utils\tamd64\tinstall ok installed\n")
+        self.assertEqual(("mesa-utils",), self.missing(("xvfb", "mesa-utils")))
+
+    def test_empty_database_means_every_requested_package_is_missing(self):
+        self.assertEqual(("xvfb", "mesa-utils"), self.missing(("xvfb", "mesa-utils")))
+
+    def test_invalid_architecture_and_database_output_fail_closed(self):
+        for architecture in ("", "amd64 arm64", "amd64\narm64"):
+            with self.subTest(architecture=architecture):
+                self.architecture = architecture
+                with self.assertRaisesRegex(RuntimeError, "architecture"):
+                    self.missing(("xvfb",))
+        self.architecture = "amd64\n"
+        self.database = "xvfb installed\n"
+        with self.assertRaisesRegex(RuntimeError, "database"):
+            self.missing(("xvfb",))
 
 
 if __name__ == "__main__":

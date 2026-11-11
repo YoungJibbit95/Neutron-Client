@@ -1,4 +1,4 @@
-"""Install the two Linux native-check runtimes with one signed Ubuntu fallback.
+"""Ensure the two Linux native-check runtimes, with one signed Ubuntu fallback.
 
 Run through sudo on the Noble CI runner. Running the helper itself as root also
 lets its temporary directory cleanup remove files that APT creates as root/_apt.
@@ -47,6 +47,7 @@ ACQUIRE_OPTIONS = (
 )
 UPDATE_TIMEOUT_SECONDS = 120
 INSTALL_TIMEOUT_SECONDS = 240
+QUERY_TIMEOUT_SECONDS = 15
 
 
 def require_noble_root():
@@ -97,26 +98,69 @@ def run_apt(runner, arguments, timeout_seconds, source_options=()):
     runner(command, check=True, env={**os.environ, "DEBIAN_FRONTEND": "noninteractive"})
 
 
+def missing_packages(packages, *, runner=None):
+    """Check configured native packages, without depending on APT or its indexes."""
+    runner = subprocess.run if runner is None else runner
+    options = dict(check=True, capture_output=True, text=True,
+                   timeout=QUERY_TIMEOUT_SECONDS, env={**os.environ, "LC_ALL": "C"})
+    architecture = runner(["/usr/bin/dpkg", "--print-architecture"], **options).stdout.strip()
+    if not architecture or any(character.isspace() for character in architecture):
+        raise RuntimeError("Cannot determine the native package architecture")
+    # Query the whole installed database: querying an absent package by name
+    # makes dpkg-query fail even when the database itself is healthy.
+    result = runner([
+        "/usr/bin/dpkg-query", "--show",
+        "--showformat=${Package}\\t${Architecture}\\t${Status}\\n",
+    ], **options)
+    installed = set()
+    for line in result.stdout.splitlines():
+        fields = line.split("\t")
+        if len(fields) != 3:
+            raise RuntimeError("Cannot read the installed package database")
+        package, package_architecture, status = fields
+        # A foreign-architecture library, half-configured package, or package
+        # requiring reinstallation must never satisfy a native runtime need.
+        if package_architecture in (architecture, "all") and status in (
+                "install ok installed", "hold ok installed"):
+            installed.add(package)
+    return tuple(package for package in packages if package not in installed)
+
+
+def require_installed(packages):
+    missing = missing_packages(packages)
+    if missing:
+        raise RuntimeError("Native runtime packages remain unavailable: " + ", ".join(missing))
+
+
 def install_runtime(profile, *, runner=None, temp_parent=None):
     # Only fixed profiles are accepted; caller text never enters APT arguments.
     if profile not in PACKAGES:
         raise ValueError("Unknown native runtime profile")
     runner = subprocess.run if runner is None else runner
     temp_parent = Path("/tmp") if temp_parent is None else Path(temp_parent)
-    install_arguments = ("install", "--no-install-recommends", "-y", "--", *PACKAGES[profile])
+    missing = missing_packages(PACKAGES[profile])
+    if not missing:
+        print("Native runtime packages already installed for %s; no APT download needed."
+              % profile, flush=True)
+        return
+    print("Installing missing native runtime packages: " + ", ".join(missing), flush=True)
+    install_arguments = ("install", "--no-install-recommends", "-y", "--", *missing)
     try:
         run_apt(runner, ("update", "--error-on=any"), UPDATE_TIMEOUT_SECONDS)
         run_apt(runner, install_arguments, INSTALL_TIMEOUT_SECONDS)
-        return
     except subprocess.CalledProcessError as error:
         print("Runner APT sources failed (exit %s); trying direct signed Ubuntu sources once."
               % error.returncode, file=sys.stderr, flush=True)
+    else:
+        require_installed(PACKAGES[profile])
+        return
 
     # Fresh lists prevent fallback from installing against stale mirror indexes.
     # Both commands receive the same isolated sources; default sources stay intact.
     with isolated_sources(temp_parent) as options:
         run_apt(runner, ("update", "--error-on=any"), UPDATE_TIMEOUT_SECONDS, options)
         run_apt(runner, install_arguments, INSTALL_TIMEOUT_SECONDS, options)
+        require_installed(PACKAGES[profile])
 
 
 def main(argv=None):
@@ -130,7 +174,7 @@ def main(argv=None):
         print("Native runtime installation failed (exit %s)." % error.returncode,
               file=sys.stderr)
         return error.returncode if 0 < error.returncode < 256 else 1
-    except (OSError, RuntimeError) as error:
+    except (OSError, RuntimeError, subprocess.TimeoutExpired) as error:
         print("Native runtime installation failed: %s" % error, file=sys.stderr)
         return 1
     return 0
