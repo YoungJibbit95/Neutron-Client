@@ -16,6 +16,7 @@ import net.minecraft.client.renderer.ActiveRenderInfo;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.client.resources.DefaultResourcePack;
+import net.minecraft.client.resources.LanguageManager;
 import net.minecraft.client.resources.SimpleReloadableResourceManager;
 import net.minecraft.client.resources.data.IMetadataSerializer;
 import net.minecraft.client.shader.Framebuffer;
@@ -56,6 +57,7 @@ public final class DemiseScaffoldOverlayNativeCheck {
             SimpleReloadableResourceManager resources=new SimpleReloadableResourceManager(new IMetadataSerializer());
             resources.reloadResources(Collections.singletonList(new DefaultResourcePack(Collections.emptyMap())));
             field(Minecraft.class,"mcResourceManager").set(mc,resources);
+            field(Minecraft.class,"mcLanguageManager").set(mc,new LanguageManager(new IMetadataSerializer(),"en_US"));
             mc.thePlayer=bare(EntityPlayerSP.class); mc.theWorld=bare(WorldClient.class); mc.thePlayer.worldObj=mc.theWorld;
             field(Minecraft.class,"renderManager").set(mc,bare(RenderManager.class));
             Framebuffer target=new Framebuffer(WIDTH,HEIGHT,true); field(Minecraft.class,"framebufferMc").set(mc,target);
