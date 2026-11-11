@@ -507,6 +507,16 @@ public class ConfigManager {
                 if ("invmanager".equals(module.getId())) defaultSetting(change, "drop_order", "Priority");
                 else defaultSetting(change, "pick_profile", "Shuffle");
             }
+            // The original NScaffold settings end at Smart Disable. Missing
+            // extension fields must not inherit a previous profile's clutch,
+            // Telly gate or independent interpolation. Explicit new values win.
+            if ("nscaffold".equals(module.getId())) {
+                boolean extension=false;
+                for(Value<?> value:module.getValues()) {
+                    if("build_mode".equals(value.getId()))extension=true;
+                    if(extension && !change.values.containsKey(value))change.values.put(value,value.getDefaultValue());
+                }
+            }
             // Old geometric effects occupied the palette selector. An explicit new
             // UI mode wins regardless of JSON key order; Lines has no UI counterpart.
             if(change.legacyUiGlowMode!=null)defaultSetting(change,"ui_glow_mode",change.legacyUiGlowMode);

@@ -1,165 +1,205 @@
 # NScaffold und Demise Scaffold: Funktionsvergleich
 
-Stand: 11. November 2026. Dieser Vergleich beschreibt den aktuellen
-Phase-2-Implementierungsstand von NScaffold und die unten gepinnte Demise-Quelle.
-
-**NScaffold ist weder eine identische Kopie noch ein vollständiger Funktionsport
-des Demise Scaffold.** Es ist eine eigenständige sichtbare Bauhilfe, die normale
-Nachbar- und Flächenwahl sowie eine geometrische Godbridge-Präferenz auf Neutrons
-vorhandenen Controller- und Rotationspfaden umsetzt. Gemeinsame Begriffe und
-ähnliche Teilfunktionen bedeuten keine Verhaltensgleichheit.
+Stand: 11. November 2026. Dieser Vergleich beschreibt die Erweiterung um
+Bau-Modi, Clutch-Hilfe und lokale Rotationseinstellungen auf der bisherigen
+Phase-2-Grundlage. **NScaffold ist weiterhin weder eine identische Kopie noch ein
+vollständiger Funktionsport des Demise Scaffold.** Gemeinsame Namen und
+übernommene Teilideen bedeuten keine gleiche Eingabe-, Rotations- oder
+Platzierungsfolge.
 
 ## Geprüfte Quellen
 
-Die Originaldateien wurden über den GitHub-Connector gelesen. Bezugsstand ist
-Commit `e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb` in
+Die Originaldateien wurden über den GitHub-Connector gelesen. Reproduzierbare
+Referenz ist Commit `e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb` in
 `YoungJibbit95/DemisePrivate`:
 
-- **[D1]** [Scaffold.java](https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/features/modules/impl/player/Scaffold.java),
-  Blob `f5cbead2aa1d666af66946173fa358b626ac9244`.
-- **[D2]** [RotationManager.java](https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/player/rotation/RotationManager.java),
-  Blob `e17d1fe4a7cd0702025e3f870f57ab454b91f3a2`. Dieser Manager registriert
-  zusätzliche Einstellungen am aufrufenden Modul und gehört deshalb zum Vergleich.
-- **[D3]** [README.md](https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/README.md),
-  Blob `ac3c47ef7c38a6180b201f2bea2b586a43f9de7b`.
+- **[D1]** [Scaffold.java](https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/features/modules/impl/player/Scaffold.java), Blob `f5cbead2aa1d666af66946173fa358b626ac9244`.
+- **[D2]** [RotationManager.java](https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/player/rotation/RotationManager.java), Blob `e17d1fe4a7cd0702025e3f870f57ab454b91f3a2`. Dieser Manager registriert zusätzliche Werte am aufrufenden Modul.
+- **[D3]** [README.md](https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/README.md), Blob `ac3c47ef7c38a6180b201f2bea2b586a43f9de7b`.
+- **[D4]** [RotationHandler.java](https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/player/rotation/RotationHandler.java), Blob `29555b7cfca3b1e5cccad94e4d5ed06902784a31`. Hier liegen die vom Manager verwendete Interpolation und die globale Ereignisanbindung.
 
-Die im selben Durchgang erneut gelesene aktuelle `main`-Fassung von
-`Scaffold.java` war textgleich mit [D1]. Der gepinnte Commit bleibt die
-reproduzierbare Referenz dieses Dokuments.
+Beim vorherigen Phase-2-Vergleich war die zusätzlich gelesene damalige
+`main`-Fassung von Scaffold.java textgleich mit [D1]. Maßgeblich für dieses
+Dokument bleiben die angegebenen gepinnten Quellen.
 
-Die Neutron-Seite des Vergleichs ergibt sich aus:
+Die Neutron-Seite ergibt sich aus:
 
 - **[N1]** [NScaffold.java](../src/main/java/me/youngjibbit/module/impl/world/NScaffold.java)
 - **[N2]** [NScaffoldPlanner.java](../src/main/java/me/youngjibbit/core/world/NScaffoldPlanner.java)
 - **[N3]** [ScaffoldPlacementService.java](../src/main/java/me/youngjibbit/core/world/ScaffoldPlacementService.java)
-- **[N4]** [Bedienungs- und Herkunftsdokumentation](NSCAFFOLD.md)
+- **[N4]** [Bedienungs- und Einstellungsdokumentation](NSCAFFOLD.md)
 - **[N5]** [pom.xml](../pom.xml)
+- **[N6]** [NScaffoldModeController.java](../src/main/java/me/youngjibbit/core/world/NScaffoldModeController.java)
+- **[N7]** [NScaffoldClutchPlanner.java](../src/main/java/me/youngjibbit/core/world/NScaffoldClutchPlanner.java)
+- **[N8]** [NScaffoldRotationController.java](../src/main/java/me/youngjibbit/core/world/NScaffoldRotationController.java)
+- **[N9]** [ConfigManager.java](../src/main/java/me/youngjibbit/config/ConfigManager.java)
 
-Der Vergleich beschreibt deklarierte Einstellungen und den gelesenen Ablauf.
-Er enthält keinen Nachweis gleicher Spielergebnisse, gleicher Bewegung oder
-gleichen Verhaltens gegenüber einem Server.
+**Adaptiert** bezeichnet eine vorhandene verwandte Neutron-Funktion mit den
+angegebenen Unterschieden. **Fehlt** bedeutet, dass die betreffende
+Originaloption nicht implementiert ist. Der Vergleich ist eine Quell- und
+Funktionszuordnung; er belegt keine gleichen Spielergebnisse oder gleiche
+Bewertung durch einen Server.
 
 ## Hauptfunktionen und Einstellungen
 
-Die Originalbezeichnungen in dieser Tabelle stammen aus [D1]. **Adaptiert**
-bedeutet, dass NScaffold eine eigene verwandte Funktion besitzt. **Fehlt**
-bedeutet, dass die betreffende Originaloption in NScaffold nicht implementiert
-ist. Beide Angaben schließen eine Behauptung vollständiger Gleichheit aus.
+Die Originalbezeichnungen dieser Tabelle stammen aus [D1]. Die Neutron-Werte
+und ihre Anbindung stehen in [N1–N3, N6–N8].
 
 | Gruppe | Demise Scaffold | Aktueller NScaffold-Stand |
 | --- | --- | --- |
-| Hauptmodus | `Mode`: `Normal`, `Breezily`, `Telly` | **Fehlt als ursprüngliche Modellauswahl.** NScaffold hat `Visible Rotation: Standard / Godbridge`. `Standard` ist kein umbenanntes, identisches Demise-`Normal`; Breezily- und Telly-Abläufe fehlen. |
-| Telly-Steuerung | `Straight telly ticks`, `Diagonal telly ticks` | **Fehlt.** Keine Telly-Taktung und keine automatische Telly-Eingabefolge. |
-| Rotationsziel | `Rotations`: `Normal`, `Center`, `GodBridge`, `Reverse` | **Teilweise adaptiert.** Nur eigene Standard-/Godbridge-Zielgeometrie. Die ursprüngliche Vierer-Auswahl und ihre Abläufe werden nicht abgebildet. |
-| Feste Rotationspräferenz | `Static-ify` | **Fehlt als Originaloption.** Das Halten eines gültigen aktuellen Sichtstrahls und einer aufgenommenen Richtung ist eine eigene Planerregel und kein gleichwertiger Ersatz für diese Einstellung. |
-| Clutch-Auswahl | `Clutch`; `Clutch criteria: MouseOver / Prediction`; `Clutch rotation mode: Normal / Center` | **Fehlt als eigenständiges Clutch-System.** Eine während eines Falls normal erreichbare Fläche kann im gewöhnlichen Platzierungspfad benutzt werden. Daraus folgt keine Gleichheit mit dem Demise-Clutch und keine Rettungsgarantie. |
-| Clutch-Reaktion | `Instant rot criteria`: `Always`, `On miss`, `Predict` | **Fehlt.** NScaffold besitzt keine entsprechenden Sofortrotationskriterien. `Turn Speed` ist eine eigene begrenzte sichtbare Winkeländerung. |
-| Clutch-Sneak | `Auto sneak on clutch`, `Ground ticks to sneak` | **Fehlt.** NScaffold setzt keine Sneak-Taste und keine Clutch-Sneak-Sequenz. |
-| Sprint | `Sprint mode`: `Normal`, `Silent`, `Ground`, `Air`, `None` | **Fehlt.** NScaffold erzwingt und unterbindet Sprint nicht. Die normalen Eingaben und sonstigen Clientregeln bleiben maßgeblich; es gibt keine entsprechende Sprint-Modusauswahl. |
-| Geschwindigkeit | `Speed mode`: `Tick`, `Exempt`, `Diagonal`, `None` | **Nicht übernommen.** NScaffold besitzt keine dieser Geschwindigkeitsfunktionen und verändert die Bewegungswerte nicht für einen solchen Modus. |
-| Höhenhaltung | Addons `KeepY`, `Speed keepY` | **Adaptiert.** `Keep Height` hält eine begrenzte Zielebene mit eigenen Rücksetzbedingungen. Eine Kopplung an das Demise-Speed-Modul und dessen Höhenregel fehlt. |
-| Automatisches Springen | Addon `Jump`, `Blocks to jump`, `Only straight` | **Fehlt.** Keine blockzahlabhängige Sprungfolge und keine automatische Sprungtaste. |
-| Automatisches Sneaken | Addon `Sneak`, `Blocks to sneak`, `Only sneak on ground` | **Fehlt.** Keine blockzahlabhängige Sneak-Folge. |
-| Kanten- und Schwebefunktionen | Addons `Safewalk`, `Safewalk when no data`, `Hover` | **Fehlen.** Der NScaffold-Planer begrenzt seine Platzierungsziele; er stellt damit keine entsprechende Bewegungs- oder Kantenautomatik bereit. |
-| Tower | `Tower` und `Tower move`, jeweils `Jump`, `Vanilla`, `PullDown`, `NCP`; zusätzlich `PullDown motion` | **Nicht übernommen.** NScaffold hat weder diese beiden Modusauswahlen noch eine eigene Tower-Bewegungssteuerung. |
-| Raytrace | Addon `RayTrace`, zusätzlich `Strict rayTrace` | **Anders umgesetzt.** NScaffold verlangt immer eine gültige erste Weltfläche in normaler Controller-Reichweite und den dazugehörigen Treffer. Diese Prüfungen sind keine wahlweise abschaltbaren Kopien der Originaloptionen. |
-| Handanimation | Addon `Swing` | **Adaptiert.** `Swing` steuert eine normale sichtbare Handanimation nach lokal erfolgreicher Platzierung. Die weiteren Originalpfade werden dadurch nicht übernommen. |
-| Zielblockdarstellung | Addon `Target block ESP` mit Render-/Shaderanbindung | **Fehlt als gleichartige Darstellung.** Neutrons separates `TargetESP` kann den tatsächlich angewandten NScaffold-Sichtstrahl markieren; ein Hitpoint-Marker ist nicht dieselbe Anzeige wie ein geplanter Zielblock. |
-| Hotbar und Slotdarstellung | Automatische Blockwahl sowie eigene Slotdarstellung und Rücksetzung; kein gleichnamiger `Auto Select Blocks`-Schalter in [D1] | **Anders umgesetzt.** `Auto Select Blocks` erlaubt normalen sichtbaren Slotwechsel. Der aktuelle brauchbare Stack wird bevorzugt, andernfalls der erste geeignete Hotbar-Stack. Die Originalwahl und die globale Slotdarstellung sind nicht übernommen. |
-| Blocksuche und gehaltene Unterstützung | Direkte Nachbarprüfung, bevorzugte frühere Unterstützung und eine weiterreichende Suche | **Adaptiert.** NScaffold prüft die benötigte Zelle und höchstens zwei diagonale Verbindungszellen mit fünf Nachbarflächen. Die daraus folgenden höchstens 15 neuen Flächenprüfungen sind ein eigenes Suchbudget; die Originalsuche wird nicht reproduziert. |
-| Platzierungsablauf | Eigene Ereignisfolge für Zielwahl, Rotation und Platzierung | **Anders umgesetzt.** NScaffold verwendet Neutrons bestehende Platzierungsautorität, frische Szenen-/Owner-Prüfungen und ein gemeinsames Tickbudget. `Placement Delay` ist eine zusätzliche eigene Einstellung. |
-| Weltwechsel | `onWorld` schaltet das Originalmodul aus | **Anders umgesetzt.** Alte NScaffold-Pläne werden immer verworfen. `Smart Disable on World Change` entscheidet zusätzlich über das Abschalten und ist standardmäßig aus. |
+| Hauptmodus | `Mode: Normal / Breezily / Telly` | **Adaptiert als Build Mode mit diesen drei Auswahlen.** Normal verwendet den bestehenden sichtbaren Baupfad. Breezily verwendet eine feste sichtbare Winkelpräferenz, aber keine automatische Strafe-Umschreibung. Telly verwendet Flugfenster, aber keinen automatischen Sprung. |
+| Telly-Steuerung | `Straight telly ticks`, `Diagonal telly ticks` | **Adaptiert.** Separate Werte von 1–5, standardmäßig 4/2. Gezählt werden aufeinanderfolgende tatsächlich beobachtete Flugticks der aktuellen Sitzung. Landen und Beobachtungslücken setzen die Folge zurück; ein gültiger Clutch-Plan hat Vorrang vor dem Telly-Fenster. |
+| Rotationsziel | `Rotations: Normal / Center / GodBridge / Reverse` | **Alle vier Zielarten in angepasster Form vorhanden.** Die bisherige Bezeichnung `Standard` bleibt für die normale Neutron-Zielwahl erhalten. Center benutzt tatsächliche Stützflächen-Bounds. Godbridge und Reverse behalten die beschriebenen sichtbaren Geometrie- und Reichweitengrenzen. Die ursprüngliche Ereignisfolge und dichte Punktabtastung werden nicht kopiert. |
+| Feste Rotationspräferenz | `Static-ify` | **Adaptiert.** Godbridge fordert beim Bewegen den konfigurierten Pitch, im Stillstand 90° an; Reverse fordert 80° an. Ein fester Wunschstrahl muss selbst eine benötigte reale Fläche treffen. Die vorhandene Interpolation und die Prüfung des tatsächlich akzeptierten Zwischenwinkels bleiben bestehen. |
+| Breezily-Geometrie | Eigene Ausrichtung und seitliche Eingabesteuerung | **Teilweise adaptiert.** Sichtbare 45°-Präferenz mit 80° gerade, 75,7° diagonal und 90° im Stillstand. Seitliche Eingaben bleiben manuell; die eigene Kameradrehung wird nicht laufend als neue Richtung zurückgeführt. |
+| Clutch-Auswahl | `Clutch`; `Clutch criteria: MouseOver / Prediction`; `Clutch rotation mode: Normal / Center` | **Adaptiert.** Eigener begrenzter Planer für aktuelle und kurz vorausliegende ungestützte Zellen. MouseOver prüft einen nützlichen aktuellen Strahl; Prediction verwendet eine kurze Projektion der tatsächlichen Bewegung. Normal/Center wählen eine sichtbare Punktpräferenz beziehungsweise den realen Flächenmittelpunkt. |
+| Clutch-Reaktion | `Instant rot criteria: Always / On miss / Predict` | **Adaptiert als drei kombinierbare Fast-Clutch-Schalter.** Nur bei Advanced Rotations wirksam: dringliche Pläne überspringen optionale Pausen, zusätzliche Verlangsamung, Trägheit und Achsvariation. Die eingestellten maximalen Achsgeschwindigkeiten werden weiterhin eingehalten. Keine Zusage unbegrenzter oder sofortiger Drehung. |
+| Clutch-Sneak | `Auto sneak on clutch`, `Ground ticks to sneak` | **Adaptiert.** Eigene beobachtete Bodenticks, gültiger Clutch-Plan und kurze Anforderung über zwei Ticks. Der normale Eingabepfad prüft Bodenkontakt und manuelle Eingaben erneut und ergänzt gegebenenfalls Sneak mit normaler Verlangsamung. Keine global gehaltene Taste; keine identische Kopie des 100-ms-Timers. |
+| Sprint | `Sprint mode: Normal / Silent / Ground / Air / None` | **Fehlt.** NScaffold erzwingt oder unterbindet Sprint nicht und bietet diese Modusauswahl nicht an. |
+| Geschwindigkeit | `Speed mode: Tick / Exempt / Diagonal / None` | **Nicht übernommen.** Keine entsprechenden Geschwindigkeitsfunktionen oder Änderungen an Bewegungswerten. |
+| Höhenhaltung | Addons `KeepY`, `Speed keepY` | **Adaptiert.** `Keep Height` hält eine begrenzte Zielebene mit eigenen Rücksetzbedingungen. Die Kopplung an das Demise-Speed-Modul fehlt. |
+| Automatisches Springen | Addon `Jump`, `Blocks to jump`, `Only straight`; Telly-Sprungsteuerung | **Fehlt.** Keine blockzahlabhängige Sprungfolge und kein automatischer Telly-Sprung. |
+| Automatisches Sneaken nach Blockzahl | Addon `Sneak`, `Blocks to sneak`, `Only sneak on ground` | **Fehlt.** Die separate Clutch-Sneak-Hilfe ersetzt dieses blockzählende Addon nicht. |
+| Kanten- und Schwebefunktionen | Addons `Safewalk`, `Safewalk when no data`, `Hover` | **Fehlen als entsprechende Optionen.** Begrenzte Zielplanung und normale optionale Clutch-Sneak-Eingabe sind kein Port dieser Bewegungsfunktionen. |
+| Tower | `Tower` und `Tower move`: `Jump / Vanilla / PullDown / NCP`; `PullDown motion` | **Nicht übernommen.** Keine entsprechende Tower-Modusauswahl oder eigene Tower-Bewegungssteuerung. |
+| Raytrace | Addon `RayTrace`, `Strict rayTrace` | **Anders umgesetzt.** Erste Weltfläche, normale Controller-Reichweite und tatsächlicher Treffer sind immer erforderlich. Diese Prüfungen sind keine abschaltbaren Kopien der Originaloptionen. |
+| Handanimation | Addon `Swing` | **Adaptiert.** Normale sichtbare Handanimation nach lokal erfolgreicher Platzierung. |
+| Zielblockdarstellung | Addon `Target block ESP` mit Render-/Shaderanbindung | **Fehlt als gleichartige Darstellung.** Das separate TargetESP kann den tatsächlich angenommenen NScaffold-Strahl markieren. Ein Hitpoint-Marker ist keine Darstellung des geplanten Zielblocks. |
+| Hotbar und Slotdarstellung | Automatische Blockwahl sowie eigene Slotdarstellung und Rücksetzung | **Anders umgesetzt.** `Auto Select Blocks` erlaubt normalen sichtbaren Slotwechsel. Der aktuelle brauchbare Stack wird bevorzugt, andernfalls der erste geeignete Hotbar-Stack. Die globale Original-Slotdarstellung fehlt. |
+| Blocksuche und gehaltene Unterstützung | Direkte Nachbarprüfung, bevorzugte frühere Unterstützung und weiterreichende Suche | **Adaptiert.** Normaler Planer: höchstens drei konkrete Zellen mit fünf Nachbarflächen, also 15 neue Flächenprüfungen. Clutch: höchstens sieben konkrete Zellen und 35 neue Flächenprüfungen. Gehaltene Strahlen und Validierungen werden separat geprüft. Keine ursprüngliche Radius-/Nachbarsuchfolge. |
+| Platzierungsablauf | Eigene Ereignisfolge für Zielwahl, Rotation und Platzierung | **Anders umgesetzt.** Neutrons bestehende Platzierungsautorität, frische Szenen-/Owner-Prüfungen und gemeinsames Tickbudget. `Placement Delay` bleibt eine zusätzliche eigene Einstellung. |
+| Weltwechsel | `onWorld` schaltet das Originalmodul aus | **Anders umgesetzt.** Alte Pläne werden immer verworfen. `Smart Disable on World Change` steuert zusätzlich das Abschalten und ist standardmäßig aus. |
 
-## Zusätzliche Einstellungen des Demise-RotationManager
+### Was die angeforderten Winkel tatsächlich bedeuten
 
-Ein Vergleich nur der Deklarationen in `Scaffold.java` wäre unvollständig:
-`new RotationManager(this)` registriert die folgenden Gruppen aus [D2]. Ihre
-Algorithmen und Einstellungssätze wurden nicht in NScaffold kopiert.
+Die normale Neutron-Suche hält nützliche aktuelle Strahlen und vermeidet unnötige
+neue Flächen. Center fordert ausdrücklich den tatsächlichen Flächenmittelpunkt
+an. Breezily und Static-ify werden nur angeboten, wenn ihr gewünschter fester
+Strahl selbst zur benötigten Route passt. [N2–N3]
 
-| Gruppe aus [D2] | Registrierte Originaleinstellungen | NScaffold |
+Diese **Zielwahl** ist nicht mit der **Platzierungsfreigabe** gleichzusetzen.
+Während einer begrenzten sichtbaren Annäherung kann bereits ein anderer
+Zwischenwinkel dieselbe zulässige Stützfläche treffen. Nach Annahme dieses
+realen Winkels darf der Controller dort platzieren. Center/Static-ify bedeuten
+daher weder eine Platzierung mit nicht angewandten Wunschwerten noch eine
+zusätzliche Garantie, dass jede Platzierung auf den numerisch exakt erreichten
+Endwinkel wartet. [N1–N3]
+
+Die ursprüngliche Demise-Godbridge-Haltung, ihre Eingabekopplung und alle
+diagonalen Abläufe werden dadurch weiterhin nicht identisch reproduziert.
+Die eigenständige Geometrie und ihre Controllergrenzen sind Teil des
+implementierten Verhaltens, keine lediglich umbenannten Originalpfade.
+
+## RotationManager und RotationHandler
+
+Ein Vergleich nur der Werte in Scaffold.java wäre unvollständig.
+`new RotationManager(this)` registriert die Gruppen aus [D2]; deren tatsächliche
+Interpolation wird an [D4] weitergegeben. NScaffold ergänzt entsprechende
+sichtbare lokale Einstellungen hinter **Advanced Rotations**, lässt jedoch den
+globalen Original-Handler unverändert außerhalb der Integration. [N1, N8]
+
+| Gruppe aus [D2–D4] | Originaleinstellungen / Ablauf | NScaffold |
 | --- | --- | --- |
-| Sichtbare oder verborgene Ausrichtung | `Silent` | Ausschließlich tatsächliche sichtbare Kameraausrichtung; kein entsprechender Schalter. |
-| Glättung | `Extra smoothing factor`; `Smooth mode: Linear / Relative` | Keine gleichnamigen Optionen und keine Übernahme dieser Interpolation. |
-| Beschleunigung | `Accelerate`, `Yaw accel factor`, `Pitch accel factor` | Fehlt. `Turn Speed` ersetzt keine getrennten Beschleunigungsmodelle. |
-| Zusammenhang der Achsen | `Imperfect correlation` | Fehlt. |
-| Getrennte Rotationsgeschwindigkeiten | `Yaw rotation speed (min/max)` und `Pitch rotation speed (min/max)` | Fehlen als vier separate Grenzen. NScaffold besitzt eine gemeinsame maximale Winkeländerung pro regulärem Schritt. Die Originalvariation wird nicht reproduziert. |
-| Bewegungskorrektur | `Movement correction: Silent / Strict / None` | Nicht übernommen. Die tatsächliche Kamera ist die normale Bewegungsbasis; NScaffold schreibt keine gegengerichteten Bewegungseingaben. |
-| Kurze Unterbrechungen | `Short stop`, `Duration`, `Rotation diff buildup to stop`, `Max threshold attempts to stop` | Fehlen. |
+| Sichtbare oder verborgene Ausrichtung | `Silent` | **Nicht übernommen.** Ausschließlich tatsächliche sichtbare Kameraausrichtung; kein Silent-Schalter. |
+| Glättung | `Extra smoothing factor`; `Smooth mode: Linear / Relative` | **Adaptiert.** Linear verteilt die Bewegung auf den restlichen Winkelweg; Relative verwendet zunächst 25 % des jeweiligen Restwinkels. Der zusätzliche Faktor skaliert den Schritt. Berechnung pro beobachtetem Spieler-Tick statt Original-Frame-/Mauseingabepfad. |
+| Beschleunigung | `Accelerate`, `Yaw accel factor`, `Pitch accel factor` | **Adaptiert.** Getrennte Gewichte des vorherigen Achsschritts. Ein höheres Gewicht bedeutet mehr Trägheit. Überschießen und Fortsetzen entgegen dem aktuellen Ziel werden begrenzt. |
+| Zusammenhang der Achsen | `Imperfect correlation` | **Adaptiert.** Unabhängige Variation der ausgewählten Achsgrenzen um bis zu ±10 %, mit weiterhin harten Benutzermaxima. |
+| Getrennte Geschwindigkeiten | `Yaw rotation speed (min/max)`, `Pitch rotation speed (min/max)` | **Vorhanden in eigener tickbezogener Interpretation.** Je Achse 0,01–180 Grad pro Spieler-Tick; neue Basiswerte höchstens einmal pro Tick. Keine identische numerische Umsetzung des ursprünglichen zeit- und empfindlichkeitsbezogenen Mauspfads. |
+| Bewegungskorrektur | `Movement correction: Silent / Strict / None` | **Nicht übernommen.** Tatsächliche Kamera und normale Bewegungsbasis; keine gegengerichtete Rekonstruktion der Eingaben. |
+| Kurze Unterbrechungen | `Short stop`, `Duration`, `Rotation diff buildup to stop`, `Max threshold attempts to stop` | **Adaptiert.** Aufsummiert wird tatsächlich auf der Kamera beobachtete Winkelstrecke. Eine konfigurierte Anzahl vollständiger Schwellenüberschreitungen darf übersprungen werden. Pausen dauern nach monotoner Zeit 25–1000 ms. Globale Paket-/Yaw-Akkumulation und Original-Zählerfolge werden nicht importiert. |
+| Dringliche Clutch-Ausrichtung | Scaffold ändert bei ausgewählten Kriterien die Rotationsgeschwindigkeit | **Anders angebunden.** Dringlichkeit hebt optionale weiche Verlangsamungen auf, verwendet aber weiterhin die Benutzermaxima und den gewöhnlichen sichtbaren Controllerpfad. |
 
-Der Manager registriert außerdem `Distance based rotation speed`, `Min range`,
-`Max range` und `Decrement per cycle`. In der geprüften Revision beschränkt deren
-Sichtbarkeitsbedingung diese Gruppe auf `KillAura`. Sie wird hier deshalb nicht
-als ursprünglich sichtbare Scaffold-Einstellungsgruppe gezählt. Verweise auf
-weitere Namen in Sichtbarkeitsbedingungen erweitern auch nicht automatisch die
-tatsächlich deklarierte Auswahl `Linear / Relative`. [D2]
+Die sichtbaren Defaults dieser Erweiterung lauten: **Advanced Rotations aus**;
+bei Aktivierung zunächst Linear, Extra Smoothing Factor 0,15, alle vier
+Geschwindigkeitswerte 180, Accelerate/Imperfect Correlation/Short Stop aus,
+Beschleunigungsgewichte 0,25, Pausendauer 50 ms, Schwelle 180° und eine
+übersprungene Schwelle. Ohne Advanced Rotations bleibt der bisherige
+**Turn Speed** maßgeblich. Minima sind keine Mindestbewegung, denn Restwinkel,
+Glättung und Variation dürfen einen Schritt verkleinern. [N1, N8]
 
-## Was die aktuelle sichtbare Bauhilfe tatsächlich bietet
+Demise registriert außerdem `Distance based rotation speed`, `Min range`,
+`Max range` und `Decrement per cycle`. In der geprüften Revision begrenzt deren
+Sichtbarkeitsbedingung die Gruppe auf KillAura; sie wird deshalb nicht als
+fehlende ursprüngliche Scaffold-Einstellungsgruppe gezählt. In Bedingungen
+referenzierte Namen wie None/Polar erweitern auch nicht die tatsächlich
+registrierte Auswahl Linear/Relative. [D2]
 
-Die vollständige eigene NScaffold-Einstellungsliste lautet: `Visible Rotation`,
-`Turn Speed`, `Godbridge Pitch`, `Look Ahead`, `Keep Height`, `Auto Select Blocks`,
-`Placement Delay`, `Swing`, `Smart Disable on Death` und
-`Smart Disable on World Change`. Die beiden Smart-Disable-Optionen sind
-standardmäßig aus. [N1, N4]
+## Eigene Clutch-Grenzen und Eingabeanbindung
 
-Standard und Godbridge benutzen denselben normalen Controllerpfad mit gültiger
-Reichweite, tatsächlich getroffener Weltfläche und frischer Rotationszuordnung.
-Ein gültiger aktueller Sichtstrahl behält seine exakten Winkel. Godbridge ergänzt
-eine bevorzugte Richtungsgeometrie und einen einstellbaren Abwärtswinkel; bei
-fehlender passender Fläche wartet das Modul. Das ist keine Zusage, die originale
-Godbridge-Körperhaltung, alle diagonalen Abläufe oder dessen Clutch zu kopieren.
-[N1–N3]
+Die neue Clutch-Projektion verwendet aktuelle Position und tatsächliche
+Bewegung. Sie reicht höchstens drei Ticks beziehungsweise zwei Blöcke horizontal
+und drei Blöcke vertikal voraus. Aufsteigende Sprünge mit deutlicher
+Aufwärtsbewegung werden nicht als Rettungsfall erfasst; bei Bodenkontakt wird
+keine fiktive vertikale Fallbewegung angenommen. Auch ein schneller Fall darf
+eine aktuell noch erreichbare Fläche benutzen, wenn die weitergehende Projektion
+bereits räumlich begrenzt wird. Das ist eine eigene physische Kurzprojektion,
+nicht die unveränderte originale Prediction-Abfrage. [N7]
 
-Die Bedienung ist sichtbar und kamerabezogen: Stillstand oder Rückwärtsbewegung
-mit **S**, gegebenenfalls zusammen mit **A/D**, sind die vorgesehenen Eingaben.
-**W** und reine Seitwärtsbewegung pausieren mit `Hold back to bridge`. Manuelle
-Kamerabewegung pausiert mit `Manual view`; nach ruhender Kamera kann eine neue
-Richtung aufgenommen werden. NScaffold setzt keine Bewegungs-, Sprint-, Sprung-
-oder Sneak-Tasten. Ein aktiver bisheriger Scaffold, ein aktives Aura-Ziel oder
-eine Aura-Aktion sowie ungeeignete GUI-/Szenenkontexte haben Vorrang. [N1, N4]
+Der Prediction-Nachlauf umfasst vier beobachtete Ticks einschließlich des
+Auslösers. Die Sneak-Anforderung hält höchstens zwei Ticks einschließlich des
+Auslösers an. Diese Fenster entsprechen nicht unter allen Bedingungen den
+ursprünglichen Zeitmessern. Erst ein gültiger Plan kann eine Sneak-Anforderung
+setzen; der Eingabepfad verlangt zusätzlich aktuelle Szene, Bodenkontakt und
+passende wirkliche Eingaben. Er hält keine globale Taste fest. [N1, N7]
 
-Der gecachte Island-Status und der getrennte TargetESP-Hitpoint sind zusätzliche
-Neutron-Anbindungen. Sie verändern keine Spielaktion. Ein lokal angenommener
-Rotationswinkel oder ein erfolgreicher Controller-Aufruf ist keine
-Serverbestätigung. [N1, N4]
+Normales Bauen bleibt auf Stillstand und kamerabezogenes Rückwärtslaufen mit
+S beziehungsweise S+A/D ausgelegt. Eine reine Vorwärts-/Seitwärtspause verwirft
+den gewöhnlichen Bauplan und die Drehanforderung, erhält aber die physisch
+beobachteten Boden-/Flugfolgen. Clutch kann bei jeder tatsächlichen
+Bewegungsrichtung eine gültige Rettungsfläche übernehmen. Manuelle
+Kamerabewegung, GUI, Szenenverlust und konkurrierende Aktionen behalten Vorrang.
+[N1, N6–N7]
 
-## Ausgelassene Subsysteme und Laufzeitunterschiede
+## Konfigurationskompatibilität
+
+Die ersten zehn bisherigen NScaffold-Werte bis Smart Disable behalten ihre
+Positionen und Identitäten. In Visible Rotation bleiben Standard/Godbridge die
+Indizes 0/1; Center/Reverse sind angehängt. Die Erweiterung beginnt erst danach
+mit Build Mode. Neue Instanzen starten weiterhin mit Normal/Standard und
+**Clutch aus**, **Advanced Rotations aus**. [N1]
+
+Beim Import eines Profils mit einem NScaffold-Eintrag werden darin fehlende Erweiterungswerte auf ihre
+Defaults gesetzt; explizit gespeicherte neue Werte bleiben maßgeblich. Ein
+älteres Profil erbt deshalb nicht unbemerkt Clutch, Telly oder Advanced Rotations
+aus einem vorher geladenen Profil. Die vorhandenen alten Einstellungen werden
+dabei nicht auf neue Defaults zurückgesetzt. [N9]
+
+## Herkunft und Laufzeitunterschiede
 
 Die Referenz enthält neben normalen Bauabläufen auch auf Serverprüfungen
 zugeschnittene Bewegungs- und Paketvarianten. Diese Varianten sowie der globale
-Slot-, Paket- und Eingabeüberschreibungsverbund wurden nicht portiert. Die Tabellen
-nennen betroffene Einstellungsgruppen zur Abgrenzung; sie dokumentieren keine
-Umgehungsverfahren. Aus ihrer Auslassung folgt unmittelbar, dass eine vollständige
-Verhaltensgleichheit mit [D1–D2] nicht besteht. Eine Aussage über geringere
-Erkennungs- oder Flag-Raten ist damit ebenfalls nicht belegt.
+Slot-, Paket- und Eingabeverbund wurden nicht portiert. Die Tabellen grenzen die
+betroffenen Gruppen ab und dokumentieren keine Umgehungsverfahren. Eine Aussage
+über geringere Erkennungs- oder Flag-Raten ist damit nicht belegt. [D1–D4, N1–N8]
 
-Die Demise-README verlangt **Java/JDK 17** und beschreibt einen Gradle-Build.
-Neutron setzt in `pom.xml` Java-Quell- und Zielversion **1.8**; der bestehende
-Projektworkflow verwendet Java 8. Hinzu kommen unterschiedliche Ereignis-,
-Wert-, Rotations- und Controller-Schnittstellen. Unverändertes Einfügen der
-Originaldatei wäre deshalb auch technisch kein abgeschlossener Port. [D3, N5]
+Demise beschreibt in der README Java/JDK 17 und einen Gradle-Build. Neutron setzt
+Java-Quell- und Zielversion 1.8 und verwendet seinen bestehenden Java-8-Workflow.
+Ereignis-, Wert-, Rotations- und Controller-Schnittstellen unterscheiden sich
+zusätzlich. Das bloße Einfügen der Originaldateien wäre kein abgeschlossener
+Port. [D3, N5]
 
 Der Nutzer hat die Nutzung der Quelle bestätigt. Die gelesene Demise-README
-nennt **AGPL-3**, Neutrons bestehende [LICENSE](../LICENSE) nennt GPL v3.
-Der Herkunftsnachweis hält diese Angaben fest und erklärt weder die Lizenzen für
+nennt AGPL-3, Neutrons bestehende [LICENSE](../LICENSE) nennt GPL v3. Dieser
+Herkunftsnachweis hält diese Angaben fest; er erklärt weder die Lizenzen für
 identisch noch zusätzliche Nutzungsbedingungen für entfallen. [D3]
 
-## Aktueller Stand der verlangten Gleichheit und Mergebedingung
+## Historie und Aussagegrenzen
 
-Der Nutzer hat zuletzt verlangt, dass **alle Demise-Scaffold-Einstellungen und
-Abläufe vor einem Merge identisch übernommen sein müssen**. Diese Bedingung ist
-mit dem hier beschriebenen NScaffold **nicht erfüllt**. Das gilt auch unabhängig
-von den ausgelassenen prüfungsspezifischen Varianten: Bereits Hauptmodi,
-Clutch-Auswahl, Sprint, Tower und große Teile der Rotationseinstellungen fehlen
-oder unterscheiden sich wesentlich.
+Der frühere Phase-2-Stand wurde nach einem erneuten ausdrücklichen Mergeauftrag
+als abgegrenzte Implementierung über
+[PR #181](https://github.com/YoungJibbit95/Neutron-Client/pull/181) mit Commit
+[`fa24c93386daf61077772862b220f27817e07a99`](https://github.com/YoungJibbit95/Neutron-Client/commit/fa24c93386daf61077772862b220f27817e07a99)
+in main integriert. Die zuvor in diesem Dokument enthaltene Aussage, jener PR
+bleibe ohne Merge-Freigabe als Draft offen, beschrieb einen überholten Zwischenstand.
 
-Ein grüner Build, bestandene Regressionen und ein technisch mergebarer PR können
-die implementierten Neutron-Funktionen bestätigen. Sie belegen keine
-Demise-Gleichheit und erfüllen diese zusätzliche Nutzerbedingung nicht. Der
-Phase-2-PR bleibt daher eine überprüfbare Lieferung des abgegrenzten
-Implementierungsstands; die verlangte vollständige Gleichheit und die daran
-geknüpfte Freigabe zum Merge in `main` bleiben offen. Ein Merge nach `main` ist
-unter der aktuellen Nutzerbedingung damit nicht freigegeben.
+Die vorliegende Erweiterung ist der anschließende eigene Auftrag für die
+fehlenden Modus-, Clutch- und Rotationseinstellungsgruppen. Sie ergänzt die hier
+als adaptiert beschriebenen Funktionen; sie erneuert keine Behauptung vollständiger
+Demise-Gleichheit. Insbesondere fehlen weiterhin Silent/Movement Correction,
+Sprint-/Speed-/Tower-Systeme, mehrere Addons und der globale Originalverbund.
+Auch die hinzugefügten Modi und Clutch-Abläufe besitzen die erläuterten Unterschiede.
 
-Dieses Dokument beschreibt den Vergleich und den offenen Abnahmepunkt. Es
-behauptet weder eine abgeschlossene Spielprüfung noch eine erfolgreiche aktuelle
-CI-Ausführung oder einen bereits erfolgten Merge.
+Ausgeführte Tests, aktuelle CI-Ergebnisse und der Veröffentlichungsstand gehören
+in das jeweilige Abnahmeprotokoll.
+Quellvergleich und vorhandene Testfälle ersetzen keine Live-Spiel- oder
+Serverprüfung.
