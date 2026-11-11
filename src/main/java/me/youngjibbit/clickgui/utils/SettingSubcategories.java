@@ -103,8 +103,8 @@ public final class SettingSubcategories {
             case "Bridge": return "Bridge behavior and inventory";
             case "Clutch": return "Reachable recovery, prediction and grounded sneak";
             case "Rotation Speed": return "Independent yaw and pitch limits per player tick";
-            case "Rotation Shape": return "Interpolation and acceleration of the visible camera";
-            case "Rotation Pauses": return "Optional pauses after confirmed camera travel";
+            case "Rotation Shape": return "Interpolation and acceleration of the target rotation";
+            case "Rotation Pauses": return "Optional pauses after confirmed rotation travel";
             case "Interaction": return "Visible preview and manual input priority";
             case "Selection": return "Stable order within the current container";
             case "Aiming": return "Rotation, precision and motion";

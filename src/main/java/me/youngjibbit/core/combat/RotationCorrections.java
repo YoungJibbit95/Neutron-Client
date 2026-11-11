@@ -8,6 +8,7 @@ import me.youngjibbit.module.ModuleManager;
 import me.youngjibbit.module.impl.combat.Aura;
 import me.youngjibbit.module.impl.combat.Velocity;
 import me.youngjibbit.module.impl.player.BedBreaker;
+import me.youngjibbit.module.impl.world.NScaffold;
 import me.youngjibbit.module.impl.world.Scaffold;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.EntityLivingBase;
@@ -69,6 +70,11 @@ public final class RotationCorrections {
             return scaffold == null ? null : select(rotation, "scaffold", scaffold.correctionEnabled(),
                     scaffold.moveFixMode(), scaffold.bodyRotationMode(), scaffold.preservesBridgeHeading());
         }
+        if (NScaffold.ROTATION_SOURCE.equals(owner)) {
+            NScaffold scaffold = (NScaffold) modules.getModule(NScaffold.class);
+            return scaffold == null ? null : select(rotation, NScaffold.ROTATION_SOURCE,
+                    scaffold.correctionEnabled(), scaffold.moveFixMode(), scaffold.bodyRotationMode());
+        }
         if ("velocity".equals(owner)) {
             Velocity velocity = (Velocity) modules.getModule(Velocity.class);
             return velocity == null ? null : select(rotation, "velocity", velocity.correctionEnabled(),
@@ -101,6 +107,10 @@ public final class RotationCorrections {
         }
         if ("scaffold".equals(source)) {
             Scaffold scaffold = (Scaffold) modules.getModule(Scaffold.class);
+            return scaffold != null && scaffold.correctionEnabled() ? scaffold.moveFixMode() : MoveFixController.Mode.OFF;
+        }
+        if (NScaffold.ROTATION_SOURCE.equals(source)) {
+            NScaffold scaffold = (NScaffold) modules.getModule(NScaffold.class);
             return scaffold != null && scaffold.correctionEnabled() ? scaffold.moveFixMode() : MoveFixController.Mode.OFF;
         }
         if ("velocity".equals(source)) {

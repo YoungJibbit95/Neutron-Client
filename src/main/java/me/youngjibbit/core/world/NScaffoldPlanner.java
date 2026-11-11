@@ -38,13 +38,13 @@ public final class NScaffoldPlanner {
 
     public static final class Sample {
         public final Vec3 feet, eyes;
-        public final float yaw, pitch, forward, strafe;
+        public final float yaw, pitch, forward, strafe, movementYaw;
         public final int level;
         public final double lookAhead;
         public final boolean godbridge;
         public final float preferredPitch;
         public final RotationStyle rotationStyle;
-        public final boolean staticAngles;
+        public final boolean staticAngles,independentAim;
         public Sample(Vec3 feet, Vec3 eyes, float yaw, float pitch, float forward, float strafe,
                       int level, double lookAhead, boolean godbridge, float preferredPitch) {
             this(feet,eyes,yaw,pitch,forward,strafe,level,lookAhead,
@@ -52,16 +52,28 @@ public final class NScaffoldPlanner {
         }
         public Sample(Vec3 feet,Vec3 eyes,float yaw,float pitch,float forward,float strafe,
                       int level,double lookAhead,RotationStyle rotationStyle,boolean staticAngles,float preferredPitch) {
+            this(feet,eyes,yaw,pitch,forward,strafe,level,lookAhead,rotationStyle,staticAngles,preferredPitch,yaw,false);
+        }
+        /** The placement aim may turn independently of the camera-relative input route. */
+        public Sample(Vec3 feet,Vec3 eyes,float yaw,float pitch,float forward,float strafe,
+                      int level,double lookAhead,RotationStyle rotationStyle,boolean staticAngles,float preferredPitch,
+                      float movementYaw) {
+            this(feet,eyes,yaw,pitch,forward,strafe,level,lookAhead,rotationStyle,staticAngles,preferredPitch,movementYaw,true);
+        }
+        private Sample(Vec3 feet,Vec3 eyes,float yaw,float pitch,float forward,float strafe,
+                       int level,double lookAhead,RotationStyle rotationStyle,boolean staticAngles,float preferredPitch,
+                       float movementYaw,boolean independentAim) {
             this.feet=feet;this.eyes=eyes;this.yaw=yaw;this.pitch=pitch;
             this.forward=forward;this.strafe=strafe;this.level=level;
             this.lookAhead=lookAhead;this.godbridge=rotationStyle==RotationStyle.GODBRIDGE;
             this.rotationStyle=rotationStyle;this.staticAngles=staticAngles;this.preferredPitch=preferredPitch;
+            this.movementYaw=movementYaw;this.independentAim=independentAim;
         }
         private boolean finite() {
             return finiteVector(feet) && finiteVector(eyes) && Float.isFinite(yaw)
                     && Float.isFinite(pitch) && Math.abs(pitch)<=90 && Float.isFinite(forward)
                     && Float.isFinite(strafe) && Double.isFinite(lookAhead) && lookAhead>=0 && lookAhead<=1
-                    && level>=0 && level<256 && rotationStyle!=null && Float.isFinite(preferredPitch)
+                    && Float.isFinite(movementYaw) && level>=0 && level<256 && rotationStyle!=null && Float.isFinite(preferredPitch)
                     && preferredPitch>0 && preferredPitch<90;
         }
     }
@@ -81,8 +93,8 @@ public final class NScaffoldPlanner {
     private long revision;
     private boolean headingHeld, previousGodbridge;
     private RotationStyle previousStyle=RotationStyle.STANDARD;
-    private boolean previousStaticAngles;
-    private float heading, previousForward, previousStrafe;
+    private boolean previousStaticAngles,previousIndependentAim;
+    private float heading, previousForward, previousStrafe,previousMovementYaw;
     private int lastFaceChecks;
 
     public NScaffoldPlanner(Access access) {
@@ -107,7 +119,7 @@ public final class NScaffoldPlanner {
     public void reset() {
         revision++;held=null;lastSupportedCell=null;headingHeld=false;lastFaceChecks=0;
         previousForward=previousStrafe=0;previousGodbridge=false;
-        previousStyle=RotationStyle.STANDARD;previousStaticAngles=false;
+        previousStyle=RotationStyle.STANDARD;previousStaticAngles=previousIndependentAim=false;previousMovementYaw=0;
     }
     public void placed() { held=null; }
     public int getLastFaceChecks(){return lastFaceChecks;}
@@ -144,27 +156,32 @@ public final class NScaffoldPlanner {
 
         boolean directionChanged=Math.signum(previousForward)!=Math.signum(sample.forward)
                 || Math.signum(previousStrafe)!=Math.signum(sample.strafe);
-        boolean styleChanged=previousStyle!=sample.rotationStyle || previousStaticAngles!=sample.staticAngles;
+        boolean cameraChanged=sample.independentAim
+                && Math.abs(MathHelper.wrapAngleTo180_float(sample.movementYaw-previousMovementYaw))>.001f;
+        directionChanged|=cameraChanged;
+        boolean styleChanged=previousStyle!=sample.rotationStyle || previousStaticAngles!=sample.staticAngles
+                || previousIndependentAim!=sample.independentAim;
         boolean fixedHeading=sample.rotationStyle==RotationStyle.REVERSE || sample.rotationStyle==RotationStyle.BREEZILY;
-        boolean keepHeading=headingHeld && !styleChanged && (!directionChanged || fixedHeading
+        boolean keepHeading=headingHeld && !styleChanged && !cameraChanged && (!directionChanged || fixedHeading
                 && Math.signum(previousForward)==Math.signum(sample.forward));
-        float preferredYaw=keepHeading?heading:sample.yaw;
+        boolean moving=Math.hypot(sample.forward,sample.strafe)>1.0e-5;
+        float preferredYaw=keepHeading?heading:sample.independentAim && moving?oppositeMovementYaw(sample):sample.yaw;
         if(sample.godbridge) {
-            double desired=keepHeading?heading:sample.pitch>=60?snappedYaw(sample.yaw):
+            double desired=keepHeading?heading:sample.pitch>=60 && !sample.independentAim?snappedYaw(sample.yaw):
                     ScaffoldRotationPlan.godbridgeMovementYaw(sample.feet.xCoord,sample.feet.zCoord,
-                            sample.yaw,sample.forward,sample.strafe);
+                            sample.movementYaw,sample.forward,sample.strafe);
             if(!Double.isFinite(desired))return null;
             preferredYaw=(float)desired;
         } else if(fixedHeading && !keepHeading) {
             preferredYaw=oppositeMovementYaw(sample);
             if(sample.rotationStyle==RotationStyle.BREEZILY)preferredYaw=snappedYaw(preferredYaw);
         }
-        // Following a previously steep edge angle while stepping away projects below the face.
-        // Backward building reacquires the same face from a stable downward preference instead.
-        float preferredPitch=sample.godbridge?sample.preferredPitch:sample.forward<0?75.7f:sample.pitch;
+        // Following a steep edge angle while stepping away projects below the face.
+        // Independent aim can reacquire from this preference in every input direction.
+        float preferredPitch=sample.godbridge?sample.preferredPitch:
+                sample.forward<0 || sample.independentAim && moving?75.7f:sample.pitch;
         if(sample.rotationStyle==RotationStyle.REVERSE && sample.staticAngles)preferredPitch=80;
         if(sample.rotationStyle==RotationStyle.BREEZILY) {
-            boolean moving=Math.hypot(sample.forward,sample.strafe)>1.0e-5;
             preferredPitch=!moving?90:Math.abs(sample.forward)>1.0e-5 && Math.abs(sample.strafe)>1.0e-5?75.7f:80;
         } else if(sample.godbridge && sample.staticAngles
                 && Math.hypot(sample.forward,sample.strafe)<=1.0e-5)preferredPitch=90;
@@ -198,8 +215,9 @@ public final class NScaffoldPlanner {
                     return accept(retained,sample,true,true,preferredYaw,expected,stillCurrent);
                 boolean valid=access.valid(anchor);
                 if(!current(expected,stillCurrent))return null;
-                // Standard keeps its concrete point while the visible turn is still approaching it.
-                if(valid && !sample.godbridge && sample.forward>=0 && acceptable(anchor,sample,preferredYaw))
+                // Keep the concrete point while the accepted aim is still approaching it.
+                if(valid && !sample.godbridge && (sample.independentAim || sample.forward>=0)
+                        && acceptable(anchor,sample,preferredYaw))
                     return accept(anchor,sample,true,false,preferredYaw,expected,stillCurrent);
                 PlacementTarget refined=access.face(anchor.getBlockPos(),anchor.getFacing(),sample.eyes,
                         preferredYaw,preferredPitch);
@@ -208,7 +226,7 @@ public final class NScaffoldPlanner {
                     return accept(refined,sample,true,false,preferredYaw,expected,stillCurrent);
             }
         }
-        // An already useful visible ray takes precedence over acquiring a different edge.
+        // An already useful accepted-aim ray takes precedence over acquiring a different edge.
         if(sample.rotationStyle!=RotationStyle.CENTER && (!sample.godbridge || headingHeld && !directionChanged && !styleChanged)) {
             PlacementTarget ray=access.ray(sample.yaw,sample.pitch);
             if(!current(expected,stillCurrent))return null;
@@ -256,12 +274,14 @@ public final class NScaffoldPlanner {
                 || sample.rotationStyle==RotationStyle.REVERSE || sample.rotationStyle==RotationStyle.BREEZILY;
         previousGodbridge=sample.godbridge;previousForward=sample.forward;previousStrafe=sample.strafe;
         previousStyle=sample.rotationStyle;previousStaticAngles=sample.staticAngles;
+        previousMovementYaw=sample.movementYaw;previousIndependentAim=sample.independentAim;
         // Lookup-table direction -> intercept -> atan2 is not an exact round trip.
         // A currently valid ray keeps its real angles bit-for-bit.
         return new Decision(target,keepView?sample.yaw:pose.getYaw(),keepView?sample.pitch:pose.getPitch(),retained);
     }
     private static boolean acceptable(PlacementTarget target,Sample sample,float preferredYaw) {
-        if(sample.rotationStyle==RotationStyle.CENTER)return true;
+        if(sample.rotationStyle==RotationStyle.CENTER
+                || sample.independentAim && sample.rotationStyle==RotationStyle.STANDARD)return true;
         if(!sample.godbridge && sample.forward>=0)return true;
         ScaffoldRotationPlan pose=ScaffoldRotationPlan.build("Back",sample.eyes,target.getHitVec());
         return pose!=null && Math.abs(MathHelper.wrapAngleTo180_float(pose.getYaw()-preferredYaw))<=MAX_HEADING_CORRECTION;
@@ -288,15 +308,15 @@ public final class NScaffoldPlanner {
         return (float)(Math.round(MathHelper.wrapAngleTo180_float(yaw)/45.0)*45.0);
     }
     private static float oppositeMovementYaw(Sample sample) {
-        if(Math.hypot(sample.forward,sample.strafe)<=1.0e-5)return sample.yaw;
-        double yaw=Math.toRadians(sample.yaw),x=sample.strafe*Math.cos(yaw)-sample.forward*Math.sin(yaw);
+        if(Math.hypot(sample.forward,sample.strafe)<=1.0e-5)return sample.movementYaw;
+        double yaw=Math.toRadians(sample.movementYaw),x=sample.strafe*Math.cos(yaw)-sample.forward*Math.sin(yaw);
         double z=sample.forward*Math.cos(yaw)+sample.strafe*Math.sin(yaw);
         return MathHelper.wrapAngleTo180_float((float)Math.toDegrees(Math.atan2(-x,z))-180);
     }
     private static BlockPos projectedCell(Sample sample) {
         double magnitude=Math.hypot(sample.forward,sample.strafe);
         if(magnitude<1e-5)return new BlockPos(sample.feet.xCoord,sample.level,sample.feet.zCoord);
-        double yaw=Math.toRadians(sample.yaw),s=sample.strafe/magnitude,f=sample.forward/magnitude;
+        double yaw=Math.toRadians(sample.movementYaw),s=sample.strafe/magnitude,f=sample.forward/magnitude;
         return new BlockPos(sample.feet.xCoord+(s*Math.cos(yaw)-f*Math.sin(yaw))*sample.lookAhead,
                 sample.level,sample.feet.zCoord+(f*Math.cos(yaw)+s*Math.sin(yaw))*sample.lookAhead);
     }
@@ -310,7 +330,7 @@ public final class NScaffoldPlanner {
         return p!=null && Double.isFinite(p.xCoord) && Double.isFinite(p.yCoord) && Double.isFinite(p.zCoord);
     }
 
-    /** A visible camera turn with one angular budget; no input reconstruction or noise. */
+    /** A target-aim step with one angular budget; it never writes the camera or input. */
     public static float[] turn(float yaw,float pitch,float targetYaw,float targetPitch,float maximum) {
         if(!Float.isFinite(yaw)||!Float.isFinite(pitch)||!Float.isFinite(targetYaw)
                 ||!Float.isFinite(targetPitch)||!Float.isFinite(maximum)||maximum<=0)return null;

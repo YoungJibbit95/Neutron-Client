@@ -41,7 +41,7 @@ tag on the chosen `main` commit and push that tag. Prerelease names such as
 without the development dependency classpath. A failure prevents a release draft.
 
 Alternatively, select **main** in **Run workflow**, enter the intended version (for
-example `v0.3.0-alpha.1`) and enable **prepare_release**. This runs the same complete
+example `v0.3.0`) and enable **prepare_release**. This runs the same complete
 build and packaged-runtime gates before preparing a draft with all assets. The
 draft targets the exact workflow source SHA; no Git tag is required beforehand.
 Draft preparation from other branches is rejected. Ordinary `main` pushes and
@@ -56,6 +56,12 @@ before manually publishing it; GitHub creates a pending tag at the pinned source
 when that draft is published. The subsequent tag-triggered job preserves an already
 published release unchanged. A manual preparation request for a published version
 fails instead of replacing it.
+
+For a regular release, use an unsuffixed version such as `v0.3.0`, keep
+**Set as a pre-release** unchecked and select **Set as the latest release** when
+publishing the verified draft. The version shown by the client must match the
+regular version; a stable GitHub tag alone does not remove an Alpha label from
+the application.
 
 The Action creates a **draft GitHub Release** with the files attached. Review the
 bundle in the official launcher with a separate game directory, including account
