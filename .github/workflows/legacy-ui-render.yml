@@ -7,6 +7,8 @@ on:
     paths:
       - '.github/workflows/legacy-ui-render.yml'
       - '.github/scripts/run-ui-render-checks.sh'
+      - '.github/scripts/install_native_runtime.py'
+      - '.github/scripts/test_native_runtime.py'
       - 'pom.xml'
       - 'src/build/**'
       - 'src/main/java/me/youngjibbit/clickgui/**'
@@ -76,11 +78,7 @@ jobs:
       - name: Install Xvfb and Mesa GLX runtime
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install --no-install-recommends -y \
-            xvfb xauth x11-xserver-utils mesa-utils libgl1-mesa-dri libglx-mesa0 libglu1-mesa \
-            libx11-6 libxext6 libxrandr2 libxxf86vm1 libxcursor1 libxinerama1 \
-            libxi6 libxtst6 libfontconfig1 libfreetype6 fonts-dejavu-core
+          sudo python3 -B .github/scripts/install_native_runtime.py legacy-ui
 
       - name: Maven 3.9.15 (verified Apache archive)
         run: |
