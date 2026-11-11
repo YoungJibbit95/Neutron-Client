@@ -143,6 +143,8 @@ Projektabhängigkeiten; es wurden keine Dependencies ergänzt.
 | --- | --- |
 | Separat kompilierter Headless-Kern, ohne Minecraft-Klassen im Klassenpfad | 48 Tests erfolgreich, 0 Fehler/Skips |
 | Research-Suites im vollständigen Maven-Projekt | 58 Tests erfolgreich, 0 Fehler/Skips; darin 10 Embedded-Transport-/Lifecycle-Tests |
+| `mvn -B -ntp -Dtest=NetworkResearch*Test package` | Erfolgreich: dieselben 58 Tests und beide Paketierungswege |
+| CLI aus der erzeugten Assembly-JAR | `simulate pause tickbase` und anschließendes `verify -` erfolgreich: 61 Einträge, 11 Tickintervalle, p95 300 ms, keine Qualitätsprobleme, Serverergebnis unbekannt |
 | Vollständiger Paketbuild mit `-DskipTests` | Erfolgreich; dies allein ist kein bestandener Testlauf |
 | Gesamte Regression unter Linux | 2036 Tests erfasst, 1 Failure, 275 Errors, 3 Skips; kein PASS |
 | Windows-Gesamtregression und Repository-Checks | Ergebnisse am veröffentlichten Aufgabencommit im PR prüfen |
@@ -161,8 +163,12 @@ Es werden keine Testergebnisse für einen gestarteten Spielclient behauptet.
 
 ## F. GitHub-Übergabe und Arbeitsumgebung
 
-Die Änderung ist für einen eigenen PR von `codex/research-recording-replay-20261111`
-nach `main` vorgesehen. Die maßgeblichen Checks sind laut aktivem Ruleset
+Die Änderung wird als [PR #178](https://github.com/YoungJibbit95/Neutron-Client/pull/178)
+von `codex/research-recording-replay-20261111` nach `main` übergeben.
+Der Implementierungscommit ist
+[`7d7494c615456a22707bf81b7c0662071ffb63f9`](https://github.com/YoungJibbit95/Neutron-Client/commit/7d7494c615456a22707bf81b7c0662071ffb63f9).
+Aktueller Check- und Merge-Status sind an diesem PR nachvollziehbar.
+Die maßgeblichen Checks sind laut aktivem Ruleset
 `Java 8 / Windows regression`, `Repository policy` und `Dependency review`;
 offene Reviewthreads müssen geklärt sein. Ein Merge benötigt erfüllte Projektgates.
 
