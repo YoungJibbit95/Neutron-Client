@@ -50,8 +50,13 @@ final class Neutron20HudRenderCheck {
             settings.surface.setValue("Liquid Glass");settings.gradientMotion.setValue("Static");
             settings.animations.setValue(true);settings.reducedMotion.setValue(false);
             settings.motionIntensity.setValue("Balanced");settings.surfaceOpacity.setValue(.8);UiEffects.invalidate();
-            IngameHudRenderCheck.player.setPosition(1.5,0,1);
-            IngameHudRenderCheck.player.lastTickPosX=1.5;IngameHudRenderCheck.player.lastTickPosY=0;IngameHudRenderCheck.player.lastTickPosZ=1;
+            // The disconnected local player starts at the world's spawn, not the origin.
+            // Keep the real target beside the cached camera used by Nametags.projectLabel.
+            IngameHudRenderCheck.player.setPosition(mc.getRenderManager().viewerPosX+1.5,
+                    mc.getRenderManager().viewerPosY,mc.getRenderManager().viewerPosZ+1);
+            IngameHudRenderCheck.player.lastTickPosX=IngameHudRenderCheck.player.posX;
+            IngameHudRenderCheck.player.lastTickPosY=IngameHudRenderCheck.player.posY;
+            IngameHudRenderCheck.player.lastTickPosZ=IngameHudRenderCheck.player.posZ;
             names.setToggled(true);keys.setToggled(true);
             checkNametags();checkKeystrokes();checkDeferredHudCleanup();checkLifecycle();
             require(glGetError()==GL_NO_ERROR,"Neutron 2.0 HUD OpenGL error");
@@ -64,6 +69,16 @@ final class Neutron20HudRenderCheck {
     }
 
     private static void checkNametags()throws Exception {
+        require(names.replacementCandidate(IngameHudRenderCheck.player,mc.getRenderManager()),
+                "Nametag fixture player does not satisfy the production visibility policy");
+        try(RenderState projectionState=new RenderState()) {
+            mc.entityRenderer.setupCameraTransform(0,0);
+            javax.vecmath.Vector4d projected=names.projectLabel(IngameHudRenderCheck.player);
+            ScaledResolution sr=new ScaledResolution(mc);
+            require(projected!=null&&projected.x>=0&&projected.z<=sr.getScaledWidth()
+                    &&projected.y>18&&projected.w<=sr.getScaledHeight(),
+                    "Nametag fixture must project inside the visible framebuffer");
+        }
         IngameHudRenderCheck.player.setHealth(20);
         BufferedImage full=render(names,"on2D","nametag-full.png");visible(full,"Independent Nametag did not paint");
         require(healthMotions().size()==1,"Expected one observed player health spring");

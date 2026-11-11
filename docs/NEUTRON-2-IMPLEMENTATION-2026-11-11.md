@@ -1,5 +1,15 @@
 # Neutron 2.0 – Liquid-Glass UI Implementation (2026-11-11)
 
+> **Rescue annotation — 2026-11-11:** This document preserves the interrupted
+> implementation's design notes and planned verification. Its descriptions are
+> not evidence that native or full-game acceptance passed. See the
+> [rescue coverage and acceptance record](NEUTRON-2-RESCUE-2026-11-11.md)
+> for the ten requested UI areas, six animations, subsequent repairs, source
+> provenance, external credits and the updated integration decision. The latest
+> user instruction requests merge after exact final-head CI, native image
+> review and repository requirements pass. Unperformed full-game/hardware
+> measurements remain disclosed limitations.
+
 ## 1. Goal
 
 Unify the eleven screenshot-defined surfaces into one Neutron 2.0 language:

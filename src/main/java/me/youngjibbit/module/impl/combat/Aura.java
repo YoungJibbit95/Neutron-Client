@@ -145,6 +145,7 @@ public class Aura extends Module {
                 && !"Intave".equals(autoblockMode.getValue()));
         blockFrequency.setVisibility(m -> customBlockFrequency.isVisible() && customBlockFrequency.getValue());
         enableSmartDisable();
+        rotationSettings.appendAdaptiveTuning(this);
     }
     @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String name) { return super.getValueByName(name!=null && name.equalsIgnoreCase("Range")?"reach":RotationSettings.canonicalName(name)); }
 

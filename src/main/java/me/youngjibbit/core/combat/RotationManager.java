@@ -493,7 +493,7 @@ public final class RotationManager {
                 } else winner = null;
             }
             event.setRotations(prepared.rotation.yaw, prepared.rotation.pitch);
-            if (winner != null && ("aura".equals(winner.source) || "scaffold".equals(winner.source) || isReleaseSource(winner.source))) {
+            if (winner != null && ("aura".equals(winner.source) || "scaffold".equals(winner.source) || "nscaffold".equals(winner.source) || isReleaseSource(winner.source))) {
                 resolvedRequest = winner; resolvedFrame = new Object();
                 resolvedTicket = new ResolvedC03SendTicket(winner, resolvedFrame, Float.NaN, Float.NaN);
             }
@@ -540,7 +540,7 @@ public final class RotationManager {
             winner.yaw=mc.thePlayer.rotationYaw;winner.pitch=mc.thePlayer.rotationPitch;
         }
         event.setRotations(winner.yaw,winner.pitch);
-        if ("scaffold".equals(winner.source) || "aura".equals(winner.source) || isReleaseSource(winner.source)) {
+        if ("scaffold".equals(winner.source) || "nscaffold".equals(winner.source) || "aura".equals(winner.source) || isReleaseSource(winner.source)) {
             resolvedRequest = winner;
             resolvedFrame = new Object();
             // Bind the resolve lifetime now; a later getter cannot rebind it to another tick/scene.
@@ -1316,14 +1316,7 @@ public final class RotationManager {
         }
         final AdaptivePresetMotion.Configuration preset;
         try {
-            preset = profile.adaptiveExplicitControls ? new AdaptivePresetMotion.Configuration(
-                    profile.adaptiveSpeed,profile.adaptiveHitpoint,profile.adaptiveVariation,
-                    profile.adaptiveMinAimSpeed,profile.adaptiveMaxAimSpeed,profile.adaptiveYawScale,profile.adaptivePitchScale,
-                    profile.adaptiveCurve,profile.adaptiveNoise,profile.adaptiveNoiseTempo,
-                    profile.adaptiveAimPoint,profile.adaptiveKeepAim)
-                    : new AdaptivePresetMotion.Configuration(profile.adaptiveSpeed,
-                    profile.adaptiveHitpoint, profile.adaptiveVariation,
-                    profile.yawSpeed, profile.pitchSpeed);
+            preset = AdaptivePresetMotion.Configuration.fromProfile(profile);
         } catch (IllegalArgumentException badPreset) {
             state.invalidateAdaptive();
             return null;
@@ -1407,7 +1400,7 @@ public final class RotationManager {
                 box.minX,box.minY,box.minZ,box.maxX,box.maxY,box.maxZ,
                 elapsed * 1e-9);
         if(hit==null) { state.invalidateAdaptive(); return null; }
-        if(!keepAim && preset.hitpoint!=AdaptivePresetMotion.Hitpoint.STABLE) {
+        if(!keepAim && preset.changesHitpoint()) {
             Vec3 candidate=new Vec3(hit[0],hit[1],hit[2]);
             // Preserve the original raycast/visibility policy: an invalid point is never sent.
             if(adaptivePointHit(rays,feet,target,candidate,profile,fromYaw,fromPitch)) point=candidate;

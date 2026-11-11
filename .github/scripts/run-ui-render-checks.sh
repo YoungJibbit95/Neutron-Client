@@ -67,7 +67,7 @@ test_classpath="$repo_root/target/test-classes:$repo_root/target/classes:$depend
 collect_screenshots() (
   local name="$1" preview image destination
   shopt -s nullglob
-  for preview in gui-preview dropdown-preview arraylist-preview session-preview theme-preview settings-preview neutron-ui-preview shader-preview hud-preview armor-preview chat-preview trash-preview target-esp-preview diagnostics-preview neutron20-preview; do
+  for preview in gui-preview dropdown-preview arraylist-preview session-preview theme-preview settings-preview neutron-ui-preview shader-preview hud-preview armor-preview chat-preview trash-preview target-esp-preview inventory-assist-preview diagnostics-preview neutron20-preview; do
     for image in "$fixtures/$name/$preview/"*.png; do
       destination="$screenshots/$name/$preview"
       mkdir -p "$destination" && cp -- "$image" "$destination/" || return "$?"
@@ -85,6 +85,10 @@ collect_screenshots() (
   if [[ "$name" == target_esp && -f "$fixtures/$name/target-esp-preview/target-esp.json" ]]; then
     destination="$screenshots/$name/target-esp-preview"
     mkdir -p "$destination" && cp -- "$fixtures/$name/target-esp-preview/target-esp.json" "$destination/" || return "$?"
+  fi
+  if [[ "$name" == inventory_assist && -f "$fixtures/$name/inventory-assist-preview/inventory-assist-report.json" ]]; then
+    destination="$screenshots/$name/inventory-assist-preview"
+    mkdir -p "$destination" && cp -- "$fixtures/$name/inventory-assist-preview/inventory-assist-report.json" "$destination/" || return "$?"
   fi
 )
 
@@ -168,7 +172,8 @@ suite_session() {
   require_images session neutron-ui-preview &&
   require_images session hud-preview &&
   require_images session armor-preview &&
-  require_marker session 'PASS: compact Island notifications, balanced dock composition'
+  require_marker session 'PASS: compact Island notifications, balanced dock composition' &&
+  require_marker session 'PASS: original Island logo halo, shared palette modes, reduced motion'
 }
 suite_trash() {
   run_check trash me.youngjibbit.module.impl.render.SessionInfoRenderCheck \
@@ -184,6 +189,17 @@ suite_neutron20() {
   run_check neutron20 me.youngjibbit.module.impl.render.SessionInfoRenderCheck \
     'PASS: Neutron 2.0 independent Nametags/Keystrokes pixels' -Dpulsar.neutron20.hud.check=true &&
   require_images neutron20 neutron20-preview
+}
+suite_inventory_assist() {
+  run_check inventory_assist me.youngjibbit.module.impl.render.SessionInfoRenderCheck \
+    'PASS: visible inventory assistance' -Dpulsar.inventory.assist.check=true &&
+  require_images inventory_assist inventory-assist-preview &&
+  python3 - "$screenshots/inventory_assist/inventory-assist-preview/inventory-assist-report.json" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding='utf-8') as source:
+    report = json.load(source)
+assert report['status'] == 'passed', report
+PY
 }
 suite_target_esp() {
   run_check target_esp me.youngjibbit.module.impl.render.TargetEspRenderCheck \
@@ -220,7 +236,7 @@ suite_chat() {
 
 failed_suites=()
 suite_results=()
-for suite in panel dropdown arraylist session shader_modes target_esp trash chat diagnostics neutron20; do
+for suite in panel dropdown arraylist session shader_modes target_esp trash inventory_assist chat diagnostics neutron20; do
   suite_result=0
   "suite_$suite" 2>&1 | tee "$logs/$suite-suite.log" || suite_result=$?
   suite_results+=("$suite: exit $suite_result")
@@ -238,13 +254,13 @@ printf '%s\n' '::group::Native UI visual review copies'
 printf '%s\n' '::endgroup::'
 
 if (( ${#failed_suites[@]} != 0 )); then
-  printf 'FAIL: Native UI suites failed: %s. All ten suites were attempted; see each suite log.\n' \
+  printf 'FAIL: Native UI suites failed: %s. All eleven suites were attempted; see each suite log.\n' \
     "${failed_suites[*]}" | tee "$logs/summary.log"
   exit 1
 fi
 
 printf '%s\n' \
-  'PASS: Ten separate native JVMs completed with production shaders, FBO/readback and fixture diagnostics enabled.' \
-  'Coverage: panel/subcategories, dropdown/library/config actions, Arraylist, compact TargetHUD/SessionInfo/ArmorHUD, compact Island/docking, animated chat/input/links/resize, Theme editor, Client settings, Library transitions, searchable Trash menu, TargetESP production halo/hitpoint, Flame/Neon/Lines ESP/UI contours, diagnostics graphs and independent Nametags/Keystrokes data/motion/lifecycle.' \
+  'PASS: Eleven separate native JVMs completed with production shaders, FBO/readback and fixture diagnostics enabled.' \
+  'Coverage: panel/subcategories, dropdown/library/config actions, Arraylist, compact TargetHUD/SessionInfo/ArmorHUD, Island header/docking/original-logo gradients, animated chat/input/links/resize, Theme editor, Client settings, Library transitions, searchable Trash menu, visible inventory assistance, TargetESP production halo/hitpoint, Flame/Neon/Lines ESP/UI contours, diagnostics graphs and independent Nametags/Keystrokes data/motion/lifecycle.' \
   'Not covered: game-world rendering, native Display/fullscreen/VSync, multiplayer or full client bootstrap.' \
   | tee "$logs/summary.log"

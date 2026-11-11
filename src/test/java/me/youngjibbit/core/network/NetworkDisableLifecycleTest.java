@@ -1,6 +1,7 @@
 package me.youngjibbit.core.network;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.core.world.Wave2IsolatedCase;
 import me.youngjibbit.event.packet.TickEvent;
 import me.youngjibbit.module.impl.exploit.Backtrack;
 import me.youngjibbit.module.impl.exploit.LagRange;
@@ -55,6 +56,12 @@ public class NetworkDisableLifecycleTest {
     }
 
     @Test public void lagRangeDisableCannotRenewItsQueueDuringReleasedPacketCallbacks() throws Exception {
+        Wave2IsolatedCase.run(LagRangeChecks.class,"lagRangeDisableCannotRenewItsQueueDuringReleasedPacketCallbacks");
+    }
+
+    /** LagRange reads static-final Module.mc; isolate the fixture's Unsafe rebind under normal JIT. */
+    public static class LagRangeChecks {
+    @Test public void lagRangeDisableCannotRenewItsQueueDuringReleasedPacketCallbacks() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             AtomicLong now = new AtomicLong(); NetworkTestSupport.clock(f, now);
             LagRange module = new LagRange(now::get, (min, max) -> 500);
@@ -88,6 +95,7 @@ public class NetworkDisableLifecycleTest {
                 assertEquals(1, steps.get());
             } finally { Pulsar.BUS.unsubscribe(observer); module.setToggled(false); }
         }
+    }
     }
 
     @Test public void tickbaseDisableClearsCompletedStepMetadataAndRequiresAFreshEnableSample() throws Exception {

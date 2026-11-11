@@ -66,6 +66,15 @@ public class AdaptiveAuraIntegrationTest {
     @Test public void guiFocusDisableAndConnectionBoundaryInvalidateWithoutGhostAcquisition() throws Exception {
         me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "guiFocusDisableAndConnectionBoundaryInvalidateWithoutGhostAcquisition");
     }
+    @Test public void independentLegacyHitpointUsesTheAcceptedGridAndGlobalSpeedCap() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "independentLegacyHitpointUsesTheAcceptedGridAndGlobalSpeedCap");
+    }
+    @Test public void keepValidAimStopsEvenMaximumIndependentLegacyNoise() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "keepValidAimStopsEvenMaximumIndependentLegacyNoise");
+    }
+    @Test public void independentPointStateCannotSurviveRejectedTransportOrReconfiguration() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "independentPointStateCannotSurviveRejectedTransportOrReconfiguration");
+    }
 
     public static class Checks {
     private static final class Harness implements AutoCloseable {
@@ -516,6 +525,87 @@ public class AdaptiveAuraIntegrationTest {
             h.f.aura.onEnable();
             h.walk(6);
             assertTrue("fresh Aura still uses the manager's transport", h.rotation.isMotionAccepted());
+        }
+    }
+
+    private static void independentLegacy(Harness h) {
+        h.f.aura.getModeSetting("Adaptive Aim Point").setValue("Legacy");
+        h.f.aura.getModeSetting("Adaptive Hitpoint").setValue("Stable");
+        h.f.aura.getModeSetting("Adaptive Legacy Hitpoint Profile").setValue("Custom");
+        h.f.aura.getModeSetting("Adaptive Legacy Hitpoint Algorithm").setValue("Perlin");
+        h.f.aura.getNumberSetting("adaptive_legacy_hitpoint_radius").setValue(100D);
+        h.f.aura.getNumberSetting("adaptive_legacy_hitpoint_travel_speed").setValue(3D);
+        h.f.aura.getNumberSetting("adaptive_legacy_hitpoint_travel_noise").setValue(100D);
+        h.f.aura.getNumberSetting("adaptive_initial_hitpoint_radius").setValue(100D);
+        h.f.aura.getNumberSetting("adaptive_path_amount").setValue(100D);
+        h.f.aura.getNumberSetting("adaptive_path_tempo").setValue(3D);
+        h.f.aura.getModeSetting("Adaptive Speed Noise Profile").setValue("Organic");
+        h.f.aura.getNumberSetting("Adaptive Speed Noise Amount").setValue(1D);
+    }
+
+    @Test public void independentLegacyHitpointUsesTheAcceptedGridAndGlobalSpeedCap() throws Exception {
+        try(Harness h=new Harness()) {
+            independentLegacy(h);
+            h.f.aura.getBooleanSetting("Adaptive Keep Valid Aim").setValue(false);
+            h.f.aura.getNumberSetting("adaptive_min_aim_speed").setValue(60D);
+            h.f.aura.getNumberSetting("adaptive_max_aim_speed").setValue(140D);
+            float quantum=RotationSensitivity.mouseStep(h.f.mc.gameSettings.mouseSensitivity),yaw=0,pitch=0;
+            boolean moved=false;
+            for(int tick=0;tick<100;tick++) {
+                h.walk(tick);
+                assertTrue(h.rotation.isMotionAccepted());assertEquals("aura",h.rotation.getConfirmedOwner());
+                float nextYaw=h.rotation.getEffectiveYaw(),nextPitch=h.rotation.getEffectivePitch();
+                double dy=net.minecraft.util.MathHelper.wrapAngleTo180_float(nextYaw-yaw),dp=nextPitch-pitch;
+                assertEquals(Math.rint(dy/quantum),dy/quantum,1e-3);
+                assertEquals(Math.rint(dp/quantum),dp/quantum,1e-3);
+                assertTrue("new point/path controls must retain the global emitted cap",Math.hypot(dy,dp)<=7.0001);
+                moved|=Math.hypot(dy,dp)>quantum*.5;yaw=nextYaw;pitch=nextPitch;
+            }
+            assertTrue(moved);assertSame(h.first,h.f.aura.getActiveTarget());
+            assertEquals(0,h.f.player.rotationYaw,0);assertEquals(0,h.f.player.rotationPitch,0);
+        }
+    }
+
+    @Test public void keepValidAimStopsEvenMaximumIndependentLegacyNoise() throws Exception {
+        try(Harness h=new Harness()) {
+            independentLegacy(h);
+            RaycastService rays=h.f.runtime.getRaycastService();
+            net.minecraft.util.Vec3 feet=new net.minecraft.util.Vec3(h.f.player.posX,h.f.player.posY,h.f.player.posZ);
+            boolean hit=false;int tick=0;
+            for(;tick<120;tick++) {
+                h.walk(tick);
+                if(rays.canHitFrom(feet,h.first,h.rotation.getEffectiveYaw(),h.rotation.getEffectivePitch(),3.2f,false)) {
+                    hit=true;tick++;break;
+                }
+            }
+            assertTrue("real accepted ray required before testing hold",hit);
+            float yaw=h.rotation.getEffectiveYaw(),pitch=h.rotation.getEffectivePitch();
+            for(int held=0;held<30;held++,tick++) {
+                h.walk(tick);
+                assertEquals(yaw,h.rotation.getEffectiveYaw(),0);assertEquals(pitch,h.rotation.getEffectivePitch(),0);
+                assertEquals("aura",h.rotation.getConfirmedOwner());
+            }
+        }
+    }
+
+    @Test public void independentPointStateCannotSurviveRejectedTransportOrReconfiguration() throws Exception {
+        try(Harness h=new Harness()) {
+            independentLegacy(h);
+            h.f.aura.getBooleanSetting("Adaptive Keep Valid Aim").setValue(false);
+            for(int tick=0;tick<8;tick++)h.walk(tick);
+            float yaw=h.rotation.getEffectiveYaw(),pitch=h.rotation.getEffectivePitch();
+            CancelC03 cancel=new CancelC03();Pulsar.BUS.subscribe(cancel);
+            try { h.walk(8); } finally { Pulsar.BUS.unsubscribe(cancel); }
+            assertFalse(h.rotation.isMotionAccepted());assertNull(h.rotation.getConfirmedOwner());
+            assertEquals(yaw,h.rotation.getEffectiveYaw(),0);assertEquals(pitch,h.rotation.getEffectivePitch(),0);
+            h.walk(9);
+            assertTrue(h.rotation.isMotionAccepted());
+            assertEquals(yaw,h.rotation.getEffectiveYaw(),.12f);assertEquals(pitch,h.rotation.getEffectivePitch(),.12f);
+            h.f.aura.getNumberSetting("adaptive_initial_hitpoint_radius").setValue(0D);
+            assertNull("changed point tuning must release old rotation ownership",h.rotation.getConfirmedOwner());
+            h.walk(10);
+            assertTrue(h.rotation.isMotionAccepted());assertEquals("aura",h.rotation.getConfirmedOwner());
+            h.f.aura.onDisable();assertNull(h.rotation.getConfirmedOwner());assertNull(h.f.aura.getActiveTarget());
         }
     }
 

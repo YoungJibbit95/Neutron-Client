@@ -4,7 +4,7 @@ import java.util.Arrays;
 
 /** Frozen status glyph from an observed Scaffold view and the existing UI motion clock. */
 public final class IslandScaffoldIndicator {
-    public enum Status { SEARCHING, ALIGNING, READY, PLACING, EDGE_GUARD, RECOVERING }
+    public enum Status { SEARCHING, ALIGNING, READY, PLACING, EDGE_GUARD, RECOVERING, WAITING, PAUSED }
     public final Status status;
     public final String label;
     public final long sequence;
@@ -33,6 +33,8 @@ public final class IslandScaffoldIndicator {
             case "Placing":status=Status.PLACING;label="Place";break;
             case "Edge guard":status=Status.EDGE_GUARD;label="Guard";break;
             case "Recovering":status=Status.RECOVERING;label="Recover";break;
+            case "Waiting":status=Status.WAITING;label="Wait";break;
+            case "Paused":status=Status.PAUSED;label="Pause";break;
             default:return null;
         }
         float phase=motion&&Float.isFinite(seconds)?(float)(seconds*.8-Math.floor(seconds*.8)):0;
@@ -53,6 +55,12 @@ public final class IslandScaffoldIndicator {
                 break;
             case READY:
                 lines.add(6,12,10,16);lines.add(10,16,18,7);
+                break;
+            case WAITING:
+                lines.add(6,12,8,12);lines.add(11,12,13,12);lines.add(16,12,18,12);
+                break;
+            case PAUSED:
+                lines.add(9,6,9,18);lines.add(15,6,15,18);
                 break;
             case PLACING:
                 float lift=motion?1.2f*(float)Math.sin(phase*Math.PI*2):0;

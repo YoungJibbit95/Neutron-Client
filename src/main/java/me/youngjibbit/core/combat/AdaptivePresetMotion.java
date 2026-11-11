@@ -32,6 +32,35 @@ public final class AdaptivePresetMotion {
         Noise(double amount, double tempo) { this.amount=amount; this.tempo=tempo; }
     }
 
+    /** Independent Aura controls; null on historical profiles and other consumers. */
+    public static final class Tuning {
+        public final double curveStrength, pathAmount, pathTempo, initialRadius, hitpointAmount, hitpointTempo;
+        public final AdaptiveHitpointMotion.Configuration legacyHitpoint;
+
+        public Tuning(double curveStrength, double pathAmount, double pathTempo, double initialRadius,
+                      double hitpointAmount, double hitpointTempo,
+                      AdaptiveHitpointMotion.Configuration legacyHitpoint) {
+            if (!unit(curveStrength) || !unit(pathAmount) || !positive(pathTempo)
+                    || !unit(initialRadius) || !unit(hitpointAmount) || !positive(hitpointTempo)
+                    || hitpointTempo > 3 || legacyHitpoint == null)
+                throw new IllegalArgumentException("invalid Adaptive independent controls");
+            this.curveStrength = curveStrength; this.pathAmount = pathAmount;
+            this.pathTempo = pathTempo; this.initialRadius = initialRadius;
+            this.hitpointAmount = hitpointAmount; this.hitpointTempo = hitpointTempo;
+            this.legacyHitpoint = legacyHitpoint;
+        }
+
+        public boolean same(Tuning other) {
+            return other != null && Double.compare(curveStrength, other.curveStrength) == 0
+                    && Double.compare(pathAmount, other.pathAmount) == 0
+                    && Double.compare(pathTempo, other.pathTempo) == 0
+                    && Double.compare(initialRadius, other.initialRadius) == 0
+                    && Double.compare(hitpointAmount, other.hitpointAmount) == 0
+                    && Double.compare(hitpointTempo, other.hitpointTempo) == 0
+                    && legacyHitpoint.same(other.legacyHitpoint);
+        }
+    }
+
     /**
      * Demise's Straight anchor keeps horizontal box centre and a useful torso-to-eye
      * height. Nearest minimizes the correction distance. Neither expands the hitbox.
@@ -63,11 +92,24 @@ public final class AdaptivePresetMotion {
         public final AdaptiveMotionController.Curve curve;
         public final Noise noise;
         public final AimPoint aimPoint;
+        public final Tuning tuning;
+
+        /** One conversion point for RotationManager; no legacy setting leaks into explicit Aura tuning. */
+        public static Configuration fromProfile(RotationProfile profile) {
+            if (profile == null) throw new IllegalArgumentException("Adaptive profile required");
+            return profile.adaptiveExplicitControls ? new Configuration(profile.adaptiveSpeed,
+                    profile.adaptiveHitpoint, profile.adaptiveVariation, profile.adaptiveMinAimSpeed,
+                    profile.adaptiveMaxAimSpeed, profile.adaptiveYawScale, profile.adaptivePitchScale,
+                    profile.adaptiveCurve, profile.adaptiveNoise, profile.adaptiveNoiseTempo,
+                    profile.adaptiveAimPoint, profile.adaptiveKeepAim, profile.adaptiveTuning)
+                    : new Configuration(profile.adaptiveSpeed, profile.adaptiveHitpoint,
+                    profile.adaptiveVariation, profile.yawSpeed, profile.pitchSpeed);
+        }
 
         public Configuration(Speed speed, Hitpoint hitpoint, double variation,
                              double yawTicks, double pitchTicks) {
             this(speed,hitpoint,variation,yawTicks,pitchTicks,false,0,0,1,1,
-                    AdaptiveMotionController.Curve.ADAPTIVE,Noise.SOFT,1,AimPoint.STRAIGHT,true);
+                    AdaptiveMotionController.Curve.ADAPTIVE,Noise.SOFT,1,AimPoint.STRAIGHT,true,null);
         }
 
         public Configuration(Speed speed, Hitpoint hitpoint, double variation,
@@ -80,15 +122,23 @@ public final class AdaptivePresetMotion {
                              double minAimSpeed, double maxAimSpeed, double yawScale, double pitchScale,
                              AdaptiveMotionController.Curve curve, Noise noise, double noiseTempo,
                              AimPoint aimPoint, boolean keepAim) {
+            this(speed,hitpoint,variation,minAimSpeed,maxAimSpeed,yawScale,pitchScale,curve,noise,
+                    noiseTempo,aimPoint,keepAim,null);
+        }
+
+        public Configuration(Speed speed, Hitpoint hitpoint, double variation,
+                             double minAimSpeed, double maxAimSpeed, double yawScale, double pitchScale,
+                             AdaptiveMotionController.Curve curve, Noise noise, double noiseTempo,
+                             AimPoint aimPoint, boolean keepAim, Tuning tuning) {
             this(speed,hitpoint,variation,maxAimSpeed*yawScale/20,maxAimSpeed*pitchScale/20,true,
-                    minAimSpeed,maxAimSpeed,yawScale,pitchScale,curve,noise,noiseTempo,aimPoint,keepAim);
+                    minAimSpeed,maxAimSpeed,yawScale,pitchScale,curve,noise,noiseTempo,aimPoint,keepAim,tuning);
         }
 
         private Configuration(Speed speed, Hitpoint hitpoint, double variation,
                               double yawTicks, double pitchTicks, boolean explicitControls,
                               double minAimSpeed, double maxAimSpeed, double yawScale, double pitchScale,
                               AdaptiveMotionController.Curve curve, Noise noise, double noiseTempo,
-                              AimPoint aimPoint, boolean keepAim) {
+                              AimPoint aimPoint, boolean keepAim, Tuning tuning) {
             if (speed == null || hitpoint == null || !Double.isFinite(variation)
                     || variation < 0 || variation > 1 || !positive(yawTicks)
                     || !positive(pitchTicks)) {
@@ -105,6 +155,7 @@ public final class AdaptivePresetMotion {
             this.minAimSpeed=minAimSpeed;this.maxAimSpeed=maxAimSpeed;this.yawScale=yawScale;this.pitchScale=pitchScale;
             this.curve=curve;this.noise=noise;this.noiseTempo=noiseTempo;
             this.aimPoint=aimPoint;this.keepAim=keepAim;
+            this.tuning=tuning;
         }
 
         public boolean same(Configuration other) {
@@ -118,17 +169,37 @@ public final class AdaptivePresetMotion {
                     && Double.compare(maxAimSpeed,other.maxAimSpeed)==0
                     && Double.compare(yawScale,other.yawScale)==0
                     && Double.compare(pitchScale,other.pitchScale)==0
-                    && Double.compare(noiseTempo,other.noiseTempo)==0;
+                    && Double.compare(noiseTempo,other.noiseTempo)==0
+                    && (tuning==null?other.tuning==null:tuning.same(other.tuning));
+        }
+
+        /** Stable rotation style can still use an independently selected initial or Legacy point. */
+        public boolean changesHitpoint() {
+            if (tuning == null) return hitpoint != Hitpoint.STABLE;
+            return tuning.initialRadius > 0 || (aimPoint == AimPoint.LEGACY
+                    ? tuning.legacyHitpoint.radius > 0 : hitpoint != Hitpoint.STABLE && tuning.hitpointAmount > 0);
+        }
+
+        private AdaptiveHitpointMotion.Configuration pointConfiguration() {
+            if (aimPoint == AimPoint.LEGACY) return tuning.legacyHitpoint;
+            return new AdaptiveHitpointMotion.Configuration(AdaptiveHitpointMotion.Profile.CUSTOM,
+                    AdaptiveHitpointMotion.Algorithm.OPEN_SIMPLEX_2S, hitpoint.extent * 2 * tuning.hitpointAmount,
+                    hitpoint == Hitpoint.STABLE ? 1 : hitpoint.cyclesPerSecond * tuning.hitpointTempo,
+                    hitpoint == Hitpoint.DYNAMIC ? .3 : .15);
         }
 
         public AdaptiveMotionController.Limits limits() {
             if (explicitControls) {
                 double yaw=maxAimSpeed*yawScale,pitch=maxAimSpeed*pitchScale;
                 double accel=clamp(Math.max(yaw,pitch)*6*speed.acceleration,120,18000);
+                AdaptiveMotionController.Control control = tuning == null
+                        ? new AdaptiveMotionController.Control(minAimSpeed/maxAimSpeed,curve,
+                        variation*noise.amount,noiseTempo*noise.tempo,maxAimSpeed)
+                        : new AdaptiveMotionController.Control(minAimSpeed/maxAimSpeed,curve,
+                        variation*noise.amount,noiseTempo*noise.tempo,maxAimSpeed,
+                        tuning.curveStrength,tuning.pathAmount,tuning.pathTempo);
                 return new AdaptiveMotionController.Limits(yaw,pitch,accel,
-                        clamp(accel*20,2400,360000),0,.20,
-                        new AdaptiveMotionController.Control(minAimSpeed/maxAimSpeed,curve,
-                                variation*noise.amount,noiseTempo*noise.tempo,maxAimSpeed));
+                        clamp(accel*20,2400,360000),0,.20,control);
             }
             // Original sliders express degrees/50ms. Same engine for all presets.
             double yaw = clamp(yawTicks * 20 * speed.speed, 20, 720);
@@ -151,25 +222,32 @@ public final class AdaptivePresetMotion {
         private final boolean coherent;
         private final AdaptiveAimNoise noise;
         private final double amount;
+        private final AdaptiveHitpointMotion inBox;
 
         public HitpointTrajectory(long seed, Hitpoint style) {
-            this(seed,style,false,1,1);
+            this(seed,style,false,1,1,null);
         }
 
         public HitpointTrajectory(long seed, Configuration settings) {
             this(seed,settings.hitpoint,settings.explicitControls,
-                    settings.variation*settings.noise.amount,settings.noiseTempo*settings.noise.tempo);
+                    settings.variation*settings.noise.amount,settings.noiseTempo*settings.noise.tempo,
+                    settings.tuning == null ? null : new AdaptiveHitpointMotion(seed,
+                            settings.pointConfiguration(),settings.tuning.initialRadius));
         }
 
-        private HitpointTrajectory(long seed, Hitpoint style, boolean coherent, double amount, double tempo) {
+        private HitpointTrajectory(long seed, Hitpoint style, boolean coherent, double amount, double tempo,
+                                   AdaptiveHitpointMotion inBox) {
             if (style == null) throw new IllegalArgumentException("hitpoint style");
             this.style = style;
             this.coherent=coherent;
             this.amount=amount;
-            this.noise=coherent && amount>0 ? new AdaptiveAimNoise(seed,tempo) : null;
-            Random random = new Random(seed);
-            for (int i = 0; i < phases.length; i++)
-                phases[i] = random.nextDouble() * Math.PI * 2;
+            this.inBox=inBox;
+            this.noise=inBox==null && coherent && amount>0 ? new AdaptiveAimNoise(seed,tempo) : null;
+            if(inBox==null) {
+                Random random = new Random(seed);
+                for (int i = 0; i < phases.length; i++)
+                    phases[i] = random.nextDouble() * Math.PI * 2;
+            }
         }
 
         /**
@@ -180,6 +258,7 @@ public final class AdaptivePresetMotion {
         public double[] point(double baseX, double baseY, double baseZ,
                               double minX, double minY, double minZ,
                               double maxX, double maxY, double maxZ, double seconds) {
+            if(inBox!=null)return inBox.point(baseX,baseY,baseZ,minX,minY,minZ,maxX,maxY,maxZ,seconds);
             if (!Double.isFinite(seconds) || seconds < 0 || !Double.isFinite(baseX)
                     || !Double.isFinite(baseY) || !Double.isFinite(baseZ)
                     || !finiteBox(minX, maxX) || !finiteBox(minY, maxY)
@@ -206,6 +285,7 @@ public final class AdaptivePresetMotion {
     }
 
     private static boolean positive(double d) { return Double.isFinite(d) && d > 0; }
+    private static boolean unit(double d) { return Double.isFinite(d) && d >= 0 && d <= 1; }
     private static boolean finiteBox(double lo, double hi) {
         return Double.isFinite(lo) && Double.isFinite(hi)
                 && hi > lo && Double.isFinite(hi - lo);

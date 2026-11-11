@@ -410,7 +410,7 @@ public class InventoryManagerBlockConsumerTest {
         manager.maxDelay.setValue(0.0);
         manager.startDelay.setValue(0.0);
         // Deterministic zero-delay boundary; the wall clock cannot hide a second click.
-        for (String name : new String[]{"delayTimer", "startDelayTimer"}) {
+        for (String name : new String[]{"startDelayTimer"}) {
             Field timer = InventoryManager.class.getDeclaredField(name);
             timer.setAccessible(true); timer.set(manager, new ZeroDelay());
         }

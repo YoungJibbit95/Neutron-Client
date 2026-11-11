@@ -3,6 +3,8 @@ package me.youngjibbit.config;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import me.youngjibbit.module.impl.player.InventoryManager;
+import me.youngjibbit.module.impl.player.Stealer;
+import me.youngjibbit.module.Module;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TemporaryFolder;
@@ -70,5 +72,50 @@ public class InventoryLayoutConfigTest {
         assertEquals("Custom",inventory.layout.getValue());assertEquals(2,inventory.maxBlocks.getValue(),0);
         assertFalse(config.saveConfig("InvalidSave",v2("Unknown Layout")));
         assertFalse(Files.exists(directory.resolve("InvalidSave.json")));
+    }
+    @Test public void appendedProfilesKeepPhaseOneIndexesAndRoundTripTheirExplicitValues() throws Exception {
+        InventoryManager inventory = new InventoryManager(); Stealer stealer = new Stealer();
+        assertEquals("smart_disable_on_death", inventory.getValues().get(22).getId());
+        assertEquals("smart_disable_on_world_change", inventory.getValues().get(23).getId());
+        assertEquals("smart_disable_on_death", stealer.getValues().get(5).getId());
+        assertEquals("smart_disable_on_world_change", stealer.getValues().get(6).getId());
+        Path directory = temporary.newFolder().toPath();
+        ConfigManager config = new ConfigManager(directory, java.util.Arrays.asList(inventory, stealer), () -> false, message -> { });
+        for (Module module : java.util.Arrays.asList(inventory, stealer)) {
+            module.getModeSetting("Interaction Mode").setValue("Click"); module.getModeSetting("Speed Profile").setValue("Smooth");
+            module.getNumberSetting("Min Action Delay MS").setValue(80D); module.getNumberSetting("Max Action Delay MS").setValue(240D);
+        }
+        inventory.getModeSetting("Drop Order").setValue("Nearby"); stealer.getModeSetting("Pick Profile").setValue("Rows");
+        assertTrue(config.getLastError(), config.saveConfig("Profiles"));
+        for (Module module : java.util.Arrays.asList(inventory, stealer)) {
+            module.getModeSetting("Interaction Mode").setValue("Legacy"); module.getModeSetting("Speed Profile").setValue("Legacy");
+        }
+        assertTrue(config.getLastError(), config.loadConfig("Profiles"));
+        for (Module module : java.util.Arrays.asList(inventory, stealer)) {
+            assertEquals("Click", module.getModeSetting("Interaction Mode").getValue());
+            assertEquals("Smooth", module.getModeSetting("Speed Profile").getValue());
+            assertEquals(80, module.getNumberSetting("Min Action Delay MS").getValue(), 0);
+            assertEquals(240, module.getNumberSetting("Max Action Delay MS").getValue(), 0);
+        }
+        assertEquals("Nearby", inventory.getModeSetting("Drop Order").getValue()); assertEquals("Rows", stealer.getModeSetting("Pick Profile").getValue());
+    }
+    @Test public void loadingOldProfilesClearsNewModesInheritedFromAPreviousConfig() throws Exception {
+        InventoryManager inventory = new InventoryManager(); Stealer stealer = new Stealer(); Path directory = temporary.newFolder().toPath();
+        ConfigManager config = new ConfigManager(directory, java.util.Arrays.asList(inventory, stealer), () -> false, message -> { });
+        String[] old = {"{\"version\":2,\"modules\":{\"invmanager\":{\"settings\":{\"min_delay\":12}},\"stealer\":{\"settings\":{\"delay\":110}}}}",
+                "{\"InvManager\":{\"Min Delay\":12},\"Stealer\":{\"Delay\":110}}"};
+        for (int i = 0; i < old.length; i++) {
+            for (Module module : java.util.Arrays.asList(inventory, stealer)) {
+                module.getModeSetting("Interaction Mode").setValue("Click"); module.getModeSetting("Speed Profile").setValue("Waves");
+            }
+            inventory.getModeSetting("Drop Order").setValue("Shuffle"); stealer.getModeSetting("Pick Profile").setValue("Nearby");
+            write(directory, "OldProfiles" + i, old[i]); assertTrue(config.getLastError(), config.loadConfig("OldProfiles" + i));
+            for (Module module : java.util.Arrays.asList(inventory, stealer)) {
+                assertEquals("Legacy", module.getModeSetting("Interaction Mode").getValue());
+                assertEquals("Legacy", module.getModeSetting("Speed Profile").getValue());
+            }
+            assertEquals("Priority", inventory.getModeSetting("Drop Order").getValue()); assertEquals("Shuffle", stealer.getModeSetting("Pick Profile").getValue());
+            assertEquals(12, inventory.minDelay.getValue(), 0); assertEquals(110, stealer.getNumberSetting("Delay").getValue(), 0);
+        }
     }
 }

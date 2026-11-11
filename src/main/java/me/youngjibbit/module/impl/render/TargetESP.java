@@ -12,6 +12,7 @@ import me.youngjibbit.module.ModuleInfo;
 import me.youngjibbit.module.ModuleManager;
 import me.youngjibbit.module.impl.combat.Aura;
 import me.youngjibbit.module.impl.world.Scaffold;
+import me.youngjibbit.module.impl.world.NScaffold;
 import me.youngjibbit.utils.render.*;
 import me.youngjibbit.value.impl.*;
 import me.zero.alpine.listener.Listener;
@@ -27,7 +28,7 @@ import java.awt.Color;
 import java.util.List;
 
 /** Displays the active selection and locally accepted rotation, without producing actions or rotations. */
-@ModuleInfo(name="TargetESP", description="Smooth target halo and an exact, read-only Aura/Scaffold aim marker.", category=Category.Render)
+@ModuleInfo(name="TargetESP", description="Smooth target halo and an exact, read-only Aura/Scaffold/NScaffold aim marker.", category=Category.Render)
 public final class TargetESP extends Module {
     private final CheckBoxValue halo = new CheckBoxValue("Target Halo",this,true);
     private final SliderValue haloRadius = new SliderValue("Halo Radius Padding",this,.14,0,.6);
@@ -36,7 +37,7 @@ public final class TargetESP extends Module {
     private final SliderValue haloTrail = new SliderValue("Halo Trail",this,.65,0,1);
     private final SliderValue haloMotion = new SliderValue("Halo Motion",this,.55,0,1);
     private final CheckBoxValue hitpoint = new CheckBoxValue("Hitpoint",this,true);
-    private final ComboValue hitpointSource = new ComboValue("Hitpoint Source",this,new String[]{"Active","Aura","Scaffold"},0);
+    private final ComboValue hitpointSource = new ComboValue("Hitpoint Source",this,new String[]{"Active","Aura","Scaffold","NScaffold"},0);
     private final SliderValue hitpointSize = new SliderValue("Hitpoint Size",this,.075,.015,.3);
     private final SliderValue rayLength = new SliderValue("Hitpoint Ray Length",this,6D,1,16);
     private final CheckBoxValue misses = new CheckBoxValue("Show Ray Misses",this,true);
@@ -113,6 +114,7 @@ public final class TargetESP extends Module {
         if(!current(scene))return;
         Aura aura=(Aura)modules.getModule(Aura.class);
         Scaffold scaffold=(Scaffold)modules.getModule(Scaffold.class);
+        NScaffold nscaffold=(NScaffold)modules.getModule(NScaffold.class);
         EntityLivingBase target=aura==null?null:aura.getActiveTarget();
         // The target getter performs world/LOS reads which can synchronously change the scene.
         if(!current(scene))return;
@@ -142,10 +144,12 @@ public final class TargetESP extends Module {
                     .diagnosticSnapshot(scene.player,scene.world,packets);
             boolean current=observation.current(scene.world,scene.player,packets,epoch,observed.sequence,now,
                     observed.accepted,observed.collecting,observed.hasEffective,observed.owner,
-                    aura!=null&&aura.isToggled()&&target!=null,scaffold!=null&&scaffold.isToggled());
+                    aura!=null&&aura.isToggled()&&target!=null,scaffold!=null&&scaffold.isToggled(),
+                    nscaffold!=null&&nscaffold.isToggled());
             String chosen=hitpointSource.getValue();
             if(current&&("Active".equals(chosen)||"Aura".equals(chosen)&&"aura".equals(observed.owner)
-                    ||"Scaffold".equals(chosen)&&"scaffold".equals(observed.owner)))
+                    ||"Scaffold".equals(chosen)&&"scaffold".equals(observed.owner)
+                    ||"NScaffold".equals(chosen)&&NScaffold.ROTATION_SOURCE.equals(observed.owner)))
                 marker(scene,observed.wireYaw,observed.wirePitch,"aura".equals(observed.owner));
         }else observation.reset();
         if(!current(scene))return;

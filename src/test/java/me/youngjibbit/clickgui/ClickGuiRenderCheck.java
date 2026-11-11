@@ -128,6 +128,7 @@ public final class ClickGuiRenderCheck {
             if(!Boolean.getBoolean("pulsar.gui.baseline"))checkAdvancedInput(panel);
             checkBloomReuse();
             checkCompactPresentations();
+            checkAuraPresentations();
             require(glGetError() == GL_NO_ERROR, "OpenGL error after rendering");
             context.check();
         }
@@ -188,6 +189,76 @@ public final class ClickGuiRenderCheck {
             settings.animations.setValue(oldAnimations);me.youngjibbit.theme.ThemeMode.select(oldMode);
             mc.currentScreen=oldScreen;mc.displayWidth=oldWidth;mc.displayHeight=oldHeight;mc.gameSettings.guiScale=oldScale;
             mc.getFramebuffer().createBindFramebuffer(oldWidth,oldHeight);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static void checkAuraPresentations() throws Exception {
+        me.youngjibbit.module.impl.client.ClientSettings settings = me.youngjibbit.module.impl.client.ClientSettings.current();
+        me.youngjibbit.module.Module aura = Pulsar.INSTANCE.getMm().getModule(me.youngjibbit.module.impl.combat.Aura.class);
+        require(aura != null && !aura.isToggled(), "Aura presentation fixture requires the real disabled module");
+        int oldKey = aura.getKey();
+        double oldReach = aura.getNumberSetting("Reach").getValue();
+        String oldMode = me.youngjibbit.theme.ThemeMode.selected(), oldSurface = settings.surface.getValue();
+        String oldStyle = settings.neutronScreenStyle.getValue();
+        boolean oldAnimations = settings.animations.getValue();
+        net.minecraft.client.gui.GuiScreen oldScreen = mc.currentScreen;
+        int oldWidth = mc.displayWidth, oldHeight = mc.displayHeight, oldScale = mc.gameSettings.guiScale;
+        try {
+            settings.surface.setValue("Liquid Glass");
+            settings.animations.setValue(false);
+            for (String style : new String[]{"Legacy", "Modern", "Creative"}) {
+                me.youngjibbit.theme.ThemeMode.select("Legacy".equals(style)
+                        ? me.youngjibbit.theme.ThemeMode.LEGACY : me.youngjibbit.theme.ThemeMode.APPROACH_TWO);
+                if (!"Legacy".equals(style)) settings.neutronScreenStyle.setValue(style);
+                me.youngjibbit.utils.render.UiEffects.invalidate();
+                Panel panel = new Panel();
+                try {
+                    resize(panel, 1280, 960, 2);
+                    mc.currentScreen = panel;
+                    frame(panel, -1, -1);
+                    ClickModule row = null;
+                    for (ClickModule candidate : (List<ClickModule>) get(panel, "modules")) {
+                        if (candidate.getModule() == aura) { row = candidate; break; }
+                    }
+                    require(row != null && !row.isOpen(), "Registered Aura row missing or initially expanded");
+                    float closedHeight = row.getHeight();
+                    panel.click((int) row.getX() + 20, (int) row.getY() + 12, 1);
+                    panel.release();
+                    frame(panel, -1, -1);
+                    require(row.isOpen() && row.getHeight() > closedHeight, "Aura disclosure did not expose settings");
+                    ClickSlider reach = control(row.focusableValues(), "reach", ClickSlider.class);
+                    require(reach.getValue() == aura.getNumberSetting("Reach"), "Aura Reach control is not bound to the registered module");
+                    int valueX = (int) methodNumber(reach, "valueX") + 5, valueY = (int) reach.getY() + 8;
+                    require(((ClipRect) get(panel, "viewport")).contains(valueX, valueY), "Aura Reach field is outside the visible viewport");
+                    panel.click(valueX, valueY, 0);
+                    require(reach.isEditing(), "Aura Reach field did not accept exact-value input");
+                    double editedReach = oldReach == 3.25 ? 3.5 : 3.25;
+                    panel.type(Double.toString(editedReach));
+                    panel.key(' ', org.lwjgl.input.Keyboard.KEY_RETURN);
+                    require(aura.getNumberSetting("Reach").getValue() == editedReach && !reach.isEditing(),
+                            "Aura exact-value input did not update its real setting");
+                    aura.getNumberSetting("Reach").setValue(oldReach);
+                    frame(panel, -1, -1);
+                    String stem = style.toLowerCase(java.util.Locale.ROOT) + "-aura";
+                    snapshot(stem + "-expanded.png");
+                    panel.click((int) row.getX() + 20, (int) row.getY() + 12, 1);
+                    panel.release();
+                    frame(panel, -1, -1);
+                    require(!row.isOpen() && Math.abs(row.getHeight() - closedHeight) < .01f,
+                            "Aura collapse retained expanded layout");
+                    require(!aura.isToggled() && aura.getKey() == oldKey, "Aura presentation input changed activation or key binding");
+                    snapshot(stem + "-collapsed.png");
+                } finally { panel.onGuiClosed(); }
+            }
+            System.out.println("PASS: actual Aura Legacy/Modern/Creative disclosure, exact Reach binding and collapsed/expanded native snapshots without activation");
+        } finally {
+            aura.getNumberSetting("Reach").setValue(oldReach);
+            settings.surface.setValue(oldSurface); settings.neutronScreenStyle.setValue(oldStyle);
+            settings.animations.setValue(oldAnimations); me.youngjibbit.theme.ThemeMode.select(oldMode);
+            me.youngjibbit.utils.render.UiEffects.invalidate();
+            mc.currentScreen = oldScreen; mc.displayWidth = oldWidth; mc.displayHeight = oldHeight; mc.gameSettings.guiScale = oldScale;
+            mc.getFramebuffer().createBindFramebuffer(oldWidth, oldHeight);
         }
     }
 

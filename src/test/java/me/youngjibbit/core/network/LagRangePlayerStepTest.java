@@ -1,6 +1,7 @@
 package me.youngjibbit.core.network;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.core.world.Wave2IsolatedCase;
 import me.youngjibbit.event.packet.TickEvent;
 import me.youngjibbit.module.impl.exploit.LagRange;
 import net.minecraft.network.play.client.C0APacketAnimation;
@@ -18,6 +19,19 @@ public class LagRangePlayerStepTest {
         @Override public void resetBlockRemoving() { resets++; }
     }
 
+    // Each case rebinds Module.mc with Unsafe. Keep one client per ordinary-JIT child process,
+    // rather than depending on HotSpot noticing a write to a previously compiled static-final field.
+    @Test public void withholdingRejectsUnpublishedDigLookButStillReleasesExistingDig() throws Exception {
+        Wave2IsolatedCase.run(Checks.class,"withholdingRejectsUnpublishedDigLookButStillReleasesExistingDig");
+    }
+    @Test public void onlyEarnedBodiesRunOnApproachAndExpiredFrameCannotDropAnotherStep() throws Exception {
+        Wave2IsolatedCase.run(Checks.class,"onlyEarnedBodiesRunOnApproachAndExpiredFrameCannotDropAnotherStep");
+    }
+    @Test public void acceptedActionRequiresAnOrdinaryMovementBodyInsteadOfDroppingIt() throws Exception {
+        Wave2IsolatedCase.run(Checks.class,"acceptedActionRequiresAnOrdinaryMovementBodyInsteadOfDroppingIt");
+    }
+
+    public static class Checks {
     @Test public void withholdingRejectsUnpublishedDigLookButStillReleasesExistingDig() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             f.player.ticksExisted = 120; f.enemy(7, 3);
@@ -83,5 +97,6 @@ public class LagRangePlayerStepTest {
                 assertEquals(1, f.client.timer.timerSpeed, 0);
             } finally { lag.setToggled(false); }
         }
+    }
     }
 }

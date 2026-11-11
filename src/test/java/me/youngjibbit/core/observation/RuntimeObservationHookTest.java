@@ -33,6 +33,7 @@ public class RuntimeObservationHookTest {
         @Override public Entity getEntityByID(int id) { return target != null && target.getEntityId() == id ? target : null; }
     }
     private static LoadedWorld prepare(RotationBehaviorHookTest.Fixture f) throws Exception {
+        assertTrue("The fixture must execute on its Minecraft client thread",f.mc.isCallingFromMinecraftThread());
         LoadedWorld world = RotationBehaviorHookTest.bare(LoadedWorld.class);
         f.mc.theWorld = world; f.player.worldObj = world; f.player.onGround = true;
         f.player.setEntityBoundingBox(new AxisAlignedBB(-.3, 0, -.3, .3, 1.8, .3));
