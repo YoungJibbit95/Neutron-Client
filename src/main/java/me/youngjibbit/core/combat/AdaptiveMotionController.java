@@ -17,20 +17,30 @@ public final class AdaptiveMotionController {
     /** Optional Aura controls. Null retains the original controller used by Scaffold. */
     public static final class Control {
         public final double minSpeedFraction, noiseAmount, noiseTempo, maxTravelSpeed;
+        public final double curveStrength, pathAmount, pathTempo;
         public final Curve curve;
 
         public Control(double minSpeedFraction, Curve curve, double noiseAmount, double noiseTempo) {
             this(minSpeedFraction,curve,noiseAmount,noiseTempo,Double.MAX_VALUE);
         }
         public Control(double minSpeedFraction, Curve curve, double noiseAmount, double noiseTempo, double maxTravelSpeed) {
+            this(minSpeedFraction,curve,noiseAmount,noiseTempo,maxTravelSpeed,.5,noiseAmount,noiseTempo);
+        }
+
+        public Control(double minSpeedFraction, Curve curve, double noiseAmount, double noiseTempo,
+                       double maxTravelSpeed, double curveStrength, double pathAmount, double pathTempo) {
             if (!Double.isFinite(minSpeedFraction) || minSpeedFraction <= 0 || minSpeedFraction > 1
                     || curve == null || !Double.isFinite(noiseAmount) || noiseAmount < 0 || noiseAmount > 1
-                    || !positive(noiseTempo) || !positive(maxTravelSpeed)) throw new IllegalArgumentException("invalid Adaptive controls");
+                    || !positive(noiseTempo) || !positive(maxTravelSpeed) || !unit(curveStrength)
+                    || !unit(pathAmount) || !positive(pathTempo)) throw new IllegalArgumentException("invalid Adaptive controls");
             this.minSpeedFraction = minSpeedFraction;
             this.curve = curve;
             this.noiseAmount = noiseAmount;
             this.noiseTempo = noiseTempo;
             this.maxTravelSpeed=maxTravelSpeed;
+            this.curveStrength=curveStrength;
+            this.pathAmount=pathAmount;
+            this.pathTempo=pathTempo;
         }
     }
 
@@ -143,7 +153,7 @@ public final class AdaptiveMotionController {
             accelerationScale = control == null ? 0.82 + random.nextDouble() * 0.36 : 1;
             brakingScale = control == null ? 0.78 + random.nextDouble() * 0.44 : 1;
             lateralBias = control == null ? (random.nextDouble() * 2 - 1) * curvature
-                    : control.noiseAmount == 0 ? 0 : (random.nextDouble() * 2 - 1) * curvature * control.noiseAmount;
+                    : control.pathAmount == 0 ? 0 : (random.nextDouble() * 2 - 1) * curvature * control.pathAmount;
         }
     }
 
@@ -173,7 +183,7 @@ public final class AdaptiveMotionController {
         final Acquisition acquisition;
         final Random random;
         final Profile profile;
-        final AdaptiveAimNoise coherentNoise;
+        final AdaptiveAimNoise coherentNoise, pathNoise;
         final long startNanos;
         long lastSequence, lastNanos;
         double yawVelocity, pitchVelocity, yawAcceleration, pitchAcceleration;
@@ -187,6 +197,8 @@ public final class AdaptiveMotionController {
             this.profile = new Profile(random, limits.curvature, limits.control);
             this.coherentNoise = limits.control == null || limits.control.noiseAmount == 0 ? null
                     : new AdaptiveAimNoise(seed, limits.control.noiseTempo);
+            this.pathNoise = limits.control == null || limits.control.pathAmount == 0 ? null
+                    : new AdaptiveAimNoise(seed ^ 0x7163c5da917b4e29L, limits.control.pathTempo);
             this.startNanos = nanos;
             this.lastSequence = sequence;
             this.lastNanos = nanos;
@@ -268,6 +280,14 @@ public final class AdaptiveMotionController {
         state.initialDistance = Math.max(state.initialDistance, distance);
         double progress = clamp(1 - distance / state.initialDistance, 0, 1);
         double sideways = state.profile.lateralBias * 4 * progress * (1 - progress);
+        if (limits.control != null) {
+            // Independent path signal. No path deflection at acquisition or arrival.
+            double path = state.pathNoise == null ? 0
+                    : state.pathNoise.sample((nanos - state.startNanos) * 1e-9, 1);
+            sideways = (.35 * state.profile.lateralBias
+                    + .65 * path * limits.curvature * limits.control.pathAmount)
+                    * 4 * progress * (1 - progress);
+        }
         double x = yawError / distance - sideways * pitchError / distance;
         double y = pitchError / distance + sideways * yawError / distance;
         double norm = Math.hypot(x, y);
@@ -298,10 +318,16 @@ public final class AdaptiveMotionController {
             double preference = control.minSpeedFraction
                     + (1 - control.minSpeedFraction) * (.5 + .5 * state.noise);
             speed = directionalCap * preference;
-            if (control.curve == Curve.RELATIVE)
-                speed = Math.min(speed, distance * (1 - Math.exp(-6 * dt)) / dt);
-            else if (control.curve == Curve.ADAPTIVE)
-                speed = Math.min(speed, Math.sqrt(2 * brakeCap * distance) * .88);
+            if (control.curveStrength > 0 && control.curve == Curve.RELATIVE) {
+                // Relative easing uses this acquisition's angular span and the chosen
+                // speed. There is no independent fixed response-rate ceiling.
+                double easeSpan = Math.max(EPSILON_DEGREES, state.initialDistance * control.curveStrength);
+                double response = speed / easeSpan;
+                speed = Math.min(speed, distance * -Math.expm1(-response * dt) / dt);
+            } else if (control.curveStrength > 0 && control.curve == Curve.ADAPTIVE) {
+                double braking = Math.sqrt(2 * brakeCap * distance) * .88;
+                speed = Math.min(speed, speed * (1 - control.curveStrength) + braking * control.curveStrength);
+            }
             // Linear still uses the shared acceleration/jerk and residual-distance guards.
         }
         // Every axis shares the same dt, phase, acquisition profile and noise state.
@@ -375,6 +401,10 @@ public final class AdaptiveMotionController {
 
     private static boolean positive(double value) {
         return Double.isFinite(value) && value > 0;
+    }
+
+    private static boolean unit(double value) {
+        return Double.isFinite(value) && value >= 0 && value <= 1;
     }
 
     private static double clamp(double v, double min, double max) {

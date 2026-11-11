@@ -4,6 +4,7 @@ import lombok.Getter;
 import lombok.AccessLevel;
 import me.youngjibbit.core.activity.ModuleToggleJournal;
 import me.youngjibbit.core.module.ModuleSmartDisable;
+import me.youngjibbit.core.module.ModuleActionSafety;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.value.Value;
 import me.youngjibbit.value.impl.CheckBoxValue;
@@ -41,6 +42,8 @@ public abstract class Module implements Subscriber {
     private final Set<Value<?>> configChanges = new LinkedHashSet<>();
     @Getter(AccessLevel.NONE)
     private ModuleSmartDisable smartDisable;
+    @Getter(AccessLevel.NONE)
+    private ModuleActionSafety actionSafety;
 
     public void setPersistenceListener(Consumer<Boolean> listener) {
         persistenceListener = listener;
@@ -63,6 +66,7 @@ public abstract class Module implements Subscriber {
     public void beginConfigUpdate() {
         beginSettingsUpdate();
         if (smartDisable != null) smartDisable.resetConfigDefaults();
+        if (actionSafety != null) actionSafety.resetConfigDefaults();
     }
 
     /** Batch explicit setting edits without applying legacy config defaults. */
@@ -150,17 +154,28 @@ public abstract class Module implements Subscriber {
 
     public void onEnable() {
         if (smartDisable != null) smartDisable.enable();
+        if (actionSafety != null) actionSafety.enable();
         Pulsar.BUS.subscribe(this);
     }
 
     public void onDisable() {
         if (smartDisable != null) smartDisable.disable();
+        if (actionSafety != null) actionSafety.disable();
         Pulsar.BUS.unsubscribe(this);
     }
 
     /** Call at the end of an opted-in module's setting registration. */
     protected final void enableSmartDisable() {
         if (smartDisable == null) smartDisable = new ModuleSmartDisable(this, () -> mc);
+    }
+
+    /** Append after existing values in modules which own timing work. */
+    protected final void enableActionSafety(java.util.function.Supplier<Minecraft> client) {
+        if (actionSafety == null) actionSafety = new ModuleActionSafety(this, client);
+    }
+
+    protected final boolean actionSafetyAllows() {
+        return actionSafety == null ? isToggled() : actionSafety.allows();
     }
 
     public void onToggle() {
@@ -199,6 +214,7 @@ public abstract class Module implements Subscriber {
             completed = true;
         } finally {
             if (!this.toggled && smartDisable != null) smartDisable.disable();
+            if (!this.toggled && actionSafety != null) actionSafety.disable();
             toggleObservation.end(mc, this, id, name, this.toggled, completed);
         }
     }

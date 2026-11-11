@@ -68,6 +68,8 @@ public class RotationBehaviorHookTest {
         public final ClientRuntime runtime;
         public Fixture() throws Exception {
             unsafe=(sun.misc.Unsafe)field(sun.misc.Unsafe.class,"theUnsafe").get(null);
+            // Unsafe skips Minecraft's field initializer; retain the genuine main-thread contract.
+            field(Minecraft.class,"mcThread").set(mc,Thread.currentThread());
             oldModuleClient=unsafe.getObject(unsafe.staticFieldBase(moduleClient),unsafe.staticFieldOffset(moduleClient));
             singleton.set(null,mc);unsafe.putObject(unsafe.staticFieldBase(moduleClient),unsafe.staticFieldOffset(moduleClient),mc);
             mc.thePlayer=player;mc.theWorld=world;mc.inGameHasFocus=true;

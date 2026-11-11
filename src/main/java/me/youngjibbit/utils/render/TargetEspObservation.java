@@ -10,6 +10,13 @@ public final class TargetEspObservation {
     public boolean current(Object world, Object player, Object pipeline, long epoch, long sequence,
                            long now, boolean accepted, boolean collecting, boolean effective,
                            String owner, boolean auraEnabled, boolean scaffoldEnabled) {
+        return current(world,player,pipeline,epoch,sequence,now,accepted,collecting,effective,
+                owner,auraEnabled,scaffoldEnabled,false);
+    }
+
+    public boolean current(Object world, Object player, Object pipeline, long epoch, long sequence,
+                           long now, boolean accepted, boolean collecting, boolean effective,
+                           String owner, boolean auraEnabled, boolean scaffoldEnabled, boolean nscaffoldEnabled) {
         if (world == null || player == null || pipeline == null || epoch < 0 || sequence < 0) {
             reset(); return false;
         }
@@ -21,7 +28,8 @@ public final class TargetEspObservation {
         }
         if (sequence != this.sequence) { this.sequence = sequence; changedAt = now; primed = true; }
         return primed && now - changedAt <= 250_000_000L && accepted && !collecting && effective
-                && ("aura".equals(owner) && auraEnabled || "scaffold".equals(owner) && scaffoldEnabled);
+                && ("aura".equals(owner) && auraEnabled || "scaffold".equals(owner) && scaffoldEnabled
+                    || "nscaffold".equals(owner) && nscaffoldEnabled);
     }
 
     public void reset() {

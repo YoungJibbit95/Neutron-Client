@@ -11,6 +11,8 @@ import me.youngjibbit.module.ModuleInfo;
 import me.youngjibbit.utils.TimerUtil;
 import me.youngjibbit.value.impl.CheckBoxValue;
 import me.youngjibbit.value.impl.SliderValue;
+import me.youngjibbit.value.impl.ComboValue;
+import me.youngjibbit.core.inventory.*;
 import me.zero.alpine.listener.Listener;
 import me.zero.alpine.listener.Subscribe;
 import net.minecraft.client.Minecraft;
@@ -24,7 +26,7 @@ import org.lwjgl.input.Mouse;
 import org.lwjgl.input.Keyboard;
 
 import java.util.ArrayList;
-import java.util.Collections;
+import java.util.Random;
 import java.util.List;
 import java.lang.ref.WeakReference;
 
@@ -76,7 +78,7 @@ public class Stealer extends Module {
 
     @Override public void onValueChange() { clearActivity(); resetStealer(); super.onValueChange(); }
     @Subscribe private final Listener<me.youngjibbit.event.world.WorldEvent> activityWorld =
-            new Listener<>(event -> { clearActivity(); resetStealer(); });
+            new Listener<>(event -> { clearActivity(); resetStealer(); this.assistance.clear(); });
     @Subscribe private final Listener<me.youngjibbit.event.packet.EventPacket> activityPackets =
             new Listener<>(event -> {
                 if (event.isPost() && event.isInbound()
@@ -87,7 +89,12 @@ public class Stealer extends Module {
                     clearActivity();
             });
     private final TimerUtil openDelayTimer = new TimerUtil();
-    private final TimerUtil actionTimer = new TimerUtil();
+    private final InventoryPacing actionPacing = new InventoryPacing();
+    private final InventoryAssistSession assistance = new InventoryAssistSession("Stealer");
+    private final Random selectionSeeds = new Random();
+    private InventorySlotOrder slotOrder;
+    private InventoryInteractionSettings interaction;
+    private ComboValue pickProfile;
     private final TimerUtil emptyTimer = new TimerUtil();
     private ActivityInventoryContext transferScene;
     private boolean observedEmpty, actionInProgress, updateInProgress;
@@ -104,16 +111,21 @@ public class Stealer extends Module {
     public Stealer() {
         super.setKey(Keyboard.KEY_V);
         enableSmartDisable();
+        interaction = new InventoryInteractionSettings(this, 80, 120);
+        pickProfile = new ComboValue("Pick Profile", this, "Shuffle", new String[]{"Shuffle", "Rows", "Nearby"});
+        pickProfile.setVisibility(m -> randomItem.getValue());
+        delay.setVisibility(m -> interaction.legacySpeed());
     }
 
     @Override
     public void onEnable() {
+        assistance.resume();
         clearActivity();
         resetStealer();
         super.onEnable();
         if (mc.currentScreen instanceof GuiChest) {
             openDelayTimer.reset();
-            actionTimer.reset();
+            actionPacing.reset();
         }
     }
 
@@ -121,7 +133,7 @@ public class Stealer extends Module {
     public void onDisable() {
         clearActivity();
         super.onDisable();
-        resetStealer();
+        resetStealer(); assistance.suspend();
     }
 
     @Subscribe
@@ -138,9 +150,10 @@ public class Stealer extends Module {
             clearActivity(); resetStealer(); transferScene = ActivityInventoryContext.capture(mc);
         }
         if (transferScene == null || !transferScene.sameScene(mc)) return;
-        // A held cursor stack or physical mouse action belongs to the user.
+        if (assistance.busy(mc)) return;
+        // A held cursor stack or physical mouse/keyboard/drag action belongs to the user.
         if (mc.thePlayer.inventory.getItemStack() != null || mouseBusy()) {
-            actionTimer.reset(); observedEmpty = false; return;
+            actionPacing.reset(); assistance.cancelPreview(); observedEmpty = false; return;
         }
         if (activityContext != null && !activityContext.isCurrent(mc)) clearActivity();
         final ActivityInventoryContext scene = transferScene;
@@ -166,25 +179,37 @@ public class Stealer extends Module {
                 return;
             }
             observedEmpty = false;
-            if (!actionTimer.hasTimeElapsed(delay.getValue().longValue(), false)) return;
+            if (!interaction.ready(actionPacing, delay.getValue(), delay.getValue())) return;
             for (int slot : slots) {
                 ItemStack candidate = chest.getLowerChestInventory().getStackInSlot(slot);
                 if (candidate != null && canReceive(chest, candidate)) {
                     final long generation = activityGeneration;
                     final int sourceCount = candidate.stackSize;
+                    final ActivityInventoryContext exact = ActivityInventoryContext.capture(mc, slot);
+                    if (exact == null) return;
+                    if (interaction.click() && !assistance.ready(mc, "Transfer", slot, 0, 1, -1,
+                            interaction.preview.getValue(), interaction.resume.getValue())) return;
                     final Object actionPlayer = mc.thePlayer, actionWorld = mc.theWorld,
                             actionScreen = mc.currentScreen, actionController = mc.playerController;
                     final int actionWindow = chest.windowId;
                     if (!validChest() || scene != transferScene || !scene.sameScene(mc) || mc.thePlayer.inventory.getItemStack() != null
                             || mouseBusy() || chest.getLowerChestInventory().getStackInSlot(slot) != candidate
                             || scene != transferScene || !scene.sameScene(mc) || attemptedThisTick()) return;
-                    lastTransferTick = mc.thePlayer.ticksExisted;
-                    lastTransferPlayer = new WeakReference<>(mc.thePlayer);
-                    lastTransferWorld = new WeakReference<>(mc.theWorld);
-                    actionTimer.reset(); actionInProgress = true;
+                    boolean attempted;
+                    actionInProgress = true;
                     try {
-                        mc.playerController.windowClick(chest.windowId, slot, 0, 1, mc.thePlayer);
+                        if (interaction.click()) {
+                            attempted = assistance.execute(mc,
+                                    () -> exact.isCurrent(mc) && canReceive(chest, candidate),
+                                    () -> validChest() && scene == transferScene && scene.sameScene(mc),
+                                    this::claimTransferAttempt);
+                        } else {
+                            attempted = claimTransferAttempt();
+                            if (attempted) mc.playerController.windowClick(chest.windowId, slot, 0, 1, mc.thePlayer);
+                        }
                     } finally { actionInProgress = false; }
+                    if (!attempted) return;
+                    if (slotOrder != null && scene == transferScene) slotOrder.advanceAfter(slot);
                     if (generation == activityGeneration && isToggled() && mc.thePlayer != null
                             && mc.thePlayer == actionPlayer && mc.theWorld == actionWorld && mc.currentScreen == actionScreen
                             && mc.playerController == actionController && mc.thePlayer.openContainer == chest
@@ -209,6 +234,13 @@ public class Stealer extends Module {
                 }
             }
         }
+    }
+
+    private boolean claimTransferAttempt() {
+        if (!validChest() || attemptedThisTick() || mouseBusy() || mc.thePlayer.inventory.getItemStack() != null) return false;
+        lastTransferTick = mc.thePlayer.ticksExisted;
+        lastTransferPlayer = new WeakReference<>(mc.thePlayer); lastTransferWorld = new WeakReference<>(mc.theWorld);
+        actionPacing.reset(); return true;
     }
 
     private boolean attemptedThisTick() {
@@ -236,8 +268,9 @@ public class Stealer extends Module {
         return true;
     }
 
-    private static boolean mouseBusy() {
-        return Mouse.isCreated() && (Mouse.isButtonDown(0) || Mouse.isButtonDown(1));
+    private boolean mouseBusy() {
+        return mc.currentScreen instanceof GuiContainer && ((GuiContainer)mc.currentScreen).inventoryAssistUserBusy()
+                || Mouse.isCreated() && (Mouse.isButtonDown(0) || Mouse.isButtonDown(1));
     }
 
     private boolean empty(ContainerChest chest) {
@@ -264,9 +297,10 @@ public class Stealer extends Module {
         ActivityInventoryContext before = ActivityInventoryContext.capture(mc);
         int occupied = 0, firstOccupied = -1;
         int size = chest.getLowerChestInventory().getSizeInventory();
-        List<Integer> slots = new ArrayList<>();
+        if (slotOrder == null) slotOrder = new InventorySlotOrder(size,
+                randomItem.getValue() ? pickProfile.getValue() : "Sequential", selectionSeeds.nextLong());
+        List<Integer> slots = slotOrder.pendingSlots();
         for (int i = 0; i < size; i++) {
-            slots.add(i);
             if (chest.getLowerChestInventory().getStackInSlot(i) != null) {
                 occupied++;
                 if (firstOccupied < 0) firstOccupied = i;
@@ -281,17 +315,13 @@ public class Stealer extends Module {
             if (firstOccupied >= 0) publishActivity(Action.SCANNING, false, firstOccupied);
             else publishActivity(Action.COMPLETE, false);
         }
-        if (randomItem.getValue()) {
-            Collections.shuffle(slots);
-        }
-
         return slots;
     }
 
     private void resetStealer() {
-        transferScene = null; observedEmpty = false;
+        transferScene = null; observedEmpty = false; slotOrder = null; assistance.cancelPreview();
         openDelayTimer.reset();
-        actionTimer.reset();
+        actionPacing.reset();
         emptyTimer.reset();
     }
 }

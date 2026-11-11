@@ -6,6 +6,29 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class IslandAttachmentLayoutTest {
+    @Test public void attachedSheetsKeepModernClockAndLogoInsideTheirHeader(){
+        for(boolean modern:new boolean[]{false,true})for(int count=0;count<=3;count++)
+            for(IslandStateMachine.State kind:new IslandStateMachine.State[]{IslandStateMachine.State.TARGET,
+                    IslandStateMachine.State.NOTIFICATION,IslandStateMachine.State.POSSIBLE_SETBACK})
+                for(float scale:new float[]{1,.75f,.5f})for(float opening:new float[]{.02f,.25f,.6f,1}){
+                    float width=IslandWidgetLayout.idleWidth(modern,count,false);
+                    IslandLayout.Frame desired=IslandLayout.forState(kind,854,480,modern);
+                    IslandLayout.Frame frame=desired.withGeometry(width*scale,
+                            (34+(desired.height-34)*opening)*scale,17*scale,1);
+                    IslandAttachmentLayout layout=new IslandAttachmentLayout(frame,width,kind,scale);
+                    assertEquals(layout.base.y+layout.base.height,layout.joinY,.0001f);
+                    ArrayListSurface.Shape contour=layout.silhouette();
+                    for(int sample=0;sample<64;sample++){
+                        double angle=sample*Math.PI/32;
+                        // Actual paintIslandIdle badge and clock canvases, one
+                        // half-pixel inset so antialiasing is not the assertion.
+                        assertTrue("logo "+kind,contour.contains(layout.base.x+(20+9.5f*(float)Math.cos(angle))*scale,
+                                frame.y+(17+9.5f*(float)Math.sin(angle))*scale));
+                        assertTrue("clock "+kind,contour.contains(layout.base.x+(width-23+12.5f*(float)Math.cos(angle))*scale,
+                                frame.y+(17+12.5f*(float)Math.sin(angle))*scale));
+                    }
+                }
+    }
     @Test public void baseAndLowerSheetShareOneContinuousSilhouette(){
         for(IslandStateMachine.State kind:new IslandStateMachine.State[]{IslandStateMachine.State.TARGET,
                 IslandStateMachine.State.NOTIFICATION,IslandStateMachine.State.POSSIBLE_SETBACK}){

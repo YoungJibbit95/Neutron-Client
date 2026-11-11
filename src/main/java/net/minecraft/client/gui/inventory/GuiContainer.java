@@ -18,6 +18,12 @@ import net.minecraft.util.EnumChatFormatting;
 import net.minecraft.util.MathHelper;
 import net.minecraft.util.ResourceLocation;
 import org.lwjgl.input.Keyboard;
+import org.lwjgl.input.Mouse;
+import org.lwjgl.opengl.Display;
+import me.youngjibbit.core.inventory.InventoryAssistSession;
+import me.youngjibbit.gui.inventory.InventoryAssistOverlay;
+import net.minecraft.network.play.client.C0EPacketClickWindow;
+import java.util.function.BooleanSupplier;
 
 public abstract class GuiContainer extends GuiScreen
 {
@@ -74,6 +80,93 @@ public abstract class GuiContainer extends GuiScreen
     private int lastClickButton;
     private boolean doubleClick;
     private ItemStack shiftClickedSlot;
+    private long inventoryAssistRevision, inventoryAssistLastInput;
+    private boolean inventoryAssistHadInput;
+    private InventoryAssistSession.Preview inventoryAssistPreview;
+    private long inventoryAssistPresented = Long.MIN_VALUE;
+
+    /** Existing handlers observe real input; no second consumer of LWJGL's event queues is introduced. */
+    private void inventoryAssistManualInput() {
+        inventoryAssistRevision++; inventoryAssistLastInput = inventoryAssistNow(); inventoryAssistHadInput = true;
+        inventoryAssistPreview = null; inventoryAssistPresented = Long.MIN_VALUE;
+    }
+    protected long inventoryAssistNow() { return System.nanoTime(); }
+    /** Native click/drag timing; a headless fixture can supply time without creating a desktop. */
+    protected long containerInputTimeMillis() { return Minecraft.getSystemTime(); }
+    public final InventoryAssistSession.Preview inventoryAssistPreview() { return inventoryAssistPreview; }
+    public final long inventoryAssistInputRevision() { return inventoryAssistRevision; }
+    public int inventoryAssistLeft() { return guiLeft; }
+    public int inventoryAssistTop() { return guiTop; }
+    public int inventoryAssistWidth() { return xSize; }
+    public int inventoryAssistHeight() { return ySize; }
+    public boolean inventoryAssistUserBusy() {
+        if (clickedSlot != null || draggedStack != null || returningStack != null || dragSplitting
+                || dragSplittingSlots != null && !dragSplittingSlots.isEmpty()) return true;
+        return inventoryAssistPhysicalInputBusy();
+    }
+    /** Device seam for headless fixtures; native drag/touch/cursor checks remain outside it. */
+    protected boolean inventoryAssistPhysicalInputBusy() {
+        boolean mouse = Mouse.isCreated(), keyboard = Keyboard.isCreated();
+        if (mouse) for (int i = 0; i < Mouse.getButtonCount(); i++) if (Mouse.isButtonDown(i)) return true;
+        if (keyboard) for (int i = 0; i < Keyboard.KEYBOARD_SIZE; i++) if (Keyboard.isKeyDown(i)) return true;
+        // A real game window owns input devices. Do not initialize native Display
+        // merely to inspect a container in a headless JVM without any devices.
+        return (mouse || keyboard) && Display.isCreated() && !Display.isActive();
+    }
+    public boolean inventoryAssistSlotVisible(int index) {
+        if (inventorySlots == null || inventorySlots.inventorySlots == null || index < 0
+                || index >= inventorySlots.inventorySlots.size() || width <= 0 || height <= 0) return false;
+        Slot slot = inventorySlots.getSlot(index);
+        if (slot == null || slot.slotNumber != index || !slot.canBeHovered()) return false;
+        int x = guiLeft + slot.xDisplayPosition, y = guiTop + slot.yDisplayPosition;
+        return x >= Math.max(0, guiLeft) && y >= Math.max(0, guiTop)
+                && x + 16 <= Math.min(width, guiLeft + xSize) && y + 16 <= Math.min(height, guiTop + ySize);
+    }
+    public boolean canInventoryAssist(int slot, long quietNanos) {
+        return mc != null && mc.currentScreen == this && (this instanceof GuiChest || this instanceof GuiInventory)
+                && mc.thePlayer != null && mc.theWorld != null && mc.playerController != null
+                && !mc.thePlayer.isDead && mc.thePlayer.isEntityAlive() && mc.thePlayer.inventory != null
+                && mc.thePlayer.openContainer == inventorySlots && mc.thePlayer.inventory.getItemStack() == null
+                && !inventoryAssistUserBusy() && inventoryAssistSlotVisible(slot)
+                && (!inventoryAssistHadInput || inventoryAssistNow() - inventoryAssistLastInput >= quietNanos);
+    }
+    public void showInventoryAssist(InventoryAssistSession.Preview preview) {
+        if (inventoryAssistPreview == null || inventoryAssistPreview.token != preview.token)
+            inventoryAssistPresented = Long.MIN_VALUE;
+        inventoryAssistPreview = preview;
+    }
+    public void clearInventoryAssist(long token) {
+        if (inventoryAssistPreview != null && inventoryAssistPreview.token == token) {
+            inventoryAssistPreview = null; inventoryAssistPresented = Long.MIN_VALUE;
+        }
+    }
+    public long inventoryAssistPresentedAt(long token) {
+        return inventoryAssistPreview != null && inventoryAssistPreview.token == token ? inventoryAssistPresented : Long.MIN_VALUE;
+    }
+    /** Called by the overlay after a real rendered frame, never by an update or controller action. */
+    public void inventoryAssistWasRendered(long token, long now) {
+        if (inventoryAssistPreview != null && inventoryAssistPreview.token == token && inventoryAssistPresented == Long.MIN_VALUE)
+            inventoryAssistPresented = now;
+    }
+    /** One exact vanilla slot operation, without changing native hover, cursor, drag or double-click state. */
+    public C0EPacketClickWindow performInventoryAssist(int slot, int button, int mode,
+            BooleanSupplier before, BooleanSupplier after) {
+        boolean allowed = mode == 1 && button == 0 || mode == 2 && button >= 0 && button < 9
+                || mode == 4 && (button == 0 || button == 1);
+        if (!allowed || !canInventoryAssist(slot, 250_000_000L) || inventoryAssistPreview == null
+                || inventoryAssistPreview.waiting || inventoryAssistPreview.slot != slot
+                || inventoryAssistPresented == Long.MIN_VALUE) return null;
+        return mc.playerController.windowClickGuarded(inventorySlots.windowId, slot, button, mode,
+                mc.thePlayer, before, after);
+    }
+    @Override public void handleMouseInput() throws IOException {
+        if (Mouse.getEventButton() >= 0 || Mouse.getEventDWheel() != 0 || Mouse.getEventDX() != 0 || Mouse.getEventDY() != 0)
+            inventoryAssistManualInput();
+        super.handleMouseInput();
+    }
+    @Override public void handleKeyboardInput() throws IOException {
+        inventoryAssistManualInput(); super.handleKeyboardInput();
+    }
 
     public GuiContainer(Container inventorySlotsIn)
     {
@@ -87,6 +180,7 @@ public abstract class GuiContainer extends GuiScreen
      */
     public void initGui()
     {
+        inventoryAssistRevision++; inventoryAssistPreview = null; inventoryAssistPresented = Long.MIN_VALUE;
         super.initGui();
         this.mc.thePlayer.openContainer = this.inventorySlots;
         this.guiLeft = (this.width - this.xSize) / 2;
@@ -171,7 +265,7 @@ public abstract class GuiContainer extends GuiScreen
 
         if (this.returningStack != null)
         {
-            float f = (float)(Minecraft.getSystemTime() - this.returningStackTime) / 100.0F;
+            float f = (float)(containerInputTimeMillis() - this.returningStackTime) / 100.0F;
 
             if (f >= 1.0F)
             {
@@ -187,6 +281,8 @@ public abstract class GuiContainer extends GuiScreen
         }
 
         GlStateManager.popMatrix();
+
+        InventoryAssistOverlay.draw(this, inventoryAssistPreview, this.fontRendererObj);
 
         if (inventoryplayer.getItemStack() == null && this.theSlot != null && this.theSlot.getHasStack())
         {
@@ -358,10 +454,11 @@ public abstract class GuiContainer extends GuiScreen
      */
     protected void mouseClicked(int mouseX, int mouseY, int mouseButton) throws IOException
     {
+        inventoryAssistManualInput();
         super.mouseClicked(mouseX, mouseY, mouseButton);
         boolean flag = mouseButton == this.mc.gameSettings.keyBindPickBlock.getKeyCode() + 100;
         Slot slot = this.getSlotAtPosition(mouseX, mouseY);
-        long i = Minecraft.getSystemTime();
+        long i = containerInputTimeMillis();
         this.doubleClick = this.lastClickSlot == slot && i - this.lastClickTime < 250L && this.lastClickButton == mouseButton;
         this.ignoreMouseUp = false;
 
@@ -481,7 +578,7 @@ public abstract class GuiContainer extends GuiScreen
                 }
                 else if (this.draggedStack.stackSize > 1 && slot != null && Container.canAddItemToSlot(slot, this.draggedStack, false))
                 {
-                    long i = Minecraft.getSystemTime();
+                    long i = containerInputTimeMillis();
 
                     if (this.currentDragTargetSlot == slot)
                     {
@@ -514,6 +611,7 @@ public abstract class GuiContainer extends GuiScreen
      */
     protected void mouseReleased(int mouseX, int mouseY, int state)
     {
+        inventoryAssistManualInput();
         Slot slot = this.getSlotAtPosition(mouseX, mouseY);
         int i = this.guiLeft;
         int j = this.guiTop;
@@ -592,7 +690,7 @@ public abstract class GuiContainer extends GuiScreen
                             this.touchUpY = mouseY - j;
                             this.returningStackDestSlot = this.clickedSlot;
                             this.returningStack = this.draggedStack;
-                            this.returningStackTime = Minecraft.getSystemTime();
+                            this.returningStackTime = containerInputTimeMillis();
                         }
                         else
                         {
@@ -605,7 +703,7 @@ public abstract class GuiContainer extends GuiScreen
                         this.touchUpY = mouseY - j;
                         this.returningStackDestSlot = this.clickedSlot;
                         this.returningStack = this.draggedStack;
-                        this.returningStackTime = Minecraft.getSystemTime();
+                        this.returningStackTime = containerInputTimeMillis();
                     }
 
                     this.draggedStack = null;
@@ -691,6 +789,7 @@ public abstract class GuiContainer extends GuiScreen
      */
     protected void keyTyped(char typedChar, int keyCode) throws IOException
     {
+        inventoryAssistManualInput();
         if (keyCode == 1 || keyCode == this.mc.gameSettings.keyBindInventory.getKeyCode())
         {
             this.mc.thePlayer.closeScreen();
@@ -737,6 +836,7 @@ public abstract class GuiContainer extends GuiScreen
      */
     public void onGuiClosed()
     {
+        inventoryAssistRevision++; inventoryAssistPreview = null; inventoryAssistPresented = Long.MIN_VALUE;
         if (this.mc.thePlayer != null)
         {
             this.inventorySlots.onContainerClosed(this.mc.thePlayer);
