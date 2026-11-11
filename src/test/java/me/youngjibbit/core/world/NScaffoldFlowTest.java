@@ -5,6 +5,8 @@ import me.youngjibbit.core.activity.ScaffoldActivitySnapshot;
 import me.youngjibbit.core.bootstrap.ClientRuntime;
 import me.youngjibbit.core.combat.RotationBehaviorHookTest;
 import me.youngjibbit.core.combat.RotationManager;
+import me.youngjibbit.core.combat.MoveFixController;
+import me.youngjibbit.core.combat.BodyRotationController;
 import me.youngjibbit.event.motion.EventMotion;
 import me.youngjibbit.event.motion.EventRotation;
 import me.youngjibbit.event.EventFlow;
@@ -38,7 +40,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import static org.junit.Assert.*;
 
-/** Real module, visible rotation arbitration and placement service; synthetic world/controller boundary. */
+/** Real module, silent rotation arbitration and placement service; synthetic world/controller boundary. */
 public class NScaffoldFlowTest {
     private static Field field(Class<?> type,String name)throws Exception {
         Field value=type.getDeclaredField(name);value.setAccessible(true);return value;
@@ -165,13 +167,19 @@ public class NScaffoldFlowTest {
         }
     }
 
-    @Test public void acceptedVisibleTurnPlacesWithANormalVisibleSlotAndUnmodifiedMovementBasis()throws Exception {
+    @Test public void acceptedSilentTurnPlacesWithSharedMoveFixAndLeavesTheEntireCameraUntouched()throws Exception {
         try(Run r=new Run()) {
+            r.f.player.prevRotationYaw=-12;r.f.player.prevRotationPitch=7;
             r.tick();assertEquals(1,r.world.clicks);assertEquals(3,r.world.selected);
             assertEquals(3,r.f.player.inventory.currentItem);assertEquals(1,r.world.swings);
             assertEquals(NScaffold.Status.BUILDING,r.module.getStatus());
-            assertTrue(r.f.player.rotationPitch>60);assertTrue(Math.abs(r.f.player.rotationYaw)>40);
+            assertEquals(0,r.f.player.rotationYaw,0);assertEquals(0,r.f.player.rotationPitch,0);
+            assertEquals(-12,r.f.player.prevRotationYaw,0);assertEquals(7,r.f.player.prevRotationPitch,0);
+            assertTrue(r.f.runtime.getRotationManager().getEffectivePitch()>60);
+            assertTrue(Math.abs(r.f.runtime.getRotationManager().getEffectiveYaw())>40);
             assertEquals("nscaffold",r.f.runtime.getRotationManager().getConfirmedOwner());
+            assertTrue(r.module.correctionEnabled());assertEquals(MoveFixController.Mode.SIMPLE,r.module.moveFixMode());
+            assertEquals(BodyRotationController.Mode.VANILLA,r.module.bodyRotationMode());
             float yaw=r.f.player.rotationYaw;r.f.player.motionX=r.f.player.motionZ=0;
             r.f.player.moveFlying(0,1,.1f);
             assertEquals(-Math.sin(Math.toRadians(yaw))*.1,r.f.player.motionX,2e-5);
@@ -183,7 +191,9 @@ public class NScaffoldFlowTest {
     @Test public void turnSpeedHasDirectImpactAndAnUnalignedOrRejectedFrameCannotPlace()throws Exception {
         try(Run r=new Run()) {
             r.module.getNumberSetting("Turn Speed").setValue(5D);r.tick();
-            assertEquals(0,r.world.clicks);assertEquals(5,Math.hypot(r.f.player.rotationYaw,r.f.player.rotationPitch),.001);
+            assertEquals(0,r.world.clicks);assertEquals(5,Math.hypot(r.f.runtime.getRotationManager().getEffectiveYaw(),
+                    r.f.runtime.getRotationManager().getEffectivePitch()),.001);
+            assertEquals(0,r.f.player.rotationYaw,0);assertEquals(0,r.f.player.rotationPitch,0);
             r.module.getNumberSetting("Turn Speed").setValue(180D);r.tick();assertEquals(1,r.world.clicks);
         }
         try(Run r=new Run()){r.tick(false,()->{});assertEquals(0,r.world.clicks);assertTrue(r.world.slots.isEmpty());}
@@ -251,12 +261,62 @@ public class NScaffoldFlowTest {
         }
     }
 
-    @Test public void forwardAndSidewaysOnlyInputPauseWithAnExplicitUserStatus()throws Exception {
-        for(boolean forward:new boolean[]{true,false})try(Run r=new Run()) {
-            field(KeyBinding.class,"pressed").setBoolean(forward?r.f.mc.gameSettings.keyBindForward:r.f.mc.gameSettings.keyBindLeft,true);
-            r.tick();assertEquals(0,r.world.clicks);assertEquals(0,r.f.player.rotationYaw,0);
-            assertEquals(NScaffold.Status.HOLD_BACK_TO_BRIDGE,r.module.getStatus());
-            assertEquals("Hold back to bridge",r.module.info);assertTrue(r.world.slots.isEmpty());
+    @Test public void allOrdinaryInputDirectionsCanBuildWithoutMovingTheCamera()throws Exception {
+        for(int forward=-1;forward<=1;forward++)for(int strafe=-1;strafe<=1;strafe++)try(Run r=new Run()) {
+            r.press(r.f.mc.gameSettings.keyBindForward,forward>0);r.press(r.f.mc.gameSettings.keyBindBack,forward<0);
+            r.press(r.f.mc.gameSettings.keyBindLeft,strafe>0);r.press(r.f.mc.gameSettings.keyBindRight,strafe<0);
+            r.preparedTick(new MovementInputEvent(strafe,forward,false,false),()->{
+                RotationManager.MovementRotation movement=r.f.runtime.getRotationManager().getPreparedMovement();
+                assertNotNull(movement);assertEquals("nscaffold",movement.source);
+                assertEquals(MoveFixController.Mode.SIMPLE,movement.mode);
+            },()->{},()->{});
+            assertEquals(1,r.world.clicks);assertEquals(0,r.f.player.rotationYaw,0);assertEquals(0,r.f.player.rotationPitch,0);
+            assertEquals(NScaffold.Status.BUILDING,r.module.getStatus());assertTrue(r.module.info.contains("Silent"));
+        }
+    }
+
+    @Test public void slowSilentTurnsContinueFromAcceptedAimAcrossTicksWithAStationaryCamera()throws Exception {
+        for(boolean advanced:new boolean[]{false,true})try(Run r=new Run()) {
+            if(advanced)advanced(r,8,6,1);else r.module.getNumberSetting("Turn Speed").setValue(5D);
+            double previous=0;
+            for(int tick=0;tick<40 && r.world.clicks==0;tick++) {
+                r.preparedTick(new MovementInputEvent(0,0,false,false));
+                RotationManager rotation=r.f.runtime.getRotationManager();
+                double travel=Math.hypot(rotation.getEffectiveYaw(),rotation.getEffectivePitch());
+                assertTrue("accepted interpolation must progress, tick="+tick,travel>previous);
+                previous=travel;
+                assertEquals(0,r.f.player.rotationYaw,0);assertEquals(0,r.f.player.rotationPitch,0);
+            }
+            assertEquals("silent interpolation eventually reaches a real face",1,r.world.clicks);
+        }
+    }
+
+    @Test public void rejectedSilentProposalCannotBecomeTheNextInterpolationBasis()throws Exception {
+        try(Run r=new Run()) {
+            r.module.getNumberSetting("Turn Speed").setValue(5D);
+            r.tick(false,()->{});assertEquals(0,r.world.clicks);
+            r.tick();RotationManager rotation=r.f.runtime.getRotationManager();
+            assertEquals(5,Math.hypot(rotation.getEffectiveYaw(),rotation.getEffectivePitch()),.001);
+            assertEquals(0,r.f.player.rotationYaw,0);assertEquals(0,r.f.player.rotationPitch,0);
+        }
+    }
+
+    @Test public void searchingKeepsOnlyAcceptedAimAndDoesNotResetItBackToTheCamera()throws Exception {
+        try(Run r=new Run()) {
+            r.tick();RotationManager rotation=r.f.runtime.getRotationManager();
+            float yaw=rotation.getEffectiveYaw(),pitch=rotation.getEffectivePitch();
+            assertEquals(1,r.world.clicks);
+            for(int tick=0;tick<3;tick++) {
+                r.preparedTick(new MovementInputEvent(0,0,false,false));
+                assertEquals(NScaffold.Status.SEARCHING,r.module.getStatus());
+                assertEquals("nscaffold",rotation.getConfirmedOwner());
+                assertEquals(yaw,rotation.getEffectiveYaw(),0);assertEquals(pitch,rotation.getEffectivePitch(),0);
+                assertEquals(1,r.world.clicks);assertEquals(0,r.f.player.rotationYaw,0);assertEquals(0,r.f.player.rotationPitch,0);
+            }
+            r.world.cells.remove(new BlockPos(0,63,0));r.tick();
+            assertEquals(2,r.world.clicks);
+            r.module.setToggled(false);assertFalse(r.module.correctionEnabled());
+            assertNull(rotation.getConfirmedOwner());
         }
     }
 
@@ -305,38 +365,27 @@ public class NScaffoldFlowTest {
         }
     }
 
-    @Test public void manualCameraTurnsReleaseTheHeldHeadingUntilTheViewSettles()throws Exception {
+    @Test public void lookingAroundBetweenTicksDoesNotPauseSilentBuildingOrOverwriteTheView()throws Exception {
         try(Run r=new Run()) {
             field(KeyBinding.class,"pressed").setBoolean(r.f.mc.gameSettings.keyBindBack,true);
             r.f.player.rotationYaw=90;r.f.player.rotationPitch=75.7f;
             r.tick();
-            assertEquals("Establish an accepted held backward view first",1,r.world.clicks);
+            assertEquals("Establish an accepted silent placement first",1,r.world.clicks);
             assertEquals(1,r.world.swings);assertEquals(90,r.f.player.rotationYaw,0);
             BlockPos destination=new BlockPos(0,63,0);
             assertTrue(r.world.cells.containsKey(destination));
-            r.world.cells.remove(destination);
-            int selections=r.world.slots.size();
-
-            for(float yaw:new float[]{120,130}) {
-                r.f.player.rotationYaw=yaw;
+            int placements=1;
+            for(float yaw:new float[]{120,130,-170,5}) {
+                r.world.cells.remove(destination);
+                r.f.player.rotationYaw=yaw;r.f.player.rotationPitch=-25;
                 r.tick();
-                assertEquals("Manual movement must not be rotated back to the cached heading",yaw,r.f.player.rotationYaw,0);
-                assertEquals(75.7f,r.f.player.rotationPitch,0);
-                assertEquals(1,r.world.clicks);assertEquals(1,r.world.swings);
-                assertEquals(selections,r.world.slots.size());
-                assertEquals("MANUAL_VIEW",r.module.getStatus().name());
-                assertEquals("Manual view",r.module.info);
-                assertFalse(r.world.cells.containsKey(destination));
+                assertEquals("the user's camera remains independent",yaw,r.f.player.rotationYaw,0);
+                assertEquals(-25,r.f.player.rotationPitch,0);
+                assertEquals(++placements,r.world.clicks);assertEquals(placements,r.world.swings);
+                assertEquals(NScaffold.Status.BUILDING,r.module.getStatus());
+                assertTrue(r.world.cells.containsKey(destination));
                 assertTrue(r.f.mc.gameSettings.keyBindBack.isKeyDown());
             }
-
-            // The visible 130-degree ray still reaches the original west support.
-            // A settled camera can resume from that new direction, never the old 90 degrees.
-            r.tick();
-            assertEquals(130,r.f.player.rotationYaw,0);assertEquals(75.7f,r.f.player.rotationPitch,0);
-            assertEquals(2,r.world.clicks);assertEquals(2,r.world.swings);
-            assertTrue(r.world.cells.containsKey(destination));
-            assertEquals(NScaffold.Status.BUILDING,r.module.getStatus());
         }
     }
 
@@ -371,11 +420,11 @@ public class NScaffoldFlowTest {
     @Test public void activityPausesAndWaitingDoNotPretendToSearchOrPlace()throws Exception {
         try(Run r=new Run()) {
             r.activity();
-            field(KeyBinding.class,"pressed").setBoolean(r.f.mc.gameSettings.keyBindForward,true);
+            r.f.player.usingItem=true;
             r.tick();ScaffoldActivitySnapshot paused=r.module.getActivitySnapshot();assertNotNull(paused);
             assertEquals(ScaffoldActivitySnapshot.Status.PAUSED,paused.getStatus());assertEquals(0,paused.getPlacementCount());
             assertEquals(64,paused.getBlockCount());assertEquals(0,r.world.clicks);
-            field(KeyBinding.class,"pressed").setBoolean(r.f.mc.gameSettings.keyBindForward,false);
+            r.f.player.usingItem=false;
             r.module.getBooleanSetting("Auto Select Blocks").setValue(false);r.tick();
             ScaffoldActivitySnapshot waiting=r.module.getActivitySnapshot();assertNotNull(waiting);
             assertEquals(ScaffoldActivitySnapshot.Status.WAITING,waiting.getStatus());assertEquals(0,waiting.getPlacementCount());
@@ -461,15 +510,15 @@ public class NScaffoldFlowTest {
         }
     }
 
-    @Test public void aGroundedForwardApproachCanSneakOnItsFirstClutchDespiteItsOwnVisibleTurn()throws Exception {
+    @Test public void aGroundedForwardApproachCanSneakOnItsFirstClutchWithIndependentSilentAim()throws Exception {
         try(Run r=new Run()) {
             r.clutch(true);r.press(r.f.mc.gameSettings.keyBindForward,true);
-            r.world.cells.clear();r.world.block(new BlockPos(0,63,0));r.f.player.motionX=.1;
+            r.world.cells.clear();r.world.block(new BlockPos(0,63,0));r.world.block(new BlockPos(0,63,1));r.f.player.motionX=.1;
             assertEquals(5,r.module.getNumberSetting("Ground Ticks to Sneak").getValue().intValue());
             for(int tick=0;tick<4;tick++) {
                 MovementInputEvent ordinary=new MovementInputEvent(0,1,false,false);
                 r.preparedTick(ordinary);
-                assertEquals(NScaffold.Status.HOLD_BACK_TO_BRIDGE,r.module.getStatus());
+                assertEquals(NScaffold.Status.SEARCHING,r.module.getStatus());
                 assertFalse(ordinary.isSneak());assertEquals(0,r.world.clicks);
             }
             r.position(1.05,64,.5,true);
@@ -478,8 +527,9 @@ public class NScaffoldFlowTest {
                 RotationManager.MovementRotation movement=r.f.runtime.getRotationManager().getPreparedMovement();
                 assertNotNull("actual production preparation must exist",movement);
                 assertEquals("nscaffold",movement.source);assertEquals(NScaffold.Status.CLUTCHING,r.module.getStatus());
-                assertTrue("new clutch visibly turns away from the previously observed zero yaw",Math.abs(r.f.player.rotationYaw)>40);
-                assertEquals(movement.yaw,r.f.player.rotationYaw,0);assertEquals(movement.pitch,r.f.player.rotationPitch,0);
+                assertTrue("new clutch turns the placement aim",Math.abs(movement.yaw)>40);
+                assertEquals(0,r.f.player.rotationYaw,0);assertEquals(0,r.f.player.rotationPitch,0);
+                assertEquals(MoveFixController.Mode.SIMPLE,movement.mode);
             },()->{
                 assertTrue("the fifth observed grounded tick meets the threshold",edge.isSneak());
                 assertEquals(.3f,edge.getForward(),0);assertEquals(0,edge.getStrafe(),0);
@@ -563,7 +613,7 @@ public class NScaffoldFlowTest {
             r.f.player.onGround=false;r.f.player.motionY=-.1;
             for(int airborne=1;airborne<=2;airborne++) {
                 r.preparedTick(new MovementInputEvent(0,1,false,false));
-                assertEquals(NScaffold.Status.HOLD_BACK_TO_BRIDGE,r.module.getStatus());assertEquals(0,r.world.clicks);
+                assertEquals(NScaffold.Status.TELLY_WAIT,r.module.getStatus());assertEquals(0,r.world.clicks);
             }
             r.press(r.f.mc.gameSettings.keyBindForward,false);r.press(r.f.mc.gameSettings.keyBindBack,true);
             r.preparedTick(new MovementInputEvent(0,-1,false,false));
@@ -602,7 +652,7 @@ public class NScaffoldFlowTest {
         r.module.getBooleanSetting("Short Stop").setValue(false);
     }
 
-    @Test public void advancedAxisSpeedSettingsChangeTheActualPreparedVisibleCamera()throws Exception {
+    @Test public void advancedAxisSpeedSettingsChangePreparedSilentAimWhileTheCameraStaysIndependent()throws Exception {
         double[] yaw=new double[2],pitch=new double[2];
         for(int profile=0;profile<2;profile++)try(Run r=new Run()) {
             final int index=profile;double yawCap=profile==0?4:80,pitchCap=profile==0?2:40;
@@ -610,14 +660,14 @@ public class NScaffoldFlowTest {
             r.preparedTick(new MovementInputEvent(0,0,false,false),()->{
                 RotationManager.MovementRotation movement=r.f.runtime.getRotationManager().getPreparedMovement();
                 assertNotNull(movement);assertEquals("nscaffold",movement.source);
-                yaw[index]=Math.abs(r.f.player.rotationYaw);pitch[index]=Math.abs(r.f.player.rotationPitch);
-                assertEquals(movement.yaw,r.f.player.rotationYaw,0);assertEquals(movement.pitch,r.f.player.rotationPitch,0);
+                yaw[index]=Math.abs(movement.yaw);pitch[index]=Math.abs(movement.pitch);
+                assertEquals(0,r.f.player.rotationYaw,0);assertEquals(0,r.f.player.rotationPitch,0);
             },()->{},()->{});
             assertTrue(yaw[index]>0 && yaw[index]<=yawCap);assertTrue(pitch[index]>0 && pitch[index]<=pitchCap);
             assertEquals("partial turn cannot place",0,r.world.clicks);
         }
-        assertTrue("yaw control has visible runtime impact",yaw[1]>yaw[0]*10);
-        assertTrue("pitch control has independent visible runtime impact",pitch[1]>pitch[0]*10);
+        assertTrue("yaw control affects accepted aim",yaw[1]>yaw[0]*10);
+        assertTrue("pitch control independently affects accepted aim",pitch[1]>pitch[0]*10);
     }
 
     @Test public void fastClutchBypassesOptionalEasingButKeepsBothConfiguredAxisCaps()throws Exception {
@@ -627,7 +677,9 @@ public class NScaffoldFlowTest {
             r.module.getBooleanSetting("Fast Clutch Always").setValue(fast==1);
             r.f.player.onGround=false;r.f.player.motionY=-.1;
             r.preparedTick(new MovementInputEvent(0,0,false,false));
-            double yaw=Math.abs(r.f.player.rotationYaw),pitch=Math.abs(r.f.player.rotationPitch);
+            double yaw=Math.abs(r.f.runtime.getRotationManager().getEffectiveYaw()),
+                    pitch=Math.abs(r.f.runtime.getRotationManager().getEffectivePitch());
+            assertEquals(0,r.f.player.rotationYaw,0);assertEquals(0,r.f.player.rotationPitch,0);
             assertTrue(yaw>0 && yaw<=12);assertTrue(pitch>0 && pitch<=8);
             travel[fast]=Math.hypot(yaw,pitch);assertEquals(0,r.world.clicks);
         }

@@ -5,6 +5,8 @@ import me.youngjibbit.core.activity.ActivityInventoryContext;
 import me.youngjibbit.core.activity.ScaffoldActivitySnapshot;
 import me.youngjibbit.core.bootstrap.RuntimeServices;
 import me.youngjibbit.core.combat.RotationManager;
+import me.youngjibbit.core.combat.MoveFixController;
+import me.youngjibbit.core.combat.BodyRotationController;
 import me.youngjibbit.core.contract.AutomationEligibility.ModuleAction;
 import me.youngjibbit.core.contract.ExecutedStep;
 import me.youngjibbit.core.contract.SceneContext;
@@ -48,8 +50,8 @@ import net.minecraft.network.play.server.S30PacketWindowItems;
 import net.minecraft.util.MathHelper;
 import net.minecraft.util.Vec3;
 
-/** Visible camera and ordinary controller building, with an optional normal sneak input. */
-@ModuleInfo(name="NScaffold",description="Visible bridge modes, bounded clutch recovery and independent rotation controls.",category=Category.World)
+/** Shared silent rotation and movement correction with ordinary controller building. */
+@ModuleInfo(name="NScaffold",description="Silent bridge modes, clutch recovery and independent rotation controls.",category=Category.World)
 public final class NScaffold extends Module {
     public static final String ROTATION_SOURCE="nscaffold";
     private static final int ROTATION_PRIORITY=15;
@@ -84,8 +86,6 @@ public final class NScaffold extends Module {
     private RuntimeObservation controllerObservation;
     private boolean processing, heightKnown;
     private int height;
-    private SceneContext observedViewScene;
-    private float observedYaw,observedPitch;
     private final java.util.function.LongSupplier activityClock=System::nanoTime;
     private long activitySequence,activityRevision,activityPlacements;
     private ActivityView activityView;
@@ -115,10 +115,10 @@ public final class NScaffold extends Module {
         final SceneContext scene;
         final ExecutedStep step;
         final long generation,epoch,sequence,tick;
-        final float forward,strafe,yaw,pitch;
+        final float forward,strafe,cameraYaw,cameraPitch,yaw,pitch;
+        final boolean ownAim;
         PlacementTarget target;
         boolean placing;
-        boolean acceptedView;
         boolean clutching;
         int groundTicks;
         NScaffoldClutchPlanner.Options clutchOptions;
@@ -131,7 +131,12 @@ public final class NScaffold extends Module {
             this.scene=scene;this.generation=generation;this.forward=forward;this.strafe=strafe;
             this.epoch=packets.getContextVersion();this.sequence=rotations.getMotionSequence();
             this.tick=observation.getActiveOuterTickId();this.step=observation.getCurrentStep();
-            this.yaw=player.rotationYaw;this.pitch=player.rotationPitch;
+            this.cameraYaw=player.rotationYaw;this.cameraPitch=player.rotationPitch;
+            // Smoothing and retained rays continue from our accepted placement
+            // pose. The real camera remains the independent movement basis.
+            this.ownAim=ROTATION_SOURCE.equals(rotations.getConfirmedOwner(player,world,packets));
+            this.yaw=ownAim?rotations.getEffectiveYaw():cameraYaw;
+            this.pitch=ownAim?rotations.getEffectivePitch():cameraPitch;
         }
     }
 
@@ -256,7 +261,7 @@ public final class NScaffold extends Module {
 
     private void invalidate(Status next) {
         Frame previous=context;
-        generation++;prepared=null;context=null;heightKnown=false;observedViewScene=null;
+        generation++;prepared=null;context=null;heightKnown=false;
         clearActivity();
         if(planner!=null)planner.reset();
         if(clutchPlanner!=null)clutchPlanner.reset();
@@ -272,8 +277,7 @@ public final class NScaffold extends Module {
                 && previous.player.sendQueue!=null && previous.player.sendQueue.getNetworkManager()!=null
                 && previous.player.sendQueue.getNetworkManager().getClientPackets()==previous.packets)
             previous.rotations.reset(ROTATION_SOURCE);
-        status=next;info=next==Status.HOLD_BACK_TO_BRIDGE?"Hold back to bridge":next==Status.MANUAL_VIEW?
-                "Manual view":mode==null?"Visible":profile()+" / Visible";
+        status=next;info=next==Status.MANUAL_VIEW?"Manual view":mode==null?"Silent":profile()+" / Silent";
     }
     private void stop(Frame frame,Status next) {
         if(frame!=null && frame.generation==generation) {
@@ -281,18 +285,12 @@ public final class NScaffold extends Module {
             invalidate(next);publishActivity(frame,nextGeneration);
         }
     }
-    private void rememberView(Frame frame) {
-        if(!identities(frame))return;
-        observedViewScene=frame.scene;observedYaw=frame.player.rotationYaw;observedPitch=frame.player.rotationPitch;
-    }
     private void pauseForManualView(Frame frame) {
-        if(!identities(frame))return;
-        SceneContext scene=frame.scene;float yaw=frame.player.rotationYaw,pitch=frame.player.rotationPitch;
-        long nextGeneration=generation+1;
-        invalidate(Status.MANUAL_VIEW);
-        if(generation!=nextGeneration || !frameObjectsCurrent(frame))return;
-        observedViewScene=scene;observedYaw=yaw;observedPitch=pitch;
-        publishActivity(frame,nextGeneration);
+        stop(frame,Status.MANUAL_VIEW);
+    }
+    private static boolean cameraCurrent(Frame frame) {
+        return frame!=null && !differentView(frame.player.rotationYaw,frame.player.rotationPitch,
+                frame.cameraYaw,frame.cameraPitch);
     }
     private static boolean differentView(float yaw,float pitch,float referenceYaw,float referencePitch) {
         return !Float.isFinite(yaw)||!Float.isFinite(pitch)
@@ -337,10 +335,6 @@ public final class NScaffold extends Module {
             invalidate(Status.WAITING);
             return;
         }
-        if(observedViewScene!=null && observedViewScene.sameSceneAs(frame.scene)
-                && differentView(frame.yaw,frame.pitch,observedYaw,observedPitch)) {
-            pauseForManualView(frame);return;
-        }
         context=frame;prepared=null;
         Status conflict=conflict(frame);
         if(!stepCurrent(frame)){stop(frame,Status.WAITING);return;}
@@ -372,16 +366,10 @@ public final class NScaffold extends Module {
         if(conflict!=null){stop(frame,conflict);return;}
         NScaffoldPlanner.Decision decision=null;
         if(recovery==null) {
-            if(!backwardInput(frame.forward,frame.strafe)) {
-                // A route pause must not erase real grounded/flight observations;
-                // Clutch can become necessary while approaching an edge forwards.
-                frame.rotations.reset(ROTATION_SOURCE);planner.reset();rotationController.reset();
-                status=Status.HOLD_BACK_TO_BRIDGE;info="Hold back to bridge";rememberView(frame);
-                publishActivity(frame,frame.generation);return;
-            }
             if(!phase.canBuild) {
-                frame.rotations.reset(ROTATION_SOURCE);status=Status.TELLY_WAIT;
-                info="Telly / "+phase.airborneTicks+" of "+phase.requiredTicks;rememberView(frame);
+                if(!requestAcceptedHold(frame)){stop(frame,Status.WAITING);return;}
+                status=Status.TELLY_WAIT;
+                info="Telly / "+phase.airborneTicks+" of "+phase.requiredTicks;
                 publishActivity(frame,frame.generation);return;
             }
             decision=planner.plan(sample(frame,frame.yaw,frame.pitch),()->stepCurrent(frame)&&conflict(frame)==null);
@@ -390,12 +378,14 @@ public final class NScaffold extends Module {
         conflict=conflict(frame);
         if(conflict!=null){stop(frame,conflict);return;}
         if(decision==null && recovery==null) {
-            frame.rotations.reset(ROTATION_SOURCE);status=Status.SEARCHING;rememberView(frame);
+            if(!requestAcceptedHold(frame)){stop(frame,Status.WAITING);return;}
+            status=Status.SEARCHING;
             publishActivity(frame,frame.generation);return;
         }
         PlacementTarget target=recovery==null?decision.target:recovery.target;
         if(!autoSlot.getValue() && target.getSlot()!=frame.player.inventory.currentItem) {
-            frame.rotations.reset(ROTATION_SOURCE);status=Status.WAITING;publishActivity(frame,frame.generation);return;
+            if(!requestAcceptedHold(frame)){stop(frame,Status.WAITING);return;}
+            status=Status.WAITING;publishActivity(frame,frame.generation);return;
         }
         frame.target=target;frame.clutching=recovery!=null;prepared=frame;
         float targetYaw=recovery==null?decision.yaw:recovery.yaw,targetPitch=recovery==null?decision.pitch:recovery.pitch;
@@ -407,35 +397,42 @@ public final class NScaffold extends Module {
             pose=turn==null?null:new float[]{turn.yaw,turn.pitch};
         } else pose=NScaffoldPlanner.turn(frame.yaw,frame.pitch,targetYaw,targetPitch,turnSpeed.getValue().floatValue());
         if(pose==null || !actionCurrent(frame)){stop(frame,Status.WAITING);return;}
-        frame.rotations.requestVisible(ROTATION_SOURCE,ROTATION_PRIORITY,pose[0],pose[1],frame.yaw,frame.pitch,
-                ()->actionCurrent(frame));
+        frame.rotations.request(ROTATION_SOURCE,ROTATION_PRIORITY,pose[0],pose[1],()->actionCurrent(frame));
         if(stepCurrent(frame)) {
             status=frame.clutching?Status.CLUTCHING:Status.ALIGNING;
-            info=profile()+(frame.clutching?" / Clutch":" / Visible");publishActivity(frame,frame.generation);
+            info=profile()+(frame.clutching?" / Clutch":" / Silent");publishActivity(frame,frame.generation);
         }
+    }
+
+    /** Keep only an already accepted pose between targets; this frame has no placement intent. */
+    private boolean requestAcceptedHold(Frame frame) {
+        if(!holdCurrent(frame))return false;
+        if(frame.ownAim)
+            frame.rotations.request(ROTATION_SOURCE,ROTATION_PRIORITY,frame.yaw,frame.pitch,
+                    ()->holdCurrent(frame));
+        else frame.rotations.reset(ROTATION_SOURCE);
+        return holdCurrent(frame);
+    }
+    private boolean holdCurrent(Frame frame) {
+        return stepCurrent(frame) && conflict(frame)==null && stepCurrent(frame);
     }
 
     private void place(EventMotion event) {
         final Frame frame=prepared;
         if(frame==null)return;
+        if(!cameraCurrent(frame)){pauseForManualView(frame);return;}
         if(!event.isAccepted() || !actionCurrent(frame)
                 || !frame.rotations.canUseRotation(ROTATION_SOURCE,false)) {
             stop(frame,Status.WAITING);return;
         }
-        frame.acceptedView=true;
-        if(!actionCurrent(frame)){
-            if(identities(frame) && differentView(frame.player.rotationYaw,frame.player.rotationPitch,
-                    frame.rotations.getEffectiveYaw(),frame.rotations.getEffectivePitch()))pauseForManualView(frame);
-            else stop(frame,Status.WAITING);
-            return;
-        }
-        rememberView(frame);
-        boolean onRoute=frame.clutching?clutchPlanner.onRoute(frame.target,clutchSample(frame,frame.groundTicks),frame.clutchOptions,
-                ()->actionCurrent(frame)):planner.onRoute(frame.target,sample(frame,frame.player.rotationYaw,frame.player.rotationPitch),
+        float acceptedYaw=frame.rotations.getEffectiveYaw(),acceptedPitch=frame.rotations.getEffectivePitch();
+        boolean onRoute=frame.clutching?clutchPlanner.onRoute(frame.target,
+                clutchSample(frame,frame.groundTicks,acceptedYaw,acceptedPitch),frame.clutchOptions,
+                ()->actionCurrent(frame)):planner.onRoute(frame.target,sample(frame,acceptedYaw,acceptedPitch),
                 ()->actionCurrent(frame));
         if(!onRoute || !actionCurrent(frame)) {
             if(stepCurrent(frame)){
-                prepared=null;frame.rotations.reset(ROTATION_SOURCE);status=Status.WAITING;
+                prepared=null;frame.target=null;status=Status.WAITING;
                 publishActivity(frame,frame.generation);
             }
             else stop(frame,Status.WAITING);
@@ -449,8 +446,7 @@ public final class NScaffold extends Module {
                 delay.getValue().longValue(),false,swing.getValue(),false,ROTATION_SOURCE,
                 ()->actionCurrent(frame),()->sceneCurrent(frame));
         if(frame.generation!=generation || prepared!=frame)return;
-        if(differentView(frame.player.rotationYaw,frame.player.rotationPitch,
-                frame.rotations.getEffectiveYaw(),frame.rotations.getEffectivePitch())){pauseForManualView(frame);return;}
+        if(!cameraCurrent(frame)){pauseForManualView(frame);return;}
         prepared=null;
         if(!sceneCurrent(frame)){stop(frame,Status.WAITING);return;}
         if(placed){planner.placed();if(frame.clutching)clutchPlanner.placed();status=Status.BUILDING;activityPlacements++;}
@@ -480,7 +476,8 @@ public final class NScaffold extends Module {
     private NScaffoldPlanner.Sample sample(Frame frame,float yaw,float pitch) {
         return new NScaffoldPlanner.Sample(new Vec3(frame.player.posX,frame.player.posY,frame.player.posZ),
                 frame.player.getPositionEyes(1),yaw,pitch,frame.forward,frame.strafe,height,
-                lookAhead.getValue(),rotationStyle(),staticAngles.getValue(),godbridgePitch.getValue().floatValue());
+                lookAhead.getValue(),rotationStyle(),staticAngles.getValue(),godbridgePitch.getValue().floatValue(),
+                frame.cameraYaw);
     }
     private NScaffoldModeController.Mode buildingMode() {
         return "Telly".equals(bridgeMode.getValue())?NScaffoldModeController.Mode.TELLY:
@@ -505,9 +502,12 @@ public final class NScaffold extends Module {
                 autoClutchSneak.getValue(),groundTicksToSneak.getValue().intValue());
     }
     private NScaffoldClutchPlanner.Sample clutchSample(Frame frame,int groundedTicks) {
+        return clutchSample(frame,groundedTicks,frame.yaw,frame.pitch);
+    }
+    private NScaffoldClutchPlanner.Sample clutchSample(Frame frame,int groundedTicks,float yaw,float pitch) {
         EntityPlayerSP p=frame.player;
         return new NScaffoldClutchPlanner.Sample(new Vec3(p.posX,p.posY,p.posZ),p.getPositionEyes(1),
-                new Vec3(p.motionX,p.motionY,p.motionZ),p.rotationYaw,p.rotationPitch,
+                new Vec3(p.motionX,p.motionY,p.motionZ),yaw,pitch,
                 frame.forward!=0 || frame.strafe!=0,p.onGround,groundedTicks,frame.observation.getActiveOuterTickId());
     }
     private NScaffoldRotationController.Settings rotationSettings() {
@@ -523,16 +523,14 @@ public final class NScaffold extends Module {
         if(event.isCancelled() || event.isSneak() || event.isJump() || frame==null || clutchPlanner==null || bridgeState==null
                 || !clutch.getValue() || !autoClutchSneak.getValue() || !sceneCurrent(frame) || conflict(frame)!=null
                 || !frame.player.onGround || !AutomatedActionAdmission.mayAttempt(ModuleAction.PLACEMENT))return;
-        // Production resolves the visible camera before MovementInputEvent. That
-        // owned prepared pose is expected here; a further/manual change still wins.
+        // The prepared aim is intentionally different from the camera. A manual
+        // camera change within this frame still revokes its sampled movement intent.
         RotationManager.MovementRotation movement=frame.rotations.getPreparedMovement();
+        if(!cameraCurrent(frame))return;
         if(prepared==frame) {
-            if(!stepCurrent(frame) || movement==null || !ROTATION_SOURCE.equals(movement.source)
-                    || differentView(frame.player.rotationYaw,frame.player.rotationPitch,movement.yaw,movement.pitch))return;
+            if(!stepCurrent(frame) || movement==null || !ROTATION_SOURCE.equals(movement.source))return;
         } else {
             if(movement!=null && movement.source!=null && !ROTATION_SOURCE.equals(movement.source))return;
-            if(observedViewScene!=null && observedViewScene.sameSceneAs(frame.scene)
-                    && differentView(frame.player.rotationYaw,frame.player.rotationPitch,observedYaw,observedPitch))return;
         }
         GameSettings keys=frame.client.gameSettings;
         float forward=(keys.keyBindForward.isKeyDown()?1:0)-(keys.keyBindBack.isKeyDown()?1:0);
@@ -572,17 +570,14 @@ public final class NScaffold extends Module {
                 && basic(frame.client);
     }
     private boolean stepCurrent(Frame frame) {
-        if(!sceneCurrent(frame) || frame.rotations.getMotionSequence()!=frame.sequence
+        if(!sceneCurrent(frame) || !cameraCurrent(frame) || frame.rotations.getMotionSequence()!=frame.sequence
                 || frame.observation.getCurrentStep()!=frame.step || frame.observation.getActiveOuterTickId()!=frame.tick)return false;
         boolean admitted=AutomatedActionAdmission.mayAttempt(ModuleAction.PLACEMENT);
-        return admitted && identities(frame) && frame.rotations.getMotionSequence()==frame.sequence
+        return admitted && identities(frame) && cameraCurrent(frame) && frame.rotations.getMotionSequence()==frame.sequence
                 && frame.observation.getCurrentStep()==frame.step && frame.observation.getActiveOuterTickId()==frame.tick;
     }
     private boolean actionCurrent(Frame frame) {
         if(prepared!=frame || frame.target==null || !stepCurrent(frame) || conflict(frame)!=null)return false;
-        if(!frame.clutching && !backwardInput(frame.forward,frame.strafe))return false;
-        if(frame.acceptedView && differentView(frame.player.rotationYaw,frame.player.rotationPitch,
-                frame.rotations.getEffectiveYaw(),frame.rotations.getEffectivePitch()))return false;
         if(!autoSlot.getValue() && frame.player.inventory.currentItem!=frame.target.getSlot())return false;
         if(frame.placing && (Double.compare(frame.player.posX,frame.placementX)!=0
                 || Double.compare(frame.player.posY,frame.placementY)!=0 || Double.compare(frame.player.posZ,frame.placementZ)!=0))return false;
@@ -599,9 +594,14 @@ public final class NScaffold extends Module {
         if(frame.player.isUsingItem())return Status.PAUSED_INPUT;
         return null;
     }
-    private static boolean backwardInput(float forward,float strafe) {
-        return forward<=0 && (forward!=0 || strafe==0);
+    /** Same source and scene gates serve prepared physics and confirmed-owner consumers. */
+    public boolean correctionEnabled() {
+        Frame frame=context;
+        return frame!=null && sceneCurrent(frame) && cameraCurrent(frame) && conflict(frame)==null
+                && identities(frame);
     }
+    public MoveFixController.Mode moveFixMode(){return MoveFixController.Mode.SIMPLE;}
+    public BodyRotationController.Mode bodyRotationMode(){return BodyRotationController.Mode.VANILLA;}
     private static boolean sameAxes(float forward,float strafe,float actualForward,float actualStrafe) {
         if(!Float.isFinite(actualForward)||!Float.isFinite(actualStrafe))return false;
         double expected=Math.hypot(forward,strafe),actual=Math.hypot(actualForward,actualStrafe);

@@ -5,7 +5,7 @@
   <a href="https://github.com/YoungJibbit95/Neutron-Client/graphs/traffic"><img src="https://raw.githubusercontent.com/YoungJibbit95/Neutron-Client/readme-metrics/assets/readme/metrics/clones-14d.svg" alt="Repository clones · last 14 days" width="280" /></a>
 
   <p>
-    <a href="https://github.com/YoungJibbit95/Neutron-Client/releases"><img src="https://img.shields.io/github/v/release/YoungJibbit95/Neutron-Client?filter=v*&amp;include_prereleases&amp;sort=date&amp;label=client%20release&amp;style=flat&amp;labelColor=171321&amp;color=ec4899" alt="Latest client release, including prereleases" /></a>
+    <a href="https://github.com/YoungJibbit95/Neutron-Client/releases"><img src="https://img.shields.io/github/v/release/YoungJibbit95/Neutron-Client?filter=v*&amp;sort=date&amp;label=client%20release&amp;style=flat&amp;labelColor=171321&amp;color=ec4899" alt="Latest regular client release" /></a>
     <a href="https://github.com/YoungJibbit95/Neutron-Client/releases"><img src="https://img.shields.io/github/downloads/YoungJibbit95/Neutron-Client/total?label=asset%20downloads&amp;style=flat&amp;labelColor=171321&amp;color=f97316" alt="Total downloads of all repository release assets" /></a>
     <a href="https://github.com/YoungJibbit95/Neutron-Client/stargazers"><img src="https://img.shields.io/github/stars/YoungJibbit95/Neutron-Client?style=flat&amp;labelColor=171321&amp;color=ec4899" alt="GitHub stars" /></a>
   </p>
@@ -24,7 +24,7 @@
 
 <a name="neutron-client"></a>
 
-# ⚛️ [ALPHA] Neutron Client
+# ⚛️ Neutron Client
 
 A Minecraft **1.8.9** hacked client with a focus on modern and customizable visuals, a good user experience and good performing simple bypasses for most servers.
 
@@ -52,7 +52,7 @@ A Minecraft **1.8.9** hacked client with a focus on modern and customizable visu
 
 ## 📦 Installation
 
-**Development preview:** use a tested bundle from [Releases](https://github.com/YoungJibbit95/Neutron-Client/releases). If none is listed, there is no published build yet.
+Download a regular client bundle from [Releases](https://github.com/YoungJibbit95/Neutron-Client/releases). Preview builds are separately marked as prereleases.
 
 1. Download and extract `Neutron-<version>-bundle.zip`.
 2. Copy the **whole `Neutron-<version>` folder**, containing the matching JAR and JSON, into your Minecraft `versions` folder:

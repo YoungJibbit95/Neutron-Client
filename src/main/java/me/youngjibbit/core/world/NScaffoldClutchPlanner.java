@@ -11,7 +11,7 @@ import java.util.function.BooleanSupplier;
 
 /**
  * Bounded, current-world clutch geometry. A decision grants no rotation, input,
- * item or placement authority: the ordinary visible controller validates it
+ * item or placement authority: the ordinary placement controller validates it
  * again after physics. Demise's clutch criteria, face preferences and short
  * retention periods inform these controls; no global input/packet subsystem is
  * copied. See docs/NSCAFFOLD-DEMISE-PARITY.md for the source and differences.
