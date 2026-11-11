@@ -2,6 +2,8 @@ package me.youngjibbit.module.impl.player;
 
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.bootstrap.RuntimeServices;
+import me.youngjibbit.core.combat.BodyRotationController;
+import me.youngjibbit.core.combat.MoveFixController;
 import me.youngjibbit.core.combat.RotationManager;
 import me.youngjibbit.core.network.PacketPipeline;
 import me.youngjibbit.core.world.BedBreakerPlanner;
@@ -28,6 +30,7 @@ import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.client.network.NetHandlerPlayClient;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.ItemSword;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.BlockPos;
 import net.minecraft.util.MovingObjectPosition;
@@ -35,9 +38,9 @@ import net.minecraft.util.Vec3;
 
 import java.lang.ref.WeakReference;
 
-/** Visible, ordinary bed mining. Source adaptation and intentional boundaries: docs/BEDBREAKER.md. */
+/** Silent, reach-checked native mining along a bounded fastest-time bed access route. */
 @ModuleInfo(name = "BedBreaker", category = Category.Player,
-        description = "Visibly aims at a nearby exposed bed and mines it through normal reach and input checks.")
+        description = "Silently mines the fastest reachable route through bed defenses, with movement correction.")
 public final class BedBreaker extends Module {
     public static final String ROTATION_SOURCE = "bedbreaker";
     private final SliderValue turnSpeed = new SliderValue("Turn Speed", this, 30D, 1, 180);
@@ -59,6 +62,14 @@ public final class BedBreaker extends Module {
     @Override public void onDisable() { try { invalidate(Status.OFF, Cleanup.ABORT); } finally { super.onDisable(); } }
     @Override public void onValueChange() { invalidate(isToggled() ? Status.WAITING : Status.OFF, Cleanup.ABORT); }
     public Status getStatus() { return status; }
+
+    /** Shared prediction, movement and model adapters keep camera angles untouched. */
+    public boolean correctionEnabled() {
+        Scene frame = scene;
+        return target != null && current(frame) && inputFree(frame);
+    }
+    public MoveFixController.Mode moveFixMode() { return MoveFixController.Mode.SIMPLE; }
+    public BodyRotationController.Mode bodyRotationMode() { return BodyRotationController.Mode.DIRECT; }
 
     private enum Cleanup { ABORT, DISCARD, MANUAL }
     private void state(Status next) { status = next; info = next == Status.OFF ? "" : next.name().replace('_', ' '); }
@@ -104,20 +115,21 @@ public final class BedBreaker extends Module {
         if (toolChanged(frame)) return;
         BedBreakerPlanner.Target chosen = select(frame);
         if (!current(frame) || !admitted(frame)) return;
-        if (chosen == null) { stopMining(frame); if (current(frame)) state(Status.SEARCHING); return; }
+        if (chosen == null) { stopMining(frame); if (current(frame)) { frame.rotations.reset(ROTATION_SOURCE); state(Status.SEARCHING); } return; }
         if (!aimBudget.claim(frame.player, frame.world, 1)) return;
         Vec3 eyes = frame.player.getPositionEyes(1);
         if (!current(frame)) return;
-        float yaw = frame.player.rotationYaw, pitch = frame.player.rotationPitch;
+        boolean effective = frame.rotations.hasEffectiveRotation() && Float.isFinite(frame.rotations.getEffectiveYaw())
+                && Float.isFinite(frame.rotations.getEffectivePitch()) && Math.abs(frame.rotations.getEffectivePitch()) <= 90;
+        float yaw = effective ? frame.rotations.getEffectiveYaw() : frame.player.rotationYaw;
+        float pitch = effective ? frame.rotations.getEffectivePitch() : frame.player.rotationPitch;
         float[] desired = BedBreakerPlanner.rotations(eyes, chosen.aim);
         float[] next = desired == null ? null : BedBreakerPlanner.turn(yaw, pitch, desired[0], desired[1], turnSpeed.getValue().floatValue());
         if (next == null || !admitted(frame)) return;
-        final double x = frame.player.posX, y = frame.player.posY, z = frame.player.posZ;
         final long sequence = frame.rotations.getMotionSequence();
-        frame.rotations.requestVisible(ROTATION_SOURCE, 5, next[0], next[1], yaw, pitch,
+        frame.rotations.request(ROTATION_SOURCE, 5, next[0], next[1],
                 () -> current(frame) && target == chosen && frame.rotations.getMotionSequence() == sequence
-                        && sameView(frame.player, x, y, z, yaw, pitch) && admitted(frame)
-                        && current(frame) && sameView(frame.player, x, y, z, yaw, pitch));
+                        && admitted(frame) && current(frame));
         if (current(frame)) state(Status.ALIGNING);
     }
 
@@ -166,28 +178,33 @@ public final class BedBreaker extends Module {
         if (toolChanged(frame)) return true;
         BedBreakerPlanner.Target chosen = select(frame);
         if (!current(frame) || !admitted(frame)) return false;
-        if (chosen == null) { boolean had = owned != null; stopMining(frame); if (current(frame)) state(Status.SEARCHING); return had; }
+        if (chosen == null) { boolean had = owned != null; stopMining(frame); if (current(frame)) { frame.rotations.reset(ROTATION_SOURCE); state(Status.SEARCHING); } return had; }
         if (owned != null && !owned.target.pos.equals(chosen.pos)) { stopMining(frame); return true; }
-        // Preserve native entity/miss priority; a block-only ray cannot override it.
-        MovingObjectPosition picked = client.objectMouseOver;
-        if (!nativeBedPick(picked, chosen)) { boolean had = owned != null; stopMining(frame); return had; }
+        // This input stage precedes this tick's movement packet. Only the preceding
+        // accepted server pose grants mining authority; camera picking stays independent.
+        if (!rotationReady(frame)) {
+            boolean had = owned != null; stopMining(frame); if (current(frame)) state(Status.ALIGNING); return had;
+        }
+        final long sequence = frame.rotations.getMotionSequence();
+        final float yaw = frame.rotations.getEffectiveYaw(), pitch = frame.rotations.getEffectivePitch();
         Vec3 eyes = frame.player.getPositionEyes(1);
         float reach = frame.controller.getBlockReachDistance();
         if (!current(frame) || !BedBreakerPlanner.finite(eyes) || !Float.isFinite(reach) || reach <= 0 || reach > 5) return false;
-        Vec3 direction = frame.player.getLook(1);
+        Vec3 direction = EntityPlayerSP.getVectorForRotation(pitch, yaw);
         if (!current(frame) || !BedBreakerPlanner.finite(direction)) return false;
         MovingObjectPosition hit = frame.world.rayTraceBlocks(eyes,
                 eyes.addVector(direction.xCoord * reach, direction.yCoord * reach, direction.zCoord * reach), false, false, false);
-        if (!current(frame) || !BedBreakerPlanner.matches(hit, chosen.pos, eyes, reach) || !admitted(frame)) {
+        if (!current(frame) || !BedBreakerPlanner.matches(hit, chosen.pos, eyes, reach) || !admitted(frame)
+                || !sameRotation(frame, sequence, yaw, pitch)) {
             boolean had = owned != null; stopMining(frame); if (current(frame)) state(Status.ALIGNING); return had;
         }
         if (!mineBudget.claim(frame.player, frame.world, 1)) return owned != null;
         long revision = frame.controller.getMiningRevision();
         if (owned != null && owned.revision != revision) { invalidate(Status.PAUSED_INPUT, Cleanup.MANUAL); return false; }
-        Mine attempt = new Mine(frame, chosen, picked, revision + 1);
+        Mine attempt = new Mine(frame, chosen, revision + 1, sequence, yaw, pitch, direction);
         owned = attempt;
         boolean accepted = frame.controller.onPlayerDamageBlock(chosen.pos, hit.sideHit, chosen.state,
-                () -> actionCurrent(attempt), () -> current(frame));
+                () -> actionCurrent(attempt), () -> current(frame), () -> attempt.look);
         if (!current(frame) || owned != attempt) return true;
         if (frame.controller.getMiningRevision() != attempt.revision) { owned = null; return true; }
         if (accepted && actionCurrent(attempt)) {
@@ -202,14 +219,25 @@ public final class BedBreaker extends Module {
     private boolean actionCurrent(Mine attempt) {
         Scene frame = attempt.scene;
         return owned == attempt && current(frame) && target == attempt.target
-                && frame.client.objectMouseOver == attempt.picked && nativeBedPick(attempt.picked, attempt.target)
+                && sameRotation(frame, attempt.sequence, attempt.yaw, attempt.pitch)
                 && frame.controller.getMiningRevision() == attempt.revision
-                && sameView(frame.player, attempt.x, attempt.y, attempt.z, attempt.yaw, attempt.pitch)
+                && samePosition(frame.player, attempt.x, attempt.y, attempt.z)
                 && frame.player.inventory.currentItem == attempt.slot && admitted(frame) && LagRange.allowBlockAttack()
+                && (attempt.target.pos.equals(attempt.target.bedPos)
+                    || frame.planner.hasBed(attempt.target, () -> current(frame)))
                 && owned == attempt && current(frame)
                 && frame.controller.getMiningRevision() == attempt.revision && frame.player.inventory.currentItem == attempt.slot
-                && frame.client.objectMouseOver == attempt.picked && nativeBedPick(attempt.picked, attempt.target)
-                && sameView(frame.player, attempt.x, attempt.y, attempt.z, attempt.yaw, attempt.pitch);
+                && sameRotation(frame, attempt.sequence, attempt.yaw, attempt.pitch)
+                && samePosition(frame.player, attempt.x, attempt.y, attempt.z);
+    }
+    private boolean rotationReady(Scene frame) {
+        return current(frame) && frame.rotations.canUseRotation(ROTATION_SOURCE, false)
+                && ROTATION_SOURCE.equals(frame.rotations.getConfirmedOwner(frame.player, frame.world, frame.packets));
+    }
+    private boolean sameRotation(Scene frame, long sequence, float yaw, float pitch) {
+        return rotationReady(frame) && frame.rotations.getMotionSequence() == sequence
+                && Float.compare(frame.rotations.getEffectiveYaw(), yaw) == 0
+                && Float.compare(frame.rotations.getEffectivePitch(), pitch) == 0;
     }
     private void pause(Scene frame) { if (current(frame)) invalidate(Status.PAUSED_INPUT, Cleanup.ABORT); }
     private void stopMining(Scene frame) {
@@ -263,7 +291,7 @@ public final class BedBreaker extends Module {
         return keys != null && frame.client.currentScreen == null && frame.client.inGameHasFocus
                 && !manualAttack.blocked(frame.player, frame.world)
                 && !frame.client.isGamePaused() && frame.client.getRenderViewEntity() == frame.player
-                && !frame.player.isDead && frame.player.inventory != null
+                && !frame.player.isDead && !frame.player.isRiding() && frame.player.inventory != null
                 && keys.keyBindAttack != null && !keys.keyBindAttack.isKeyDown()
                 && keys.keyBindUseItem != null && !keys.keyBindUseItem.isKeyDown() && !frame.player.isUsingItem();
     }
@@ -275,14 +303,8 @@ public final class BedBreaker extends Module {
         if (aura != null && aura.isToggled() && aura.getActiveTarget() != null) return false;
         return current(frame) && inputFree(frame) && !RuntimeServices.attackScheduler().hasAttackThisTick() && current(frame);
     }
-    private static boolean sameView(EntityPlayerSP player, double x, double y, double z, float yaw, float pitch) {
-        return Double.compare(player.posX, x) == 0 && Double.compare(player.posY, y) == 0 && Double.compare(player.posZ, z) == 0
-                && Float.compare(player.rotationYaw, yaw) == 0 && Float.compare(player.rotationPitch, pitch) == 0;
-    }
-
-    private static boolean nativeBedPick(MovingObjectPosition pick, BedBreakerPlanner.Target chosen) {
-        return pick != null && pick.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK
-                && chosen.pos.equals(pick.getBlockPos());
+    private static boolean samePosition(EntityPlayerSP player, double x, double y, double z) {
+        return Double.compare(player.posX, x) == 0 && Double.compare(player.posY, y) == 0 && Double.compare(player.posZ, z) == 0;
     }
 
     private static final class Scene {
@@ -300,6 +322,25 @@ public final class BedBreaker extends Module {
                 public IBlockState state(BlockPos pos) { return world.getBlockState(pos); }
                 public AxisAlignedBB bounds(BlockPos pos, IBlockState state) { return state.getBlock().getCollisionBoundingBox(world, pos, state); }
                 public MovingObjectPosition ray(Vec3 from, Vec3 to) { return world.rayTraceBlocks(from, to, false, false, false); }
+                public double miningTicks(BlockPos pos, IBlockState state) {
+                    if (!world.getWorldBorder().contains(pos) || player.isSpectator()) return Double.POSITIVE_INFINITY;
+                    ItemStack held = player.getHeldItem();
+                    if (controller.isInCreativeMode())
+                        return held != null && held.getItem() instanceof ItemSword ? Double.POSITIVE_INFINITY : 1;
+                    if (state.getBlock().getBlockHardness(world, pos) < 0) return Double.POSITIVE_INFINITY;
+                    if (controller.getCurrentGameType().isAdventure() && !player.isAllowEdit()
+                            && (held == null || !held.canDestroy(state.getBlock()))) return Double.POSITIVE_INFINITY;
+                    float hardness = state.getBlock().getPlayerRelativeBlockHardness(player, world, pos);
+                    // Zero-hardness blocks produce positive infinity and break instantly in vanilla.
+                    if (hardness >= 1) return 1;
+                    if (!Float.isFinite(hardness) || hardness <= 0) return Double.POSITIVE_INFINITY;
+                    float progress = controller.getBlockDamageProgress(pos);
+                    return (controller.isMiningBlock(pos) ? 0 : 1) + Math.max(1, Math.ceil((1D - progress) / hardness));
+                }
+                public double postBreakDelayTicks(BlockPos pos, IBlockState state) {
+                    return !controller.isInCreativeMode()
+                            && state.getBlock().getPlayerRelativeBlockHardness(player, world, pos) >= 1 ? 0 : 5;
+                }
             });
         }
         boolean objects() {
@@ -311,14 +352,15 @@ public final class BedBreaker extends Module {
         }
     }
     private static final class Mine {
-        final Scene scene; final BedBreakerPlanner.Target target; final long revision;
-        final MovingObjectPosition picked;
+        final Scene scene; final BedBreakerPlanner.Target target; final long revision, sequence;
+        final Vec3 look;
         final ItemStack held, heldSnapshot;
         final double x, y, z; final float yaw, pitch; final int slot;
-        Mine(Scene scene, BedBreakerPlanner.Target target, MovingObjectPosition picked, long revision) {
-            this.scene = scene; this.target = target; this.picked = picked; this.revision = revision;
+        Mine(Scene scene, BedBreakerPlanner.Target target, long revision, long sequence, float yaw, float pitch, Vec3 look) {
+            this.scene = scene; this.target = target; this.revision = revision; this.sequence = sequence;
+            this.yaw = yaw; this.pitch = pitch; this.look = look;
             x = scene.player.posX; y = scene.player.posY; z = scene.player.posZ;
-            yaw = scene.player.rotationYaw; pitch = scene.player.rotationPitch; slot = scene.player.inventory.currentItem;
+            slot = scene.player.inventory.currentItem;
             held = scene.player.inventory.getCurrentItem(); heldSnapshot = held == null ? null : held.copy();
         }
         boolean sameTool() {

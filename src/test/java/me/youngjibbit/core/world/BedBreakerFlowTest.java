@@ -23,16 +23,16 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 import static org.junit.Assert.*;
 
-/** Actual input hook, visible arbitration, native world ray and native controller transport. */
+/** Actual input hook, silent arbitration, native world ray and native controller transport. */
 public class BedBreakerFlowTest {
-    @Test public void visibleTurnAndInputUseTheSelectedBedAndItsOwnFirstHitFace() throws Exception { run("visibleTurnAndInputUseTheSelectedBedAndItsOwnFirstHitFace"); }
+    @Test public void silentTurnAndInputUseTheSelectedBedAndItsOwnFirstHitFace() throws Exception { run("silentTurnAndInputUseTheSelectedBedAndItsOwnFirstHitFace"); }
     @Test public void searchesAreThrottledAcrossRotationAndInputConsumers() throws Exception { run("searchesAreThrottledAcrossRotationAndInputConsumers"); }
     @Test public void sameTickDuplicatesAndToggleCyclesCannotMineTwice() throws Exception { run("sameTickDuplicatesAndToggleCyclesCannotMineTwice"); }
     @Test public void heldManualAttackTakesOverProgressAndDisableLeavesItAlone() throws Exception { run("heldManualAttackTakesOverProgressAndDisableLeavesItAlone"); }
     @Test public void releasedMissAndEntityClicksStillOwnTheirPlayerTick() throws Exception { run("releasedMissAndEntityClicksStillOwnTheirPlayerTick"); }
     @Test public void guiUseItemAndCompetingModulesWinBeforeRotationOrMining() throws Exception { run("guiUseItemAndCompetingModulesWinBeforeRotationOrMining"); }
     @Test public void ordinaryReachAndBedOnlyRestrictionsApplyAtTheNativeInputHook() throws Exception { run("ordinaryReachAndBedOnlyRestrictionsApplyAtTheNativeInputHook"); }
-    @Test public void lateWallAndViewChangesVetoStartAtTheTransportBoundary() throws Exception { run("lateWallAndViewChangesVetoStartAtTheTransportBoundary"); }
+    @Test public void lateWallAndServerPoseChangesVetoStartAtTheTransportBoundary() throws Exception { run("lateWallAndServerPoseChangesVetoStartAtTheTransportBoundary"); }
     @Test public void lateDisableAndReenableCannotReviveTheOldAttempt() throws Exception { run("lateDisableAndReenableCannotReviveTheOldAttempt"); }
     @Test public void startPostDisableAbortsOnlyItsAcceptedMiningState() throws Exception { run("startPostDisableAbortsOnlyItsAcceptedMiningState"); }
     @Test public void sameIdentityUnloadDiscardsAndBlocksUntilLoad() throws Exception { run("sameIdentityUnloadDiscardsAndBlocksUntilLoad"); }
@@ -42,7 +42,7 @@ public class BedBreakerFlowTest {
     @Test public void instantBreakAndDestructionCallbacksDoNotLeakOrClearReplacementMining() throws Exception { run("instantBreakAndDestructionCallbacksDoNotLeakOrClearReplacementMining"); }
     @Test public void smartDisableOptionsRemainOptInAndUseNormalCleanup() throws Exception { run("smartDisableOptionsRemainOptInAndUseNormalCleanup"); }
     @Test public void effectCallbackManualTakeoverPreventsTheOldAutomaticSwing() throws Exception { run("effectCallbackManualTakeoverPreventsTheOldAutomaticSwing"); }
-    @Test public void nativeEntityMissAndMissingPickPreventMiningABedBehindThem() throws Exception { run("nativeEntityMissAndMissingPickPreventMiningABedBehindThem"); }
+    @Test public void cameraEntityMissAndMissingPickDoNotOverrideTheConfirmedServerRay() throws Exception { run("cameraEntityMissAndMissingPickDoNotOverrideTheConfirmedServerRay"); }
     @Test public void toolChangeBetweenTicksAbortsOwnedWorkAndCanResumeNormally() throws Exception { run("toolChangeBetweenTicksAbortsOwnedWorkAndCanResumeNormally"); }
     @Test public void unloadDuringAbortClearsLocalProgressWithoutReenteringTheOldWorld() throws Exception { run("unloadDuringAbortClearsLocalProgressWithoutReenteringTheOldWorld"); }
     @Test public void failedActionCleanupKeepsItsOwnLifetimeThroughAbortCallbacks() throws Exception { run("failedActionCleanupKeepsItsOwnLifetimeThroughAbortCallbacks"); }
@@ -94,16 +94,17 @@ public class BedBreakerFlowTest {
                 assertEquals(2, f.controller.automaticCalls); assertTrue(f.controller.isMiningBlock(f.pos));
             }
         }
-        @Test public void nativeEntityMissAndMissingPickPreventMiningABedBehindThem() throws Exception {
+        @Test public void cameraEntityMissAndMissingPickDoNotOverrideTheConfirmedServerRay() throws Exception {
             try (BedBreakerTestSupport.Fixture f = new BedBreakerTestSupport.Fixture()) {
                 f.aim();
                 for (int kind = 0; kind < 3; kind++) {
                     f.f.mc.objectMouseOver = kind == 0 ? null : kind == 1
                             ? new MovingObjectPosition((Entity) f.f.player, f.f.player.getPositionVector())
                             : new MovingObjectPosition(MovingObjectPosition.MovingObjectType.MISS, new Vec3(0, 0, 0), EnumFacing.UP, BlockPos.ORIGIN);
-                    f.input(false); f.next(); assertEquals(0, f.controller.automaticCalls); assertTrue(f.digs().isEmpty());
+                    f.input(false); f.next(); assertEquals(kind + 1, f.controller.automaticCalls);
+                    assertTrue(f.controller.isMiningBlock(f.pos));
                 }
-                f.pick(); f.input(false); assertEquals(1, f.controller.automaticCalls);
+                assertEquals(1, count(f.digs(), C07PacketPlayerDigging.Action.START_DESTROY_BLOCK));
             }
         }
         @Test public void effectCallbackManualTakeoverPreventsTheOldAutomaticSwing() throws Exception {
@@ -121,9 +122,10 @@ public class BedBreakerFlowTest {
                 assertTrue(f.controller.isMiningBlock(f.pos)); assertEquals(progress, f.progress(), 0); assertTrue(f.digs().isEmpty());
             }
         }
-        @Test public void visibleTurnAndInputUseTheSelectedBedAndItsOwnFirstHitFace() throws Exception {
+        @Test public void silentTurnAndInputUseTheSelectedBedAndItsOwnFirstHitFace() throws Exception {
             try (BedBreakerTestSupport.Fixture f = new BedBreakerTestSupport.Fixture()) {
-                f.rotation(); assertTrue(f.f.player.rotationPitch > 0); assertEquals(0, f.controller.automaticCalls);
+                f.rotation(); assertEquals(0, f.f.player.rotationPitch, 0);
+                assertTrue(f.f.runtime.getRotationManager().getEffectivePitch() > 0); assertEquals(0, f.controller.automaticCalls);
                 f.f.mc.objectMouseOver = new MovingObjectPosition(new Vec3(.5, 64, 2.5), EnumFacing.DOWN, f.pos);
                 f.input(false); assertEquals(1, f.controller.automaticCalls);
                 List<C07PacketPlayerDigging> packets = f.digs(); assertEquals(1, packets.size());
@@ -146,7 +148,7 @@ public class BedBreakerFlowTest {
                 f.aim(); f.input(false); f.input(false); assertEquals(1, f.controller.automaticCalls);
                 assertEquals(0, f.progress(), 0); f.module.setToggled(false); f.module.setToggled(true);
                 f.input(false); assertEquals(1, f.controller.automaticCalls);
-                f.next(); f.next(); f.input(false); assertEquals(2, f.controller.automaticCalls);
+                f.next(); f.next(); f.rotation(); f.input(false); assertEquals(2, f.controller.automaticCalls);
                 assertEquals(2, count(f.digs(), C07PacketPlayerDigging.Action.START_DESTROY_BLOCK));
             }
         }
@@ -164,7 +166,7 @@ public class BedBreakerFlowTest {
                         : new MovingObjectPosition(MovingObjectPosition.MovingObjectType.MISS, new Vec3(0, 0, 0), EnumFacing.UP, BlockPos.ORIGIN);
                 f.f.mc.clickMouse(); f.input(false); assertEquals(0, f.controller.automaticCalls); assertTrue(f.digs().isEmpty());
                 assertEquals(entity ? 1 : 0, f.controller.manualAttacks);
-                f.next(); f.aim(); f.input(false); assertEquals(1, f.controller.automaticCalls);
+                f.next(); f.next(); f.aim(); f.input(false); assertEquals(1, f.controller.automaticCalls);
             }
         }
         @Test public void guiUseItemAndCompetingModulesWinBeforeRotationOrMining() throws Exception {
@@ -192,14 +194,14 @@ public class BedBreakerFlowTest {
                 assertEquals(1, f.controller.automaticCalls); assertEquals(1, f.world.removals); assertFalse(f.controller.func_181040_m());
             }
         }
-        @Test public void lateWallAndViewChangesVetoStartAtTheTransportBoundary() throws Exception {
+        @Test public void lateWallAndServerPoseChangesVetoStartAtTheTransportBoundary() throws Exception {
             for (boolean wall : new boolean[]{false, true}) try (BedBreakerTestSupport.Fixture f = new BedBreakerTestSupport.Fixture()) {
                 f.aim(); AtomicBoolean fired = new AtomicBoolean();
                 f.observer.action = event -> {
                     if (!event.isInbound() && event.isPre() && event.getPacket() instanceof C07PacketPlayerDigging
                             && ((C07PacketPlayerDigging) event.getPacket()).getStatus() == C07PacketPlayerDigging.Action.START_DESTROY_BLOCK
                             && fired.compareAndSet(false, true)) {
-                        if (wall) f.world.blocks.put(new BlockPos(0, 65, 1), Blocks.stone.getDefaultState()); else f.f.player.rotationYaw += 90;
+                        if (wall) f.world.blocks.put(new BlockPos(0, 65, 1), Blocks.stone.getDefaultState()); else f.f.runtime.getRotationManager().observeOutboundRotation(90, 0);
                     }
                 };
                 f.input(false); assertTrue(fired.get()); assertTrue(f.digs().isEmpty());
@@ -235,7 +237,7 @@ public class BedBreakerFlowTest {
                 f.aim(); f.world.afterRay = () -> Pulsar.BUS.post(new WorldEvent.Unload(f.world));
                 f.input(false); assertSame(f.world, f.f.mc.theWorld); assertEquals(0, f.controller.automaticCalls);
                 f.next(); f.next(); f.input(false); assertEquals(0, f.controller.automaticCalls);
-                Pulsar.BUS.post(new WorldEvent.Load(f.world)); f.input(false); assertEquals(1, f.controller.automaticCalls);
+                Pulsar.BUS.post(new WorldEvent.Load(f.world)); f.rotation(); f.input(false); assertEquals(1, f.controller.automaticCalls);
                 f.digs(); Pulsar.BUS.post(new WorldEvent.Unload(f.world));
                 assertFalse(f.controller.func_181040_m()); assertTrue("unload does not replay old mining packets", f.digs().isEmpty());
             }

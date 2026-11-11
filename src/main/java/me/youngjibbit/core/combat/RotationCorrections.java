@@ -7,6 +7,7 @@ import me.youngjibbit.event.player.PlayerMoveUpdateEvent;
 import me.youngjibbit.module.ModuleManager;
 import me.youngjibbit.module.impl.combat.Aura;
 import me.youngjibbit.module.impl.combat.Velocity;
+import me.youngjibbit.module.impl.player.BedBreaker;
 import me.youngjibbit.module.impl.world.Scaffold;
 import net.minecraft.client.Minecraft;
 import net.minecraft.entity.EntityLivingBase;
@@ -73,6 +74,11 @@ public final class RotationCorrections {
             return velocity == null ? null : select(rotation, "velocity", velocity.correctionEnabled(),
                     MoveFixController.Mode.SIMPLE, BodyRotationController.Mode.NATURAL);
         }
+        if (BedBreaker.ROTATION_SOURCE.equals(owner)) {
+            BedBreaker bedBreaker = (BedBreaker) modules.getModule(BedBreaker.class);
+            return bedBreaker == null ? null : select(rotation, BedBreaker.ROTATION_SOURCE,
+                    bedBreaker.correctionEnabled(), bedBreaker.moveFixMode(), bedBreaker.bodyRotationMode());
+        }
         // AimAssist or any unowned/manual rotation cannot inherit another module's settings.
         return null;
     }
@@ -100,6 +106,11 @@ public final class RotationCorrections {
         if ("velocity".equals(source)) {
             Velocity velocity = (Velocity) modules.getModule(Velocity.class);
             return velocity != null && velocity.correctionEnabled() ? MoveFixController.Mode.SIMPLE : MoveFixController.Mode.OFF;
+        }
+        if (BedBreaker.ROTATION_SOURCE.equals(source)) {
+            BedBreaker bedBreaker = (BedBreaker) modules.getModule(BedBreaker.class);
+            return bedBreaker != null && bedBreaker.correctionEnabled()
+                    ? bedBreaker.moveFixMode() : MoveFixController.Mode.OFF;
         }
         return MoveFixController.Mode.OFF;
     }

@@ -384,6 +384,11 @@ public final class RotationManager {
         offer(new Request(source,priority,yaw,pitch,false,0,0,()->true));
     }
 
+    /** Silent request whose action lifetime is rechecked before resolution and C03 transport. */
+    public void request(String source, int priority, float yaw, float pitch, BooleanSupplier valid) {
+        if (valid != null) offer(new Request(source,priority,yaw,pitch,false,0,0,valid));
+    }
+
     /** Mark an early Adaptive hold whose local movement stays in the camera input frame. */
     public boolean requestBridgeMovement(AdaptiveBridgePlanner.Scope scope,float yaw,float pitch) {
         if(Thread.currentThread()!=bridgeOwningThread || movementFrame!=null
@@ -493,7 +498,8 @@ public final class RotationManager {
                 } else winner = null;
             }
             event.setRotations(prepared.rotation.yaw, prepared.rotation.pitch);
-            if (winner != null && ("aura".equals(winner.source) || "scaffold".equals(winner.source) || "nscaffold".equals(winner.source) || isReleaseSource(winner.source))) {
+            if (winner != null && ("aura".equals(winner.source) || "scaffold".equals(winner.source) || "nscaffold".equals(winner.source)
+                    || "bedbreaker".equals(winner.source) || isReleaseSource(winner.source))) {
                 resolvedRequest = winner; resolvedFrame = new Object();
                 resolvedTicket = new ResolvedC03SendTicket(winner, resolvedFrame, Float.NaN, Float.NaN);
             }
@@ -522,6 +528,12 @@ public final class RotationManager {
             else winner = visibleAssistStop.next();
         }
         if (winner==null) return;
+        if (!winner.visible) {
+            Request selected = winner;
+            boolean valid = selected.valid.getAsBoolean();
+            if (sequence != resolvingSequence || !collecting || winner != selected) return;
+            if (!valid) { winner = null; return; }
+        }
         if (winner.visible) {
             String confirmed=getConfirmedOwner();
             if (mc==null || mc.thePlayer==null || motionPlayer.get()!=mc.thePlayer || motionWorld.get()!=mc.theWorld
@@ -540,7 +552,8 @@ public final class RotationManager {
             winner.yaw=mc.thePlayer.rotationYaw;winner.pitch=mc.thePlayer.rotationPitch;
         }
         event.setRotations(winner.yaw,winner.pitch);
-        if ("scaffold".equals(winner.source) || "nscaffold".equals(winner.source) || "aura".equals(winner.source) || isReleaseSource(winner.source)) {
+        if ("scaffold".equals(winner.source) || "nscaffold".equals(winner.source) || "aura".equals(winner.source)
+                || "bedbreaker".equals(winner.source) || isReleaseSource(winner.source)) {
             resolvedRequest = winner;
             resolvedFrame = new Object();
             // Bind the resolve lifetime now; a later getter cannot rebind it to another tick/scene.
@@ -829,6 +842,7 @@ public final class RotationManager {
         }
 
         private boolean current() {
+            if (!request.visible && !request.valid.getAsBoolean()) return false;
             if(request.bridgeScope!=null && !sameFrame())return false;
             if(request.bridgeCandidate!=null && (!request.bridgeCandidate.consumed
                     || !bridgeCandidateCurrent(request.bridgeCandidate)))return false;
@@ -841,6 +855,7 @@ public final class RotationManager {
                     || scene == null || !scene.isValid() || scene.isSuspended()) return false;
             // Sampling maintains existing observer identity/generation bookkeeping, never action quota.
             SceneContext fresh = observation.captureScene();
+            if (!request.visible && !request.valid.getAsBoolean()) return false;
             return fresh.isValid() && !fresh.isSuspended() && scene.sameSceneAs(fresh)
                     && sameFrame() && sameObjects() && observation == RuntimeServices.observation()
                     && observation.getActiveOuterTickId() == outerTick

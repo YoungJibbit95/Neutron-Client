@@ -358,10 +358,18 @@ public class PlayerControllerMP
     public boolean onPlayerDamageBlock(BlockPos pos,EnumFacing face,IBlockState expected,
                                       java.util.function.BooleanSupplier validMining,
                                       java.util.function.BooleanSupplier validLifecycle) {
+        return onPlayerDamageBlock(pos,face,expected,validMining,validLifecycle,null);
+    }
+
+    /** A silent caller supplies its confirmed server look; every native ray and transport guard still runs. */
+    public boolean onPlayerDamageBlock(BlockPos pos,EnumFacing face,IBlockState expected,
+                                      java.util.function.BooleanSupplier validMining,
+                                      java.util.function.BooleanSupplier validLifecycle,
+                                      java.util.function.Supplier<Vec3> miningLook) {
         if(validMining==null || validLifecycle==null)return false;
         if(guardedMiningInProgress || guardedMiningResetInProgress || pos==null || face==null || expected==null)return false;
         guardedMiningInProgress=true;
-        MiningContext context=new MiningContext(pos,face,expected,validMining,validLifecycle,++miningRevision);
+        MiningContext context=new MiningContext(pos,face,expected,validMining,validLifecycle,++miningRevision,miningLook);
         boolean success=false;
         try {
             if(!context.target() || !syncCurrentPlayItemChecked(context::target) || !context.target())return false;
@@ -436,6 +444,12 @@ public class PlayerControllerMP
         return isHittingBlock && pos!=null && pos.equals(currentBlock);
     }
     public long getMiningRevision(){return miningRevision;}
+
+    /** Read-only cost input; never transfers or advances native mining ownership. */
+    public float getBlockDamageProgress(BlockPos pos) {
+        return isMiningBlock(pos) && isHittingPosition(pos) && Float.isFinite(curBlockDamageMP)
+                ? Math.max(0,Math.min(1,curBlockDamageMP)) : 0;
+    }
 
     /** Normal abort with lifetime checks around existing transport/world callbacks. */
     public boolean resetBlockRemoving(java.util.function.BooleanSupplier validMining) {
@@ -541,10 +555,16 @@ public class PlayerControllerMP
         final ItemStack heldSnapshot=held==null?null:held.copy();
         final BlockPos pos;final EnumFacing face;final IBlockState expected;
         final java.util.function.BooleanSupplier valid,lifecycle;
+        final java.util.function.Supplier<Vec3> miningLook;
         long revision;boolean touched,toolMutation,toolConsumed;
         MiningContext(BlockPos pos,EnumFacing face,IBlockState expected,java.util.function.BooleanSupplier valid,
                       java.util.function.BooleanSupplier lifecycle,long revision) {
+            this(pos,face,expected,valid,lifecycle,revision,null);
+        }
+        MiningContext(BlockPos pos,EnumFacing face,IBlockState expected,java.util.function.BooleanSupplier valid,
+                      java.util.function.BooleanSupplier lifecycle,long revision,java.util.function.Supplier<Vec3> miningLook) {
             this.pos=pos;this.face=face;this.expected=expected;this.valid=valid;this.lifecycle=lifecycle;this.revision=revision;
+            this.miningLook=miningLook;
         }
         boolean objects() {
             return mc.playerController==PlayerControllerMP.this && player!=null && world!=null && mc.thePlayer==player
@@ -573,11 +593,16 @@ public class PlayerControllerMP
             if(!current())return false;
             IBlockState actual=world.getBlockState(pos);
             if(!current() || !java.util.Objects.equals(actual,expected))return false;
-            Vec3 eyes=player.getPositionEyes(1),look=player.getLook(1);
+            Vec3 eyes=player.getPositionEyes(1),look=miningLook==null?player.getLook(1):miningLook.get();
             float reach=getBlockReachDistance();
             if(!current() || !me.youngjibbit.core.world.BedBreakerPlanner.finite(eyes)
                     || !me.youngjibbit.core.world.BedBreakerPlanner.finite(look)
                     || !Float.isFinite(reach) || reach<=0 || reach>5)return false;
+            if(miningLook!=null) {
+                double lengthSquared=look.xCoord*look.xCoord+look.yCoord*look.yCoord+look.zCoord*look.zCoord;
+                if(!Double.isFinite(lengthSquared) || lengthSquared<1e-10)return false;
+                look=look.normalize();
+            }
             MovingObjectPosition hit=world.rayTraceBlocks(eyes,
                     eyes.addVector(look.xCoord*reach,look.yCoord*reach,look.zCoord*reach),false,false,false);
             if(!current() || !me.youngjibbit.core.world.BedBreakerPlanner.matches(hit,pos,eyes,reach) || hit.sideHit!=face)return false;

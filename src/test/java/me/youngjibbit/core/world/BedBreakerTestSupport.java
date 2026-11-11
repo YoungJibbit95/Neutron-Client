@@ -106,8 +106,9 @@ final class BedBreakerTestSupport {
         int automaticCalls, manualAttacks;
         Controller(Minecraft client, NetHandlerPlayClient handler) { super(client, handler); }
         @Override public boolean onPlayerDamageBlock(BlockPos pos, EnumFacing face, IBlockState state,
-                                                    java.util.function.BooleanSupplier valid, java.util.function.BooleanSupplier lifecycle) {
-            automaticCalls++; return super.onPlayerDamageBlock(pos, face, state, valid, lifecycle);
+                                                    java.util.function.BooleanSupplier valid, java.util.function.BooleanSupplier lifecycle,
+                                                    java.util.function.Supplier<Vec3> look) {
+            automaticCalls++; return super.onPlayerDamageBlock(pos, face, state, valid, lifecycle, look);
         }
         @Override public void attackEntity(EntityPlayer player, Entity target) { manualAttacks++; }
     }
@@ -158,6 +159,7 @@ final class BedBreakerTestSupport {
             float[] pose = BedBreakerPlanner.rotations(f.player.getPositionEyes(1), target.aim);
             f.player.rotationYaw = pose[0]; f.player.rotationPitch = pose[1];
             pick();
+            rotation();
         }
         void rotation() {
             RotationManager manager = f.runtime.getRotationManager(); manager.bindConnection(f.network.getClientPackets());
