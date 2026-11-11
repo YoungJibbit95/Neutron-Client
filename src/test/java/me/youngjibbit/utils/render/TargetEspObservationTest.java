@@ -58,4 +58,21 @@ public class TargetEspObservationTest {
         assertFalse(observation.current(null,player,pipeline,3,12,now,true,false,true,"aura",true,true));
         assertFalse(current(12,"aura",true,true));
     }
+
+    @Test public void newBuilderIsAnIndependentExactOwnerInsteadOfAnAliasForScaffold() {
+        prime();
+        assertTrue(observation.current(world,player,pipeline,3,12,now,true,false,true,"nscaffold",false,false,true));
+        assertFalse(observation.current(world,player,pipeline,3,12,now,true,false,true,"nscaffold",false,true,false));
+        assertFalse(observation.current(world,player,pipeline,3,12,now,true,false,true,"scaffold",false,false,true));
+        assertFalse(current(12,"nscaffold",true,true));
+        assertFalse(observation.current(world,player,pipeline,3,12,now,false,false,true,"nscaffold",false,false,true));
+        assertFalse(observation.current(world,player,pipeline,3,12,now,true,true,true,"nscaffold",false,false,true));
+    }
+
+    @Test public void newBuilderHasTheSameSceneFreshnessAndExpiryAsExistingProducers() {
+        assertFalse(observation.current(world,player,pipeline,3,1,now,true,false,true,"nscaffold",false,false,true));
+        assertTrue(observation.current(world,player,pipeline,3,2,now+1,true,false,true,"nscaffold",false,false,true));
+        assertFalse(observation.current(world,player,pipeline,3,2,now+250_000_002L,true,false,true,"nscaffold",false,false,true));
+        assertFalse(observation.current(world,player,new Object(),3,3,now+250_000_003L,true,false,true,"nscaffold",false,false,true));
+    }
 }

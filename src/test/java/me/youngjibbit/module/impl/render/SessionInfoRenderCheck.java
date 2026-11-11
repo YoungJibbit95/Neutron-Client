@@ -61,6 +61,7 @@ public final class SessionInfoRenderCheck {
             if(Boolean.getBoolean("pulsar.diagnostics.check")){DiagnosticsRenderCheck.run();context.check();return;}
             if(Boolean.getBoolean("pulsar.theme.sync.check")){ThemeSyncRenderCheck.run();context.check();return;}
             if(Boolean.getBoolean("pulsar.trash.check")){TrashMenuCheck.run();context.check();return;}
+            if(Boolean.getBoolean("pulsar.inventory.assist.check")){InventoryAssistRenderCheck.run();context.check();return;}
             stats=new SessionStatistics(CLOCK::get);stats.observe(new Object(),true);CLOCK.set(3_723_000_000_000L);
             hud=new SessionInfo(stats);hud.getModeSetting("Effects Source").setValue("Local");set(hud,"x",16f);set(hud,"y",20f);
             Theme.setDefaultTheme(Theme.SynthWave);

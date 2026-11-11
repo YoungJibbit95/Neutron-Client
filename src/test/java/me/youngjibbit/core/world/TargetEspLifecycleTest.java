@@ -12,6 +12,7 @@ import me.youngjibbit.module.ModuleInfo;
 import me.youngjibbit.module.ModuleManager;
 import me.youngjibbit.module.impl.combat.Aura;
 import me.youngjibbit.module.impl.render.TargetESP;
+import me.youngjibbit.module.impl.world.NScaffold;
 import me.youngjibbit.utils.render.TargetEspRenderer;
 import net.minecraft.client.entity.EntityOtherPlayerMP;
 import net.minecraft.client.multiplayer.WorldClient;
@@ -189,6 +190,27 @@ public class TargetEspLifecycleTest {
             RotationManager.DiagnosticSnapshot before=r.snapshot();r.draw();r.draw();
             assertEquals(0,r.aura.reads);assertEquals(0,r.scene.blockReads);assertEquals(0,r.scene.entityQueries);
             r.assertDiscarded();sameSnapshot(before,r.snapshot());
+        }
+    }
+
+    @Test @SuppressWarnings("unchecked") public void nscaffoldMarkerUsesItsOwnOwnerAndSourceFilterWithoutChangingRotation()throws Exception {
+        try(Run r=new Run()) {
+            NScaffold builder=new NScaffold();
+            ScaffoldClientFlowTest.set(Module.class,builder,"toggled",true);
+            Map<Class<? extends Module>,Module> modules=(Map<Class<? extends Module>,Module>)
+                    field(ModuleManager.class,Pulsar.INSTANCE.getMm(),"modulesByClass");
+            modules.put(NScaffold.class,builder);
+            r.visual.getModeSetting("Hitpoint Source").setValue("NScaffold");
+            r.prime("nscaffold");r.accept("nscaffold",90);
+            RotationManager.DiagnosticSnapshot before=r.snapshot();r.draw();
+            assertTrue(r.frame.marker);assertEquals(-6,r.frame.markerX,.0002);sameSnapshot(before,r.snapshot());
+            ScaffoldClientFlowTest.set(Module.class,builder,"toggled",false);
+            r.accept("nscaffold",90);r.draw();assertFalse(r.frame.marker);
+            ScaffoldClientFlowTest.set(Module.class,builder,"toggled",true);
+            r.visual.getModeSetting("Hitpoint Source").setValue("Scaffold");
+            r.accept("nscaffold",90);r.draw();r.accept("nscaffold",90);r.draw();assertFalse(r.frame.marker);
+            assertEquals(1,r.scene.blockReads);assertEquals(0,r.scene.entityQueries);
+            assertNull(r.f.channel.readOutbound());
         }
     }
 

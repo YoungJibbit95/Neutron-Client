@@ -21,7 +21,9 @@ public final class IslandAttachmentLayout {
         float bodyWidth=Math.max(baseWidth*.52f,Math.min(baseWidth*.74f,detailWidth*scale));
         detail=frame.region(frame.x+(frame.width-bodyWidth)/2,frame.y+header,bodyWidth,
                 Math.max(.01f,detailHeight*scale),14*scale);
-        joinY=frame.y+Math.max(.01f,header-Math.min(7*scale,header*.25f));
+        // The capsule owns its complete header. Pulling the neck seven pixels
+        // into that canvas cut behind the logo and the modern clock.
+        joinY=frame.y+Math.max(.01f,header);
     }
     public static boolean attached(IslandStateMachine.State state){
         return state==IslandStateMachine.State.TARGET||state==IslandStateMachine.State.NOTIFICATION

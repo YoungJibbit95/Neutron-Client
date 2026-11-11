@@ -62,6 +62,7 @@ public class WatermarkHUDModule extends Module {
     private final SliderValue speed=new SliderValue("Text Speed",this,.18,.02,1),strength=new SliderValue("Text Glow Strength",this,.45,0,2),radius=new SliderValue("Text Glow Radius",this,4.0,1,12);
     private final ArrayListSurface surface=new ArrayListSurface(this);
     private final TextEffects textEffects=new TextEffects();
+    private final ThemeLogoRenderer logoInk=new ThemeLogoRenderer();
     // New settings follow the legacy surface's registrations: no existing Value index shifts.
     private final CheckBoxValue islandTarget=new CheckBoxValue("Island Target",this,true);
     private final CheckBoxValue islandClock=new CheckBoxValue("Island Clock",this,true);
@@ -157,7 +158,7 @@ public class WatermarkHUDModule extends Module {
                 &&mc.gameSettings!=null&&!mc.gameSettings.hideGUI&&!mc.gameSettings.showDebugInfo
                 &&(mc.currentScreen==null||mc.currentScreen instanceof net.minecraft.client.gui.GuiChat);
     }
-    @Subscribe private final Listener<Event2D> onRender2D=new Listener<>(event->{if(!mc.gameSettings.showDebugInfo)renderWatermark();else if(islandActive){resetIsland();surface.close();}});
+    @Subscribe private final Listener<Event2D> onRender2D=new Listener<>(event->{if(!mc.gameSettings.showDebugInfo)renderWatermark();else if(islandActive){resetIsland();surface.close();textEffects.close();logoInk.close();}});
     @Subscribe private final Listener<me.youngjibbit.event.world.WorldEvent> islandWorldChanged=new Listener<>(event->resetIsland());
     @Subscribe private final Listener<me.youngjibbit.event.update.EventUpdate> islandVisibility=new Listener<>(event->{
         if(!canSampleIslandFrames())WidgetIncidentJournal.global().suspendFrames();
@@ -167,9 +168,9 @@ public class WatermarkHUDModule extends Module {
                 &&mc.gameSettings!=null&&!mc.gameSettings.hideGUI&&!mc.gameSettings.showDebugInfo
                 &&mc.inGameHasFocus&&mc.currentScreen==null&&!mc.isGamePaused();
     }
-    @Override public void onDisable(){resetIsland();surface.close();textEffects.close();super.onDisable();}
+    @Override public void onDisable(){resetIsland();surface.close();textEffects.close();logoInk.close();super.onDisable();}
     void renderWatermark(){
-        if(!HUD.visible()){resetIsland();surface.close();textEffects.close();return;}
+        if(!HUD.visible()){resetIsland();surface.close();textEffects.close();logoInk.close();return;}
         if(islandSelected()){renderIsland();return;}
         if(islandActive)resetIsland();
         String design=mode.getValue();boolean logo=design.startsWith("Logo"),word=design.equals("Wordmark"),status=design.equals("Status"),rise=design.equals("Rise"),simple=design.equals("Simple");
@@ -1082,41 +1083,13 @@ public class WatermarkHUDModule extends Module {
     private void renderLogo1N(float bx,float by,float size,Theme theme,float alpha,
                               boolean modern,boolean creative,float morph){
         if(alpha<=0||size<=0)return;
-        // UiEffects.time() is already seconds and freezes with reduced/disabled motion.
-        double phase=UiEffects.time()*(creative?.14:modern?.08:.12);
-        float blend=.5f-.5f*(float)Math.cos(2*Math.PI*phase);
-        int first=theme.getPrimaryGradientRGB(),second=theme.getSecondaryGradientRGB();
-        int left=Theme.interpolateRGB(first,second,blend);
-        int right=Theme.interpolateRGB(first,second,1-blend);
         float opacity=Math.max(0,Math.min(1,alpha));
         float plateRadius=modern||creative?7:11;
         Color plate=creative?new Color(38,34,50,Math.round(opacity*205))
                 :modern?NeutronVisualTokens.alpha(NeutronVisualTokens.CARD.getRGB(),Math.round(opacity*200))
                 :new Color(26,47,60,Math.round(opacity*200));
         UIUtils.drawDecorationRound(bx,by,size,size,plateRadius,plate);
-        try(RenderState state=new RenderState()){
-            org.lwjgl.opengl.GL20.glUseProgram(0);
-            GlStateManager.setActiveTexture(OpenGlHelper.defaultTexUnit);
-            org.lwjgl.opengl.GL13.glActiveTexture(OpenGlHelper.defaultTexUnit);
-            GlStateManager.enableTexture2D();glEnable(GL_TEXTURE_2D);
-            GlStateManager.enableBlend();glEnable(GL_BLEND);
-            GlStateManager.disableAlpha();glDisable(GL_ALPHA_TEST);
-            GlStateManager.disableLighting();glDisable(GL_LIGHTING);
-            GlStateManager.shadeModel(GL_SMOOTH);glShadeModel(GL_SMOOTH);
-            GlStateManager.tryBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ZERO);
-            glTexEnvi(GL_TEXTURE_ENV,GL_TEXTURE_ENV_MODE,GL_MODULATE);
-            mc.getTextureManager().bindTexture(LOGO1);
-            // Padded UV region around the unchanged original stroke, not a replacement glyph.
-            float u0=.30f,u1=.70f,v0=.33f,v1=.73f;
-            glBegin(GL_QUADS);
-            glColor4f(((left>>16)&255)/255f,((left>>8)&255)/255f,(left&255)/255f,opacity);
-            glTexCoord2f(u0,v0);glVertex2f(bx,by);
-            glTexCoord2f(u0,v1);glVertex2f(bx,by+size);
-            glColor4f(((right>>16)&255)/255f,((right>>8)&255)/255f,(right&255)/255f,opacity);
-            glTexCoord2f(u1,v1);glVertex2f(bx+size,by+size);
-            glTexCoord2f(u1,v0);glVertex2f(bx+size,by);
-            glEnd();
-        }
+        logoInk.draw(LOGO1,bx,by,size,theme,opacity);
     }
 
     private static Color tint(Color color,float alpha){
