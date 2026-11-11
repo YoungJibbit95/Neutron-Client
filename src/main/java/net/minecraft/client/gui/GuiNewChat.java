@@ -294,7 +294,7 @@ public class GuiNewChat extends Gui
 
             this.field_146253_i.add(0, new ChatLine(p_146237_3_, ichatcomponent, p_146237_2_,
                     !p_146237_4_, p_146237_1_, sourceOffset));
-            sourceOffset += ichatcomponent.getUnformattedText().length();
+            sourceOffset += net.minecraft.util.EnumChatFormatting.getTextWithoutFormattingCodes(ichatcomponent.getUnformattedText()).length();
         }
 
         while (this.field_146253_i.size() > 100)
@@ -326,13 +326,17 @@ public class GuiNewChat extends Gui
             this.setChatLine(chatline.getChatComponent(), chatline.getChatLineID(), chatline.getUpdatedCounter(), true);
         }
         if (anchor != null) {
-            int best = -1, distance = Integer.MAX_VALUE;
+            int best = -1, distance = Integer.MAX_VALUE, fallback = -1, fallbackDistance = Integer.MAX_VALUE;
             for (int i = 0; i < field_146253_i.size(); i++) {
                 ChatLine line = field_146253_i.get(i);
                 if (line.source() != anchor.source()) continue;
-                int candidate = Math.abs(line.sourceOffset() - anchor.sourceOffset());
-                if (candidate < distance) { best = i; distance = candidate; }
+                int candidate = anchor.sourceOffset() - line.sourceOffset();
+                int absolute = Math.abs(candidate);
+                if (absolute < fallbackDistance) { fallback = i; fallbackDistance = absolute; }
+                // Keep the old character inside its new row, never skip forward to the next row.
+                if (candidate >= 0 && candidate < distance) { best = i; distance = candidate; }
             }
+            if (best < 0) best = fallback; // The oldest source fragments may have hit the 100-line cap.
             if (best > 0) {
                 scroll(best);
                 isScrolled = scrollPos > 0;

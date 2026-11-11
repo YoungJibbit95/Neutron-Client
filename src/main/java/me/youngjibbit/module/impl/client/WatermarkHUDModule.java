@@ -23,6 +23,8 @@ import me.youngjibbit.module.impl.client.island.IslandWidgetLayout;
 import me.youngjibbit.module.impl.client.island.IslandContentKey;
 import me.youngjibbit.module.impl.client.island.IslandExploitGlyph;
 import me.youngjibbit.module.impl.client.island.IslandAttachmentLayout;
+import me.youngjibbit.module.impl.client.island.IslandGlyphRenderer;
+import org.lwjgl.input.Mouse;
 import me.youngjibbit.core.activity.WidgetIncident;
 import me.youngjibbit.core.activity.WidgetIncidentJournal;
 import me.youngjibbit.core.activity.InputClickJournal;
@@ -75,6 +77,26 @@ public class WatermarkHUDModule extends Module {
     private final CheckBoxValue islandFpsWidget=new CheckBoxValue("Island FPS Widget",this,false);
     private final CheckBoxValue islandExploitWidget=new CheckBoxValue("Island Exploit Widget",this,false);
     private final ComboValue islandWidgetPlacement=new ComboValue("Island Widget Placement",this,new String[]{"Inside","Outside"},0);
+    // Append-only registrations preserve existing config Value ids and Inside/Outside semantics.
+    private final ComboValue islandCpsDock=new ComboValue("Island CPS Dock",this,IslandWidgetLayout.DOCK_NAMES,0);
+    private final ComboValue islandFpsDock=new ComboValue("Island FPS Dock",this,IslandWidgetLayout.DOCK_NAMES,3);
+    private final ComboValue islandExploitDock=new ComboValue("Island EXP Dock",this,IslandWidgetLayout.DOCK_NAMES,4);
+    private final HudSpring[] islandWidgetX={new HudSpring(),new HudSpring(),new HudSpring()};
+    private final HudSpring[] islandWidgetValue={new HudSpring(),new HudSpring(),new HudSpring()};
+    private final String[] islandWidgetLastValue=new String[3];
+    // Render-thread scratch; the paint sequence fence guards deferred reuse.
+    private final float[] islandFrameWidths=new float[3],islandFrameValueMotion=new float[3],islandFrameX=new float[3];
+    private final int[] islandFrameDocks=new int[3];
+    private final WidgetIncident[] islandFrameIncidents=new WidgetIncident[3];
+    private final me.youngjibbit.core.activity.ExploitActivitySnapshot[] islandExploitObservations=
+            new me.youngjibbit.core.activity.ExploitActivitySnapshot[3];
+    private long islandPaintSequence;
+    private final HudSpring islandIconReveal=new HudSpring();
+    private String islandIconKey,islandIconStatus;
+    private float islandIconRevealAmount=1;
+    private boolean islandDockButton,islandWasEditor;
+    private int islandDraggedWidget=-1,islandDockPreview=-1;
+    private float islandDockGrabX;
     private final IslandStateMachine islandState=new IslandStateMachine();
     private final IslandPlacementMetrics islandPlacements=new IslandPlacementMetrics();
     private final IslandNoticeFlow islandNotices=new IslandNoticeFlow();
@@ -114,7 +136,11 @@ public class WatermarkHUDModule extends Module {
         islandFpsWidget.setVisibility(m->islandSelected());
         islandExploitWidget.setVisibility(m->islandSelected());
         islandWidgetPlacement.setVisibility(m->islandSelected()&&(islandCpsWidget.getValue()
-                ||islandFpsWidget.getValue()||islandExploitWidget.getValue()));}
+                ||islandFpsWidget.getValue()||islandExploitWidget.getValue()));
+        islandCpsDock.setVisibility(m->islandSelected()&&islandCpsWidget.getValue()&&"Outside".equals(islandWidgetPlacement.getValue()));
+        islandFpsDock.setVisibility(m->islandSelected()&&islandFpsWidget.getValue()&&"Outside".equals(islandWidgetPlacement.getValue()));
+        islandExploitDock.setVisibility(m->islandSelected()&&islandExploitWidget.getValue()&&"Outside".equals(islandWidgetPlacement.getValue()));
+    }
     /** Global opt-in upgraded the historical Glass default without rewriting stored Mode. */
     boolean islandSelected(){
         String m=mode.getValue();
@@ -233,6 +259,7 @@ public class WatermarkHUDModule extends Module {
 
     private void renderIsland(){
         long now=System.nanoTime();
+        final long passSequence=++islandPaintSequence;
         WidgetIncidentJournal incidentsJournal=WidgetIncidentJournal.global();
         me.youngjibbit.core.network.PacketPipeline packetContext=mc.getNetHandler()==null?null:
                 mc.getNetHandler().getNetworkManager().getClientPackets();
@@ -245,7 +272,7 @@ public class WatermarkHUDModule extends Module {
         if(islandWorld!=mc.theWorld){
             islandWorld=mc.theWorld;islandEpoch++;islandState.reset();islandMotion.reset();islandPlacements.reset();
             islandAttachmentKind=null;islandTargetTrail.reset();islandTrailTarget=Integer.MIN_VALUE;
-            for(HudSpring spring:islandWidgetOpen)spring.reset();
+            resetIslandWidgetMotion();
             islandLastSelection=islandPrevious=null;islandLastKey=null;islandLastFrameNanos=0;
             inventoryFixture=null;inventoryFixtureUntil=0;
             islandNotices.reset(now,ModuleToggleJournal.currentSequence());
@@ -253,7 +280,7 @@ public class WatermarkHUDModule extends Module {
         float dt=islandLastFrameNanos==0||now<=islandLastFrameNanos?0
                 :Math.min(.05f,(now-islandLastFrameNanos)/1_000_000_000f);
         islandLastFrameNanos=now;
-        if(!mc.inGameHasFocus){islandMotion.reset();dt=0;}
+        if(!mc.inGameHasFocus&&!me.youngjibbit.module.impl.render.Diagnostics.editing(mc.currentScreen)){islandMotion.reset();dt=0;}
         IslandNotice moduleNotice=IslandObservations.module(ModuleToggleJournal.getSnapshot(),now);
         IslandNotice warningNotice=islandWarningSnapshot(now);
         islandNotices.update(islandState,moduleNotice,warningNotice,islandModuleToasts.getValue(),
@@ -305,11 +332,24 @@ public class WatermarkHUDModule extends Module {
         final boolean showWidgets=IslandWidgetLayout.visible(selected.state,outsideWidgets);
         final float islandSeconds=UiEffects.time();
         final boolean glyphMotion=animations&&!reduced&&UiEffects.motion();
+        String glyphStatus=selected.scaffold==null?null:selected.scaffold.status;
+        if(!key.equals(islandIconKey)||!Objects.equals(glyphStatus,islandIconStatus)){
+            islandIconReveal.snap(0);islandIconKey=key;islandIconStatus=glyphStatus;
+        }
+        islandIconRevealAmount=islandIconReveal.step(1,dt,animations,reduced,"Expressive");
         final IslandWidget[] widgets=islandWidgets(now,islandSeconds,glyphMotion);
-        final WidgetIncident[] incidents=new WidgetIncident[widgets.length];
-        float[] widgetWidths=new float[widgets.length];
+        final WidgetIncident[] incidents=islandFrameIncidents;
+        final float[] widgetWidths=islandFrameWidths,widgetValueMotion=islandFrameValueMotion;
+        final int[] widgetDocks=islandFrameDocks;
         for(int i=0;i<widgets.length;i++){
             IslandWidget.Kind kind=widgets[i].kind;
+            int ordinal=kind.ordinal();widgetDocks[i]=dockValue(kind).getSelectedIndex();
+            if(!widgets[i].value.equals(islandWidgetLastValue[ordinal])){
+                if(islandWidgetLastValue[ordinal]!=null)islandWidgetValue[ordinal].snap(1);
+                islandWidgetLastValue[ordinal]=widgets[i].value;
+            }
+            widgetValueMotion[i]=Math.max(-.12f,Math.min(1,
+                    islandWidgetValue[ordinal].step(0,dt,animations,reduced,"Expressive")));
             incidents[i]=kind==IslandWidget.Kind.CPS?null:incidentsJournal.latest(
                     kind==IslandWidget.Kind.FPS?WidgetIncident.Kind.FPS:WidgetIncident.Kind.EXPLOIT,System.nanoTime());
             float open=islandWidgetOpen[kind.ordinal()].step(incidents[i]==null?0:1,dt,
@@ -324,10 +364,23 @@ public class WatermarkHUDModule extends Module {
         if(selected.state==IslandStateMachine.State.IDLE)
             desired=desired.withGeometry(baseLogicalWidth,
                     desired.height,desired.radius,desired.opacity);
-        else if(attached)desired=desired.withGeometry(Math.max(desired.width,baseLogicalWidth),desired.height,17,desired.opacity);
+        else if(attached)desired=desired.withGeometry(baseLogicalWidth,desired.height,17,desired.opacity);
+        final boolean dockEditor=outsideWidgets&&HUD.editable()
+                &&me.youngjibbit.module.impl.render.Diagnostics.editing(mc.currentScreen);
         final IslandWidgetLayout widgetLayout=IslandWidgetLayout.capture(
-                islandMotion.sample(desired,dt,animations,reduced,intensity,selected.state),widgetCount,outsideWidgets,widgetWidths);
+                islandMotion.sample(desired,dt,animations,reduced,intensity,selected.state),
+                widgetCount,outsideWidgets,widgetWidths,widgetDocks,dockEditor);
         final IslandLayout.Frame frame=widgetLayout.frame;
+        final float[] widgetRenderX=islandFrameX;
+        for(int i=0;i<widgetCount;i++){
+            HudSpring position=islandWidgetX[widgets[i].kind.ordinal()];
+            float next=position.step(widgetLayout.circleX(i),dt,animations,reduced,"Calm");
+            float left=next-(widgetLayout.left(i)?widgetLayout.width(i)-widgetLayout.diameter:0);
+            widgetRenderX[i]=Math.max(0,Math.min(sr.getScaledWidth()-widgetLayout.width(i),left));
+        }
+        interactWidgetDocks(widgetLayout,widgets,widgetRenderX,sr);
+        final int dockPreview=islandDockPreview;
+        final boolean editingDocks=islandDraggedWidget>=0;
         if(!attached&&frame.height<=34.25f)islandAttachmentKind=null;
         final IslandAttachmentLayout attachment=attached||selected.state==IslandStateMachine.State.IDLE&&islandAttachmentKind!=null
                 ?new IslandAttachmentLayout(frame,baseLogicalWidth,attached?selected.state:islandAttachmentKind,widgetLayout.scale):null;
@@ -421,7 +474,7 @@ public class WatermarkHUDModule extends Module {
                     }
                 });
         GuiShaderBloom.afterBatch(()->{
-            if(!islandActive||passEpoch!=islandEpoch||mc.theWorld!=passWorld||mc.thePlayer!=passPlayer)return;
+            if(!islandActive||passSequence!=islandPaintSequence||passEpoch!=islandEpoch||mc.theWorld!=passWorld||mc.thePlayer!=passPlayer)return;
             if(!outsideWidgets||widgetLayout.count==0){drawIsland.run();return;}
             // One captured scene is shared by the capsule and all detached circles.
             surface.withScene(theme,panel,useBlur,designBlurRadius,()->{
@@ -430,14 +483,122 @@ public class WatermarkHUDModule extends Module {
                     for(int i=0;i<widgetLayout.count;i++){
                         final int index=i;
                         float diameter=widgetLayout.diameter;
-                        surface.islandContour(ArrayListSurface.Shape.roundedRectangle(widgetLayout.x(i),widgetLayout.y,
+                        surface.islandContour(ArrayListSurface.Shape.roundedRectangle(widgetRenderX[i],widgetLayout.y,
                                         widgetLayout.width(i),diameter,diameter/2),
                                 theme,panel,useBlur,useGlow,designBlurRadius,designFillAlpha,designOutlineAlpha,
-                                ()->paintIslandWidgetBar(widgets[index],incidents[index],widgetLayout.x(index),widgetLayout.y,
-                                        widgetLayout.width(index),diameter,theme,frame.opacity));
+                                ()->paintIslandWidgetBar(widgets[index],incidents[index],widgetRenderX[index],widgetLayout.y,
+                                        widgetLayout.width(index),diameter,theme,frame.opacity,widgetLayout.left(index),
+                                        widgetValueMotion[index]));
                     }
+                if(editingDocks)paintWidgetDocks(widgetLayout,dockPreview,theme);
             });
         });
+    }
+
+    private ComboValue dockValue(IslandWidget.Kind kind){
+        return kind==IslandWidget.Kind.CPS?islandCpsDock:kind==IslandWidget.Kind.FPS?islandFpsDock:islandExploitDock;
+    }
+    /** An explicit edit normalizes duplicate saved slots before swapping the displayed occupants. */
+    void applyWidgetDock(IslandWidget.Kind kind,int slot){
+        if(kind==null||slot<0||slot>=6)return;
+        int[] requested={islandCpsDock.getSelectedIndex(),islandFpsDock.getSelectedIndex(),islandExploitDock.getSelectedIndex()};
+        commitWidgetDock(kind,slot,IslandWidgetLayout.resolveDocks(3,requested));
+    }
+    private void applyWidgetDock(IslandWidget.Kind kind,int slot,IslandWidgetLayout layout,IslandWidget[] widgets){
+        if(kind==null||slot<0||slot>=6)return;
+        int[] effective={islandCpsDock.getSelectedIndex(),islandFpsDock.getSelectedIndex(),islandExploitDock.getSelectedIndex()};
+        int visible=0,used=0;
+        for(int i=0;i<layout.count;i++){
+            int ordinal=widgets[i].kind.ordinal();
+            effective[ordinal]=layout.dock(i);visible|=1<<ordinal;used|=1<<effective[ordinal];
+        }
+        // Hidden widgets yield to the actual visible positions without changing any config during render.
+        for(int ordinal=0;ordinal<3;ordinal++)if((visible&(1<<ordinal))==0){
+            int candidate=effective[ordinal];
+            if(candidate<0||candidate>=6)candidate=ordinal==0?0:ordinal+2;
+            while((used&(1<<candidate))!=0)candidate=(candidate+1)%6;
+            effective[ordinal]=candidate;used|=1<<candidate;
+        }
+        commitWidgetDock(kind,slot,effective);
+    }
+    private void commitWidgetDock(IslandWidget.Kind kind,int slot,int[] effective){
+        int moved=kind.ordinal(),previous=effective[moved];
+        for(int other=0;other<effective.length;other++)
+            if(other!=moved&&effective[other]==slot)effective[other]=previous;
+        effective[moved]=slot;
+        islandCpsDock.setSelectedIndex(effective[0]);
+        islandFpsDock.setSelectedIndex(effective[1]);
+        islandExploitDock.setSelectedIndex(effective[2]);
+    }
+    public void resetWidgetPositions(){
+        islandCpsDock.setSelectedIndex(0);islandFpsDock.setSelectedIndex(3);islandExploitDock.setSelectedIndex(4);
+        resetIslandWidgetMotion();
+    }
+    private void resetIslandWidgetMotion(){
+        for(HudSpring spring:islandWidgetOpen)spring.reset();
+        for(HudSpring spring:islandWidgetX)spring.reset();
+        for(HudSpring spring:islandWidgetValue)spring.reset();
+        Arrays.fill(islandWidgetLastValue,null);islandIconReveal.reset();
+        islandIconKey=islandIconStatus=null;islandIconRevealAmount=1;
+        islandDraggedWidget=islandDockPreview=-1;islandDockButton=false;islandWasEditor=false;
+        HudDrag.cancel(this);
+    }
+    private void interactWidgetDocks(IslandWidgetLayout layout,IslandWidget[] widgets,float[] renderedX,ScaledResolution sr){
+        boolean down=Mouse.isCreated()&&Mouse.isButtonDown(0);
+        boolean editor=me.youngjibbit.module.impl.render.Diagnostics.editing(mc.currentScreen)
+                &&HUD.editable()&&layout.outside&&layout.count>0;
+        float mx=Mouse.isCreated()?Mouse.getX()/(float)sr.getScaleFactor():-1;
+        float my=Mouse.isCreated()?(mc.displayHeight-Mouse.getY()-1)/(float)sr.getScaleFactor():-1;
+        interactWidgetDocks(editor,down,mx,my,layout,widgets,renderedX,sr.getScaledWidth(),sr.getScaledHeight());
+    }
+    /** Primitive input boundary also lets the headless regression suite exercise real drag behavior. */
+    void interactWidgetDocks(boolean editor,boolean down,float mx,float my,IslandWidgetLayout layout,
+                             IslandWidget[] widgets,float[] renderedX,int screenWidth,int screenHeight){
+        if(!editor){
+            islandDraggedWidget=islandDockPreview=-1;islandDockButton=down;islandWasEditor=false;
+            HudDrag.cancel(this);return;
+        }
+        if(islandDraggedWidget>=0&&!down){
+            if(my>=0&&my<screenHeight)
+                applyWidgetDock(IslandWidget.Kind.values()[islandDraggedWidget],layout.nearestDock(mx),layout,widgets);
+            islandDraggedWidget=islandDockPreview=-1;HudDrag.cancel(this);
+        }
+        int hit=-1;
+        for(int i=0;i<layout.count;i++){
+            float circle=renderedX[i]+(layout.left(i)?layout.width(i)-layout.diameter:0);
+            if(HudDrag.roundedContains(mx,my,circle,layout.y,layout.diameter,layout.diameter,layout.diameter/2)){
+                hit=i;break;
+            }
+        }
+        boolean captured=HudDrag.capture(this,editor,down,islandWasEditor&&!islandDockButton,hit>=0);
+        if(captured&&islandDraggedWidget<0&&hit>=0){
+            islandDraggedWidget=widgets[hit].kind.ordinal();islandDockGrabX=mx-renderedX[hit];
+        }
+        if(captured&&islandDraggedWidget>=0){
+            islandDockPreview=layout.nearestDock(mx);
+            for(int i=0;i<layout.count;i++)if(widgets[i].kind.ordinal()==islandDraggedWidget){
+                renderedX[i]=Math.max(0,Math.min(screenWidth-layout.width(i),mx-islandDockGrabX));
+                islandWidgetX[islandDraggedWidget].snap(renderedX[i]+(layout.left(i)?layout.width(i)-layout.diameter:0));
+            }
+        }else if(down){islandDraggedWidget=islandDockPreview=-1;}
+        islandDockButton=down;islandWasEditor=true;
+    }
+    private void paintWidgetDocks(IslandWidgetLayout layout,int selected,Theme theme){
+        TTFFontRenderer tiny=Pulsar.INSTANCE.getFontManager().getFont("DmSansMedium 12");
+        for(int slot=0;slot<6;slot++){
+            float x=layout.dockCircleX(slot),size=layout.diameter;
+            int rgb=selected==slot?theme.getPrimaryGradientRGB():0xffbac8d9;
+            UIUtils.drawRoundOutline(x,layout.y,size,size,size/2,selected==slot?1.2f:.7f,
+                    new Color(0,0,0,0),tint(new Color(rgb,true),selected==slot?.95f:.35f),0);
+        }
+        if(selected>=0&&layout.frame.viewportWidth>=130&&layout.frame.viewportHeight>=60){
+            String label=IslandWidgetLayout.DOCK_NAMES[selected]+"  ·  release to dock";
+            float width=tiny.getWidth(label);
+            float x=Math.max(3,Math.min(layout.frame.viewportWidth-width-3,
+                    layout.dockCircleX(selected)+layout.diameter/2-width/2));
+            float y=Math.min(layout.frame.viewportHeight-tiny.getHeight(label)-2,layout.y+layout.diameter+5);
+            tiny.drawStringWithShadow(label,x,y,0xffecf3ff);
+        }
     }
 
     private void paintIsland(IslandPresentation view,IslandLayout.Frame frame,
@@ -499,20 +660,23 @@ public class WatermarkHUDModule extends Module {
     private float clockWidthFor(String text,TTFFontRenderer font){return font==null?0:font.getWidth(text);}
 
     private IslandWidget[] islandWidgets(long now,float seconds,boolean motion){
-        java.util.List<IslandWidget> result=new ArrayList<>();
+        IslandWidget[] result=new IslandWidget[(islandCpsWidget.getValue()?1:0)
+                +(islandFpsWidget.getValue()?1:0)+(islandExploitWidget.getValue()?1:0)];
+        int index=0;
         if(islandCpsWidget.getValue()){
             InputClickJournal.Snapshot clicks=InputClickJournal.global().snapshot(mc.theWorld,
                     mc.thePlayer!=null&&mc.currentScreen==null&&mc.inGameHasFocus,now);
-            result.add(new IslandWidget(IslandWidget.Kind.CPS,"CPS",clicks.left+"·"+clicks.right,
-                    "L / R",clicks.total()>0,seconds,motion));
+            result[index++]=new IslandWidget(IslandWidget.Kind.CPS,"CPS",clicks.left+"·"+clicks.right,
+                    "L / R",clicks.total()>0,seconds,motion);
         }
         if(islandFpsWidget.getValue()){
             int current=net.minecraft.client.Minecraft.getDebugFPS();
-            result.add(new IslandWidget(IslandWidget.Kind.FPS,"FPS",current>0?Integer.toString(current):"--",
-                    "live",current>0,seconds,motion));
+            result[index++]=new IslandWidget(IslandWidget.Kind.FPS,"FPS",current>0?Integer.toString(current):"--",
+                    "live",current>0,seconds,motion);
         }
         if(islandExploitWidget.getValue()){
-            me.youngjibbit.core.activity.ExploitActivitySnapshot[] observations=new me.youngjibbit.core.activity.ExploitActivitySnapshot[3];
+            me.youngjibbit.core.activity.ExploitActivitySnapshot[] observations=islandExploitObservations;
+            Arrays.fill(observations,null);
             if(mc.theWorld!=null&&mc.thePlayer!=null&&Pulsar.INSTANCE.getMm()!=null){
                 me.youngjibbit.module.impl.exploit.Backtrack backtrack=(me.youngjibbit.module.impl.exploit.Backtrack)
                         Pulsar.INSTANCE.getMm().getModule(me.youngjibbit.module.impl.exploit.Backtrack.class);
@@ -527,9 +691,9 @@ public class WatermarkHUDModule extends Module {
             long capturedAt=System.nanoTime();
             for(me.youngjibbit.core.activity.ExploitActivitySnapshot observation:observations)
                 WidgetIncidentJournal.global().observeActivity(observation,capturedAt);
-            result.add(IslandWidget.exploit(observations,capturedAt,seconds,motion));
+            result[index++]=IslandWidget.exploit(observations,capturedAt,seconds,motion);
         }
-        return result.toArray(new IslandWidget[0]);
+        return result;
     }
 
     /** Brand, clock and widgets use one fitted canvas, so no part can collide on a small viewport. */
@@ -568,6 +732,11 @@ public class WatermarkHUDModule extends Module {
     }
 
     private void paintIslandWidget(IslandWidget widget,float x,float y,float diameter,Theme theme,float alpha,boolean outside){
+        paintIslandWidget(widget,x,y,diameter,theme,alpha,outside,
+                Math.max(-.12f,Math.min(1,islandWidgetValue[widget.kind.ordinal()].value())));
+    }
+    private void paintIslandWidget(IslandWidget widget,float x,float y,float diameter,Theme theme,float alpha,
+                                   boolean outside,float valueMotion){
         if(diameter<=0||alpha<=0)return;
         TTFFontRenderer tiny=Pulsar.INSTANCE.getFontManager().getFont("DmSansMedium 12");
         TTFFontRenderer valueFont=Pulsar.INSTANCE.getFontManager().getFont("DmSansMedium 14");
@@ -580,25 +749,31 @@ public class WatermarkHUDModule extends Module {
             tiny.drawString(label,labelX,5,ink(accent,alpha*.9f));
             if(widget.kind==IslandWidget.Kind.EXPLOIT)
                 paintExploitGlyph(IslandExploitGlyph.from(widget),labelX-5,8,accent,alpha*widget.pulse);
-            valueFont.drawString(value,17-valueFont.getWidth(value)/2,13,ink(0xfff4f6fc,alpha));
+            try(RenderState pop=new RenderState()){
+                float scale=1+valueMotion*.055f;
+                glTranslatef(17,17.5f-valueMotion*1.4f,0);glScalef(scale,scale,1);
+                valueFont.drawString(value,-valueFont.getWidth(value)/2,-4.5f,ink(0xfff4f6fc,alpha));
+            }
             String detail=fitIsland(widget.detail,tiny,24);
             tiny.drawString(detail,17-tiny.getWidth(detail)/2,23,ink(0xffa9b6c7,alpha));
-            // The tiny rim notch is activity animation, never a fabricated progress meter.
-            UIUtils.drawDecorationRound(14,31,6,1,0.5f,tint(new Color(accent,true),alpha*.65f*widget.pulse));
+            // Orbiting glint expresses activity without inventing progress or changing the observed value.
+            IslandGlyphRenderer.widgetRim(0,0,34,widget,accent,alpha);
             if(widget.kind==IslandWidget.Kind.EXPLOIT&&widget.active)
                 UIUtils.drawDecorationRound(26,8,2,2,1,tint(new Color(accent,true),alpha*widget.pulse));
         }
     }
 
     private void paintIslandWidgetBar(IslandWidget widget,WidgetIncident incident,float x,float y,float width,
-                                      float diameter,Theme theme,float alpha){
-        paintIslandWidget(widget,x,y,diameter,theme,alpha,true);
+                                      float diameter,Theme theme,float alpha,boolean left,float valueMotion){
+        float circleX=left?x+width-diameter:x;
+        paintIslandWidget(widget,circleX,y,diameter,theme,alpha,true,valueMotion);
         if(incident==null||width<=diameter+4)return;
-        float scale=diameter/34;
+        float scale=diameter/34,textX=left?x+7*scale:x+diameter+2*scale;
         TTFFontRenderer tiny=Pulsar.INSTANCE.getFontManager().getFont("DmSansMedium 12");
-        try(GuiClip clip=GuiClip.push(new ClipRect(x+diameter,y+2,Math.max(.01f,width-diameter-5),Math.max(.01f,diameter-4)))){
+        try(GuiClip clip=GuiClip.push(new ClipRect(textX,y+2,
+                Math.max(.01f,width-diameter-9*scale),Math.max(.01f,diameter-4)))){
             try(RenderState state=new RenderState()){
-                glTranslatef(x+diameter+2*scale,y,0);glScalef(scale,scale,1);
+                glTranslatef(textX,y,0);glScalef(scale,scale,1);
                 float available=(width-diameter)/scale-10;
                 int accent=incident.kind==WidgetIncident.Kind.FPS?0xffffcd78:theme.getPrimaryGradientRGB();
                 tiny.drawString(fitIsland(incident.headline+" · "+incident.value,tiny,available),0,5,ink(accent,alpha));
@@ -620,17 +795,20 @@ public class WatermarkHUDModule extends Module {
         TTFFontRenderer detailFont=Pulsar.INSTANCE.getFontManager().getFont("DmSansMedium 14");
         try(RenderState state=new RenderState()){
             glTranslatef(canvas.x,canvas.y,0);glScalef(canvas.scale,canvas.scale,1);
-            UIUtils.drawDecorationRound(10,14,25,25,12.5f,tint(new Color(accent,true),.15f*alpha));
+            float badge=27*(.94f+.06f*Math.max(0,Math.min(1.12f,islandIconRevealAmount)));
+            UIUtils.drawDecorationRound(21.5f-badge/2,25-badge/2,badge,badge,badge/2,
+                    tint(new Color(accent,true),.18f*alpha));
             if(warning||success||type==me.youngjibbit.notifications.NotificationType.DISABLED)
-                drawNoticeSymbol(22.5f,26,warning,success,accent,alpha);
-            else drawNotificationInfo(22.5f,26,error,accent,alpha);
-            font.drawString(fitIsland(view.title,font,218),43,9,ink(0xfff4f6fc,alpha));
-            String[] lines=wrapIsland(view.detail,detailFont,218,2);
-            for(int i=0;i<lines.length;i++)detailFont.drawString(lines[i],43,25+i*10,ink(0xffb8c6d7,alpha));
-            UIUtils.drawDecorationRound(43,50,216,2,1,new Color(255,255,255,Math.round(20*alpha)));
+                drawNoticeSymbol(21.5f,25,warning,success,accent,alpha);
+            else drawNotificationInfo(21.5f,25,error,accent,alpha);
+            float textX=42,textWidth=canvas.width-52;
+            font.drawString(fitIsland(view.title,font,textWidth),textX,8,ink(0xfff4f6fc,alpha));
+            String[] lines=wrapIsland(view.detail,detailFont,textWidth,2);
+            for(int i=0;i<lines.length;i++)detailFont.drawString(lines[i],textX,23+i*9,ink(0xffc7d1df,alpha));
+            UIUtils.drawDecorationRound(textX,45,textWidth,2.2f,1.1f,new Color(255,255,255,Math.round(20*alpha)));
             float progress=Math.max(0,Math.min(1,view.notification.remaining));
-            if(progress>0)UIUtils.drawDecorationRound(43,50,216*progress,2,Math.min(1,108*progress),
-                    tint(new Color(accent,true),.8f*alpha));
+            if(progress>0)UIUtils.drawDecorationRound(textX,45,textWidth*progress,2.2f,
+                    Math.min(1.1f,textWidth*progress/2),tint(new Color(accent,true),.8f*alpha));
         }
     }
 
@@ -653,37 +831,11 @@ public class WatermarkHUDModule extends Module {
     }
 
     private void paintExploitGlyph(IslandExploitGlyph glyph,float x,float y,int rgb,float alpha){
-        if(glyph==null)return;
-        try(RenderState state=new RenderState()){
-            org.lwjgl.opengl.GL20.glUseProgram(0);
-            GlStateManager.disableTexture2D();glDisable(GL_TEXTURE_2D);
-            GlStateManager.disableDepth();glDisable(GL_DEPTH_TEST);GlStateManager.disableAlpha();glDisable(GL_ALPHA_TEST);
-            GlStateManager.disableLighting();glDisable(GL_LIGHTING);
-            GlStateManager.enableBlend();glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-            glLineWidth(1.1f);glColor4f((rgb>>16&255)/255f,(rgb>>8&255)/255f,(rgb&255)/255f,alpha);
-            glBegin(GL_LINES);
-            for(int i=0;i<glyph.segments();i++){
-                glVertex2f(x+glyph.x1(i),y+glyph.y1(i));glVertex2f(x+glyph.x2(i),y+glyph.y2(i));
-            }
-            glEnd();
-        }
+        IslandGlyphRenderer.exploit(glyph,x,y,rgb,alpha);
     }
 
     private void drawNotificationInfo(float cx,float cy,boolean error,int rgb,float alpha){
-        try(RenderState state=new RenderState()){
-            org.lwjgl.opengl.GL20.glUseProgram(0);
-            GlStateManager.disableTexture2D();glDisable(GL_TEXTURE_2D);
-            GlStateManager.disableDepth();glDisable(GL_DEPTH_TEST);GlStateManager.disableAlpha();glDisable(GL_ALPHA_TEST);
-            GlStateManager.disableLighting();glDisable(GL_LIGHTING);
-            GlStateManager.enableBlend();glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-            glLineWidth(1.4f);glColor4f((rgb>>16&255)/255f,(rgb>>8&255)/255f,(rgb&255)/255f,alpha);
-            glBegin(GL_LINE_LOOP);
-            for(int i=0;i<32;i++){double angle=i*Math.PI/16;glVertex2f(cx+(float)Math.cos(angle)*7,cy+(float)Math.sin(angle)*7);}
-            glEnd();glBegin(GL_LINES);
-            if(error){glVertex2f(cx-3,cy-3);glVertex2f(cx+3,cy+3);glVertex2f(cx+3,cy-3);glVertex2f(cx-3,cy+3);}
-            else{glVertex2f(cx,cy-4);glVertex2f(cx,cy-3);glVertex2f(cx,cy-1);glVertex2f(cx,cy+4);}
-            glEnd();
-        }
+        IslandGlyphRenderer.notice(cx,cy,error?4:3,rgb,alpha,islandIconRevealAmount);
     }
 
     /** Frozen target facts get their own reticle, exact health arcs and separate absorption rail. */
@@ -781,22 +933,10 @@ public class WatermarkHUDModule extends Module {
                     theme.getPrimaryGradientRGB(),true):indicator.status==IslandScaffoldIndicator.Status.READY
                     ?UiEffects.semanticColor(UiEffects.SemanticRole.SUCCESS,theme.getPrimaryGradientRGB(),true)
                     :theme.getPrimaryGradientRGB();
-            try(RenderState glyph=new RenderState()){
-                org.lwjgl.opengl.GL20.glUseProgram(0);
-                GlStateManager.disableTexture2D();glDisable(GL_TEXTURE_2D);
-                GlStateManager.disableDepth();glDisable(GL_DEPTH_TEST);
-                GlStateManager.disableLighting();glDisable(GL_LIGHTING);
-                GlStateManager.disableAlpha();glDisable(GL_ALPHA_TEST);
-                GlStateManager.enableBlend();glEnable(GL_BLEND);
-                GlStateManager.tryBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ZERO);
-                glColor4f((color>>16&255)/255f,(color>>8&255)/255f,(color&255)/255f,alpha*indicator.opacity);
-                glLineWidth(1.25f);glTranslatef(IslandScaffoldIndicator.Layout.STATUS_X,IslandScaffoldIndicator.Layout.STATUS_Y,0);
-                glBegin(GL_LINES);
-                for(int i=0;i<indicator.segmentCount();i++){
-                    glVertex2f(indicator.x1(i),indicator.y1(i));glVertex2f(indicator.x2(i),indicator.y2(i));
-                }
-                glEnd();
-            }
+            UIUtils.drawDecorationRound(IslandScaffoldIndicator.Layout.STATUS_X,IslandScaffoldIndicator.Layout.STATUS_Y,
+                    24,24,12,tint(new Color(color,true),alpha*.10f));
+            IslandGlyphRenderer.scaffold(indicator,IslandScaffoldIndicator.Layout.STATUS_X,
+                    IslandScaffoldIndicator.Layout.STATUS_Y,color,alpha,islandIconRevealAmount);
             String label=fitIsland(indicator.label,tiny,42);
             tiny.drawString(label,IslandScaffoldIndicator.Layout.STATUS_X+12-tiny.getWidth(label)/2,
                     IslandScaffoldIndicator.Layout.LABEL_Y,ink(color,alpha));
@@ -838,14 +978,14 @@ public class WatermarkHUDModule extends Module {
                 String label=notice.enabled?"ON":"OFF";
                 font.drawString(label,180-font.getWidth(label)/2,13,ink(status,alpha));
             }else{
-                UIUtils.drawDecorationRound(11,10,3,22,1.5f,new Color(244,180,83,Math.round(230*alpha)));
-                drawNoticeSymbol(27,17,true,false,0xfff4b453,alpha);
-                font.drawString(fitIsland(view.title,font,202),41,9,primary);
-                font.drawString(fitIsland(view.detail,font,224),15,27,secondary);
-                UIUtils.drawDecorationRound(13,45,228,1,.5f,new Color(244,180,83,Math.round(45*alpha)));
-                font.drawString("Distance",15,49,secondary);font.drawString("Rotation",139,49,secondary);
-                font.drawString(fitIsland(notice.distanceText,font,108),15,60,primary);
-                font.drawString(fitIsland(notice.angleText,font,99),139,60,primary);
+                drawNoticeSymbol(21,18,true,false,0xfff4b453,alpha);
+                font.drawString(fitIsland(view.title,font,canvas.width-48),39,8,primary);
+                TTFFontRenderer tiny=Pulsar.INSTANCE.getFontManager().getFont("DmSansMedium 12");
+                tiny.drawString(fitIsland(view.detail,tiny,canvas.width-48),39,23,secondary);
+                UIUtils.drawDecorationRound(12,38,canvas.width-24,1,.5f,new Color(244,180,83,Math.round(45*alpha)));
+                tiny.drawString("Distance",13,43,secondary);tiny.drawString("Rotation",96,43,secondary);
+                font.drawString(fitIsland(notice.distanceText,font,75),13,53,primary);
+                font.drawString(fitIsland(notice.angleText,font,67),96,53,primary);
             }
         }
     }
@@ -872,20 +1012,7 @@ public class WatermarkHUDModule extends Module {
     }
 
     private void drawNoticeSymbol(float cx,float cy,boolean warning,boolean enabled,int rgb,float alpha){
-        try(RenderState state=new RenderState()){
-            org.lwjgl.opengl.GL20.glUseProgram(0);
-            GlStateManager.disableTexture2D();glDisable(GL_TEXTURE_2D);
-            GlStateManager.disableDepth();glDisable(GL_DEPTH_TEST);GlStateManager.disableAlpha();glDisable(GL_ALPHA_TEST);
-            GlStateManager.disableLighting();glDisable(GL_LIGHTING);
-            GlStateManager.enableBlend();glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
-            glLineWidth(1.5f);glColor4f((rgb>>16&255)/255f,(rgb>>8&255)/255f,(rgb&255)/255f,alpha);
-            if(warning){
-                glBegin(GL_LINE_LOOP);glVertex2f(cx,cy-7);glVertex2f(cx+7,cy+6);glVertex2f(cx-7,cy+6);glEnd();
-                glBegin(GL_LINES);glVertex2f(cx,cy-2);glVertex2f(cx,cy+1);glVertex2f(cx,cy+3);glVertex2f(cx,cy+4);glEnd();
-            }else if(enabled){
-                glBegin(GL_LINE_STRIP);glVertex2f(cx-4,cy);glVertex2f(cx-1,cy+3);glVertex2f(cx+5,cy-4);glEnd();
-            }else{glBegin(GL_LINES);glVertex2f(cx-4,cy);glVertex2f(cx+4,cy);glEnd();}
-        }
+        IslandGlyphRenderer.notice(cx,cy,warning?2:enabled?1:0,rgb,alpha,islandIconRevealAmount);
     }
 
     /** Rebuild only a display copy from scalar registry metadata; no inventory object is retained. */
@@ -1017,7 +1144,7 @@ public class WatermarkHUDModule extends Module {
     private void resetIsland(){
         islandState.reset();islandMotion.reset();islandNMorph.reset();islandPlacements.reset();islandWorld=null;islandEpoch++;
         islandAttachmentKind=null;islandTargetTrail.reset();islandTrailTarget=Integer.MIN_VALUE;
-        for(HudSpring spring:islandWidgetOpen)spring.reset();
+        resetIslandWidgetMotion();
         WidgetIncidentJournal.global().clear();
         islandNotices.reset(System.nanoTime(),ModuleToggleJournal.currentSequence());
         islandLastFrameNanos=0;islandLastKey=null;islandLastSelection=islandPrevious=null;

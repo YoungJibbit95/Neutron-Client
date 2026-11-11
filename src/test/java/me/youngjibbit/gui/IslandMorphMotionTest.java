@@ -18,12 +18,12 @@ public class IslandMorphMotionTest {
         IslandMorphMotion motion = new IslandMorphMotion();
         motion.sample(idle(), 0, true, false, "Balanced");
         IslandLayout.Frame opening = motion.sample(target(), .037f, true, false, "Balanced");
-        MenuSpring spring = (MenuSpring) field(motion, "width");
+        MenuSpring spring = (MenuSpring) field(motion, "height");
         double velocity = (double) field(spring, "velocity");
         IslandLayout.Frame reversed = motion.sample(idle(), 0, true, false, "Balanced");
-        assertEquals(opening.width, reversed.width, 0);
+        assertEquals(opening.height, reversed.height, 0);
         assertEquals(velocity, (double) field(spring, "velocity"), 0);
-        assertTrue(reversed.width > idle().width);
+        assertTrue(reversed.height > idle().height);
     }
 
     @Test public void allSupportedFrameratesConvergeToSameGeometry() {
@@ -34,10 +34,10 @@ public class IslandMorphMotionTest {
             IslandLayout.Frame result = idle();
             for (int i = 0; i < fps; i++)
                 result = motion.sample(target(), 1f / fps, true, false, "Balanced");
-            if (Float.isFinite(prior)) assertEquals(prior, result.width, .002f);
-            prior = result.width;
+            if (Float.isFinite(prior)) assertEquals(prior, result.height, .002f);
+            prior = result.height;
         }
-        assertEquals(target().width, prior, .005f);
+        assertEquals(target().height, prior, .005f);
     }
 
     @Test public void thirtyQuickReversalsStayWithinSafeViewport() {
@@ -55,8 +55,8 @@ public class IslandMorphMotionTest {
     @Test public void animationsOffAndReducedMotionSnapToReadableState() {
         IslandMorphMotion motion = new IslandMorphMotion();
         motion.sample(idle(), 0, true, false, "Balanced");
-        assertEquals(target().width, motion.sample(target(), 0, false, false, "Balanced").width, 0);
-        assertEquals(idle().width, motion.sample(idle(), 0, true, true, "Expressive").width, 0);
+        assertEquals(target().height, motion.sample(target(), 0, false, false, "Balanced").height, 0);
+        assertEquals(idle().height, motion.sample(idle(), 0, true, true, "Expressive").height, 0);
         motion.contentChanged();
         assertEquals(1, motion.sample(target(), 0, true, true, "Calm").opacity, 0);
         assertEquals(1, motion.contentAlpha(), 0);
@@ -82,11 +82,11 @@ public class IslandMorphMotionTest {
         a.sample(idle(), 0, true, false, "Balanced");
         b.sample(idle(), 0, true, false, "Balanced");
         IslandLayout.Frame before = a.sample(target(), Float.NaN, true, false, "Balanced");
-        assertEquals(idle().width, before.width, 0);
-        assertEquals(b.sample(target(), .05f, true, false, "Balanced").width,
-                a.sample(target(), 900, true, false, "Balanced").width, .00001f);
+        assertEquals(idle().height, before.height, 0);
+        assertEquals(b.sample(target(), .05f, true, false, "Balanced").height,
+                a.sample(target(), 900, true, false, "Balanced").height, .00001f);
         a.reset();
-        assertEquals(target().width, a.sample(target(), 0, true, false, "Balanced").width, 0);
+        assertEquals(target().height, a.sample(target(), 0, true, false, "Balanced").height, 0);
     }
 
     private static Object field(Object owner, String name) throws Exception {

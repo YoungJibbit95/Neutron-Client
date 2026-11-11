@@ -34,9 +34,9 @@ public class Wave07IslandVisualTest {
         IslandLayout.Frame idle=IslandLayout.forState(IslandStateMachine.State.IDLE,854,480,true);
         IslandLayout.Frame target=IslandLayout.forState(IslandStateMachine.State.TARGET,854,480,true);
         assertEquals(234,idle.width,0);assertEquals(34,idle.height,0);
-        assertEquals(266,target.width,0);assertEquals(86,target.height,0);
+        assertEquals(234,target.width,0);assertEquals(82,target.height,0);
         assertEquals((854-idle.width)/2,idle.x,0);
-        assertTrue(target.width>idle.width&&target.height>idle.height);
+        assertEquals(idle.width,target.width,0);assertTrue(target.height>idle.height);
         assertEquals(17,idle.radius,0);
     }
     @Test public void unknownStateIsNeverAssumedToBeAnAnticheatWarning(){

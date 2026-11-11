@@ -22,7 +22,7 @@ public class IslandWidgetTest {
     }
     @Test public void reducedMotionFreezesDecorationWhileKeepingTruthfulValues() {
         IslandWidget still=new IslandWidget(IslandWidget.Kind.FPS,"FPS","144","live",true,0,false);
-        assertEquals(1,still.pulse,0);
+        assertEquals(1,still.pulse,0);assertEquals(0,still.phase,0);
         for(float time:new float[]{.2f,2,Float.NaN,Float.POSITIVE_INFINITY})
             assertEquals(still.pulse,new IslandWidget(IslandWidget.Kind.FPS,"FPS","144","live",true,time,false).pulse,0);
         assertNotEquals(new IslandWidget(IslandWidget.Kind.CPS,"CPS","1·2","L / R",true,0,true).pulse,
@@ -33,9 +33,22 @@ public class IslandWidgetTest {
         for(String label:new String[]{"BT","LR","TB"}){
             IslandExploitGlyph glyph=IslandExploitGlyph.from(new IslandWidget(IslandWidget.Kind.EXPLOIT,label,"1t","Ready",true,0,false));
             assertNotNull(glyph);assertEquals(segments[index++],glyph.segments());
+            assertSame(glyph,IslandExploitGlyph.from(new IslandWidget(IslandWidget.Kind.EXPLOIT,label,"9t","Fire",true,4,true)));
             for(int i=0;i<glyph.segments();i++)for(float value:new float[]{glyph.x1(i),glyph.y1(i),glyph.x2(i),glyph.y2(i)})
                 assertTrue(value>=-3&&value<=3);
         }
         assertNull(IslandExploitGlyph.from(new IslandWidget(IslandWidget.Kind.FPS,"FPS","144","live",true,0,false)));
+    }
+
+    @Test public void orbitIsFiniteAndReducedMotionFreezesEveryDecorativeChannel(){
+        for(float time:new float[]{-.3f,0,.37f,100000,Float.NaN,Float.POSITIVE_INFINITY}){
+            IslandWidget moving=new IslandWidget(IslandWidget.Kind.FPS,"FPS","144","live",true,time,true);
+            assertTrue(Float.isFinite(moving.phase)&&moving.phase>=0&&moving.phase<1);
+            IslandWidget reduced=new IslandWidget(IslandWidget.Kind.FPS,"FPS","144","live",true,time,false);
+            assertEquals(0,reduced.phase,0);assertEquals(1,reduced.pulse,0);
+            assertEquals("144",reduced.value);
+        }
+        assertNotEquals(new IslandWidget(IslandWidget.Kind.FPS,"FPS","144","live",true,0,true).phase,
+                new IslandWidget(IslandWidget.Kind.FPS,"FPS","144","live",true,.37f,true).phase,0);
     }
 }

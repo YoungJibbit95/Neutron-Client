@@ -20,7 +20,7 @@ public class IslandTargetCompositionTest {
         assertEquals("15.0 / 40.0 HP +12.0",captured.healthText);
         assertEquals(source.healthFraction,captured.healthFraction,0);
         assertEquals(source.absorptionFraction,captured.absorptionFraction,0);
-        assertEquals(196*.375f,captured.healthWidth,0);assertEquals(196*.3f,captured.absorptionWidth,0);
+        assertEquals(116*.375f,captured.healthWidth,0);assertEquals(116*.3f,captured.absorptionWidth,0);
         assertEquals(.1f,target(2,20,0,9,true).healthFraction,0);
         assertEquals(.375f,captured.healthFraction,0);assertEquals(.3f,captured.absorptionFraction,0);
         assertEquals("15.0 / 40.0 HP +12.0",source.detail);
@@ -32,13 +32,13 @@ public class IslandTargetCompositionTest {
         assertEquals(0,empty.healthWidth,0);assertEquals(0,empty.absorptionWidth,0);
         IslandTargetComposition quarter=target(5,20,0,0,false);
         assertEquals(12,quarter.health.segments);assertEquals((float)Math.PI/2,quarter.health.sweep,.000001f);
-        assertEquals(28,quarter.health.x(0),.00001f);assertEquals(9,quarter.health.y(0),.00001f);
-        assertEquals(45,quarter.health.x(12),.00001f);assertEquals(26,quarter.health.y(12),.00001f);
+        assertEquals(24,quarter.health.x(0),.00001f);assertEquals(5,quarter.health.y(0),.00001f);
+        assertEquals(41,quarter.health.x(12),.00001f);assertEquals(22,quarter.health.y(12),.00001f);
         IslandTargetComposition full=target(20,20,40,0,false);
         assertEquals(48,full.health.segments);assertEquals(48,full.absorption.segments);
         assertEquals(full.health.x(0),full.health.x(48),.00001f);
         assertEquals(full.health.y(0),full.health.y(48),.00001f);
-        assertEquals(196,full.healthWidth,0);assertEquals(196,full.absorptionWidth,0);
+        assertEquals(116,full.healthWidth,0);assertEquals(116,full.absorptionWidth,0);
         assertEquals("20.0 / 20.0 HP +40.0",full.healthText);
         assertNotEquals(full.health.radius,full.absorption.radius,0);
     }
@@ -75,8 +75,8 @@ public class IslandTargetCompositionTest {
             assertEquals(still.healthWidth,current.healthWidth,0);assertEquals(still.absorptionWidth,current.absorptionWidth,0);
             assertTrue(current.reticleAlpha>=.8f&&current.reticleAlpha<=1);
             for(int i=0;i<current.reticleSegments();i++){
-                assertTrue(current.x1(i)>=6&&current.x1(i)<=50);assertTrue(current.x2(i)>=6&&current.x2(i)<=50);
-                assertTrue(current.y1(i)>=4&&current.y1(i)<=48);assertTrue(current.y2(i)>=4&&current.y2(i)<=48);
+                assertTrue(current.x1(i)>=4&&current.x1(i)<=44);assertTrue(current.x2(i)>=4&&current.x2(i)<=44);
+                assertTrue(current.y1(i)>=2&&current.y1(i)<=42);assertTrue(current.y2(i)>=2&&current.y2(i)<=42);
             }
         }
     }
@@ -92,17 +92,17 @@ public class IslandTargetCompositionTest {
                     IslandLayout.Frame morph=frame.withGeometry(frame.width*fraction,frame.height*fraction,frame.radius,1);
                     IslandTargetComposition.Layout layout=new IslandTargetComposition.Layout(morph);
                     assertTrue(Float.isFinite(layout.scale)&&layout.scale>0&&layout.scale<=1);
-                    inside(layout,morph,0,0);inside(layout,morph,266,52);
+                    inside(layout,morph,0,0);inside(layout,morph,172,44);
                     for(IslandTargetComposition.Arc arc:new IslandTargetComposition.Arc[]{target.health,target.absorption})
                         for(int point=0;point<=arc.segments;point++)inside(layout,morph,arc.x(point),arc.y(point));
                     for(int i=0;i<target.reticleSegments();i++){
                         inside(layout,morph,target.x1(i),target.y1(i));inside(layout,morph,target.x2(i),target.y2(i));
                     }
-                    inside(layout,morph,58+196,7+13);inside(layout,morph,58+196,23+11);
-                    inside(layout,morph,58+target.healthWidth,39+3);inside(layout,morph,58+target.absorptionWidth,45+2);
+                    inside(layout,morph,48+116,6+11);inside(layout,morph,48+116,19+9);
+                    inside(layout,morph,48+target.healthWidth,33+3);inside(layout,morph,48+target.absorptionWidth,39+2);
                 }
             }
-        assertTrue(50<IslandTargetComposition.Layout.TEXT_X);
+        assertTrue(44<IslandTargetComposition.Layout.TEXT_X);
         assertTrue(IslandTargetComposition.Layout.NAME_Y+IslandTargetComposition.Layout.NAME_HEIGHT<IslandTargetComposition.Layout.DETAIL_Y);
         assertTrue(IslandTargetComposition.Layout.DETAIL_Y+IslandTargetComposition.Layout.DETAIL_HEIGHT<IslandTargetComposition.Layout.HEALTH_Y);
         assertTrue(IslandTargetComposition.Layout.HEALTH_Y+IslandTargetComposition.Layout.HEALTH_HEIGHT<IslandTargetComposition.Layout.ABSORPTION_Y);

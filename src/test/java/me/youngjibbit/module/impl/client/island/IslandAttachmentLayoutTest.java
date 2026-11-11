@@ -14,6 +14,8 @@ public class IslandAttachmentLayoutTest {
             assertEquals(frame.y,layout.base.y,0);assertEquals(34,layout.base.height,0);
             assertEquals(layout.base.y+layout.base.height,layout.detail.y,0);
             assertEquals(1,layout.reveal,.0001f);
+            assertTrue(layout.detail.width>=layout.base.width*.5f&&layout.detail.width<=layout.base.width*.75f);
+            assertEquals(layout.base.x+layout.base.width/2,layout.detail.x+layout.detail.width/2,.0001f);
             ArrayListSurface.Shape contour=layout.silhouette();
             float center=frame.x+frame.width/2;
             for(float y=frame.y+.1f;y<frame.y+frame.height-.1f;y+=.2f)assertTrue(contour.contains(center,y));
@@ -61,5 +63,19 @@ public class IslandAttachmentLayoutTest {
         assertTrue(IslandWidgetLayout.visible(IslandStateMachine.State.IDLE,false));
         assertTrue(IslandWidgetLayout.visible(IslandStateMachine.State.TARGET,false));
         assertTrue(IslandWidgetLayout.visible(IslandStateMachine.State.NOTIFICATION,false));
+    }
+
+    @Test public void extensionRatioStaysCompactWithInsideWidgetsAndBothBaseDesigns(){
+        for(boolean modern:new boolean[]{false,true})for(int count=0;count<=3;count++)
+            for(IslandStateMachine.State state:new IslandStateMachine.State[]{IslandStateMachine.State.TARGET,
+                    IslandStateMachine.State.NOTIFICATION,IslandStateMachine.State.POSSIBLE_SETBACK}){
+                float base=IslandWidgetLayout.idleWidth(modern,count,false);
+                IslandLayout.Frame desired=IslandLayout.forState(state,854,480,modern);
+                IslandAttachmentLayout layout=new IslandAttachmentLayout(
+                        desired.withGeometry(base,desired.height,desired.radius,desired.opacity),base,state);
+                assertTrue(layout.detail.width>=layout.base.width*.5f&&layout.detail.width<=layout.base.width*.75f);
+                assertEquals(layout.base.x+layout.base.width/2,layout.detail.x+layout.detail.width/2,.0001f);
+                assertEquals(34,layout.base.height,0);
+            }
     }
 }
