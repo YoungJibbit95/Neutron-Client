@@ -10,6 +10,7 @@ import me.youngjibbit.module.Module;
 import me.youngjibbit.module.ModuleInfo;
 import me.youngjibbit.utils.Theme;
 import me.youngjibbit.theme.ThemeMode;
+import me.youngjibbit.gui.LiquidGlass;
 import me.youngjibbit.utils.render.UiEffects;
 import me.youngjibbit.utils.font.TTFFontRenderer;
 import me.youngjibbit.utils.render.ArrayListSurface;
@@ -222,6 +223,9 @@ public class SessionInfo extends Module {
             // Forced material eligibility must survive low opacity; only legacy fallback scales its ink.
             if(UiEffects.material())UIUtils.drawSceneRound(frame.x+x,frame.y+y,w,h,11);
             else UIUtils.drawRound(frame.x+x,frame.y+y,w,h,11,new Color(17,23,34,Math.round(232*policy.opacity)));
+            float radius=Math.min(11,Math.min(w,h)/2);
+            LiquidGlass.highlight(frame.x+x,frame.y+y,w,h,radius);
+            LiquidGlass.border(frame.x+x,frame.y+y,w,h,radius,frame.theme,false);
         }
     }
 
@@ -243,9 +247,14 @@ public class SessionInfo extends Module {
         try (GuiClip ignored=GuiClip.push(new ClipRect(frame.x+2,frame.y+2,frame.width-4,frame.height-4))) {
             boolean modern="Neutron 2.0".equals(frame.design)||"Modern".equals(frame.design)||"Creative".equals(frame.design);
                 if(modern&&frame.background){
+                float innerRadius=Math.max(0,frame.radius-2);
                 UIUtils.drawRound(frame.x+2,frame.y+2,Math.max(1,frame.width-4),
-                        Math.max(1,frame.height-4),Math.max(0,frame.radius-2),
-                        new Color(20,22,32,182));
+                        Math.max(1,frame.height-4),innerRadius,
+                        LiquidGlass.fill(frame.theme,150));
+                LiquidGlass.highlight(frame.x+2,frame.y+2,Math.max(1,frame.width-4),
+                        Math.max(1,frame.height-4),innerRadius);
+                LiquidGlass.border(frame.x+2,frame.y+2,Math.max(1,frame.width-4),
+                        Math.max(1,frame.height-4),innerRadius,frame.theme,false);
             }
             float ruleY=frame.y+(modern?23:18);
             UIUtils.drawGradientHorizontal(frame.x+(modern?11:1),ruleY,

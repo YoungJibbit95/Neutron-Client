@@ -16,8 +16,11 @@ import me.youngjibbit.value.impl.CheckBoxValue;
 import me.youngjibbit.value.impl.ComboValue;
 import me.youngjibbit.value.impl.SliderValue;
 import me.youngjibbit.gui.HudSpring;
+import me.youngjibbit.gui.LiquidGlass;
 import me.youngjibbit.gui.NeutronVisualTokens;
+import me.youngjibbit.clickgui.utils.MenuSurface;
 import me.youngjibbit.module.impl.client.ClientSettings;
+import me.youngjibbit.utils.render.UIUtils;
 import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
@@ -301,7 +304,7 @@ public class ClickModule extends Component {
         binding = ClickControlStyle.fit(small, binding, Math.max(16, Math.min(64, width * .25f)));
         float bindingWidth = Math.max(20, small.getWidth(binding) + 10);
         float bindingX = x + width - 28 - bindingWidth;
-        GuiStyle.panel(bindingX, y + 4, bindingWidth, 16, 3, conflict ? .5f : .05f, new Color(30, 32, 37));
+        MenuSurface.plate(bindingX, y + 4, bindingWidth, 16, theme, conflict, 0);
         small.drawCenteredString(binding, bindingX + bindingWidth / 2, y + 7, conflict ? 0xffffb975 : 0xffbec4d0);
         me.youngjibbit.utils.font.TTFFontRenderer title = Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 20");
         title.drawString(ClickControlStyle.fit(title, module.getName(), bindingX - x - 20), x + 12, y + 6,
@@ -385,8 +388,10 @@ public class ClickModule extends Component {
         // Retargeted spring travels within a fixed non-interactive switch silhouette.
         // The existing mouse/keyboard handlers alone change module.isToggled().
         float sx=x+width-62,sy=y+10;
-        me.youngjibbit.utils.render.UIUtils.drawDecorationRound(sx,sy,30,16,8,
-                new Color(17,19,27,232));
+        UIUtils.drawDecorationRound(sx,sy,30,16,8,
+                LiquidGlass.fill(theme,206));
+        LiquidGlass.highlight(sx,sy,30,16,8);
+        LiquidGlass.border(sx,sy,30,16,8,theme,response>.5f);
         if(response>.006f)
             me.youngjibbit.utils.render.UIUtils.drawDecorationRound(sx+1,sy+1,
                     Math.max(1,28*response),14,7,
@@ -403,22 +408,16 @@ public class ClickModule extends Component {
     protected final void drawSettings(int mouseX, int mouseY) {
         if (!settingsClip.isEmpty()) {
             try (GuiClip ignored = GuiClip.push(settingsClip)) {
-                if(compactSettings())me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x+1,y+height,width-2,settingsContentHeight,0,new Color(9,12,19,145));
+                if(compactSettings())me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x+1,y+height,width-2,settingsContentHeight,0,
+                        LiquidGlass.fill(Theme.resolve(Theme.getDefaultTheme()),150));
                 if (panelStyle) {
+                    Theme theme=Theme.resolve(Theme.getDefaultTheme());
                     if(modernCard){
-                        me.youngjibbit.utils.render.UIUtils.drawRound(
-                                x+4,y+height+1,Math.max(1,width-8),
-                                Math.max(1,settingsContentHeight-1),8,
-                                NeutronVisualTokens.PANEL);
-                        me.youngjibbit.utils.render.UIUtils.drawDecorationRound(
-                                x+14,y+height+2,Math.max(1,width-28),1,.5f,
-                                NeutronVisualTokens.HAIRLINE);
+                        LiquidGlass.inset(x+4,y+height+1,Math.max(1,width-8),
+                                Math.max(1,settingsContentHeight-1),8,theme);
                     }else{
-                        Theme theme=Theme.resolve(Theme.getDefaultTheme());
-                        me.youngjibbit.utils.render.UIUtils.drawDecorationRound(x+7,y+height+2,
-                                width-14,settingsContentHeight-4,5,
-                                me.youngjibbit.gui.LegacyUiStyle.alpha(0xff0e1420,.35f));
-                        me.youngjibbit.gui.LegacyUiStyle.rule(x+13,y+height+2,width-26,theme);
+                        LiquidGlass.inset(x+5,y+height+1,Math.max(1,width-10),
+                                Math.max(1,settingsContentHeight-2),5,theme);
                     }
                 } else if(!compactSettings() && !grouped())Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString("Settings", x + 12, y + height + 5,
                         new Color(180, 180, 185).getRGB());

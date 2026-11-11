@@ -6,6 +6,7 @@ import me.youngjibbit.utils.render.UIUtils;
 import me.youngjibbit.utils.render.UiEffects;
 import me.youngjibbit.utils.font.TTFFontRenderer;
 import me.youngjibbit.gui.LegacyUiStyle;
+import me.youngjibbit.gui.LiquidGlass;
 import me.youngjibbit.theme.ThemeMode;
 
 /** Shared geometry and metric-aware text for compact, 24px settings rows. */
@@ -18,30 +19,17 @@ public final class ClickControlStyle {
     public static int ink(Theme theme) { return legacy() ? LegacyUiStyle.ink(theme) : theme.getTextColor().getRGB(); }
     /** Settings stay visually quieter than module cards, with a stable hover/focus lane. */
     public static void row(float x, float y, float width, float height, Theme theme, boolean active) {
-        if (!legacy() || !active) return;
-        UIUtils.drawDecorationRound(x + 10, y, Math.max(0, width - 20), height, 4,
-                LegacyUiStyle.alpha(LegacyUiStyle.ink(theme), .035f));
+        if (width <= 20 || height <= 2) return;
+        float radius = LiquidGlass.radius(4, width - 20, height);
+        UIUtils.drawDecorationRound(x + 10, y, Math.max(0, width - 20), height, radius,
+                LiquidGlass.fill(theme, active ? 82 : 26));
+        if (active) LiquidGlass.highlight(x + 10, y, width - 20, height, radius);
     }
     /** A hairline and a tinted fill inside the stronger outer module contour. */
     public static void panelField(float x, float y, float width, float height, Theme theme, boolean active) {
-        if (legacy()) {
-            UIUtils.drawDecorationRound(x, y, width, height, 4,
-                    LegacyUiStyle.alpha(active ? theme.getPrimaryGradientRGB() : LegacyUiStyle.ink(theme), active ? .54f : .14f));
-            UIUtils.drawDecorationRound(x + .65f, y + .65f, Math.max(0, width - 1.3f),
-                    Math.max(0, height - 1.3f), 3.5f, LegacyUiStyle.control(theme, active));
-            return;
-        }
-        int ink = theme.getTextColor().getRGB();
-        int background = Theme.interpolateRGB(theme.getBackground().getRGB(), ink, .085f);
-        float inset = 0;
-        if (UiEffects.options().border) {
-            inset = theme.isCustom() ? Math.min(.65f, theme.getOutlineWidth() * .55f) : .65f;
-            UIUtils.drawDecorationRound(x, y, width, height, 4,
-                    UiEffects.accent(active ? theme.getPrimaryGradientRGB() : ink,
-                            (active ? .7f : .25f) * UiEffects.options().borderOpacity * theme.getOutlineStrength()));
-        }
-        UIUtils.drawDecorationRound(x + inset, y + inset, width - 2 * inset, height - 2 * inset,
-                4, UiEffects.accent(background, .98f));
+        // Shared glass plate: the same fill, top light and hairline as the Settings
+        // screen, so value badges no longer fall back to an opaque control well.
+        LiquidGlass.plate(x, y, width, height, 4, theme, active, 0);
     }
 
     /** A local halo stays inside the row clip and needs no extra framebuffer pass. */

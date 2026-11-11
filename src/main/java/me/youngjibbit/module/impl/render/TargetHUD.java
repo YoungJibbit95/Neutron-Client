@@ -3,8 +3,9 @@ package me.youngjibbit.module.impl.render;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.combat.CombatTargetTracker;
 import me.youngjibbit.gui.HudPlacement;
-import me.youngjibbit.gui.HudReveal;
 import me.youngjibbit.gui.HudSpring;
+import me.youngjibbit.gui.HudReveal;
+import me.youngjibbit.gui.LiquidGlass;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.module.impl.client.HUD;
 import me.youngjibbit.theme.ThemeMode;
@@ -249,8 +250,19 @@ public class TargetHUD extends Module {
                         float plateAlpha=alpha*(policy.style<0?policy.opacity:1);
                         surface.inheritedPanel(x+fit.x+bx*fit.scale,y+fit.y,bw*fit.scale,34*fit.scale,
                                 (creative?11:13)*fit.scale,f.theme,plateAlpha,()->{});
+                        float mainRadius=Math.min((creative?11:13)*fit.scale,17*fit.scale);
+                        LiquidGlass.highlight(x+fit.x+bx*fit.scale,y+fit.y,bw*fit.scale,34*fit.scale,mainRadius);
+                        LiquidGlass.border(x+fit.x+bx*fit.scale,y+fit.y,bw*fit.scale,34*fit.scale,
+                                mainRadius,f.theme,false);
                         if(creative)surface.inheritedPanel(x+fit.x+fit.scale,y+fit.y+3*fit.scale,
                                 28*fit.scale,28*fit.scale,14*fit.scale,f.theme,plateAlpha,()->{});
+                        if(creative){
+                            float portraitRadius=Math.min(14*fit.scale,14*fit.scale);
+                            LiquidGlass.highlight(x+fit.x+fit.scale,y+fit.y+3*fit.scale,
+                                    28*fit.scale,28*fit.scale,portraitRadius);
+                            LiquidGlass.border(x+fit.x+fit.scale,y+fit.y+3*fit.scale,
+                                    28*fit.scale,28*fit.scale,portraitRadius,f.theme,false);
+                        }
                         glTranslatef(x+fit.x,y+fit.y,0);glScalef(fit.scale,fit.scale,1);
                         int accent=f.theme.getPrimaryGradientRGB();
                         CompactHudVisuals.begin(fit.scale);

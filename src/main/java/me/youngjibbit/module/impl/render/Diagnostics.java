@@ -18,6 +18,7 @@ import me.youngjibbit.module.ModuleInfo;
 import me.youngjibbit.module.impl.client.HUD;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.gui.HudSpring;
+import me.youngjibbit.gui.LiquidGlass;
 import me.youngjibbit.module.impl.exploit.*;
 import me.youngjibbit.notifications.*;
 import me.youngjibbit.utils.Theme;
@@ -463,9 +464,12 @@ public final class Diagnostics extends Module {
                 modern?.84f:.91f,modern?.14f:.4f,()->{
             try(RenderState state=new RenderState()) {
                 state.screenSpace();glTranslatef(x,y,0);glScalef(s,s,1);
-                if(modern&&filled)
+                if(modern&&filled){
                     UIUtils.drawRound(2,2,248,Math.max(1,p.height-4),9,
-                            new Color(20,22,32,188));
+                            LiquidGlass.fill(theme,150));
+                    LiquidGlass.highlight(2,2,248,Math.max(1,p.height-4),9);
+                    LiquidGlass.border(2,2,248,Math.max(1,p.height-4),9,theme,false);
+                }
                 TTFFontRenderer heading=font("Product-Sans-Bold 18"),body=font("Product-Sans-Regular 16"),small=font("Product-Sans-Regular 12");
                 int ink=modern?0xfff5f0f8:theme.isCustom()?theme.getTextColor().getRGB():0xfff0f3fa;
                 int muted=modern?0xffc6bdd0:

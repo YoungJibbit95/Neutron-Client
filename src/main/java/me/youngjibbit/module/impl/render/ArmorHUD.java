@@ -4,6 +4,7 @@ import me.youngjibbit.Pulsar;
 import me.youngjibbit.clickgui.utils.ClipRect;
 import me.youngjibbit.clickgui.utils.GuiClip;
 import me.youngjibbit.gui.HudSpring;
+import me.youngjibbit.gui.LiquidGlass;
 import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.theme.ThemeCatalog;
 import me.youngjibbit.module.impl.client.ClientSettings;
@@ -176,6 +177,9 @@ public class ArmorHUD extends Module {
                         if(policy.background){
                             if(UiEffects.material())UIUtils.drawSceneRound(0,0,f.width,f.height,10);
                             else UIUtils.drawRound(0,0,f.width,f.height,10,new Color(17,23,34,Math.round(232*policy.opacity)));
+                            float radius=Math.min(10,Math.min(f.width,f.height)/2);
+                            LiquidGlass.highlight(1,1,Math.max(1,f.width-2),Math.max(1,f.height-2),radius);
+                            LiquidGlass.border(1,1,Math.max(1,f.width-2),Math.max(1,f.height-2),radius,f.theme,false);
                         }
                     }
                     for(Cell cell:f.cells){
@@ -185,6 +189,9 @@ public class ArmorHUD extends Module {
                                 if(UiEffects.material())UIUtils.drawSceneRound(cell.x,cell.y,cell.w,cell.h,8);
                                 else UIUtils.drawRound(cell.x,cell.y,cell.w,cell.h,8,
                                         new Color(17,23,34,Math.round(232*policy.opacity)));
+                                float radius=Math.min(8,Math.min(cell.w,cell.h)/2);
+                                LiquidGlass.highlight(cell.x,cell.y,cell.w,cell.h,radius);
+                                LiquidGlass.border(cell.x,cell.y,cell.w,cell.h,radius,f.theme,false);
                             }
                         }else if(policy.background)UIUtils.drawDecorationRound(cell.x,cell.y,cell.w,cell.h,7,
                                 new Color(133,160,195,Math.round((cell.item==null?12:18)*policy.opacity)));

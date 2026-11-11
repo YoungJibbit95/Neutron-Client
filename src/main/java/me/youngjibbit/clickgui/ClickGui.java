@@ -16,6 +16,7 @@ import me.youngjibbit.module.Module;
 import me.youngjibbit.module.impl.render.ClickGUI;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.gui.NeutronVisualTokens;
+import me.youngjibbit.gui.LiquidGlass;
 import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.render.Blur;
@@ -238,12 +239,13 @@ public class ClickGui extends GuiScreen {
                 }
             }else{
                 UIUtils.drawRound(x+1,y+1,width-2,height-2,8,me.youngjibbit.gui.LegacyUiStyle.panel(theme));
-                UIUtils.drawDecorationRound(x+5,y+headerHeight()+3,sidebarWidth()-10,
-                        height-headerHeight()-9,6,new Color(18,24,34));
-                UIUtils.drawDecorationRound(x+sidebarWidth()+3,y+headerHeight()+3,
-                        width-sidebarWidth()-9,height-headerHeight()-9,6,new Color(13,19,28,180));
-                me.youngjibbit.gui.LegacyUiStyle.rule(x+10,y+headerHeight()-1,width-20,theme);
-                UIUtils.drawDecorationRound(x+10,y+10,2,14,1,me.youngjibbit.gui.LegacyUiStyle.accent(theme,.85f));
+                LiquidGlass.inset(x+5,y+headerHeight()+3,sidebarWidth()-10,
+                        Math.max(1,height-headerHeight()-9),6,theme);
+                LiquidGlass.inset(x+sidebarWidth()+3,y+headerHeight()+3,
+                        Math.max(1,width-sidebarWidth()-9),Math.max(1,height-headerHeight()-9),6,theme);
+                LiquidGlass.divider(x+10,y+headerHeight()-1,width-20,theme);
+                UIUtils.drawDecorationGradientVertical(x+10,y+10,2,14,1,
+                        LiquidGlass.accent(theme,225),NeutronVisualTokens.secondary(theme,175));
                 drawClientName(Pulsar.INSTANCE.getName(),(int)(x+17),(int)(y+10),theme);
                 Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString(
                         "o",x+width-21,y+13,me.youngjibbit.gui.LegacyUiStyle.MUTED);
@@ -270,13 +272,19 @@ public class ClickGui extends GuiScreen {
                             NeutronVisualTokens.RADIUS_CONTROL+4f,
                             me.youngjibbit.utils.render.UiEffects.accent(theme.getSecondaryGradientRGB(), .04f*sGlow));
                 }
-            }else me.youngjibbit.clickgui.utils.ClickControlStyle.panelField(searchBox.x,searchBox.y,
-                    searchBox.width,searchBox.height,theme,searchFocus&&showsKeyboardFocus());
+            }else{
+                float searchHover=chromeMotion[0].amount();
+                MenuSurface.plate(searchBox.x,searchBox.y,searchBox.width,searchBox.height,theme,
+                        searchFocus&&showsKeyboardFocus(),searchHover);
+                me.youngjibbit.gui.LegacyUiStyle.icon("search",searchBox.x+7,
+                        searchBox.y+(searchBox.height-10)/2f,10,me.youngjibbit.gui.LegacyUiStyle.MUTED);
+            }
             GuiStyle.feedback(searchBox,chromeMotion[0]);
-            try(GuiClip ignored=GuiClip.push(new ClipRect(searchBox.x+8,searchBox.y,searchBox.width-28,searchBox.height))){
+            float searchTextX=searchBox.x+(two()?8:20);
+            try(GuiClip ignored=GuiClip.push(new ClipRect(searchBox.x+(two()?8:20),searchBox.y,searchBox.width-(two()?28:32),searchBox.height))){
                 String shown=search.isEmpty()&&!searchFocus?width<380?"Search...":"Search modules...":search+(searchFocus?"_":"");
-                while(shown.length()>1&&font().getWidth(shown)>searchBox.width-32)shown=shown.substring(1);
-                font().drawString(shown,searchBox.x+8,textY(font(),"Search",searchBox),searchFocus?0xffffffff:0xffa4a9b3);
+                while(shown.length()>1&&font().getWidth(shown)>searchBox.width-(two()?32:36))shown=shown.substring(1);
+                font().drawString(shown,searchTextX,textY(font(),"Search",searchBox),searchFocus?0xffffffff:0xffa4a9b3);
             }
             if(!search.isEmpty()||searchFocus)font().drawString("x",searchBox.x+searchBox.width-14,textY(font(),"x",searchBox),0xffb8bec8);
             ClipRect themes = GuiStyle.buttonBounds(themeBounds(), themeSpring);
@@ -298,14 +306,7 @@ public class ClickGui extends GuiScreen {
             GuiStyle.feedback(themes,themeSpring);
             font().drawString("Library",themes.x+(themes.width-font().getWidth("Library"))/2,textY(font(),"Library",themes),GuiStyle.ink(theme.isCustom()?theme.getTextColor().getRGB():0xffd4d9e3,chromeMotion[1]));
             float selectedY = y + headerHeight() + 4 + selectionOffset;
-            if(two()){
-                MenuSurface.card(x+8,selectedY,sidebarWidth()-16,step-4,theme,true,false);
-            }else{
-                UIUtils.drawDecorationRound(x+8,selectedY,sidebarWidth()-16,step-4,5,
-                        me.youngjibbit.gui.LegacyUiStyle.accent(theme,.14f));
-                UIUtils.drawDecorationRound(x+8,selectedY+5,2,Math.max(0,step-14),1,
-                        me.youngjibbit.gui.LegacyUiStyle.accent(theme,.85f));
-            }
+            MenuSurface.card(x+8,selectedY,sidebarWidth()-16,step-4,theme,true,false);
             String[] icons = {"c", "f", "d", "d", "e", "t", "f", "a"};
             for (int i = 0; i < CATEGORIES.length; i++) {
                 float rowY = y + headerHeight() + 4 + i * step;
@@ -320,9 +321,12 @@ public class ClickGui extends GuiScreen {
                 if (two()) {
                     if(i!=selectedCategory.ordinal()&&hover>.02f)
                         MenuSurface.card(category.x+3,category.y,category.width-6,category.height,theme,false,hover);
-                } else if(i!=selectedCategory.ordinal()&&hover>.02f)
-                    UIUtils.drawDecorationRound(x+8,rowY,sidebarWidth()-16,step-4,5,
-                            me.youngjibbit.gui.LegacyUiStyle.alpha(me.youngjibbit.gui.LegacyUiStyle.INK,.04f*hover));
+                } else if(i!=selectedCategory.ordinal()&&hover>.02f){
+                    float wash=LiquidGlass.radius(5,sidebarWidth()-16,step-4);
+                    UIUtils.drawDecorationRound(x+8,rowY,sidebarWidth()-16,step-4,wash,
+                            LiquidGlass.fill(theme,Math.round(34+58*hover)));
+                    if(hover>.5f)LiquidGlass.highlight(x+8,rowY,sidebarWidth()-16,step-4,wash);
+                }
                 String font = i == 2 || i == 4 || i == 6 ? "icon1 21" : "icon 21";
                 float textX = x + (two() ? 17 : 14);
                 float textY = rowY + (step-14)/2;
@@ -607,8 +611,10 @@ public class ClickGui extends GuiScreen {
     private void cancelInputs(){for(List<ClickModule> category:moduleCache.values())for(ClickModule row:category)row.cancelInputs();focus=null;binding=null;searchFocus=false;}
     private void drawBinding(){
         float w=Math.min(270,width-16),h=94,bx=x+(width-w)/2,by=y+(height-h)/2;
+        Theme theme=Theme.resolve(Theme.getDefaultTheme());
         try(GuiClip ignored=GuiClip.push(new ClipRect(bx,by,w,h))){
-            GuiStyle.panel(bx,by,w,h,5,1,new Color(11,11,13));
+            UIUtils.drawDecorationRound(bx,by,w,h,5,LiquidGlass.fill(theme,150));
+            LiquidGlass.inset(bx,by,w,h,5,theme);
             font().drawString("Bind "+binding.getModule().getName(),bx+10,by+9,-1);
             font().drawString("Press a key / Esc: cancel",bx+10,by+27,0xffb5bac4);
             font().drawString("Delete / Backspace: remove",bx+10,by+42,0xffb5bac4);
@@ -631,7 +637,7 @@ public class ClickGui extends GuiScreen {
         float w=Math.min(250,width-16);List<String> lines=new ArrayList<>();String line="";
         for(String word:text.split(" ")){String next=line.isEmpty()?word:line+" "+word;if(font().getWidth(next)>w-16&&!line.isEmpty()){lines.add(line);line=word;}else line=next;}if(!line.isEmpty())lines.add(line);
         float h=12+lines.size()*11,tx=Math.max(x+5,Math.min(mx+10,x+width-w-5)),ty=Math.max(y+5,Math.min(my+16,y+height-h-5));
-        try(GuiClip ignored=GuiClip.push(new ClipRect(tx,ty,w,h))){GuiStyle.panel(tx,ty,w,h,4,.5f,new Color(12,12,14));for(int i=0;i<lines.size();i++)font().drawString(lines.get(i),tx+7,ty+6+i*11,0xffd4d8e0);}
+        try(GuiClip ignored=GuiClip.push(new ClipRect(tx,ty,w,h))){LiquidGlass.inset(tx,ty,w,h,4,Theme.resolve(Theme.getDefaultTheme()));for(int i=0;i<lines.size();i++)font().drawString(lines.get(i),tx+7,ty+6+i*11,0xffd4d8e0);}
     }
 
     @Override

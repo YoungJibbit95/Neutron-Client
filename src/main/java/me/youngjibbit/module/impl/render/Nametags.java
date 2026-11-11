@@ -13,6 +13,9 @@ import me.youngjibbit.utils.render.ShaderUtil;
 import me.youngjibbit.utils.render.UiEffects;
 import me.youngjibbit.utils.render.EffectMotion;
 import me.youngjibbit.utils.render.UIUtils;
+import me.youngjibbit.gui.HudSpring;
+import me.youngjibbit.gui.LiquidGlass;
+import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.value.impl.CheckBoxValue;
 import me.youngjibbit.value.impl.ComboValue;
 import me.youngjibbit.value.impl.SliderValue;
@@ -61,6 +64,9 @@ public class Nametags extends Module {
     private ShaderUtil nametagFlameShader, nametagNeonShader, nametagLinesShader;
     private final java.util.Map<Entity, EffectMotion> flameMotions = new java.util.IdentityHashMap<>();
     private final java.util.Set<Entity> flameMotionSeen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<Entity, Boolean>());
+    private final java.util.Map<Entity, HudSpring> healthMotions = new java.util.IdentityHashMap<>();
+    private final java.util.Set<Entity> healthMotionSeen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<Entity, Boolean>());
+    private long lastHealthFrame;
     private Object motionWorld;
 
     public Theme applyTheme()
@@ -74,14 +80,14 @@ public class Nametags extends Module {
     @Override
     public void onEnable()
     {
-        clearFlameMotion();
+        resetMotion();
         super.onEnable();
     }
 
     @Override
     public void onDisable()
     {
-        clearFlameMotion();
+        resetMotion();
         try(me.youngjibbit.utils.render.RenderState ignored = new me.youngjibbit.utils.render.RenderState()){
             for(ShaderUtil s:new ShaderUtil[]{nametagFlameShader,nametagNeonShader,nametagLinesShader})if(s!=null)s.close();
         }
@@ -90,18 +96,33 @@ public class Nametags extends Module {
     }
 
     @Subscribe
-    private final Listener<WorldEvent> onWorldEvent = new Listener<>(event -> clearFlameMotion());
+    private final Listener<WorldEvent> onWorldEvent = new Listener<>(event -> resetMotion());
 
     private void clearFlameMotion() {
-        flameMotions.clear(); flameMotionSeen.clear(); motionWorld = null;
+        flameMotions.clear(); flameMotionSeen.clear();
+    }
+    private void clearHealthMotion() {
+        healthMotions.clear(); healthMotionSeen.clear(); lastHealthFrame=0;
+    }
+    private void resetMotion() {
+        clearFlameMotion(); clearHealthMotion(); motionWorld = null;
     }
 
     @Subscribe
     private final Listener<Event2D> on2D = new Listener<>(e->
     {
-        if(mc.theWorld==null||mc.thePlayer==null){clearFlameMotion();return;}
-        if(motionWorld!=mc.theWorld||!"Flame".equals(mode.getValue()))clearFlameMotion();
-        motionWorld=mc.theWorld;flameMotionSeen.clear();
+        if(mc.theWorld==null||mc.thePlayer==null){resetMotion();return;}
+        if(motionWorld!=mc.theWorld){resetMotion();motionWorld=mc.theWorld;}
+        if(!"Flame".equals(mode.getValue()))clearFlameMotion();
+        flameMotionSeen.clear();healthMotionSeen.clear();
+        ClientSettings motion=ClientSettings.current();
+        boolean animated=motion==null||motion.animations.getValue();
+        boolean reduced=motion!=null&&motion.reducedMotion.getValue();
+        String intensity=motion==null?"Balanced":motion.motionIntensity.getValue();
+        long healthNow=System.nanoTime();
+        float healthDt=lastHealthFrame==0||healthNow<=lastHealthFrame?0:
+                Math.min(.05f,(healthNow-lastHealthFrame)/1_000_000_000f);
+        lastHealthFrame=healthNow;
         try(me.youngjibbit.core.diagnostics.RenderTimings.Scope timing=me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.scope("Nametags / labels")) {
         java.util.List<EntityPlayer> players=new java.util.ArrayList<>();for(Entity candidate:mc.theWorld.loadedEntityList)if(replacementCandidate(candidate,mc.getRenderManager()))players.add((EntityPlayer)candidate);if(players.isEmpty())return;
         currentTheme=Theme.getDefaultTheme();
@@ -147,6 +168,17 @@ public class Nametags extends Module {
                 EntityPlayer player = (EntityPlayer) ent;
                 String health = wrappedHealth(player) + "";
                 String hp = String.valueOf(player.getHealth());
+                float maxHealth = Math.max(1, player.getMaxHealth());
+                float healthTarget = Math.max(0, Math.min(1, player.getHealth() / maxHealth));
+                HudSpring spring = healthMotions.get(player);
+                if (spring == null) {
+                    spring = new HudSpring();
+                    spring.snap(healthTarget);
+                    healthMotions.put(player, spring);
+                }
+                healthMotionSeen.add(player);
+                float shownHealth = Math.max(0, Math.min(1,
+                        spring.step(healthTarget, healthDt, animated, reduced, intensity)));
 
                 int length = (int) Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Medium 15").getWidth(player.getCommandSenderName() + " | " + health) + 6;
                 int tagColor = mc.thePlayer.isOnSameTeam(player) ? Color.green.getRGB() : interpolatedColor;
@@ -155,9 +187,20 @@ public class Nametags extends Module {
                     renderShaderNametag(entity, x - 7, y - 16, length + 2, 11, currentTheme, tagColor);
                 } else {
                     UiEffects.drawGlow(x - 8, y - 17, length + 2, 11, 3, tagColor, 0.65f, 2, 1);
-                    UiEffects.drawPanelFill(x-7,y-16,length+2,11,3,new Color(0,0,0,92),5);
-                    UIUtils.drawRoundOutline(x - 7, y - 16, length + 2, 11, 3, 0.45f, new Color(0, 0, 0, 1), UiEffects.color(tagColor, 0.62f));
+                    float tagRadius = LiquidGlass.radius(3, length + 2, 11);
+                    UIUtils.drawDecorationRound(x - 7, y - 16, length + 2, 11, tagRadius,
+                            LiquidGlass.fill(currentTheme, 204));
+                    LiquidGlass.highlight(x - 7, y - 16, length + 2, 11, tagRadius);
+                    UIUtils.drawRoundOutline(x - 7, y - 16, length + 2, 11, 3, 0.45f,
+                            new Color(0, 0, 0, 1), UiEffects.color(tagColor, 0.62f));
                 }
+                // A slim semantic rail makes health changes readable without relying on color alone.
+                float railX = x - 5, railWidth = Math.max(0, length - 4), railY = y - 4.6f;
+                UIUtils.drawDecorationRound(railX, railY, railWidth, 1.4f, .7f,
+                        new Color(255, 255, 255, 28));
+                if (railWidth * shownHealth > .05f)
+                    UIUtils.drawDecorationRound(railX, railY, railWidth * shownHealth, 1.4f, .7f,
+                            UiEffects.color(healthBarColor, .92f));
 
                 if(Wrapper.mc.thePlayer.getTeam() != null && player.getTeam() != null && Wrapper.mc.thePlayer.getTeam().isSameTeam(player.getTeam()))
                 {
@@ -173,7 +216,8 @@ public class Nametags extends Module {
             GlStateManager.popMatrix();
         }
         });}finally{me.youngjibbit.utils.render.GuiShaderBloom.flushBatch(2,2);}
-        } finally { flameMotions.keySet().retainAll(flameMotionSeen); }
+        } finally { flameMotions.keySet().retainAll(flameMotionSeen);
+            healthMotions.keySet().retainAll(healthMotionSeen); }
     });
 
     /** Reads current world-camera matrices after the entity model matrix has been popped. */
@@ -318,7 +362,7 @@ public class Nametags extends Module {
     private void renderShaderNametag(Entity entity, float x, float y, float w, float h, Theme theme, int tagColor) {
         ShaderUtil shader=getNametagShader(mode.getValue());
         if(shader==null)return;
-        UiEffects.drawPanelFill(x,y,w,h,3,new Color(0,0,0,92),5);
+        UiEffects.drawPanelFill(x,y,w,h,3,LiquidGlass.fill(theme,150),5);
         boolean teammate=entity instanceof EntityPlayer && mc.thePlayer.isOnSameTeam((EntityPlayer)entity);
         int primary=teammate?tagColor:theme.getPrimaryGradientRGB();
         int secondary=teammate?tagColor:theme.getSecondaryGradientRGB();

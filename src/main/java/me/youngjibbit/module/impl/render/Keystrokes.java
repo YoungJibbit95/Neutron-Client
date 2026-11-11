@@ -2,6 +2,7 @@ package me.youngjibbit.module.impl.render;
 
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.gui.HudSpring;
+import me.youngjibbit.gui.LiquidGlass;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.theme.ThemeCatalog;
@@ -98,8 +99,12 @@ public final class Keystrokes extends Module {
                 final String text=me.youngjibbit.clickgui.utils.ClickControlStyle.fit(font,label,cw-4);
                 if(modern){
                     // Modern: kompakte dunkle Tastenplatte mit subtiler Hover-Animation.
-                    float plateAlpha=205+18*hover;
-                    UIUtils.drawRound(px+1,py+1,cw-2,ch-2,5,new Color(34,36,49,Math.round(plateAlpha)));
+                    float plateAlpha=190+16*hover;
+                    float plateRadius=Math.min(5,Math.min(cw-2,ch-2)/2);
+                    UIUtils.drawDecorationRound(px+1,py+1,cw-2,ch-2,plateRadius,
+                            LiquidGlass.fill(theme,Math.round(plateAlpha)));
+                    LiquidGlass.highlight(px+1,py+1,cw-2,ch-2,plateRadius);
+                    LiquidGlass.border(px+1,py+1,cw-2,ch-2,plateRadius,theme,isDown);
                     if(presses[index]>.001f){
                         UIUtils.drawDecorationGradientVertical(px+2,py+2,
                                 Math.max(0,cw-4),Math.max(0,ch-4),4,

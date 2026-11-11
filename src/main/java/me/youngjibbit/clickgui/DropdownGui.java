@@ -9,6 +9,7 @@ import me.youngjibbit.module.Module;
 import me.youngjibbit.module.impl.render.ClickGUI;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.theme.ThemeMode;
+import me.youngjibbit.gui.LiquidGlass;
 import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.font.TTFFontRenderer;
 import me.youngjibbit.utils.render.ArrayListSurface;
@@ -189,6 +190,9 @@ public class DropdownGui extends GuiScreen {
                 UIUtils.drawDecorationGradientVertical(panel.x, panel.y, panel.width, HEADER, 3,
                         UiEffects.color(theme.getPrimaryGradientRGB(), .94f),
                         UiEffects.color(theme.getSecondaryGradientRGB(), .94f));
+                if(panel.height>HEADER+2)
+                    LiquidGlass.inset(panel.x+2,panel.y+HEADER-1,panel.width-4,panel.height-HEADER-1,
+                            modern?5:3,theme);
                 TTFFontRenderer heading = Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 16");
                 ClickGUI settings = (ClickGUI)Pulsar.INSTANCE.getMm().getModule(ClickGUI.class);
                 boolean glow = settings != null && settings.getBooleanSetting("Heading Glow").getValue();
@@ -234,11 +238,15 @@ public class DropdownGui extends GuiScreen {
     private void drawToolbar(Theme theme,int mouseX,int mouseY,float dt) {
         ClipRect r = toolbarBounds();
         toolbarSurface.panel(r.x, r.y, r.width, r.height, 4, theme, true, true, true, 8, .88f, .8f, () -> {
+            LiquidGlass.highlight(r.x,r.y,r.width,r.height,4);
             ClipRect s = searchBounds();
-            GuiStyle.panel(s.x, s.y, s.width, s.height, 3, searchFocus && showsKeyboardFocus() ? 1 : 0, new Color(22, 22, 26));
-            try (GuiClip ignored = GuiClip.push(new ClipRect(s.x + 5, s.y, s.width - 18, s.height))) {
-                String text = search.isEmpty() && !searchFocus ? "/ Search modules" : search + (searchFocus ? "_" : "");
-                font().drawString(ClickControlStyle.fit(font(), text, s.width - 22), s.x + 5, s.y + 4, ink(theme));
+            MenuSurface.plate(s.x, s.y, s.width, s.height, theme,
+                    searchFocus && showsKeyboardFocus(), toolbarMotion[0].amount());
+            me.youngjibbit.gui.LegacyUiStyle.icon("search", s.x + 4, s.y + 4, 9,
+                    UiEffects.alpha(ink(theme), .55f));
+            try (GuiClip ignored = GuiClip.push(new ClipRect(s.x + 14, s.y, s.width - 27, s.height))) {
+                String text = search.isEmpty() && !searchFocus ? "Search modules" : search + (searchFocus ? "_" : "");
+                font().drawString(ClickControlStyle.fit(font(), text, s.width - 31), s.x + 14, s.y + 4, ink(theme));
             }
             if (!search.isEmpty()) font().drawString("x", s.x + s.width - 11, s.y + 4, ink(theme));
             button(configBounds(), "Library", theme,0,mouseX,mouseY,dt);
@@ -252,7 +260,7 @@ public class DropdownGui extends GuiScreen {
     private void button(ClipRect r, String text, Theme theme,int index,int mouseX,int mouseY,float dt) {
         toolbarMotion[index].step(dt,r.contains(mouseX,mouseY),false,false,binding==null,me.youngjibbit.module.impl.client.ClientSettings.current());
         r = GuiStyle.buttonBounds(r, toolbarMotion[index]);
-        UIUtils.drawRound(r.x, r.y, r.width, r.height, 3, new Color(22, 22, 26));
+        MenuSurface.plate(r.x, r.y, r.width, r.height, theme, false, toolbarMotion[index].amount());
         GuiStyle.feedback(r,toolbarMotion[index]);
         font().drawCenteredString(text, r.x + r.width / 2, r.y + 4, ink(theme));
     }
@@ -487,8 +495,9 @@ public class DropdownGui extends GuiScreen {
 
     private void drawBinding() {
         float w = Math.min(290, width - 20), h = 89, x = (width - w) / 2, y = (height - h) / 2;
-        GuiStyle.panel(x, y, w, h, 5, 1, new Color(13, 13, 18));
         Theme theme = Theme.getDefaultTheme();
+        UIUtils.drawDecorationRound(x, y, w, h, 5, LiquidGlass.fill(theme,150));
+        LiquidGlass.inset(x, y, w, h, 5, theme);
         font().drawString("Bind " + ClickControlStyle.fit(font(), binding.getModule().getName(), w - 50), x + 10, y + 10, ink(theme));
         font().drawString("Press key / Esc: cancel", x + 10, y + 27, ink(theme));
         font().drawString("Delete / Backspace: remove", x + 10, y + 42, ink(theme));
@@ -522,7 +531,7 @@ public class DropdownGui extends GuiScreen {
         float h = 12 + lines.size() * 12;
         float tx = Math.max(5, Math.min(x + 10, width - w - 5)), ty = Math.max(5, Math.min(y + 14, height - h - 38));
         try (GuiClip ignored = GuiClip.push(new ClipRect(tx, ty, w, h))) {
-            GuiStyle.panel(tx, ty, w, h, 4, .5f, new Color(13, 13, 18));
+            LiquidGlass.inset(tx, ty, w, h, 4, Theme.getDefaultTheme());
             for (int i = 0; i < lines.size(); i++) font().drawString(lines.get(i), tx + 8, ty + 6 + i * 12, ink(Theme.getDefaultTheme()));
         }
     }
