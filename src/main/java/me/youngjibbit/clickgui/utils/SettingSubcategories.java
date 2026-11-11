@@ -17,7 +17,7 @@ public final class SettingSubcategories {
         List<SubcategoryValue> result = new ArrayList<>();
         if (values.size() <= 5) return result;
         Map<String,List<Value<?>>> groups = new LinkedHashMap<>();
-        for (String name : Arrays.asList("General", "Targets", "Bridge", "Aiming", "Movement", "Attacks", "Blocking", "Placement", "Safety", "Timing", "Appearance", "Advanced"))
+        for (String name : Arrays.asList("General", "Targets", "Bridge", "Aiming", "Movement", "Attacks", "Blocking", "Placement", "Hotbar", "Cleanup", "Halo", "Hitpoint", "Safety", "Timing", "Appearance", "Advanced"))
             groups.put(name, new ArrayList<>());
         for (Value<?> value : values) groups.get(group(module.getId(), value.getId())).add(value);
         for (Map.Entry<String,List<Value<?>>> entry : groups.entrySet()) {
@@ -36,6 +36,16 @@ public final class SettingSubcategories {
         return false;
     }
     static String group(String module, String id) {
+        if (id.startsWith("smart_disable_on_")) return "Safety";
+        if ("targetesp".equals(module)) {
+            if ("target_halo".equals(id) || id.startsWith("halo_")) return "Halo";
+            if (id.startsWith("hitpoint") || "show_ray_misses".equals(id)) return "Hitpoint";
+            return "Appearance";
+        }
+        if ("invmanager".equals(module)) {
+            if (is(id,"layout","vacant_slots") || id.startsWith("slot_") || id.endsWith("_slot")) return "Hotbar";
+            if (has(id,"trash","keep_one","drop","armor")) return "Cleanup";
+        }
         if (has(id,"debug","diagnostic","file_path","recording","training")) return "Advanced";
         if ("scaffold".equals(module)) {
             if (is(id,"scaffold_approach","advanced_bridge_settings","keep_y","downwards","item_spoof")) return "Bridge";
@@ -76,7 +86,11 @@ public final class SettingSubcategories {
             case "Attacks": return "Execution and click timing";
             case "Blocking": return "Sword use and release";
             case "Placement": return "Placement cadence and actions";
-            case "Safety": return "Edges, recovery and prediction";
+            case "Hotbar": return "Nine slots, priorities and fallback items";
+            case "Cleanup": return "Protected items, duplicates and trash";
+            case "Halo": return "Active target, trail and motion";
+            case "Hitpoint": return "Accepted rotation and exact ray position";
+            case "Safety": return "Lifecycle, recovery and safeguards";
             case "Timing": return "Delays and timing windows";
             case "Appearance": return "Style, colors and visibility";
             case "Advanced": return "Specialized controls and diagnostics";

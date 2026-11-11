@@ -67,7 +67,7 @@ test_classpath="$repo_root/target/test-classes:$repo_root/target/classes:$depend
 collect_screenshots() (
   local name="$1" preview image destination
   shopt -s nullglob
-  for preview in gui-preview dropdown-preview arraylist-preview session-preview theme-preview settings-preview neutron-ui-preview shader-preview hud-preview armor-preview chat-preview; do
+  for preview in gui-preview dropdown-preview arraylist-preview session-preview theme-preview settings-preview neutron-ui-preview shader-preview hud-preview armor-preview chat-preview trash-preview target-esp-preview; do
     for image in "$fixtures/$name/$preview/"*.png; do
       destination="$screenshots/$name/$preview"
       mkdir -p "$destination" && cp -- "$image" "$destination/" || return "$?"
@@ -81,6 +81,10 @@ collect_screenshots() (
         mkdir -p "$destination" && cp -- "$image" "$destination/" || return "$?"
       fi
     done
+  fi
+  if [[ "$name" == target_esp && -f "$fixtures/$name/target-esp-preview/target-esp.json" ]]; then
+    destination="$screenshots/$name/target-esp-preview"
+    mkdir -p "$destination" && cp -- "$fixtures/$name/target-esp-preview/target-esp.json" "$destination/" || return "$?"
   fi
 )
 
@@ -166,6 +170,22 @@ suite_session() {
   require_images session armor-preview &&
   require_marker session 'PASS: compact Island notifications, balanced dock composition'
 }
+suite_trash() {
+  run_check trash me.youngjibbit.module.impl.render.SessionInfoRenderCheck \
+    'PASS: Trash registry/icons/variants' -Dpulsar.trash.check=true &&
+  require_images trash trash-preview
+}
+suite_target_esp() {
+  run_check target_esp me.youngjibbit.module.impl.render.TargetEspRenderCheck \
+    'PASS: TargetESP production halo/marker, exact placement, depth, clip, state, fallback and bounded resource lifetime' &&
+  require_images target_esp target-esp-preview &&
+  python3 - "$screenshots/target_esp/target-esp-preview/target-esp.json" <<'PY'
+import json, sys
+with open(sys.argv[1], encoding='utf-8') as source:
+    report = json.load(source)
+assert report['status'] == 'passed', report
+PY
+}
 suite_shader_modes() {
   run_check shader_modes me.youngjibbit.module.impl.render.ShaderModesRenderCheck \
     'PASS: shader modes actual exterior geometry' &&
@@ -190,7 +210,7 @@ suite_chat() {
 
 failed_suites=()
 suite_results=()
-for suite in panel dropdown arraylist session shader_modes chat; do
+for suite in panel dropdown arraylist session shader_modes target_esp trash chat; do
   suite_result=0
   "suite_$suite" 2>&1 | tee "$logs/$suite-suite.log" || suite_result=$?
   suite_results+=("$suite: exit $suite_result")
@@ -208,13 +228,13 @@ printf '%s\n' '::group::Native UI visual review copies'
 printf '%s\n' '::endgroup::'
 
 if (( ${#failed_suites[@]} != 0 )); then
-  printf 'FAIL: Native UI suites failed: %s. All six suites were attempted; see each suite log.\n' \
+  printf 'FAIL: Native UI suites failed: %s. All eight suites were attempted; see each suite log.\n' \
     "${failed_suites[*]}" | tee "$logs/summary.log"
   exit 1
 fi
 
 printf '%s\n' \
-  'PASS: Six separate native JVMs completed with production shaders, FBO/readback and fixture diagnostics enabled.' \
-  'Coverage: panel/subcategories, dropdown/library/config actions, Arraylist, compact TargetHUD/SessionInfo/ArmorHUD, compact Island/docking, animated chat/input/links/resize, Theme editor, Client settings, Library transitions and Flame/Neon/Lines ESP/UI contours.' \
+  'PASS: Eight separate native JVMs completed with production shaders, FBO/readback and fixture diagnostics enabled.' \
+  'Coverage: panel/subcategories, dropdown/library/config actions, Arraylist, compact TargetHUD/SessionInfo/ArmorHUD, compact Island/docking, animated chat/input/links/resize, Theme editor, Client settings, Library transitions, searchable Trash menu, TargetESP production halo/hitpoint and Flame/Neon/Lines ESP/UI contours.' \
   'Not covered: game-world rendering, native Display/fullscreen/VSync, multiplayer or full client bootstrap.' \
   | tee "$logs/summary.log"

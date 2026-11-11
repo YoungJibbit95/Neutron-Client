@@ -24,6 +24,7 @@ public class VelocityImpulseGuardFlowTest {
     }
 
     private static Velocity enable(ExploitHookFixture fixture) {
+        fixture.supportPlayerOnFloor();
         fixture.world.entities.put(1,fixture.player);
         fixture.player.sprint=true;
         fixture.player.onGround=true;

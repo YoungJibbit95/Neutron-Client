@@ -1,6 +1,7 @@
 package me.youngjibbit.module.impl.ghost;
 
 import me.youngjibbit.core.network.PacketPipeline;
+import me.youngjibbit.core.movement.GroundJumpGuard;
 import me.youngjibbit.event.motion.KnockbackEvent;
 import me.youngjibbit.event.packet.PacketReceiveEvent;
 import me.youngjibbit.event.world.WorldEvent;
@@ -67,7 +68,8 @@ public class JumpReset extends Module {
                 || !mc.thePlayer.onGround || mc.thePlayer.isInWater() || mc.thePlayer.isInLava()
                 || mc.thePlayer.isRiding() || mc.thePlayer.isDead || !mc.thePlayer.isEntityAlive()
                 || mc.currentScreen != null || !mc.inGameHasFocus || !melee(now)
-                || random.getAsDouble() >= jumpChance.getValue() / 100D) return;
+                || random.getAsDouble() >= jumpChance.getValue() / 100D
+                || !GroundJumpGuard.tryClaim(mc, this::isToggled)) return;
         // Do not call jump(): its sprint impulse would be added a second time.
         // NetHandler immediately replaces this Y with the unchanged server knockback.
         mc.thePlayer.motionY = .42;

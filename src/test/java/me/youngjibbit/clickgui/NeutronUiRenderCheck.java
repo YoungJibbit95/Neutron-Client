@@ -49,7 +49,7 @@ public final class NeutronUiRenderCheck {
                     library.opened.onGuiClosed();
                 }
                 require(library.tabBounds(0).isEmpty(),"Library must not retain the module browser");
-                for(int id=1;id<=5;id++) {
+                for(int id=1;id<=6;id++) {
                     me.youngjibbit.clickgui.utils.ClipRect card=library.tabBounds(id),window=library.window();
                     require(card.width==card.intersect(window).width&&card.height==card.intersect(window).height,"Every Library destination stays inside its window");
                 }

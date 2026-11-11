@@ -5,6 +5,7 @@ import me.youngjibbit.core.bootstrap.RuntimeServices;
 import me.youngjibbit.core.combat.*;
 import me.youngjibbit.core.contract.AutomationEligibility.ModuleAction;
 import me.youngjibbit.core.network.PacketPipeline;
+import me.youngjibbit.core.movement.GroundJumpGuard;
 import me.youngjibbit.core.observation.AutomatedActionAdmission;
 import me.youngjibbit.event.motion.EventMotion;
 import me.youngjibbit.event.motion.EventRotation;
@@ -75,7 +76,7 @@ public class Velocity extends Module {
         remaining = jumpOnly ? 0 : reduceTicks.getValue().intValue();
         expires = now + 250_000_000L;
         pendingJump = (jumpOnly || "Legit".equals(mode.getValue()) && jumpReset.getValue()) && !JumpReset.isHandlingJumps()
-                && mc.thePlayer.onGround && mc.thePlayer.isSprinting();
+                && mc.thePlayer.onGround && mc.thePlayer.isSprinting() && GroundJumpGuard.supported(mc) && isToggled();
     }
 
     @Subscribe private final Listener<MovementInputEvent> onInput = new Listener<>(e -> {
@@ -88,7 +89,8 @@ public class Velocity extends Module {
                 // Existing Jumpreset is unchanged. The added opt-in mode
                 // requires actual forward intent and no sneaking.
                 && (!"Impulse Guard".equals(mode.getValue())
-                        || e.getForward() > 0 && !e.isSneak()))
+                        || e.getForward() > 0 && !e.isSneak())
+                && GroundJumpGuard.tryClaim(mc, this::isToggled))
             e.setJump(true);
     });
 

@@ -496,6 +496,9 @@ public class ConfigManager {
                     parseSetting(plan, change, value.getKey(), raw);
                 }
             }
+            // Existing inventory files predate organized hotbar planning. New module
+            // instances use Organized, but loading an old setup keeps its exact layout.
+            if ("invmanager".equals(module.getId())) defaultSetting(change,"layout","Legacy");
             // Old geometric effects occupied the palette selector. An explicit new
             // UI mode wins regardless of JSON key order; Lines has no UI counterpart.
             if(change.legacyUiGlowMode!=null)defaultSetting(change,"ui_glow_mode",change.legacyUiGlowMode);

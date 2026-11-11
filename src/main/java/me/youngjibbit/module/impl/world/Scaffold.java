@@ -327,6 +327,8 @@ public class Scaffold extends Module {
         bridgeAimSpeed.setVisibility(m->false);
         bridgeRotationSpeedAlias.setVisibility(m->false);
         sprint.setVisibility(m->false);
+        // Add after the mode-specific visibility pass, before the display snapshot.
+        enableSmartDisable();
         java.util.List<String> order=java.util.Arrays.asList("Scaffold Approach","Sprint Mode",
                 "Bridge Rotation Profile","Movement Correction","movefix","Bridge Edge Safety","Keep Y",
                 "Min Aim Speed","Max Aim Speed","Aim Noise Profile","Aim Noise Amount","Aim Noise Tempo",
