@@ -109,5 +109,7 @@ jobs:
             target/legacy-ui-render/xvfb.log
             target/legacy-ui-render/run.*/logs/*.log
             target/legacy-ui-render/run.*/screenshots/**/*.png
+            target/legacy-ui-render/run.*/screenshots/**/flame-motion.gif
+            target/legacy-ui-render/run.*/screenshots/**/shader-modes.json
           if-no-files-found: error
           retention-days: 14

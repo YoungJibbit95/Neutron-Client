@@ -2,6 +2,7 @@ package me.youngjibbit.module.impl.render;
 
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.event.render.Event2D;
+import me.youngjibbit.event.world.WorldEvent;
 import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.ModuleInfo;
@@ -10,6 +11,7 @@ import me.youngjibbit.utils.RenderUtil;
 import me.youngjibbit.utils.Wrapper;
 import me.youngjibbit.utils.render.ShaderUtil;
 import me.youngjibbit.utils.render.UiEffects;
+import me.youngjibbit.utils.render.EffectMotion;
 import me.youngjibbit.utils.render.UIUtils;
 import me.youngjibbit.value.impl.CheckBoxValue;
 import me.youngjibbit.value.impl.ComboValue;
@@ -57,6 +59,9 @@ public class Nametags extends Module {
 
     private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Static", "Flame", "Neon", "Lines"}, 0);
     private ShaderUtil nametagFlameShader, nametagNeonShader, nametagLinesShader;
+    private final java.util.Map<Entity, EffectMotion> flameMotions = new java.util.IdentityHashMap<>();
+    private final java.util.Set<Entity> flameMotionSeen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<Entity, Boolean>());
+    private Object motionWorld;
 
     public Theme applyTheme()
     {
@@ -69,12 +74,14 @@ public class Nametags extends Module {
     @Override
     public void onEnable()
     {
+        clearFlameMotion();
         super.onEnable();
     }
 
     @Override
     public void onDisable()
     {
+        clearFlameMotion();
         try(me.youngjibbit.utils.render.RenderState ignored = new me.youngjibbit.utils.render.RenderState()){
             for(ShaderUtil s:new ShaderUtil[]{nametagFlameShader,nametagNeonShader,nametagLinesShader})if(s!=null)s.close();
         }
@@ -83,9 +90,18 @@ public class Nametags extends Module {
     }
 
     @Subscribe
+    private final Listener<WorldEvent> onWorldEvent = new Listener<>(event -> clearFlameMotion());
+
+    private void clearFlameMotion() {
+        flameMotions.clear(); flameMotionSeen.clear(); motionWorld = null;
+    }
+
+    @Subscribe
     private final Listener<Event2D> on2D = new Listener<>(e->
     {
-        if(mc.theWorld==null||mc.thePlayer==null)return;
+        if(mc.theWorld==null||mc.thePlayer==null){clearFlameMotion();return;}
+        if(motionWorld!=mc.theWorld||!"Flame".equals(mode.getValue()))clearFlameMotion();
+        motionWorld=mc.theWorld;flameMotionSeen.clear();
         try(me.youngjibbit.core.diagnostics.RenderTimings.Scope timing=me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.scope("Nametags / labels")) {
         java.util.List<EntityPlayer> players=new java.util.ArrayList<>();for(Entity candidate:mc.theWorld.loadedEntityList)if(replacementCandidate(candidate,mc.getRenderManager()))players.add((EntityPlayer)candidate);if(players.isEmpty())return;
         currentTheme=Theme.getDefaultTheme();
@@ -134,11 +150,11 @@ public class Nametags extends Module {
 
                 int length = (int) Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Medium 15").getWidth(player.getCommandSenderName() + " | " + health) + 6;
                 int tagColor = mc.thePlayer.isOnSameTeam(player) ? Color.green.getRGB() : interpolatedColor;
-                UiEffects.drawGlow(x - 8, y - 17, length + 2, 11, 3, tagColor, 0.65f, 2, 1);
                 String nm = mode.getValue();
                 if (nm.equals("Flame") || nm.equals("Neon") || nm.equals("Lines")) {
-                    renderShaderNametag(x - 7, y - 16, length + 2, 11, currentTheme, tagColor);
+                    renderShaderNametag(entity, x - 7, y - 16, length + 2, 11, currentTheme, tagColor);
                 } else {
+                    UiEffects.drawGlow(x - 8, y - 17, length + 2, 11, 3, tagColor, 0.65f, 2, 1);
                     UiEffects.drawPanelFill(x-7,y-16,length+2,11,3,new Color(0,0,0,92),5);
                     UIUtils.drawRoundOutline(x - 7, y - 16, length + 2, 11, 3, 0.45f, new Color(0, 0, 0, 1), UiEffects.color(tagColor, 0.62f));
                 }
@@ -157,7 +173,7 @@ public class Nametags extends Module {
             GlStateManager.popMatrix();
         }
         });}finally{me.youngjibbit.utils.render.GuiShaderBloom.flushBatch(2,2);}
-        }
+        } finally { flameMotions.keySet().retainAll(flameMotionSeen); }
     });
 
     /** Reads current world-camera matrices after the entity model matrix has been popped. */
@@ -299,11 +315,24 @@ public class Nametags extends Module {
         return null;
     }
 
-    private void renderShaderNametag(float x, float y, float w, float h, Theme theme, int tagColor) {
+    private void renderShaderNametag(Entity entity, float x, float y, float w, float h, Theme theme, int tagColor) {
         ShaderUtil shader=getNametagShader(mode.getValue());
         if(shader==null)return;
         UiEffects.drawPanelFill(x,y,w,h,3,new Color(0,0,0,92),5);
-        me.youngjibbit.utils.render.EspEffectStyle.drawRectangle(shader,theme,mode.getValue(),x,y,w,h,tagColor,tagColor);
+        boolean teammate=entity instanceof EntityPlayer && mc.thePlayer.isOnSameTeam((EntityPlayer)entity);
+        int primary=teammate?tagColor:theme.getPrimaryGradientRGB();
+        int secondary=teammate?tagColor:theme.getSecondaryGradientRGB();
+        float flowX=0,flowY=0,energy=0;
+        if("Flame".equals(mode.getValue())){
+            EffectMotion motion=flameMotions.get(entity);
+            if(motion==null){motion=new EffectMotion();flameMotions.put(entity,motion);}
+            flameMotionSeen.add(entity);
+            float scale=me.youngjibbit.utils.render.GuiResolution.current().getScaleFactor();
+            motion.sample(UiEffects.time(),(x+w*.5f)*scale,(y+h*.5f)*scale,w*scale,h*scale,
+                    mc.displayWidth,mc.displayHeight,UiEffects.motion()&&UiEffects.options().ambient);
+            flowX=motion.flowX();flowY=motion.flowY();energy=motion.energy();
+        }
+        me.youngjibbit.utils.render.EspEffectStyle.drawRectangle(shader,theme,mode.getValue(),x,y,w,h,primary,secondary,flowX,flowY,energy);
     }
 
     public boolean isInViewFrustrum(Entity entity) {

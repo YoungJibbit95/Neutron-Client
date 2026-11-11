@@ -40,7 +40,7 @@ public class ClientSettings extends Module {
     public final CheckBoxValue animations=new CheckBoxValue("UI Animations",this,true);
     public final CheckBoxValue reducedMotion=new CheckBoxValue("Reduced Motion",this,false);
     public final ComboValue motionIntensity=new ComboValue("UI Motion Intensity",this,new String[]{"Calm","Balanced","Expressive"},1);
-    public final ComboValue gradientMethod=new ComboValue("Gradient Method",this,new String[]{"Flow","Ping-Pong","Pulse","Perimeter Orbit","Flame","Neon","Lines"},0);
+    public final ComboValue gradientMethod=new ComboValue("Gradient Method",this,new String[]{"Flow","Ping-Pong","Pulse","Perimeter Orbit"},0);
     public final CheckBoxValue ambientMotion=new CheckBoxValue("Ambient Motion",this,true);
     public final CheckBoxValue semanticColorPriority=new CheckBoxValue("Semantic Color Priority",this,true);
     public final CheckBoxValue notifications=new CheckBoxValue("Notifications",this,true);
@@ -79,6 +79,10 @@ public class ClientSettings extends Module {
 
     // Appended opt-in screen style; historic Value order and local HUD choices stay intact.
     public final ComboValue neutronScreenStyle=new ComboValue("Neutron 2.0 Style",this,new String[]{"Modern","Creative"},0);
+    // Geometry effects are independent of palette motion. Append to retain historic Value indices.
+    public final ComboValue uiGlowMode=new ComboValue("UI Glow Mode",this,new String[]{"Standard","Flame","Neon"},0);
+    public final SliderValue flameMotion=new SliderValue("Flame Motion",this,.65,0,1);
+    public final SliderValue lineSpacing=new SliderValue("Line Spacing",this,3.0,2,8);
     public static boolean creativeScreenStyle(){
         ClientSettings settings=current();
         return settings!=null&&"Creative".equals(settings.neutronScreenStyle.getValue());
@@ -92,12 +96,12 @@ public class ClientSettings extends Module {
         Map<String,List<Value<?>>> groups=new LinkedHashMap<>();
         groups.put("Appearance",Arrays.asList(roundness,surface,surfaceOpacity,gradientFillStrength,border,borderColor,borderOpacity,neutronScreenStyle));
         groups.put("Blur / Liquid Glass",Arrays.asList(blur,blurMethod,blurStrength,blurQuality,glassAppearance,glassRefraction,glassTint,glassLight));
-        groups.put("Glow",Arrays.asList(glow,glowIntensity,glowRadius));
+        groups.put("Glow",Arrays.asList(glow,uiGlowMode,glowIntensity,glowRadius));
         groups.put("Gradients / Motion",Arrays.asList(gradients,synchronize,direction,gradientMotion,gradientMethod,gradientSpeed,textDirection,textMotion,textSpeed,borderDirection,borderMotion,borderSpeed,glowDirection,glowMotion,glowSpeed,animations,reducedMotion,motionIntensity,ambientMotion,semanticColorPriority,orbitDirection,orbitSpeed,orbitGlow,orbitTrail));
         groups.put("Notifications",Arrays.asList(notifications,notificationDesign,notificationTheme,notificationPosition,notificationDuration,notificationWidth,notificationVisible,notificationQueue,info,success,warnings,errors));
         groups.put("Typography",Arrays.asList(fontFamily,textGlow,textGlowStrength,textGlowRadius,textGlowColor));
         // Append new sections: existing keyboard/category indices stay stable.
-        groups.put("World effects",Arrays.asList(flameSpeed,flameHeight,neonCore,neonGlow,lineSegments,lineTrail));
+        groups.put("World effects",Arrays.asList(flameSpeed,flameHeight,flameMotion,neonCore,neonGlow,lineSegments,lineSpacing,lineTrail));
         return groups;
     }
     public ClientSettings(){
@@ -121,6 +125,7 @@ public class ClientSettings extends Module {
         // and callbacks/persistence retain the existing config batch owner.
         notificationTheme.reset();
         neutronScreenStyle.reset();
+        uiGlowMode.reset();flameMotion.reset();lineSpacing.reset();
         fontFamily.reset();textGlow.reset();textGlowStrength.reset();textGlowRadius.reset();textGlowColor.reset();
     }
     @Override public void onValueChange(){me.youngjibbit.utils.render.UiEffects.invalidate();}

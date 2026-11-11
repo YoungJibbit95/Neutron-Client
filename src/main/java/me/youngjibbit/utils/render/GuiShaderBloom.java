@@ -66,8 +66,22 @@ public final class GuiShaderBloom {
             if (UiEffects.effectsSupported() && UiEffects.glowEnabled() && !queuedRects.isEmpty()) {
                 try (RenderState state=new RenderState()) {
                     state.screenSpace();
+                    boolean shaped=ContourEffects.specialUi();
+                    float scale=shaped?GuiResolution.current().getScaleFactor():1;
+                    if(shaped){state.bindTarget();state.restoreClip();}
+                    if(shaped)for(float[] rect:queuedRects){
+                        // World rectangles retain their explicit world-effect path.
+                        if(rect.length>12&&rect[12]>0)continue;
+                        if(rect[6]>0){org.lwjgl.opengl.GL11.glEnable(org.lwjgl.opengl.GL11.GL_SCISSOR_TEST);
+                            org.lwjgl.opengl.GL11.glScissor((int)rect[7],(int)rect[8],(int)rect[9],(int)rect[10]);}
+                        else org.lwjgl.opengl.GL11.glDisable(org.lwjgl.opengl.GL11.GL_SCISSOR_TEST);
+                        // The queue and Kawase use logical GUI pixels; the shared contour shader uses physical pixels.
+                        ContourEffects.drawUiRect(rect[0]*scale,rect[1]*scale,rect[2]*scale,rect[3]*scale,rect[4]*scale,Float.floatToRawIntBits(rect[5]),
+                                rect.length>11&&rect[11]>0,0,0,0);
+                    }
+                    if(shaped)state.restoreClip();
                     for(int role=0;role<2;role++){
-                        List<float[]> group=new ArrayList<>();for(float[] rect:queuedRects)if((rect.length>11&&rect[11]>0?1:0)==role)group.add(rect);if(group.isEmpty())continue;
+                        List<float[]> group=new ArrayList<>();for(float[] rect:queuedRects)if((!shaped||rect.length>12&&rect[12]>0)&&(rect.length>11&&rect[11]>0?1:0)==role)group.add(rect);if(group.isEmpty())continue;
                         used=true;Framebuffer bloomFramebuffer;capturing=true;try{bloomFramebuffer=KawaseBloom.drawRectsToFramebuffer(group);}finally{capturing=false;}
                         KawaseBloom.renderBlur(bloomFramebuffer.framebufferTexture,Math.max(1,iterations),Math.max(1,UiEffects.options().configured?Math.round(UiEffects.glowRadius(offset)/4):offset),role==0);
                     }
@@ -86,7 +100,7 @@ public final class GuiShaderBloom {
         else composite.run();
     }
 
-    public static void releaseResources(){queuedRects.clear();afterBatch.clear();batchDepth=0;if(used){KawaseBloom.releaseResources();used=false;}}
+    public static void releaseResources(){queuedRects.clear();afterBatch.clear();batchDepth=0;ContourEffects.releaseResources();if(used){KawaseBloom.releaseResources();used=false;}}
     public static void renderRect(float x, float y, float width, float height, int radius, int color, int iterations, int offset) {
         beginBatch();
         queueRoundedRect(x, y, width, height, radius, color);

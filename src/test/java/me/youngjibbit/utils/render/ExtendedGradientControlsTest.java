@@ -16,7 +16,7 @@ public class ExtendedGradientControlsTest {
     }
     @Test public void allGradientMethodsKeepTheirExactOrderAndLegacyDefault() {
         ClientSettings settings=new ClientSettings();
-        String[] methods={"Flow","Ping-Pong","Pulse","Perimeter Orbit","Flame","Neon","Lines"};
+        String[] methods={"Flow","Ping-Pong","Pulse","Perimeter Orbit"};
         assertArrayEquals(methods,settings.gradientMethod.getOptions());
         assertEquals("Flow",settings.gradientMethod.getValue());
         assertEquals(0,settings.gradientMethod.getSelectedIndex());
@@ -29,9 +29,18 @@ public class ExtendedGradientControlsTest {
         ClientSettings settings=new ClientSettings();
         settings.gradientMethod.setValue("Flow");
         for(Value<?> value:new Value<?>[]{settings.flameSpeed,settings.flameHeight,settings.neonCore,
-                settings.neonGlow,settings.lineSegments,settings.lineTrail}){
+                settings.neonGlow,settings.lineSegments,settings.lineTrail,settings.lineSpacing,settings.flameMotion}){
             assertTrue(settings.groups().get("World effects").contains(value));
             assertTrue(value.getVisibility()==null||value.getVisibility().test(settings));
         }
+    }
+    @Test public void uiGeometryDoesNotReusePaletteModesOrOfferLines() {
+        ClientSettings settings=new ClientSettings();
+        assertArrayEquals(new String[]{"Standard","Flame","Neon"},settings.uiGlowMode.getOptions());
+        settings.uiGlowMode.setValue("Neon");
+        assertEquals("Flow",settings.gradientMethod.getValue());
+        assertTrue(settings.groups().get("Glow").contains(settings.uiGlowMode));
+        settings.glow.setValue(false);
+        assertEquals("Neon",settings.uiGlowMode.getValue());
     }
 }

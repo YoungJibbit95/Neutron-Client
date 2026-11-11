@@ -4,6 +4,7 @@ import me.youngjibbit.Pulsar;
 import me.youngjibbit.event.render.Event2D;
 import me.youngjibbit.event.render.Event3D;
 import me.youngjibbit.event.update.EventUpdate;
+import me.youngjibbit.event.world.WorldEvent;
 import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.ModuleInfo;
@@ -16,6 +17,7 @@ import me.youngjibbit.utils.render.RenderUiUtils;
 import me.youngjibbit.utils.render.Roundedutil;
 import me.youngjibbit.utils.render.UIUtils;
 import me.youngjibbit.utils.render.UiEffects;
+import me.youngjibbit.utils.render.EffectMotion;
 import me.youngjibbit.utils.render.shader.KawaseBloom;
 import me.youngjibbit.utils.render.shader.ShaderUtil;
 import me.youngjibbit.value.impl.CheckBoxValue;
@@ -62,6 +64,9 @@ public class ESP extends Module
     private final ComboValue theme = new ComboValue("Theme", this, Theme.themes, 1);
     private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Static", "Morden", "None", "Flame", "Neon", "Lines"}, 1);
     private ShaderUtil flameShader, neonShader, linesShader;
+    private final java.util.Map<Entity, EffectMotion> flameMotions = new java.util.IdentityHashMap<>();
+    private final java.util.Set<Entity> flameMotionSeen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<Entity, Boolean>());
+    private Object motionWorld;
     private final CheckBoxValue blur = new CheckBoxValue("Blur", this, false);
     public CheckBoxValue healthBar = new CheckBoxValue("Health Bar", this, true);
     private final me.youngjibbit.utils.render.ArrayListSurface surfaces=new me.youngjibbit.utils.render.ArrayListSurface(this);
@@ -94,6 +99,7 @@ public class ESP extends Module
     }
 
     @Override public void onDisable(){
+        clearFlameMotion();
         try(me.youngjibbit.utils.render.RenderState ignored = new me.youngjibbit.utils.render.RenderState()){
             for(ShaderUtil s:new ShaderUtil[]{flameShader,neonShader,linesShader})if(s!=null)s.close();
         }
@@ -102,9 +108,18 @@ public class ESP extends Module
     }
 
     @Subscribe
+    private final Listener<WorldEvent> onWorldEvent = new Listener<>(event -> clearFlameMotion());
+
+    private void clearFlameMotion() {
+        flameMotions.clear(); flameMotionSeen.clear(); motionWorld = null;
+    }
+
+    @Subscribe
     private final Listener<Event3D> on3D = new Listener<>(e ->
     {
-        if(mc.theWorld==null||mc.thePlayer==null)return;
+        if(mc.theWorld==null||mc.thePlayer==null){clearFlameMotion();return;}
+        if(motionWorld!=mc.theWorld||!"Flame".equals(mode.getValue()))clearFlameMotion();
+        motionWorld=mc.theWorld;flameMotionSeen.clear();
         // Always scoped, including the no-FBO and inherited-scene fallbacks.
         try (me.youngjibbit.core.diagnostics.RenderTimings.Scope timing=me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.scope("ESP / world");
              me.youngjibbit.utils.render.RenderState ignored = new me.youngjibbit.utils.render.RenderState()) {
@@ -267,7 +282,7 @@ public class ESP extends Module
         }
         }finally{me.youngjibbit.utils.render.GuiShaderBloom.flushBatch(2,2);}
         });
-        }
+        } finally { flameMotions.keySet().retainAll(flameMotionSeen); }
     });
 
     private void renderModernGlowEffect(EntityLivingBase entity, AxisAlignedBB axisAlignedBB) {
@@ -320,7 +335,17 @@ public class ESP extends Module
         boolean teammate=ent instanceof EntityPlayer && mc.thePlayer.isOnSameTeam((EntityPlayer)ent);
         int primary=teammate?Color.green.getRGB():theme.getPrimaryGradientRGB();
         int secondary=teammate?primary:theme.getSecondaryGradientRGB();
-        me.youngjibbit.utils.render.EspEffectStyle.drawRectangle(shader,theme,mode.getValue(),x,y,w,h,primary,secondary);
+        float flowX=0,flowY=0,energy=0;
+        if("Flame".equals(mode.getValue())){
+            EffectMotion motion=flameMotions.get(ent);
+            if(motion==null){motion=new EffectMotion();flameMotions.put(ent,motion);}
+            flameMotionSeen.add(ent);
+            float scale=me.youngjibbit.utils.render.GuiResolution.current().getScaleFactor();
+            motion.sample(UiEffects.time(),(x+w*.5f)*scale,(y+h*.5f)*scale,w*scale,h*scale,
+                    mc.displayWidth,mc.displayHeight,UiEffects.motion()&&UiEffects.options().ambient);
+            flowX=motion.flowX();flowY=motion.flowY();energy=motion.energy();
+        }
+        me.youngjibbit.utils.render.EspEffectStyle.drawRectangle(shader,theme,mode.getValue(),x,y,w,h,primary,secondary,flowX,flowY,energy);
     }
 
     private static int interpolateTwoColorsSmoothly(int color1, int color2, long currentTime, float cycleDuration) {

@@ -24,6 +24,7 @@ import static org.lwjgl.opengl.GL11.*;
 /**
  * Neutron's lazy, Unicode-aware font renderer. Metrics never need a GL context.
  * Glyphs share padded atlases; a warmed string draws one batch per atlas run.
+ * Special contour halos draw all halo batches before a second sharp-ink traversal.
  */
 public class TTFFontRenderer implements AutoCloseable {
     private static final int MAX_GLYPHS = 8192, MAX_PAGES = 32, PADDING = 8;
@@ -185,11 +186,7 @@ public class TTFFontRenderer implements AutoCloseable {
         prepare(text);
         int previousProgram=me.youngjibbit.utils.render.FontInk.begin(textEffects,shadow);
         boolean halo=previousProgram>=0&&textEffects&&!shadow&&!TextEffects.isCapturing()&&me.youngjibbit.utils.render.FontInk.enabled();
-        float inset=halo?0:PADDING-2;
-        Format format=new Format(color,shadow);
-        float pen=x,baseline=y+ascent;
-        int bound=-1;
-        boolean batch=false;
+        boolean layeredHalo=halo&&me.youngjibbit.utils.render.ContourEffects.specialUi();
         // Raw state is scoped without changing GlStateManager's cached entry state.
         // Avoid a full framebuffer/matrix snapshot for every warmed label.
         glPushAttrib(GL_ENABLE_BIT|GL_COLOR_BUFFER_BIT|GL_CURRENT_BIT|GL_TEXTURE_BIT);
@@ -199,6 +196,28 @@ public class TTFFontRenderer implements AutoCloseable {
             glDisable(GL_ALPHA_TEST);
             if(TextEffects.isCapturing())GL14.glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);
             else glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+            if(layeredHalo){
+                // Padded neighboring quads overlap. Finish every halo before any
+                // sharp ink so a later glyph cannot recolor an earlier opaque glyph.
+                // begin() captures shader time once; obfuscated(cp) is deterministic,
+                // so both traversals use the same glyphs, formatting and geometry.
+                me.youngjibbit.utils.render.FontInk.haloOnly();
+                drawGlyphs(text,x,y,color,shadow,true);
+                me.youngjibbit.utils.render.FontInk.inkOnly();
+                return drawGlyphs(text,x,y,color,shadow,false);
+            }
+            return drawGlyphs(text,x,y,color,shadow,halo);
+        }finally{glPopAttrib();me.youngjibbit.utils.render.FontInk.end(previousProgram);}
+    }
+
+    /** Each traversal batches atlas runs and closes its last glBegin before a layer switch. */
+    private int drawGlyphs(String text,float x,float y,int color,boolean shadow,boolean halo) {
+        float inset=halo?0:PADDING-2;
+        Format format=new Format(color,shadow);
+        float pen=x,baseline=y+ascent;
+        int bound=-1;
+        boolean batch=false;
+        try{
             tint(format.color);
             for(int index=0;index<text.length();){
                 int cp=text.codePointAt(index);index+=Character.charCount(cp);
@@ -230,7 +249,7 @@ public class TTFFontRenderer implements AutoCloseable {
                 pen+=glyph.advance/2;
             }
             return Math.round(pen);
-        }finally{if(batch)glEnd();glPopAttrib();me.youngjibbit.utils.render.FontInk.end(previousProgram);}
+        }finally{if(batch)glEnd();}
     }
 
     /** Width and draw use the same codepoint/style/advance rules, including multiline text. */

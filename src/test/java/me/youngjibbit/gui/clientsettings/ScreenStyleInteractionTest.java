@@ -96,8 +96,11 @@ public class ScreenStyleInteractionTest {
 
     @Test public void actualSettingsPopupSelectsCreativeAndKeepsLegacyRowsAndValues()throws Exception{
         assertEquals("Modern",settings.neutronScreenStyle.getValue());
-        assertSame(settings.neutronScreenStyle,settings.getValues().get(settings.getValues().size()-1));
-        assertSame(settings.lineTrail,settings.getValues().get(settings.getValues().size()-2));
+        assertEquals(69,settings.getValues().size());
+        assertSame(settings.lineTrail,settings.getValues().get(64));
+        assertSame(settings.neutronScreenStyle,settings.getValues().get(65));
+        assertEquals(Arrays.asList(settings.uiGlowMode,settings.flameMotion,settings.lineSpacing),
+                settings.getValues().subList(66,69));
         Settings screen=new Settings();screen.size(1024,768);
         assertTrue(screen.row(1).y>screen.row(0).y);
         screen.key(Keyboard.KEY_END);screen.key(Keyboard.KEY_RETURN);
