@@ -16,6 +16,11 @@ import me.youngjibbit.core.inventory.InventoryPlanner;
 import me.youngjibbit.core.inventory.InventoryItemClassifier;
 import me.youngjibbit.core.inventory.TrashItemStore;
 import me.youngjibbit.core.inventory.TrashItemCatalog;
+import me.youngjibbit.core.inventory.InventoryPacing;
+import me.youngjibbit.core.inventory.InventorySlotOrder;
+import me.youngjibbit.core.inventory.InventoryAssistSession;
+import me.youngjibbit.core.inventory.InventoryInteractionSettings;
+import net.minecraft.client.gui.inventory.GuiContainer;
 import me.youngjibbit.utils.TimerUtil;
 import me.youngjibbit.value.impl.CheckBoxValue;
 import me.youngjibbit.value.impl.ComboValue;
@@ -108,7 +113,7 @@ public class InventoryManager extends Module
     }
 
     @Subscribe private final Listener<me.youngjibbit.event.world.WorldEvent> activityWorld =
-            new Listener<>(event -> invalidateInventoryPlan());
+            new Listener<>(event -> { invalidateInventoryPlan(); this.assistance.clear(); });
     @Subscribe private final Listener<me.youngjibbit.event.packet.EventPacket> activityPackets =
             new Listener<>(event -> {
                 if (event.isPost() && event.isInbound()
@@ -141,7 +146,7 @@ public class InventoryManager extends Module
     private Container trashContainer;
     private PlayerControllerMP trashController;
     private int trashWindowId;
-    private boolean inventoryClickInProgress;
+    private boolean inventoryClickInProgress, inventoryUpdateInProgress;
     private int lastAttemptTick = Integer.MIN_VALUE;
     private WeakReference<EntityPlayer> lastAttemptPlayer = new WeakReference<>(null);
     private WeakReference<Object> lastAttemptWorld = new WeakReference<>(null);
@@ -174,7 +179,13 @@ public class InventoryManager extends Module
     public final ComboValue[] hotbarRoles = new ComboValue[9];
     private TrashItemStore trashStore;
     //Timers
-    private final TimerUtil delayTimer = new TimerUtil();
+    private final InventoryPacing actionPacing = new InventoryPacing();
+    private final InventoryAssistSession assistance = new InventoryAssistSession("InvManager");
+    private final Random selectionSeeds = new Random();
+    private InventorySlotOrder dropRanks;
+    private String dropRankProfile;
+    private InventoryInteractionSettings interaction;
+    private ComboValue dropOrder;
     private final TimerUtil startDelayTimer = new TimerUtil();
 
     public InventoryManager()
@@ -195,6 +206,9 @@ public class InventoryManager extends Module
         random.setVisibility(m -> legacyLayout());
         openInv.setVisibility(m -> legacyLayout());
         enableSmartDisable();
+        interaction = new InventoryInteractionSettings(this, 100, 200);
+        dropOrder = new ComboValue("Drop Order", this, "Priority", new String[]{"Priority", "Shuffle", "Rows", "Nearby"});
+        minDelay.setVisibility(m -> interaction.legacySpeed()); maxDelay.setVisibility(m -> interaction.legacySpeed());
     }
 
     public TrashItemStore getTrashStore() {
@@ -212,8 +226,9 @@ public class InventoryManager extends Module
         return owner != null && owner.inventory != null && owner.inventory.getItemStack() == null &&
                 !owner.isDead && owner.isEntityAlive() && !mouseBusy();
     }
-    private static boolean mouseBusy() {
-        return Mouse.isCreated() && (Mouse.isButtonDown(0) || Mouse.isButtonDown(1));
+    private boolean mouseBusy() {
+        return mc.currentScreen instanceof GuiContainer && ((GuiContainer)mc.currentScreen).inventoryAssistUserBusy()
+                || Mouse.isCreated() && (Mouse.isButtonDown(0) || Mouse.isButtonDown(1));
     }
     private boolean attemptedThisTick() {
         return mc != null && mc.thePlayer != null && lastAttemptPlayer.get() == mc.thePlayer &&
@@ -225,11 +240,11 @@ public class InventoryManager extends Module
         lastAttemptTick = owner.ticksExisted;
         lastAttemptPlayer = new WeakReference<>(owner);
         lastAttemptWorld = new WeakReference<>(world);
-        delayTimer.reset();
+        actionPacing.reset();
         return true;
     }
     private boolean inventoryScreenMatches(EntityPlayer owner) {
-        return legacyLayout() || owner != null && mc.currentScreen instanceof GuiInventory &&
+        return legacyLayout() && (interaction == null || !interaction.click()) || owner != null && mc.currentScreen instanceof GuiInventory &&
                 ((GuiInventory)mc.currentScreen).inventorySlots == owner.inventoryContainer;
     }
 
@@ -251,6 +266,7 @@ public class InventoryManager extends Module
     @Override
     public void onEnable()
     {
+        assistance.resume();
         invalidateInventoryPlan();
         super.onEnable();
         if (mc.currentScreen instanceof GuiChest)
@@ -263,7 +279,7 @@ public class InventoryManager extends Module
 
     @Override
     public void onDisable() {
-        invalidateInventoryPlan();
+        invalidateInventoryPlan(); assistance.suspend();
         super.onDisable();
     }
 
@@ -276,6 +292,7 @@ public class InventoryManager extends Module
     private void invalidateInventoryPlan() {
         clearActivity();
         startDelayContext = null;
+        actionPacing.reset(); assistance.cancelPreview(); dropRanks = null;
         inventoryGeneration++;
         trashGeneration = -1;
         trash.clear();
@@ -292,11 +309,16 @@ public class InventoryManager extends Module
     }
 
     @Subscribe
-    private final Listener<EventUpdate> onUpdate = new Listener<>(e->
-    {
-        if (inventoryClickInProgress) return;
+    private final Listener<EventUpdate> onUpdate = new Listener<>(e -> {
+        if (inventoryClickInProgress || inventoryUpdateInProgress) return;
+        inventoryUpdateInProgress = true;
+        try { updateInventoryLogic(); }
+        finally { inventoryUpdateInProgress = false; }
+    });
+
+    private void updateInventoryLogic() {
         if (activityContext != null && !activityContext.isCurrent(mc)) clearActivity();
-        if (!isToggled() || !(mc.currentScreen instanceof GuiInventory)) { clearActivity(); startDelayContext = null; }
+        if (!isToggled() || !(mc.currentScreen instanceof GuiInventory)) { invalidateInventoryPlan(); return; }
         if (mc.thePlayer == null || mc.theWorld == null || mc.playerController == null || !cursorFree(mc.thePlayer)) {
             invalidateInventoryPlan();
             return;
@@ -329,10 +351,10 @@ public class InventoryManager extends Module
             }
             if (startDelayContext == null || !startDelayContext.sameScene(mc)) {
                 startDelayContext = ActivityInventoryContext.capture(mc);
-                startDelayTimer.reset();
+                startDelayTimer.reset(); actionPacing.reset(); assistance.cancelPreview(); dropRanks = null;
                 if (startDelayContext == null) return;
             }
-            if (attemptedThisTick()) return;
+            if (attemptedThisTick() || assistance.busy(mc)) return;
 
             searchForItems();
             searchForBestArmor();
@@ -345,7 +367,6 @@ public class InventoryManager extends Module
                 if (hasNoDelay()) return;
                 try { dropTrashSlot(trash.get(0)); }
                 catch (IndexOutOfBoundsException ignored) { }
-                delayTimer.reset();
                 return;
             }
 
@@ -368,7 +389,6 @@ public class InventoryManager extends Module
                     } else {
                         clickInventorySlot(wireSlot(bestSlot), 0, 1, 8 - i, stillBestArmor);
                     }
-                    delayTimer.reset();
                     return;
                 }
             }
@@ -381,7 +401,6 @@ public class InventoryManager extends Module
                         if (hasNoDelay()) return;
                         clickInventorySlot(wireSlot(move.source), move.hotbar, 2, wireSlot(move.hotbar),
                                 () -> move.equals(organizedPlan().nextMove));
-                        delayTimer.reset();
                         return;
                     }
                     publishActivity(Action.COMPLETE, false);
@@ -394,7 +413,6 @@ public class InventoryManager extends Module
                     clickInventorySlot(wireSlot(source), 0, 2, 36, () -> {
                         searchForItems(); return bestSwordSlot == source;
                     });
-                    delayTimer.reset();
                     return;
                 }
                 if (bestBowSlot >= 0 && bestBowSlot != 1) {
@@ -404,7 +422,6 @@ public class InventoryManager extends Module
                     clickInventorySlot(wireSlot(source), 1, 2, 37, () -> {
                         searchForItems(); return bestBowSlot == source;
                     });
-                    delayTimer.reset();
                     return;
                 }
                 if (bestPickaxeSlot >= 0 && bestPickaxeSlot != 2) {
@@ -414,14 +431,12 @@ public class InventoryManager extends Module
                     clickInventorySlot(wireSlot(source), 2, 2, 38, () -> {
                         searchForItems(); return bestPickaxeSlot == source;
                     });
-                    delayTimer.reset();
                     return;
                 }
                 if (bestBlockSlot >= 0 && bestBlockSlot != 8) {
                     publishActivity(Action.SCANNING, false, wireSlot(bestBlockSlot), 44);
                     if (hasNoDelay()) return;
                     moveBestBlockStack(8);
-                    delayTimer.reset();
                     return;
                 }
                 if (bestGapSlot >= 0 && bestGapSlot != 7) {
@@ -431,19 +446,20 @@ public class InventoryManager extends Module
                     clickInventorySlot(wireSlot(source), 7, 2, 43, () -> {
                         searchForItems(); return bestGapSlot == source;
                     });
-                    delayTimer.reset();
                     return;
                 }
             }
             publishActivity(Action.COMPLETE, false);
         }
-    });
-
-
-
+    }
 
     private static int wireSlot(int inventorySlot) {
         return inventorySlot < 9 ? inventorySlot + 36 : inventorySlot;
+    }
+
+    private boolean prepareAssist(String label, int slot, int button, int mode, int companion) {
+        return !interaction.click() || assistance.ready(mc, label, slot, button, mode, companion,
+                interaction.preview.getValue(), interaction.resume.getValue());
     }
 
     /** All legacy armor/tool swaps keep their ranking, with the same final click authority. */
@@ -472,6 +488,7 @@ public class InventoryManager extends Module
                 container.getSlot(companionSlot).getStack() == companionIdentity &&
                 ItemStack.areItemStacksEqual(sourceExpected, sourceIdentity) &&
                 ItemStack.areItemStacksEqual(companionExpected, companionIdentity);
+        if (!prepareAssist(mode == 4 ? "Drop armor" : mode == 1 ? "Equip" : "Swap", slot, button, mode, companionSlot)) return false;
         inventoryClickInProgress = true;
         try {
             openInvServerSide();
@@ -480,8 +497,16 @@ public class InventoryManager extends Module
                 return false;
             }
             final long activityBefore = activityRevision;
-            if (!claimInventoryAttempt(owner, world)) return false;
-            controller.windowClick(windowId, slot, button, mode, owner);
+            if (interaction.click()) {
+                if (!assistance.execute(mc, () -> current.getAsBoolean() && stillEligible.getAsBoolean() && current.getAsBoolean(),
+                        () -> isToggled() && generation == inventoryGeneration && mc.thePlayer == owner && mc.theWorld == world
+                                && mc.currentScreen == screen && mc.playerController == controller && owner.inventoryContainer == container
+                                && owner.openContainer == container && container.windowId == windowId && cursorFree(owner) && inventoryScreenMatches(owner),
+                        () -> claimInventoryAttempt(owner, world))) return false;
+            } else {
+                if (!claimInventoryAttempt(owner, world)) return false;
+                controller.windowClick(windowId, slot, button, mode, owner);
+            }
             observeClick(() -> mc.thePlayer == owner && mc.theWorld == world && mc.currentScreen == screen
                             && mc.playerController == controller && owner.inventoryContainer == container
                             && owner.openContainer == container && container.windowId == windowId,
@@ -494,7 +519,7 @@ public class InventoryManager extends Module
     }
 
     private void openInvServerSide() {
-        if (!legacyLayout()) return;
+        if (!legacyLayout() || interaction != null && interaction.click()) return;
         if (!invOpen && !openInv.getValue()) {
             if (mc.thePlayer != null && mc.thePlayer.sendQueue != null) {
                 final net.minecraft.client.entity.EntityPlayerSP owner = mc.thePlayer;
@@ -508,7 +533,7 @@ public class InventoryManager extends Module
     }
 
     private void closeInvServerSide() {
-        if (!legacyLayout()) return;
+        if (!legacyLayout() || interaction != null && interaction.click()) return;
         if (invOpen && !openInv.getValue()) {
             invOpen = false;
             if (mc.thePlayer != null && mc.thePlayer.sendQueue != null) {
@@ -518,7 +543,9 @@ public class InventoryManager extends Module
     }
 
     private boolean hasNoDelay() {
-        return !startDelayTimer.hasTimeElapsed((double) (startDelay.getValue() * 10 + Math.random() * 2), false) || !delayTimer.hasTimeElapsed(Double.valueOf((double) (Math.random() * (maxDelay.getValue() * 10 - minDelay.getValue() * 10 + 1) + minDelay.getValue() * 10)), false) || (!(mc.currentScreen instanceof GuiInventory)) && openInv.getValue();
+        return !startDelayTimer.hasTimeElapsed(startDelay.getValue() * 10, false)
+                || !interaction.ready(actionPacing, minDelay.getValue() * 10, maxDelay.getValue() * 10)
+                || !(mc.currentScreen instanceof GuiInventory) && openInv.getValue();
     }
 
     private void searchForTrash() {
@@ -572,7 +599,14 @@ public class InventoryManager extends Module
         trash.addAll(safe);
 
         // Randomness may only reorder the already finalized safe candidate set.
-        if (legacyLayout() && random.getValue()) Collections.shuffle(trash);
+        String order = dropOrder == null ? "Priority" : dropOrder.getValue();
+        if ("Priority".equals(order) && legacyLayout() && random.getValue()) order = "Shuffle";
+        if (!"Priority".equals(order)) {
+            if (dropRanks == null || !order.equals(dropRankProfile)) {
+                dropRankProfile = order; dropRanks = new InventorySlotOrder(36, order, selectionSeeds.nextLong());
+            }
+            dropRanks.sort(trash);
+        }
 
         for (int slot : trash) {
             ItemStack stack = mc.thePlayer.inventory.getStackInSlot(slot);
@@ -605,6 +639,7 @@ public class InventoryManager extends Module
         final ItemStack identity = trashIdentities.get(slot);
         if (expected == null || identity == null || owner.inventory.getStackInSlot(slot) != identity ||
                 !ItemStack.areItemStacksEqual(expected, identity)) return false;
+        if (!prepareAssist("Drop", wireSlot(slot), 1, 4, -1)) return false;
         inventoryClickInProgress = true;
         try {
             openInvServerSide();
@@ -621,8 +656,16 @@ public class InventoryManager extends Module
                     !trash.contains(slot) || owner.inventory.getStackInSlot(slot) != identity ||
                     !ItemStack.areItemStacksEqual(expected, identity)) return false;
             final long activityBefore = activityRevision;
-            if (!claimInventoryAttempt(owner, world)) return false;
-            controller.windowClick(windowId, slot < 9 ? slot + 36 : slot, 1, 4, owner);
+            if (interaction.click()) {
+                if (!assistance.execute(mc, () -> hasTrashAuthority() && trash.contains(slot)
+                                && owner.inventory.getStackInSlot(slot) == identity && ItemStack.areItemStacksEqual(expected, identity),
+                        () -> isToggled() && generation == inventoryGeneration && hasTrashAuthority(),
+                        () -> claimInventoryAttempt(owner, world))) return false;
+            } else {
+                if (!claimInventoryAttempt(owner, world)) return false;
+                controller.windowClick(windowId, wireSlot(slot), 1, 4, owner);
+            }
+            if (dropRanks != null && generation == inventoryGeneration) dropRanks.advanceAfter(slot);
             observeClick(() -> mc.thePlayer == owner && mc.theWorld == world && mc.currentScreen == screen
                             && mc.playerController == controller && owner.inventoryContainer == container
                             && owner.openContainer == container && container.windowId == windowId,
@@ -651,6 +694,7 @@ public class InventoryManager extends Module
         final ItemStack expected = identity.copy();
         final ItemStack targetIdentity = owner.inventory.getStackInSlot(targetSlot);
         final ItemStack targetExpected = targetIdentity == null ? null : targetIdentity.copy();
+        if (!prepareAssist("Swap", wireSlot(sourceSlot), targetSlot, 2, wireSlot(targetSlot))) return false;
         inventoryClickInProgress = true;
         try {
             openInvServerSide();
@@ -663,8 +707,18 @@ public class InventoryManager extends Module
             searchForItems();
             if (generation != inventoryGeneration || bestBlockSlot != sourceSlot) return false;
             final long activityBefore = activityRevision;
-            if (!claimInventoryAttempt(owner, world)) return false;
-            controller.windowClick(windowId, sourceSlot < 9 ? sourceSlot + 36 : sourceSlot, targetSlot, 2, owner);
+            if (interaction.click()) {
+                if (!assistance.execute(mc, () -> owner.inventory.getStackInSlot(sourceSlot) == identity
+                                && owner.inventory.getStackInSlot(targetSlot) == targetIdentity
+                                && ItemStack.areItemStacksEqual(expected, identity) && ItemStack.areItemStacksEqual(targetExpected, targetIdentity),
+                        () -> isToggled() && generation == inventoryGeneration && mc.thePlayer == owner && mc.theWorld == world
+                                && mc.currentScreen == screen && mc.playerController == controller && owner.inventoryContainer == container
+                                && owner.openContainer == container && container.windowId == windowId && cursorFree(owner) && inventoryScreenMatches(owner),
+                        () -> claimInventoryAttempt(owner, world))) return false;
+            } else {
+                if (!claimInventoryAttempt(owner, world)) return false;
+                controller.windowClick(windowId, wireSlot(sourceSlot), targetSlot, 2, owner);
+            }
             observeClick(() -> mc.thePlayer == owner && mc.theWorld == world && mc.currentScreen == screen
                             && mc.playerController == controller && owner.inventoryContainer == container
                             && owner.openContainer == container && container.windowId == windowId,

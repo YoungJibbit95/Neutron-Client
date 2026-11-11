@@ -82,6 +82,7 @@ public final class IngameHudRenderCheck {
             SessionInfoRenderCheck.set(armor,"x",370f);SessionInfoRenderCheck.set(armor,"y",200f);
             mc.thePlayer.inventory.mainInventory[0]=new ItemStack(Items.spawn_egg);mc.thePlayer.inventory.mainInventory[1]=new ItemStack(net.minecraft.init.Blocks.sand,4);mc.thePlayer.inventory.mainInventory[2]=new ItemStack(Items.beef,7);
             overlay=new GuiIngame(mc);mc.ingameGUI=overlay;mc.currentScreen=null;
+            if(Boolean.getBoolean("pulsar.neutron20.hud.check")){Neutron20HudRenderCheck.run();return;}
             if(baseline){for(int i=0;i<4;i++)frame(cow);save("before-cow.png");return;}
             checkExtraTextureUnits();checkModelState();RotationHudRenderCheck.run();checkTargets();checkCompactHudModes();checkArmor();checkDragging();checkIconsAndMasks();
             armor.getBooleanSetting("Empty Slots").setValue(true);armor.getBooleanSetting("Held Item").setValue(true);armor.getModeSetting("Layout").setValue("Vertical");

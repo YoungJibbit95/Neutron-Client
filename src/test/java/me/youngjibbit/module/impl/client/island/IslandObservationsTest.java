@@ -6,6 +6,22 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class IslandObservationsTest {
+    @Test public void nscaffoldPausesAndWaitsKeepTheScaffoldSurfaceWithoutInventedPlacements(){
+        IslandStateMachine model=new IslandStateMachine();
+        for(ScaffoldActivitySnapshot.Status status:new ScaffoldActivitySnapshot.Status[]{
+                ScaffoldActivitySnapshot.Status.PLACING,ScaffoldActivitySnapshot.Status.PAUSED,ScaffoldActivitySnapshot.Status.WAITING}){
+            IslandStateMachine.Scaffold view=IslandObservations.scaffold(new ScaffoldActivitySnapshot(9,100,1,0,47,
+                    "NScaffold","Godbridge",status,8),100);
+            assertNotNull(view);assertEquals(8,view.placementCount);
+            assertEquals("NScaffold",view.approach);assertEquals("Godbridge",view.profile);
+            assertEquals(IslandStateMachine.State.SCAFFOLD,
+                    model.resolve(1,100,null,view,null,null,false,true,false,false).state);
+            IslandScaffoldIndicator indicator=IslandScaffoldIndicator.capture(view,0,false);
+            assertNotNull(indicator);assertEquals(status.name(),indicator.status.name());
+            assertFalse(indicator.warning());
+        }
+        assertEquals(0,model.pendingEventCount());
+    }
     @Test public void confirmedPlacementCounterIsIndependentOfStatusSequence(){
         IslandStateMachine.Scaffold a=IslandObservations.scaffold(new ScaffoldActivitySnapshot(50,100,1,0,24,
                 "Adaptive Bridge","Adaptive",ScaffoldActivitySnapshot.Status.SEARCHING,7),100);

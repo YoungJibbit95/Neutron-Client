@@ -121,7 +121,7 @@ public class ActivityProducerFlowTest {
             manager.random.setValue(false); manager.maxBlocks.setValue(8D); manager.autoArmor.setValue(false);
             ScaffoldClientFlowTest.set(InventoryManager.class, manager, "activityClock", (LongSupplier) clock::get);
             ScaffoldClientFlowTest.set(InventoryManager.class, manager, "startDelayTimer", new ReadyTimer());
-            ScaffoldClientFlowTest.set(InventoryManager.class, manager, "delayTimer", new ReadyTimer());
+            manager.minDelay.setValue(0D); manager.maxDelay.setValue(0D);
             return manager;
         }
 
@@ -248,7 +248,7 @@ public class ActivityProducerFlowTest {
                 AtomicLong clock = new AtomicLong();
                 ScaffoldClientFlowTest.set(Stealer.class, stealer, "activityClock", (LongSupplier) clock::get);
                 ScaffoldClientFlowTest.set(Stealer.class, stealer, "openDelayTimer", new ReadyTimer());
-                ScaffoldClientFlowTest.set(Stealer.class, stealer, "actionTimer", new ReadyTimer());
+                stealer.getNumberSetting("Delay").setValue(0D);
                 stealer.setToggled(true);
                 try {
                     assertNull(stealer.getActivitySnapshot());

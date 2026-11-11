@@ -17,7 +17,7 @@ public final class SettingSubcategories {
         List<SubcategoryValue> result = new ArrayList<>();
         if (values.size() <= 5) return result;
         Map<String,List<Value<?>>> groups = new LinkedHashMap<>();
-        for (String name : Arrays.asList("General", "Targets", "Bridge", "Aiming", "Movement", "Attacks", "Blocking", "Placement", "Hotbar", "Cleanup", "Halo", "Hitpoint", "Safety", "Timing", "Appearance", "Advanced"))
+        for (String name : Arrays.asList("General", "Targets", "Bridge", "Interaction", "Aiming", "Movement", "Attacks", "Blocking", "Placement", "Selection", "Hotbar", "Cleanup", "Halo", "Hitpoint", "Safety", "Timing", "Appearance", "Advanced"))
             groups.put(name, new ArrayList<>());
         for (Value<?> value : values) groups.get(group(module.getId(), value.getId())).add(value);
         for (Map.Entry<String,List<Value<?>>> entry : groups.entrySet()) {
@@ -36,7 +36,23 @@ public final class SettingSubcategories {
         return false;
     }
     static String group(String module, String id) {
-        if (id.startsWith("smart_disable_on_")) return "Safety";
+        if (id.startsWith("smart_disable_on_") || is(id,"stop_on_damage","exclusive_timing")) return "Safety";
+        if (is(module,"invmanager","stealer")) {
+            if (is(id,"interaction_mode","preview_time_ms","resume_delay_ms")) return "Interaction";
+            if (is(id,"speed_profile","min_action_delay_ms","max_action_delay_ms","variation_rate")) return "Timing";
+            if (is(id,"pick_profile","randomness")) return "Selection";
+            if ("drop_order".equals(id)) return "Cleanup";
+        }
+        if ("nscaffold".equals(module)) {
+            if (is(id,"look_ahead","keep_height")) return "Bridge";
+            if (is(id,"auto_select_blocks","placement_delay","swing")) return "Placement";
+            return "Aiming";
+        }
+        if ("bedbreaker".equals(module)) {
+            if (has(id,"aim","rotat","turn")) return "Aiming";
+            if ("swing".equals(id)) return "Interaction";
+            return "Targets";
+        }
         if ("targetesp".equals(module)) {
             if ("target_halo".equals(id) || id.startsWith("halo_")) return "Halo";
             if (id.startsWith("hitpoint") || "show_ray_misses".equals(id)) return "Hitpoint";
@@ -81,6 +97,8 @@ public final class SettingSubcategories {
         switch (name) {
             case "Targets": return "Selection, reach and filters";
             case "Bridge": return "Bridge behavior and inventory";
+            case "Interaction": return "Visible preview and manual input priority";
+            case "Selection": return "Stable order within the current container";
             case "Aiming": return "Rotation, precision and motion";
             case "Movement": return "Input and movement behavior";
             case "Attacks": return "Execution and click timing";

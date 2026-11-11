@@ -5,6 +5,9 @@ on:
     types: [opened, synchronize, reopened]
     paths:
       - 'src/main/java/me/youngjibbit/utils/**'
+      - 'src/main/java/me/youngjibbit/gui/**'
+      - 'src/main/java/me/youngjibbit/clickgui/**'
+      - 'src/main/java/me/youngjibbit/module/impl/render/**'
       - 'src/main/java/me/youngjibbit/theme/ThemeCatalog.java'
       - 'src/main/java/net/minecraft/client/shader/Framebuffer.java'
       - 'src/main/resources/**'

@@ -103,6 +103,21 @@ public class PanelControlMotionTest {
         row.updatePanelAnimation(dt);return row.getHeight();
     }
 
+    @Test public void springOvershootCannotEnlargeTheExpandedSettingsBounds() {
+        for(String intensity:settings.motionIntensity.getOptions()) {
+            settings.motionIntensity.setValue(intensity);
+            ClickModule row=ClickModule.forPanel(dummy,238);
+            settings.animations.setValue(false);row.setOpen(true);row.updatePanelAnimation(0);
+            float maximum=row.getHeight();assertTrue(maximum>24);
+            row.setOpen(false);row.updatePanelAnimation(0);settings.animations.setValue(true);
+            for(int i=0;i<180;i++) {
+                row.setOpen((i/30)%2==0);row.updatePanelAnimation(.016f);
+                assertTrue(intensity+" expanded outside the full settings extent",row.getHeight()<=maximum+.001f);
+                assertTrue(intensity+" collapsed outside its module row",row.getHeight()>=24);
+            }
+        }
+    }
+
     @Test public void comboDisclosureReversesAndHiddenOptionsCannotCommit(){
         ClickModule row=ClickModule.forPanel(dummy,238);
         row.setOpen(true);

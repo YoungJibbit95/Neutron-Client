@@ -151,6 +151,19 @@ public class SettingsMenuVis03AInteractionTest {
         assertEquals(stable,settings.roundness.getValue(),0);
     }
 
+    @Test public void resizingInvalidatesCapturedSliderBeforeTheNextPointerMove()throws Exception {
+        ClipRect oldTrack=screen.field(0);screen.click(oldTrack,0);
+        assertSame(settings.roundness,field("dragValue"));
+        double committed=settings.roundness.getValue();
+        screen.size(640,360);
+        assertNull(field("dragValue"));assertEquals(-1,(int)field("drag"));
+        ClipRect newTrack=screen.field(0);screen.dragTo(newTrack.x+newTrack.width,newTrack.y+12);
+        assertEquals("An old capture cannot change values in the resized layout",committed,settings.roundness.getValue(),0);
+        screen.click(newTrack,0);assertSame(settings.roundness,field("dragValue"));
+        screen.dragTo(newTrack.x+newTrack.width,newTrack.y+12);
+        assertNotEquals(committed,settings.roundness.getValue(),0);
+    }
+
     @Test public void disabledAnimationsKeepPopupReadableAndSelectionsOperational()throws Exception {
         settings.animations.setValue(false);
         SettingsMenuMotion state=field("presentation");

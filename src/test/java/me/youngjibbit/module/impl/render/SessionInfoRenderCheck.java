@@ -59,8 +59,10 @@ public final class SessionInfoRenderCheck {
             Method fonts=fixture.getDeclaredMethod("minimalFonts",String[].class);fonts.setAccessible(true);
             Pulsar.INSTANCE.fontManager=(FontManager)fonts.invoke(null,(Object)new String[]{"Poppins-Bold 23","Product-Sans-Bold 20","Product-Sans-Bold 16","icon 22","icon1 22","Product-Sans-Regular 20","Product-Sans-Bold 14","Product-Sans-Regular 12","Product-Sans-Regular 10","Poppins-Medium 14"});
             if(Boolean.getBoolean("pulsar.diagnostics.check")){DiagnosticsRenderCheck.run();context.check();return;}
+            if(Boolean.getBoolean("pulsar.neutron20.hud.check")){IngameHudRenderCheck.run();context.check();return;}
             if(Boolean.getBoolean("pulsar.theme.sync.check")){ThemeSyncRenderCheck.run();context.check();return;}
             if(Boolean.getBoolean("pulsar.trash.check")){TrashMenuCheck.run();context.check();return;}
+            if(Boolean.getBoolean("pulsar.inventory.assist.check")){InventoryAssistRenderCheck.run();context.check();return;}
             stats=new SessionStatistics(CLOCK::get);stats.observe(new Object(),true);CLOCK.set(3_723_000_000_000L);
             hud=new SessionInfo(stats);hud.getModeSetting("Effects Source").setValue("Local");set(hud,"x",16f);set(hud,"y",20f);
             Theme.setDefaultTheme(Theme.SynthWave);
@@ -214,7 +216,11 @@ public final class SessionInfoRenderCheck {
     }
     static BufferedImage capture(){glFinish();ByteBuffer pixels=BufferUtils.createByteBuffer(mc.displayWidth*mc.displayHeight*4);glReadPixels(0,0,mc.displayWidth,mc.displayHeight,GL_RGBA,GL_UNSIGNED_BYTE,pixels);BufferedImage image=new BufferedImage(mc.displayWidth,mc.displayHeight,BufferedImage.TYPE_INT_RGB);for(int y=0;y<mc.displayHeight;y++)for(int x=0;x<mc.displayWidth;x++){int i=(y*mc.displayWidth+x)*4;image.setRGB(x,mc.displayHeight-y-1,(pixels.get(i)&255)<<16|(pixels.get(i+1)&255)<<8|(pixels.get(i+2)&255));}return image;}
     static void sheet(String name,List<String> captions,List<BufferedImage> images)throws Exception {
-        boolean full=name.contains("resize");int w=720,h=full?420:240;
+        sheet(name,captions,images,name.contains("resize"));
+    }
+    /** Centered HUDs and enlarged source textures need the entire framebuffer, not its top-left corner. */
+    static void sheet(String name,List<String> captions,List<BufferedImage> images,boolean full)throws Exception {
+        int w=720,h=full?420:240;
         BufferedImage sheet=new BufferedImage(w*2,(h+28)*((images.size()+1)/2),BufferedImage.TYPE_INT_RGB);
         Graphics2D g=sheet.createGraphics();g.setFont(new Font("SansSerif",Font.PLAIN,15));
         for(int i=0;i<images.size();i++) {

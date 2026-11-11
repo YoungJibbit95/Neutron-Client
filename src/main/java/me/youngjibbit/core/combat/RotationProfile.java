@@ -21,6 +21,8 @@ public final class RotationProfile {
     public float adaptiveMinAimSpeed=360, adaptiveMaxAimSpeed=560, adaptiveYawScale=1, adaptivePitchScale=1, adaptiveNoiseTempo=1;
     public AdaptiveMotionController.Curve adaptiveCurve=AdaptiveMotionController.Curve.ADAPTIVE;
     public AdaptivePresetMotion.Noise adaptiveNoise=AdaptivePresetMotion.Noise.SOFT;
+    /** Appended Aura controls; absent on historical/other consumers. Immutable per-call snapshot. */
+    public AdaptivePresetMotion.Tuning adaptiveTuning;
     public boolean softArsenicMotion;
     public enum HitpointNoise {
         CALM(.45, .25), BALANCED(.85, .48), DYNAMIC(1.4, .8);

@@ -75,7 +75,6 @@ public class StealerSafetyTest {
             stealer.getBooleanSetting("Randomness").setValue(false);
             stealer.getBooleanSetting("Auto Close").setValue(false);
             ScaffoldClientFlowTest.set(Stealer.class, stealer, "openDelayTimer", new ReadyTimer());
-            ScaffoldClientFlowTest.set(Stealer.class, stealer, "actionTimer", new ReadyTimer());
             ScaffoldClientFlowTest.set(Stealer.class, stealer, "emptyTimer", new ReadyTimer());
             stealer.setToggled(true);
         }

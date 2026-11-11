@@ -62,7 +62,7 @@ public class InventoryManagerOrganizedTest {
     private static InventoryManager manager() throws Exception {
         InventoryManager m = new InventoryManager(TrashItemStore.memory());
         m.autoArmor.setValue(false); m.minDelay.setValue(0.0); m.maxDelay.setValue(0.0); m.startDelay.setValue(0.0);
-        for (String name : new String[]{"delayTimer", "startDelayTimer"}) {
+        for (String name : new String[]{"startDelayTimer"}) {
             Field timer = InventoryManager.class.getDeclaredField(name); timer.setAccessible(true);
             timer.set(m, new InventoryManagerBlockConsumerTest.ZeroDelay());
         }

@@ -49,13 +49,16 @@ public final class IslandCompactRenderCheck {
                     IslandWidget[].class,boolean.class,boolean.class);
             Method notice=method("paintIslandNotification",IslandPresentation.class,IslandLayout.Frame.class,
                     TTFFontRenderer.class,Theme.class,float.class);
+            Method targetPainter=method("paintIslandTarget",IslandTargetComposition.class,IslandLayout.Frame.class,
+                    TTFFontRenderer.class,Theme.class,float.class);
             Method widget=method("paintIslandWidgetBar",IslandWidget.class,WidgetIncident.class,
                     float.class,float.class,float.class,float.class,Theme.class,float.class,boolean.class,float.class);
             IslandWidget[] widgets={
                     new IslandWidget(IslandWidget.Kind.CPS,"CPS","7·3","L / R",true,.37f,true),
                     new IslandWidget(IslandWidget.Kind.FPS,"FPS","144","live",true,.37f,true),
                     new IslandWidget(IslandWidget.Kind.EXPLOIT,"EXP","--","Idle",false,0,false)};
-            IslandPresentation base=IslandPresentation.from(null,"Neutron","Alpha 2","12:34",true,true,true);
+            IslandPresentation base=IslandPresentation.from(null,"Neutron","Alpha 2","12:34",true,true,true)
+                    .withClockFace(IslandClockFace.from("12:34"));
             List<BufferedImage> images=new ArrayList<>();List<String> captions=new ArrayList<>();
             ScaledResolution sr=new ScaledResolution(SessionInfoRenderCheck.mc);
             for(NotificationType type:new NotificationType[]{NotificationType.SUCCESS,NotificationType.WARNING,
@@ -73,8 +76,8 @@ public final class IslandCompactRenderCheck {
                         "Island notification exceeded compact width");
                 SessionInfoRenderCheck.backdrop();
                 surface.withScene(theme,true,false,3,()->{
-                    surface.islandContour(attachment.silhouette(),theme,true,false,false,3,.85f,.24f,()->{
-                        invoke(idle,watermark,base,attachment.base,font,wordmark,theme,1f,"Modern",widgets,true,false);
+                    surface.islandContour(attachment.silhouette(),theme,true,false,true,3,.85f,.24f,()->{
+                        invoke(idle,watermark,base,attachment.base,font,wordmark,theme,1f,"Modern",widgets,true,true);
                         invoke(notice,watermark,view,attachment.detail,font,theme,1f);
                     });
                     for(int i=0;i<widgets.length;i++){
@@ -91,6 +94,29 @@ public final class IslandCompactRenderCheck {
                 images.add(SessionInfoRenderCheck.capture());
             }
             SessionInfoRenderCheck.sheet("island-compact-notifications-resize.png",captions,images);
+            images.clear();captions.clear();
+            IslandTargetComposition target=IslandTargetComposition.capture(IslandPresentation.from(
+                    new IslandStateMachine().resolve(7,100,new IslandStateMachine.Target(4,"Preview Target",15,20,4),
+                            null,true,false),"Neutron","Alpha 2","12:34",true,true,true),.37f,true);
+            for(float opening:new float[]{.25f,.6f,1}){
+                IslandLayout.Frame desired=IslandLayout.forState(IslandStateMachine.State.TARGET,
+                        sr.getScaledWidth(),sr.getScaledHeight(),true);
+                IslandAttachmentLayout attachment=new IslandAttachmentLayout(
+                        desired.withGeometry(234,34+48*opening,17,1),234,IslandStateMachine.State.TARGET);
+                SessionInfoRenderCheck.backdrop();
+                surface.withScene(theme,true,false,3,()->surface.islandContour(attachment.silhouette(),theme,
+                        true,false,true,3,.85f,.24f,()->{
+                            invoke(idle,watermark,base,attachment.base,font,wordmark,theme,1f,"Modern",widgets,true,true);
+                            try(me.youngjibbit.clickgui.utils.GuiClip clip=me.youngjibbit.clickgui.utils.GuiClip.push(
+                                    new me.youngjibbit.clickgui.utils.ClipRect(attachment.detail.x,attachment.detail.y,
+                                            attachment.detail.width,attachment.shell.height-attachment.base.height))){
+                                invoke(targetPainter,watermark,target,attachment.detail,font,theme,opening);
+                            }
+                        }));
+                SessionInfoRenderCheck.require(glGetError()==GL_NO_ERROR,"Island target header GL error");
+                images.add(SessionInfoRenderCheck.capture());captions.add("Fixed logo / clock header · target reveal "+opening);
+            }
+            SessionInfoRenderCheck.sheet("island-target-header-contour.png",captions,images,true);
             images.clear();captions.clear();
             IslandStateMachine.Scaffold observed=IslandObservations.scaffold(new ScaffoldActivitySnapshot(
                     1,100,1,0,33,"Adaptive Bridge","Godbridge",ScaffoldActivitySnapshot.Status.SEARCHING),100);
@@ -127,6 +153,7 @@ public final class IslandCompactRenderCheck {
             SessionInfoRenderCheck.require(RenderDiagnostics.framebufferCreates==0&&RenderDiagnostics.programCreates==0
                             &&RenderDiagnostics.shaderCompiles==0,"Glyph animation allocated GPU resources in steady state");
             SessionInfoRenderCheck.require(glGetError()==GL_NO_ERROR,"Island glyph GL error");
+            ThemeLogoRenderCheck.run();
         }finally{
             surface.close();watermark.onDisable();
             if(fixtureFonts!=null)fixtureFonts.close();
