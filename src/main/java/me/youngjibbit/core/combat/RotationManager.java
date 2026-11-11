@@ -529,7 +529,8 @@ public final class RotationManager {
                 } else winner = null;
             }
             event.setRotations(prepared.rotation.yaw, prepared.rotation.pitch);
-            if (winner != null && ("aura".equals(winner.source) || "scaffold".equals(winner.source) || "nscaffold".equals(winner.source) || isReleaseSource(winner.source))) {
+            if (winner != null && ("aura".equals(winner.source) || "scaffold".equals(winner.source) || "nscaffold".equals(winner.source)
+                    || "bedbreaker".equals(winner.source) || isReleaseSource(winner.source))) {
                 recordResolvedRequest(winner);
             }
             return;
@@ -580,7 +581,8 @@ public final class RotationManager {
             winner.yaw=mc.thePlayer.rotationYaw;winner.pitch=mc.thePlayer.rotationPitch;
         }
         event.setRotations(winner.yaw,winner.pitch);
-        if ("scaffold".equals(winner.source) || "nscaffold".equals(winner.source) || "aura".equals(winner.source) || isReleaseSource(winner.source)) {
+        if ("scaffold".equals(winner.source) || "nscaffold".equals(winner.source) || "aura".equals(winner.source)
+                || "bedbreaker".equals(winner.source) || isReleaseSource(winner.source)) {
             recordResolvedRequest(winner);
         }
     }
