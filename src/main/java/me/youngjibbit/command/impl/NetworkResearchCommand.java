@@ -3,6 +3,7 @@ package me.youngjibbit.command.impl;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.command.Command;
 import me.youngjibbit.command.CommandInfo;
+import me.youngjibbit.core.diagnostics.NetworkResearchAnalysis;
 import me.youngjibbit.exception.CommandException;
 import me.youngjibbit.module.impl.client.NetworkResearch;
 import me.youngjibbit.utils.ChatUtil;
@@ -14,8 +15,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.UUID;
 
-@CommandInfo(name="research", aliases={"netresearch"}, description="Export passive network research observations",
-        usage=".research <on|off|status|export>")
+@CommandInfo(name="research", aliases={"netresearch"}, description="Inspect and export network research recordings",
+        usage=".research <on|off|status|report|export|bundle>")
 public final class NetworkResearchCommand extends Command {
     @Override public void execute(String... args) throws CommandException {
         NetworkResearch module = (NetworkResearch) Pulsar.INSTANCE.getMm().getModule(NetworkResearch.class);
@@ -25,14 +26,24 @@ public final class NetworkResearchCommand extends Command {
             case "on": module.setToggled(true); break;
             case "off": module.setToggled(false); break;
             case "status": break;
+            case "report":
+                NetworkResearchAnalysis.Report report = NetworkResearchAnalysis.analyze(module.recording());
+                ChatUtil.addChatMessage("Research " + report.origin + " | samples=" + report.retainedSamples
+                        + " | tickIntervals=" + report.tickIntervals.samples
+                        + " | p95ns=" + report.tickIntervals.p95Nanos
+                        + " | quality=" + report.issues + " | serverOutcome=" + report.serverOutcome, true);
+                return;
             case "export":
+            case "bundle":
+                boolean bundle = "bundle".equalsIgnoreCase(args[0]);
                 Path directory = mc.mcDataDir.toPath().resolve("pulsar").resolve("research");
-                Path destination = directory.resolve("network-" + UUID.randomUUID() + ".jsonl");
+                Path destination = directory.resolve("network-" + UUID.randomUUID() + (bundle ? ".json" : ".jsonl"));
                 try {
                     Files.createDirectories(directory);
                     try (Writer writer = Files.newBufferedWriter(destination, StandardCharsets.UTF_8,
                             StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE)) {
-                        module.writeJsonLines(writer);
+                        if (bundle) module.recording().write(writer);
+                        else module.writeJsonLines(writer);
                     }
                 } catch (IOException failure) {
                     throw new CommandException("Research export failed: " + failure.getMessage());
