@@ -17,7 +17,7 @@ public final class SettingSubcategories {
         List<SubcategoryValue> result = new ArrayList<>();
         if (values.size() <= 5) return result;
         Map<String,List<Value<?>>> groups = new LinkedHashMap<>();
-        for (String name : Arrays.asList("General", "Targets", "Bridge", "Interaction", "Aiming", "Movement", "Attacks", "Blocking", "Placement", "Selection", "Hotbar", "Cleanup", "Halo", "Hitpoint", "Safety", "Timing", "Appearance", "Advanced"))
+        for (String name : Arrays.asList("General", "Targets", "Bridge", "Clutch", "Interaction", "Aiming", "Rotation Speed", "Rotation Shape", "Rotation Pauses", "Movement", "Attacks", "Blocking", "Placement", "Selection", "Hotbar", "Cleanup", "Halo", "Hitpoint", "Safety", "Timing", "Appearance", "Advanced"))
             groups.put(name, new ArrayList<>());
         for (Value<?> value : values) groups.get(group(module.getId(), value.getId())).add(value);
         for (Map.Entry<String,List<Value<?>>> entry : groups.entrySet()) {
@@ -44,7 +44,11 @@ public final class SettingSubcategories {
             if ("drop_order".equals(id)) return "Cleanup";
         }
         if ("nscaffold".equals(module)) {
-            if (is(id,"look_ahead","keep_height")) return "Bridge";
+            if (is(id,"build_mode","look_ahead","keep_height","straight_telly_ticks","diagonal_telly_ticks")) return "Bridge";
+            if (has(id,"clutch") || "ground_ticks_to_sneak".equals(id)) return "Clutch";
+            if (has(id,"rotation_speed")) return "Rotation Speed";
+            if (is(id,"smooth_mode","extra_smoothing_factor","accelerate","yaw_accel_factor","pitch_accel_factor","imperfect_correlation")) return "Rotation Shape";
+            if (has(id,"short_stop","buildup_to_stop","threshold_attempts_to_stop")) return "Rotation Pauses";
             if (is(id,"auto_select_blocks","placement_delay","swing")) return "Placement";
             return "Aiming";
         }
@@ -97,6 +101,10 @@ public final class SettingSubcategories {
         switch (name) {
             case "Targets": return "Selection, reach and filters";
             case "Bridge": return "Bridge behavior and inventory";
+            case "Clutch": return "Reachable recovery, prediction and grounded sneak";
+            case "Rotation Speed": return "Independent yaw and pitch limits per player tick";
+            case "Rotation Shape": return "Interpolation and acceleration of the visible camera";
+            case "Rotation Pauses": return "Optional pauses after confirmed camera travel";
             case "Interaction": return "Visible preview and manual input priority";
             case "Selection": return "Stable order within the current container";
             case "Aiming": return "Rotation, precision and motion";

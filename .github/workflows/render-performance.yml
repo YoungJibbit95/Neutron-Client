@@ -24,6 +24,8 @@ on:
       - 'src/test/java/net/minecraft/client/renderer/**'
       - 'src/test/java/net/optifine/**'
       - '.github/scripts/*render_performance.py'
+      - '.github/scripts/install_native_runtime.py'
+      - '.github/scripts/test_native_runtime.py'
       - '.github/workflows/render-performance.yml'
   workflow_dispatch:
     inputs:
@@ -85,10 +87,9 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          sudo apt-get update -q
           # LWJGL 2 starts `xrandr -q` during Display class initialization, even
           # for Pbuffers; the libxrandr2 shared library does not provide that CLI.
-          sudo apt-get install -y --no-install-recommends xvfb xauth x11-xserver-utils mesa-utils libgl1-mesa-dri libxrandr2 libxcursor1 libxinerama1 libxi6 libxxf86vm1 fonts-dejavu-core
+          sudo python3 -B .github/scripts/install_native_runtime.py render-performance
 
       - name: Compile production and native regression harnesses
         shell: bash
