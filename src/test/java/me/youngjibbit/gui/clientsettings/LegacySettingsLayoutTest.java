@@ -113,4 +113,25 @@ public class LegacySettingsLayoutTest {
             }
         }
     }
+
+    @Test public void modernRailAndCompactControlsStayReachableInBothPresentations()throws Exception {
+        ThemeMode.select(ThemeMode.APPROACH_TWO);
+        for(String style:new String[]{"Modern","Creative"}){
+            settings.neutronScreenStyle.setValue(style);
+            for(int[] size:new int[][]{{580,342},{640,360},{854,480},{1280,720}}){
+                screen.size(size[0],size[1]);
+                ClipRect all=new ClipRect(0,0,size[0],size[1]);
+                for(int i=0;i<8;i++){
+                    ClipRect category=screen.category(i);contained(all,category);
+                    assertTrue(category.x+category.width<screen.viewport().x);
+                    assertTrue(category.y+category.height<=screen.action(2).y-6);
+                    screen.click(category);assertEquals(i,state("group"));
+                }
+                screen.click(screen.category(0));
+                contained(screen.row(0),screen.field(0));
+                contained(screen.viewport(),screen.row(0));
+                for(int action=0;action<6;action++)contained(all,screen.action(action));
+            }
+        }
+    }
 }

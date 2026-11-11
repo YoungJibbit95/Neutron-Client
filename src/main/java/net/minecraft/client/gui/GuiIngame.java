@@ -353,6 +353,7 @@ public class GuiIngame extends Gui
         this.persistantChatGUI.drawChat(this.updateCounter);
         this.mc.mcProfiler.endSection();
         GlStateManager.popMatrix();
+        this.persistantChatGUI.drawClosingInput();
         scoreobjective1 = scoreboard.getObjectiveInDisplaySlot(0);
 
         if (this.mc.gameSettings.keyBindPlayerList.isKeyDown() && (!this.mc.isIntegratedServerRunning() || this.mc.thePlayer.sendQueue.getPlayerInfoMap().size() > 1 || scoreobjective1 != null))

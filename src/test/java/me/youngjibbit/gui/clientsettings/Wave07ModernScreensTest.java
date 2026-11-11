@@ -77,14 +77,14 @@ public class Wave07ModernScreensTest {
         assertTrue(dimension(menu,MainMenu.class,"panelHeight")<=360);
         assertTrue(menu.action(0).height>=30);
         Settings preferences=new Settings();preferences.setup(1920,1080);
-        assertTrue(dimension(preferences,SettingsMenu.class,"w")<=740);
-        assertTrue(dimension(preferences,SettingsMenu.class,"h")<=448);
+        assertTrue(dimension(preferences,SettingsMenu.class,"w")<=700);
+        assertTrue(dimension(preferences,SettingsMenu.class,"h")<=420);
         assertEquals(30,preferences.control(0).height,0);
         ClickGui panel=new ClickGui();
         ((net.minecraft.client.gui.GuiScreen)panel).width=1920;
         ((net.minecraft.client.gui.GuiScreen)panel).height=1080;panel.initGui();
-        assertTrue(dimension(panel,ClickGui.class,"width")<=760);
-        assertTrue(dimension(panel,ClickGui.class,"height")<=448);
+        assertTrue(dimension(panel,ClickGui.class,"width")<=700);
+        assertTrue(dimension(panel,ClickGui.class,"height")<=404);
         ConfigManager manager=new ConfigManager(folder.newFolder().toPath(),
                 Arrays.asList(settings,fixture),()->false,ignored->{});
         manager.initialize(Collections.emptyList());
@@ -101,7 +101,7 @@ public class Wave07ModernScreensTest {
         ThemeMode.select(ThemeMode.APPROACH_TWO);
         Settings s=new Settings();s.setup(854,480);
         ClipRect category=s.category(0),content=s.visible(),row=s.row(0);
-        assertEquals(162,category.width,0);
+        assertEquals(148,category.width,0);
         assertTrue(category.x+category.width<content.x);
         assertTrue(content.contains(row.x+5,row.y+5));
         assertTrue(s.action(5).y>row.y);
@@ -143,7 +143,7 @@ public class Wave07ModernScreensTest {
         ThemeMode.select(ThemeMode.APPROACH_TWO);
         ClickModule modern=ClickModule.forPanel(fixture,360,true);
         ClickModule legacy=ClickModule.forPanel(fixture,360);
-        assertEquals(44f,modern.getHeight(),.001f);
+        assertEquals(36f,modern.getHeight(),.001f);
         assertEquals(24f,legacy.getHeight(),.001f);
         for(int i=0;i<90;i++)modern.updatePanelAnimation(.016f);
         assertEquals(0,fixture.changes);

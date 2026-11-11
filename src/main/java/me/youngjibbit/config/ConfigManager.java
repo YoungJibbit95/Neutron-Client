@@ -705,6 +705,11 @@ public class ConfigManager {
             if (json != null && json.isJsonObject()) json = json.getAsJsonObject().get("value");
             if (json == null || !json.isJsonPrimitive() || !json.getAsJsonPrimitive().isString()) throw new IllegalArgumentException("Expected choice: " + label);
             String requested=json.getAsString();
+            if("targethud".equals(change.module.getId()) && "mode".equals(value.getId())) {
+                String migrated=me.youngjibbit.module.impl.render.TargetHUD.migrateMode(requested);
+                if(!requested.equals(migrated))plan.migratedModes++;
+                requested=migrated;
+            }
             if("client_settings".equals(change.module.getId()) && "gradient_method".equals(value.getId())) {
                 if("Flame".equalsIgnoreCase(requested)||"Neon".equalsIgnoreCase(requested)||"Lines".equalsIgnoreCase(requested)) {
                     change.legacyUiGlowMode="Flame".equalsIgnoreCase(requested)?"Flame":"Neon".equalsIgnoreCase(requested)?"Neon":"Standard";

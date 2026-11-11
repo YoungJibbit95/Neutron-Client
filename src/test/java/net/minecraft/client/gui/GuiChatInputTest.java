@@ -10,7 +10,7 @@ public class GuiChatInputTest {
     @Test public void nativeInputAndDrawingWhenRequested() throws Exception {
         org.junit.Assume.assumeTrue(Boolean.getBoolean("pulsar.chat.native"));
         Path output = Files.createTempFile("pulsar-chat-input-", ".log");
-        Process child = new ProcessBuilder(Paths.get(System.getProperty("java.home"), "bin", "java.exe").toString(),
+        Process child = new ProcessBuilder(Paths.get(System.getProperty("java.home"), "bin", System.getProperty("os.name", "").startsWith("Windows") ? "java.exe" : "java").toString(),
                 "-Duser.home=" + System.getProperty("user.home"), "-Dorg.lwjgl.librarypath=" + System.getProperty("org.lwjgl.librarypath"),
                 "-cp", System.getProperty("java.class.path"), GuiChatInputNativeCheck.class.getName())
                 .redirectErrorStream(true).redirectOutput(output.toFile()).start();

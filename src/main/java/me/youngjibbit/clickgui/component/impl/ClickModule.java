@@ -46,7 +46,7 @@ public class ClickModule extends Component {
     }
     public static ClickModule forPanel(Module module,float width,boolean modern) {
         ClickModule row=new ClickModule(module,0,0,width,
-                modern?NeutronVisualTokens.CARD_HEIGHT:24);
+                modern?36:24);
         row.panelStyle=true;row.modernCard=modern;
         for(Sub<?> value:row.values)value.usePanelStyle();
         row.resetPanelMotion();
@@ -326,7 +326,7 @@ public class ClickModule extends Component {
         float over = Math.max(0, Math.min(1, getPresentation().amount()));
         int base = me.youngjibbit.gui.LegacyUiStyle.panel(theme).getRGB();
         int fill = Theme.interpolateRGB(base, text, over * .045f);
-        GuiStyle.panel(x, y, width, getHeight(), 6, .06f + toggleProgress * .13f, new Color(fill, true));
+        me.youngjibbit.clickgui.utils.MenuSurface.card(x, y, width, getHeight(), theme, false, over);
         float dotX = x + 10, dotY = y + height / 2 - 2;
         if (module.isToggled()||toggleProgress>.005f){
             float dot=4+toggleBounce*18;
@@ -350,7 +350,7 @@ public class ClickModule extends Component {
             right -= title.getWidth(key);
             title.drawString(key, right, y + 6, conflict ? 0xffffb975 : me.youngjibbit.utils.render.UiEffects.alpha(text, .72f));
         }
-        int titleInk = Theme.interpolateRGB(text, theme.getPrimaryGradientRGB(), toggleProgress * .15f);
+        int titleInk = text;
         title.drawString(ClickControlStyle.fit(title, module.getName(), right - x - 24), x + 19, y + 6, titleInk);
         Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString(openProgress > .5f ? "h" : "i",
                 x + width - 17, y + 7, me.youngjibbit.utils.render.UiEffects.alpha(text, hover || open ? .95f : .62f));
@@ -361,13 +361,7 @@ public class ClickModule extends Component {
         float response=Math.max(0,Math.min(1,toggleProgress));
         float energy=Math.max(0,Math.min(1,Math.abs(getPresentation().amount())));
         float top=y,cardHeight=getHeight();
-        me.youngjibbit.utils.render.UIUtils.drawRound(
-                x,top,width,cardHeight,NeutronVisualTokens.RADIUS_CARD,
-                hover?NeutronVisualTokens.CARD_HOVER:NeutronVisualTokens.CARD);
-        me.youngjibbit.utils.render.UIUtils.drawRoundOutline(
-                x+.5f,top+.5f,Math.max(1,width-1),Math.max(1,cardHeight-1),
-                NeutronVisualTokens.RADIUS_CARD,.55f,new Color(0,0,0,1),
-                new Color(223,205,228,Math.round(18+15*energy)));
+        me.youngjibbit.clickgui.utils.MenuSurface.card(x,top,width,cardHeight,theme,false,energy);
         if(response>.003f){
             float line=Math.min(36,Math.max(0,cardHeight-11));
             me.youngjibbit.utils.render.UIUtils.drawDecorationRound(
@@ -382,27 +376,27 @@ public class ClickModule extends Component {
         me.youngjibbit.utils.font.TTFFontRenderer descFont=
                 Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Regular 16");
         String name=ClickControlStyle.fit(title,module.getName(),Math.max(16,width-96));
-        title.drawString(name,x+15,y+7,NeutronVisualTokens.INK);
+        title.drawString(name,x+13,y+5,NeutronVisualTokens.INK);
         String description=module.getDescription();
         if(description==null||description.trim().isEmpty())description="Module settings";
         descFont.drawString(ClickControlStyle.fit(descFont,description,Math.max(16,width-110)),
-                x+15,y+24,NeutronVisualTokens.MUTED);
+                x+13,y+20,NeutronVisualTokens.MUTED);
 
         // Retargeted spring travels within a fixed non-interactive switch silhouette.
         // The existing mouse/keyboard handlers alone change module.isToggled().
-        float sx=x+width-68,sy=y+13;
-        me.youngjibbit.utils.render.UIUtils.drawRound(sx,sy,36,18,9,
+        float sx=x+width-62,sy=y+10;
+        me.youngjibbit.utils.render.UIUtils.drawDecorationRound(sx,sy,30,16,8,
                 new Color(17,19,27,232));
         if(response>.006f)
-            me.youngjibbit.utils.render.UIUtils.drawRound(sx+1,sy+1,
-                    Math.max(1,34*response),16,8,
+            me.youngjibbit.utils.render.UIUtils.drawDecorationRound(sx+1,sy+1,
+                    Math.max(1,28*response),14,7,
                     NeutronVisualTokens.accent(theme,Math.round(95+145*response)));
         float bounce=Math.min(.9f,Math.abs(toggleBounce)*6);
-        me.youngjibbit.utils.render.UIUtils.drawRound(
-                sx+2+16*response-bounce/2,sy+3-bounce/2,12+bounce,12+bounce,
+        me.youngjibbit.utils.render.UIUtils.drawDecorationRound(
+                sx+2+14*response-bounce/2,sy+2-bounce/2,12+bounce,12+bounce,
                 6+bounce/2,new Color(250,246,252,243));
         Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString(
-                openProgress>.5f?"h":"i",x+width-23,y+15,NeutronVisualTokens.MUTED);
+                openProgress>.5f?"h":"i",x+width-20,y+11,NeutronVisualTokens.MUTED);
     }
 
     /** Shared settings renderer for the panel and compact dropdown presentations. */

@@ -23,8 +23,8 @@ public final class Wave2IsolatedCase {
         Path outputDirectory = base.resolve("wave2-isolated-cases");
         Files.createDirectories(outputDirectory);
         Path output = Files.createTempFile(outputDirectory, method + "-", ".log");
-        String java = Paths.get(System.getProperty("java.home"), "bin", "java.exe").toString();
-        Process child = new ProcessBuilder(java, "-Dfile.encoding=UTF-8", "-Duser.home=" + System.getProperty("user.home"),
+        String java = Paths.get(System.getProperty("java.home"), "bin", System.getProperty("os.name", "").startsWith("Windows") ? "java.exe" : "java").toString();
+        Process child = new ProcessBuilder(java, "-Dfile.encoding=UTF-8", "-Djava.io.tmpdir=" + System.getProperty("java.io.tmpdir"), "-Duser.home=" + System.getProperty("user.home"),
                 "-cp", System.getProperty("java.class.path"), Wave2IsolatedCase.class.getName(), checks.getName(), method)
                 .redirectErrorStream(true).redirectOutput(output.toFile()).start();
         if (!child.waitFor(90, TimeUnit.SECONDS)) {

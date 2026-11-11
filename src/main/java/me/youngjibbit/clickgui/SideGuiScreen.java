@@ -37,7 +37,7 @@ public class SideGuiScreen extends GuiScreen {
         for(UiSpring spring:motion)spring.reset();
     }
     private void layout() {
-        w=Math.min(550,Math.max(1,width-20));h=Math.min(350,Math.max(1,height-20));
+        w=Math.min(496,Math.max(1,width-20));h=Math.min(296,Math.max(1,height-20));
         x=(width-w)/2;y=(height-h)/2;
     }
     protected ClipRect window(){return new ClipRect(x,y,w,h);}
@@ -70,7 +70,7 @@ public class SideGuiScreen extends GuiScreen {
                         ClipRect hit=tabBounds(id);
                         motion[id].stepForInput(dt,hit.contains(mx,my),navFocus==id,pressed==id,true,ClientSettings.current());
                         ClipRect r=GuiStyle.buttonBounds(hit,motion[id]);
-                        LegacyUiStyle.card(r.x,r.y,r.width,r.height,theme,motion[id].keyboardFocused(),hit.contains(mx,my));
+                        MenuSurface.card(r.x,r.y,r.width,r.height,theme,motion[id].keyboardFocused(),motion[id].amount());
                         GuiStyle.feedback(r,motion[id]);
                         if(id==5) {
                             LegacyUiStyle.icon("back",r.x+8,r.y+7,10,ink);

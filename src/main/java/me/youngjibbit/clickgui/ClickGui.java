@@ -9,6 +9,8 @@ import java.util.Locale;
 import me.youngjibbit.clickgui.utils.ClipRect;
 import me.youngjibbit.clickgui.utils.GuiClip;
 import me.youngjibbit.clickgui.utils.GuiStyle;
+import me.youngjibbit.clickgui.utils.MenuSurface;
+import me.youngjibbit.clickgui.utils.ClickControlStyle;
 import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.impl.render.ClickGUI;
@@ -73,13 +75,14 @@ public class ClickGui extends GuiScreen {
     private boolean two(){return modernPresentation()||ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());}
     private boolean modern(){return two()&&!creativePresentation();}
     private boolean creative(){return two()&&creativePresentation();}
-    private float sidebarWidth(){return two()?NeutronVisualTokens.sidebar(width):SIDEBAR;}
-    private float headerHeight(){return two()?NeutronVisualTokens.header():HEADER;}
-    private float detailHeaderHeight(){return two()?48:CONTENT_HEADER;}
-    private float footerHeight(){return two()?30:FOOTER;}
-    private float rowGap(){return two()?NeutronVisualTokens.ROW_GAP:CARD_GAP;}
+    private float sidebarWidth(){return two()?Math.max(92,Math.min(148,width*.22f)):SIDEBAR;}
+    private float headerHeight(){return two()?46:HEADER;}
+    private float detailHeaderHeight(){return two()?39:CONTENT_HEADER;}
+    private float footerHeight(){return two()?24:FOOTER;}
+    private float rowGap(){return two()?5:CARD_GAP;}
 
-    private ClipRect chromeBounds(int id){return id==0?searchBounds():id==1?themeBounds():new ClipRect(x+5,y+headerHeight()+4+(id-2)*categoryStep(),sidebarWidth()-10,categoryStep()-4);}
+    protected ClipRect categoryBounds(int index){return new ClipRect(x+5,y+headerHeight()+4+index*categoryStep(),sidebarWidth()-10,categoryStep()-4);}
+    private ClipRect chromeBounds(int id){return id==0?searchBounds():id==1?themeBounds():categoryBounds(id-2);}
     private void resetMotion(){
         visualControl=null;visualChrome=-1;
         panelMotion.reset(selectedCategory.ordinal()*categoryStep());
@@ -123,8 +126,8 @@ public class ClickGui extends GuiScreen {
 
     private void fitWindow() {
         if(!positioned&&two()){
-            width=Math.min(760,creative()?Math.max(720,NeutronVisualTokens.width(super.width)):NeutronVisualTokens.width(super.width));
-            height=Math.min(448,NeutronVisualTokens.height(super.height));
+            width=Math.min(700,creative()?Math.max(680,NeutronVisualTokens.width(super.width)):NeutronVisualTokens.width(super.width));
+            height=Math.min(404,Math.max(1,super.height*.82f));
         }
         float availableWidth = Math.max(1, super.width - MARGIN * 2);
         float availableHeight = Math.max(1, super.height - MARGIN * 2);
@@ -141,7 +144,7 @@ public class ClickGui extends GuiScreen {
 
     private float categoryStep() {
         return two()?
-                NeutronVisualTokens.categoryPitch(height,CATEGORIES.length):
+                Math.max(14,Math.min(34,(height-headerHeight()-footerHeight()-16)/CATEGORIES.length)):
                 Math.min(24,(height-headerHeight()-FOOTER-8)/CATEGORIES.length);
     }
 
@@ -184,33 +187,21 @@ public class ClickGui extends GuiScreen {
 
         try (GuiClip windowClip = GuiClip.push(new ClipRect(x + 2, y + 2, width - 4, height - 4))) {
             if(two()){
-                // Glass frame layers keep the Minecraft world legible but never leave
-                // moving world pixels directly behind widget labels.
-                UIUtils.drawRound(x+1,y+1,width-2,height-2,
-                        NeutronVisualTokens.RADIUS_FRAME,
-                        creative?NeutronVisualTokens.alpha(NeutronVisualTokens.FRAME.getRGB(),250):NeutronVisualTokens.FRAME);
-                UIUtils.drawRound(x+5,y+headerHeight()+3,sidebarWidth()-10,
-                        height-headerHeight()-10,NeutronVisualTokens.RADIUS_SIDEBAR,
-                        creative?NeutronVisualTokens.alpha(NeutronVisualTokens.SIDEBAR.getRGB(),245):NeutronVisualTokens.SIDEBAR);
-                UIUtils.drawRound(x+sidebarWidth()+5,y+headerHeight()+3,
-                        width-sidebarWidth()-11,height-headerHeight()-10,
-                        NeutronVisualTokens.RADIUS_SIDEBAR,
-                        creative?NeutronVisualTokens.alpha(NeutronVisualTokens.PANEL.getRGB(),240):NeutronVisualTokens.PANEL);
-                UIUtils.drawRound(x+1,y+1,width-2,headerHeight()-1,
-                        NeutronVisualTokens.RADIUS_FRAME,
-                        creative?NeutronVisualTokens.alpha(NeutronVisualTokens.HEADER.getRGB(),248):NeutronVisualTokens.HEADER);
+                // The material belongs to the outer frame. Only navigation and controls get readable backing.
+                UIUtils.drawDecorationRound(x+5,y+headerHeight()+3,sidebarWidth()-10,
+                        height-headerHeight()-footerHeight()-7,8,new Color(17,23,33,182));
                 UIUtils.drawDecorationRound(x+sidebarWidth(),y+headerHeight()+14,
                         1,Math.max(1,height-headerHeight()-29),.5f,
                         NeutronVisualTokens.HAIRLINE);
-                UIUtils.drawRound(x+16,y+12,32,32,9,NeutronVisualTokens.CONTROL);
-                UIUtils.drawDecorationRound(x+17,y+13,2,30,1,
+                MenuSurface.card(x+15,y+10,24,24,theme,false,false);
+                UIUtils.drawDecorationRound(x+16,y+12,2,20,1,
                         NeutronVisualTokens.accent(theme,175));
                 TTFFontRenderer logo=Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Bold 28");
-                logo.drawString("N",x+25,y+17,theme.getPrimaryGradientRGB());
+                logo.drawString("N",x+22,y+13,theme.getPrimaryGradientRGB());
                 TTFFontRenderer brand=Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 20");
-                brand.drawString("Neutron",x+56,y+17,NeutronVisualTokens.INK);
+                brand.drawString(ClickControlStyle.fit(brand,"Neutron",sidebarWidth()-54),x+48,y+10,NeutronVisualTokens.INK);
                 TTFFontRenderer variant=Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Regular 16");
-                variant.drawString(creative?"CREATIVE":"2.0",x+56,y+36,
+                variant.drawString(ClickControlStyle.fit(variant,creative?"Creative":"2.0",sidebarWidth()-54),x+48,y+27,
                         creative?NeutronVisualTokens.accent(theme,200).getRGB():NeutronVisualTokens.MUTED);
                 if(sidebarWidth()>=175){
                     float pillX=x+sidebarWidth()-40;
@@ -223,8 +214,8 @@ public class ClickGui extends GuiScreen {
                             Math.max(.5f,(width-sidebarWidth()-40)*entry),
                             1.5f,.75f,NeutronVisualTokens.accent(theme,175),
                             NeutronVisualTokens.secondary(theme,95));
-                if(creative){
-                    // Dynamic orbit accent in the header corner.
+                if(creative&&UiEffects.motion()){
+                    // Small ambient accent follows the user's motion preference.
                     float orbit=UiEffects.time()*0.5f;
                     float ox=x+width-34+(float)Math.sin(orbit)*6f;
                     float oy=y+14+(float)Math.cos(orbit*0.7f)*4f;
@@ -247,9 +238,7 @@ public class ClickGui extends GuiScreen {
             if(two()){
                 float sLift = searchSpring.lift();
                 float sGlow = searchSpring.glow();
-                UIUtils.drawRound(searchBox.x,searchBox.y,searchBox.width,searchBox.height,
-                        NeutronVisualTokens.RADIUS_CONTROL,
-                        creative?NeutronVisualTokens.alpha(NeutronVisualTokens.CONTROL.getRGB(),245):NeutronVisualTokens.CONTROL);
+                MenuSurface.card(searchBox.x,searchBox.y,searchBox.width,searchBox.height,theme,searchFocus,sGlow);
                 UIUtils.drawRoundOutline(searchBox.x+.5f,searchBox.y+.5f,
                         Math.max(1,searchBox.width-1),Math.max(1,searchBox.height-1),
                         NeutronVisualTokens.RADIUS_CONTROL,.5f,new Color(0,0,0,1),
@@ -279,9 +268,7 @@ public class ClickGui extends GuiScreen {
             ClipRect themes = GuiStyle.buttonBounds(themeBounds(), themeSpring);
             float tLift = themeSpring.lift();
             float tGlow = themeSpring.glow();
-            UIUtils.drawRound(themes.x,themes.y,themes.width,themes.height,
-                    two()?NeutronVisualTokens.RADIUS_CONTROL:5,
-                    two()?(creative?NeutronVisualTokens.alpha(NeutronVisualTokens.CONTROL.getRGB(),245):NeutronVisualTokens.CONTROL):me.youngjibbit.gui.LegacyUiStyle.control(theme,false));
+            MenuSurface.card(themes.x,themes.y,themes.width,themes.height,theme,false,tGlow);
             if (tGlow > .02f) {
                 UIUtils.drawDecorationRound(themes.x-tLift*2f, themes.y-tLift*2f,
                         themes.width+tLift*4f, themes.height+tLift*4f,
@@ -298,16 +285,7 @@ public class ClickGui extends GuiScreen {
             font().drawString("Library",themes.x+(themes.width-font().getWidth("Library"))/2,textY(font(),"Library",themes),GuiStyle.ink(theme.isCustom()?theme.getTextColor().getRGB():0xffd4d9e3,chromeMotion[1]));
             float selectedY = y + headerHeight() + 4 + selectionOffset;
             if(two()){
-                UIUtils.drawRound(x+9,selectedY+2,sidebarWidth()-18,step-6,
-                        NeutronVisualTokens.RADIUS_CONTROL,
-                        hoverSelected(selectedCategory)?NeutronVisualTokens.CARD_HOVER:NeutronVisualTokens.CARD);
-                UIUtils.drawDecorationRound(x+10,selectedY+7,2,Math.max(1,step-16),1,
-                        NeutronVisualTokens.accent(theme,236));
-                if(creative){
-                    // Floating selected category indicator.
-                    float floatY=selectedY+(float)Math.sin(UiEffects.time()*2f)*1.5f;
-                    UIUtils.drawRound(x+12,floatY+2,6,6,3,NeutronVisualTokens.accent(theme,220));
-                }
+                MenuSurface.card(x+8,selectedY,sidebarWidth()-16,step-4,theme,true,false);
             }else{
                 UIUtils.drawDecorationRound(x+8,selectedY,sidebarWidth()-16,step-4,5,
                         me.youngjibbit.gui.LegacyUiStyle.accent(theme,.14f));
@@ -317,7 +295,7 @@ public class ClickGui extends GuiScreen {
             String[] icons = {"c", "f", "d", "d", "e", "t", "f", "a"};
             for (int i = 0; i < CATEGORIES.length; i++) {
                 float rowY = y + headerHeight() + 4 + i * step;
-                ClipRect category = GuiStyle.buttonBounds(chromeBounds(i+2), chromeMotion[i+2]);
+                ClipRect category = categoryBounds(i);
                 rowY += category.y - chromeBounds(i+2).y;
                 GuiStyle.feedback(category,chromeMotion[i+2]);
                 // Elastischer Hover: leichter Lift, Scale und Glow-Follow über die UiSpring-Menge.
@@ -326,43 +304,23 @@ public class ClickGui extends GuiScreen {
                 float scale = chromeMotion[i+2].scale();
                 float glow = chromeMotion[i+2].glow();
                 if (two()) {
-                    float cardY = selectedY + 2 - lift * 3f;
-                    float catY = y + headerHeight() + 4 + i * step - lift*2f;
-                    float catH = step-6 - (hover>0 ? 2f*hover : 0);
-                    UIUtils.drawRound(x+9, catY, sidebarWidth()-18, catH,
-                            NeutronVisualTokens.RADIUS_CONTROL,
-                            hover>.02f?NeutronVisualTokens.CARD_HOVER:NeutronVisualTokens.CARD);
-                    UIUtils.drawDecorationRound(x+10, catY+7, 2, Math.max(1, step-16 - 4f*hover), 1,
-                            NeutronVisualTokens.accent(theme, (int)(236*Math.min(1,hover+.4f))));
-                    if (glow > .02f) {
-                        UIUtils.drawDecorationRound(x+9-lift*2f, catY-lift*2f, sidebarWidth()-18+lift*4f, catH+lift*4f,
-                                NeutronVisualTokens.RADIUS_CONTROL+2f,
-                                me.youngjibbit.utils.render.UiEffects.accent(theme.getPrimaryGradientRGB(), .06f*glow));
-                    }
-                    if(creative&&glow>.04f){
-                        UIUtils.drawDecorationRound(x+9-lift*3f, catY-lift*3f, sidebarWidth()-18+lift*6f, catH+lift*6f,
-                                NeutronVisualTokens.RADIUS_CONTROL+4f,
-                                me.youngjibbit.utils.render.UiEffects.accent(theme.getSecondaryGradientRGB(), .04f*glow));
-                    }
-                    // Dynamic category dot pulse.
-                    float pulse=.5f+.5f*(float)Math.sin(UiEffects.time()*3f+i*.7f);
-                    UIUtils.drawRound(x+14, catY+catH/2-2, 4, 4, 2,
-                            NeutronVisualTokens.accent(theme,(int)(100+100*pulse)));
+                    if(i!=selectedCategory.ordinal()&&hover>.02f)
+                        MenuSurface.card(category.x+3,category.y,category.width-6,category.height,theme,false,hover);
                 } else if(i!=selectedCategory.ordinal()&&hover>.02f)
                     UIUtils.drawDecorationRound(x+8,rowY,sidebarWidth()-16,step-4,5,
                             me.youngjibbit.gui.LegacyUiStyle.alpha(me.youngjibbit.gui.LegacyUiStyle.INK,.04f*hover));
                 String font = i == 2 || i == 4 || i == 6 ? "icon1 21" : "icon 21";
-                float textX = x + (two() ? 20 + lift*2f : 14);
-                float textY = rowY + (step-14)/2 - (two() ? lift*1.5f : 0);
+                float textX = x + (two() ? 17 : 14);
+                float textY = rowY + (step-14)/2;
                 Pulsar.INSTANCE.getFontManager().getFont(font).drawString(
                         icons[i], textX, textY,
                         two() ? i==selectedCategory.ordinal()?NeutronVisualTokens.INK:
-                                me.youngjibbit.utils.render.UiEffects.accent(NeutronVisualTokens.MUTED, .55f + .45f*hover).getRGB() :
+                                NeutronVisualTokens.MUTED :
                                 i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffc4cad5);
                 Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18").drawString(
-                        CATEGORIES[i].name(), x + (two() ? 43 + lift*2f : 30), textY,
+                        ClickControlStyle.fit(Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18"),CATEGORIES[i].name(),sidebarWidth()-(two()?44:38)), x + (two() ? 35 : 30), textY,
                         two() ? i==selectedCategory.ordinal()?NeutronVisualTokens.INK:
-                                me.youngjibbit.utils.render.UiEffects.accent(NeutronVisualTokens.MUTED, .55f + .45f*hover).getRGB() :
+                                NeutronVisualTokens.MUTED :
                                 i==selectedCategory.ordinal()?Color.WHITE.getRGB():0xffc4cad5);
             }
             String title=search.trim().isEmpty()?selectedCategory.name():"Search results";
@@ -374,18 +332,14 @@ public class ClickGui extends GuiScreen {
                     y+headerHeight()+8,two()?NeutronVisualTokens.MUTED:0xffaab3c3);
             if(two()){
                 TTFFontRenderer small=Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Regular 16");
-                small.drawString(NeutronVisualTokens.categoryDescription(selectedCategory),
-                        viewport.x+1,y+headerHeight()+27,NeutronVisualTokens.MUTED);
+                small.drawString(ClickControlStyle.fit(small,NeutronVisualTokens.categoryDescription(selectedCategory),viewport.width-6),
+                        viewport.x+1,y+headerHeight()+24,NeutronVisualTokens.MUTED);
                 float footerTop=y+height-footerHeight()-5;
                 UIUtils.drawDecorationRound(x+sidebarWidth()+15,footerTop,
                         Math.max(1,width-sidebarWidth()-30),1,.5f,NeutronVisualTokens.HAIRLINE);
                 UIUtils.drawDecorationRound(x+15,footerTop,
                         Math.max(1,sidebarWidth()-30),1,.5f,NeutronVisualTokens.HAIRLINE);
-                small.drawString("NEUTRON 2.0"+(creative?"  ·  CREATIVE":""),x+18,footerTop+5,NeutronVisualTokens.INK);
-                small.drawString(modules.size()+" modules",x+18,footerTop+17,NeutronVisualTokens.MUTED);
-                if(creative){
-                    small.drawString("Spatial layout · Dynamic elements",x+18,footerTop+30,NeutronVisualTokens.FAINT);
-                }
+                small.drawString(creative?"Creative":"Neutron 2.0",x+18,footerTop+8,NeutronVisualTokens.MUTED);
             }
             if(!two()){
                 String shortcuts=width>=400?"/ Search  ·  Tab Navigate  ·  K Bind":
@@ -431,7 +385,7 @@ public class ClickGui extends GuiScreen {
                 y + headerHeight() + detailHeaderHeight() + 4,
                 width - sidebarWidth() - (two()?30:20),
                 height - headerHeight() - detailHeaderHeight() - footerHeight() - 8);
-        int columns=creative()&&viewport.width>=520?2:1;
+        int columns=creative()&&viewport.width>=490?2:1;
         float contentHeight=0;
         for(ClickModule module:modules)module.updatePanelAnimation(delta);
         for(int start=0;start<modules.size();start+=columns){
@@ -519,7 +473,7 @@ public class ClickGui extends GuiScreen {
             return;
         }
         for (int i = 0; i < CATEGORIES.length; i++) {
-            if (button == 0 && new ClipRect(x + 5, y + headerHeight() + 4 + i * categoryStep(), sidebarWidth() - 10, categoryStep() - 4).contains(mouseX, mouseY)) {
+            if (button == 0 && categoryBounds(i).contains(mouseX, mouseY)) {
                 releaseControls();
                 cancelInputs();search="";
                 selectedCategory = CATEGORIES[i];
@@ -608,8 +562,8 @@ public class ClickGui extends GuiScreen {
     protected boolean shiftDown(){return Keyboard.isCreated()&&isShiftKeyDown();}
     protected boolean ctrlDown(){return Keyboard.isCreated()&&isCtrlKeyDown();}
     private TTFFontRenderer font(){return Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 18");}
-    protected ClipRect searchBounds(){return new ClipRect(x+sidebarWidth()+8,y+6,width-sidebarWidth()-104,24);}
-    protected ClipRect themeBounds(){return new ClipRect(x+width-88,y+6,56,24);}
+    protected ClipRect searchBounds(){return two()?new ClipRect(x+sidebarWidth()+10,y+9,width-sidebarWidth()-102,28):new ClipRect(x+sidebarWidth()+8,y+6,width-sidebarWidth()-104,24);}
+    protected ClipRect themeBounds(){return two()?new ClipRect(x+width-78,y+9,52,28):new ClipRect(x+width-88,y+6,56,24);}
     private static float textY(TTFFontRenderer font,String text,ClipRect box){return box.y+(box.height-font.getHeight(text))/2;}
     protected ClickLibraryScreen createThemeLibrary(){return new ClickLibraryScreen(this,true);}
     protected void openThemeEditor(){mc.displayGuiScreen(createThemeLibrary());}
