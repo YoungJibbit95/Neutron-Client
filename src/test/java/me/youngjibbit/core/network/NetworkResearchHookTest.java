@@ -1,6 +1,8 @@
 package me.youngjibbit.core.network;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.core.diagnostics.NetworkResearchAnalysis;
+import me.youngjibbit.core.diagnostics.NetworkResearchRecording;
 import me.youngjibbit.core.diagnostics.NetworkResearchTrace.Entry;
 import me.youngjibbit.core.diagnostics.NetworkResearchTrace.Kind;
 import me.youngjibbit.core.diagnostics.NetworkResearchTrace.Mode;
@@ -19,11 +21,14 @@ import net.minecraft.network.play.client.C0APacketAnimation;
 import net.minecraft.network.play.server.S08PacketPlayerPosLook;
 import net.minecraft.network.play.server.S14PacketEntity;
 import org.junit.Test;
+import java.io.StringReader;
+import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import static org.junit.Assert.*;
 
@@ -182,6 +187,73 @@ public class NetworkResearchHookTest {
                 assertEquals(1, ofKind(research, Kind.RECEIVED).size());
                 assertEquals(123, ofKind(research, Kind.RECEIVED).get(0).nanos);
                 assertEquals(1, ofKind(research, Kind.APPLIED).size()); assertEquals(0, research.getCaptureFailures());
+            } finally { research.setToggled(false); }
+        }
+    }
+
+    @Test public void recordingExportRetainsItsRunAfterWorldResetWithoutApplyingAnything() throws Exception {
+        try (ExploitHookFixture f = new ExploitHookFixture()) {
+            AtomicLong now = new AtomicLong();
+            NetworkResearch research = new NetworkResearch(now::get, f.client);
+            research.setToggled(true);
+            try {
+                tick(); now.set(50_000_000); tick();
+                NetworkResearchRecording recording = research.recording();
+                assertEquals(Origin.CLIENT_OBSERVATION, recording.origin);
+                assertEquals(4, recording.entries.size());
+                assertEquals(0, recording.overwritten); assertEquals(0, recording.captureFailures);
+                StringWriter out = new StringWriter(); recording.write(out);
+                NetworkResearchRecording imported = NetworkResearchRecording.read(new StringReader(out.toString()));
+                assertEquals(1, NetworkResearchAnalysis.analyze(imported).tickIntervals.samples);
+                assertEquals(0, f.pipe().delays().size()); assertNull(f.connection.channel.readOutbound());
+                Pulsar.BUS.post(new WorldEvent.Unload(f.world));
+                assertTrue(research.recording().entries.isEmpty());
+                assertTrue(research.recording().run > recording.run);
+                assertEquals(4, recording.entries.size());
+            } finally { research.setToggled(false); }
+        }
+    }
+
+    @Test public void simulationRecordingMetadataTracksSettingAndDisableBoundaries() throws Exception {
+        try (ExploitHookFixture f = new ExploitHookFixture()) {
+            NetworkResearch research = new NetworkResearch(() -> 0, f.client);
+            research.getModeSetting("Source").setValue("Simulation");
+            research.getModeSetting("Scenario").setValue("Jitter");
+            research.setToggled(true);
+            try {
+                NetworkResearchRecording saved = research.recording();
+                assertEquals(Origin.SIMULATION, saved.origin); assertEquals("JITTER", saved.scenario);
+                assertEquals(61, saved.entries.size()); assertEquals(0, saved.simulationRejected);
+                research.getModeSetting("Scenario").setValue("Pause");
+                assertTrue(research.recording().run > saved.run);
+                assertEquals("PAUSE", research.recording().scenario);
+                research.setToggled(false);
+                NetworkResearchRecording stopped = research.recording();
+                assertEquals(Origin.CLIENT_OBSERVATION, stopped.origin);
+                assertEquals("", stopped.scenario); assertTrue(stopped.entries.isEmpty());
+                assertEquals(61, saved.entries.size());
+                assertEquals(0, f.pipe().delays().size()); assertNull(f.connection.channel.readOutbound());
+            } finally { research.setToggled(false); }
+        }
+    }
+
+    @Test public void recordingKeepsCaptureFailuresWithoutChangingTheObservedTransport() throws Exception {
+        try (ExploitHookFixture f = new ExploitHookFixture()) {
+            AtomicBoolean failing = new AtomicBoolean();
+            NetworkResearch research = new NetworkResearch(() -> {
+                if (failing.get()) throw new IllegalStateException("synthetic clock failure");
+                return 0L;
+            }, f.client);
+            research.getModeSetting("Mode").setValue("Lagrange"); research.setToggled(true);
+            try {
+                tick(); failing.set(true);
+                C0APacketAnimation packet = new C0APacketAnimation();
+                f.connection.network.sendPacket(packet);
+                assertSame(packet, f.connection.channel.readOutbound());
+                assertEquals(1, research.recording().captureFailures);
+                assertTrue(NetworkResearchAnalysis.analyze(research.recording()).issues
+                        .contains(NetworkResearchAnalysis.Issue.CAPTURE_FAILURES));
+                assertEquals(0, f.pipe().delays().size());
             } finally { research.setToggled(false); }
         }
     }
