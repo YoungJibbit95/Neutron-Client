@@ -4,6 +4,15 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class DiagnosticsGraphMotionTest {
+    @Test public void plotAxisHasAPositiveFiniteRangeForEmptyZeroAndInvalidSeries() {
+        assertEquals(1,DiagnosticsPlots.seriesMaximum(null,0),0);
+        assertEquals(1,DiagnosticsPlots.seriesMaximum(new double[]{0,0,0},0),0);
+        assertEquals(50,DiagnosticsPlots.seriesMaximum(new double[]{0,0},50),0);
+        assertEquals(85,DiagnosticsPlots.seriesMaximum(new double[]{10,85,20},50),0);
+        assertEquals(1,DiagnosticsPlots.seriesMaximum(new double[]{-1,Double.NaN,Double.POSITIVE_INFINITY},Double.NaN),0);
+        assertEquals(1,DiagnosticsPlots.seriesMaximum(new double[0],Double.NEGATIVE_INFINITY),0);
+        assertEquals(7,DiagnosticsPlots.seriesMaximum(new double[]{0,7,Double.NaN},-20),0);
+    }
     @Test public void rawHistoryRemainsUnchangedWhileNewestPointEases(){
         double[] raw={10,15,20,85};
         double[] view=DiagnosticsPlots.easedTail(raw,39);

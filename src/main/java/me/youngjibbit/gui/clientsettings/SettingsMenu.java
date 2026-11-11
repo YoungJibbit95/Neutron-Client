@@ -55,12 +55,16 @@ public class SettingsMenu extends GuiScreen {
     private void resetMotion(){
         pressed=-1;
         for(me.youngjibbit.gui.UiSpring state:actionMotion)state.reset();
+        valueMotion.clear();categoryMotion.clear();
         controlSprings.clear();presentation.reset();
         closingPopupValue=null;closingPopupBounds=null;
         lastFrame=System.nanoTime();
     }
     @Override public void initGui(){
         resetMotion();
+        // A resize invalidates the old pointer capture but keeps typed input and
+        // the logical dropdown selection available in the new layout.
+        drag=-1;dragValue=null;
         if(Keyboard.isCreated()){
             if(!ownsKeyboardRepeat){previousRepeat=Keyboard.areRepeatEventsEnabled();ownsKeyboardRepeat=true;}
             Keyboard.enableRepeatEvents(true);
@@ -107,6 +111,11 @@ public class SettingsMenu extends GuiScreen {
     private boolean compactLegacy(){return !two()&&h<340;}
     private boolean legacyPreview(){return !two()&&!compactLegacy();}
     private float sectionY(){return y+(compactLegacy()?44:58);}
+    /** Header accent stays above section controls at every supported GUI height. */
+    protected ClipRect entryAccentBounds(){
+        return new ClipRect(x+(two()?16:39),y+(two()?49:compactLegacy()?35:50),
+                Math.max(0,w-(two()?32:58)),1);
+    }
     protected ClipRect view(){
         if(two())return new ClipRect(x+inset(),y+94,w-inset()-14,Math.max(1,h-186));
         float top=compactLegacy()?78:104,bottom=legacyPreview()?108:62;
@@ -209,12 +218,7 @@ public class SettingsMenu extends GuiScreen {
                 }else{
                     LiquidGlass.divider(x+14,y+(compactLegacy()?35:49),w-28,theme);
                     if(rail()){
-                        UIUtils.drawDecorationRound(x+8,y+58,inset()-20,h-114,
-                                LiquidGlass.radius(6),LiquidGlass.fill(theme,LiquidGlass.PANEL));
-                        LiquidGlass.highlight(x+8,y+58,inset()-20,h-114,LiquidGlass.radius(6));
-                        UIUtils.drawRoundOutline(x+8.5f,y+58.5f,inset()-21,h-115,
-                                Math.max(0,LiquidGlass.radius(6)-.5f),.6f,new Color(0,0,0,1),
-                                LiquidGlass.ink(theme,LiquidGlass.HAIRLINE));
+                        LiquidGlass.inset(x+8,y+58,inset()-20,h-114,6,theme);
                         LegacyUiStyle.rule(x+inset(),y+h-54,w-inset()-14,theme);
                     }
                     LegacyUiStyle.icon("settings",x+15,y+13,16,theme.getPrimaryGradientRGB());
@@ -226,12 +230,15 @@ public class SettingsMenu extends GuiScreen {
                         x+(two()?16:39),y+33,two()?NeutronVisualTokens.MUTED:LegacyUiStyle.MUTED);
                 // The global screen exit animation stays owned by GuiTransitions.
                 // The entry accent uses the same spring policy; text/input remain ready.
-                if(entry.opacity>.01f)
-                    LiquidGlass.accentLine(x+(two()?16:39),y+(two()?49:50),
-                            (w-(two()?32:58))*entry.opacity,theme,1);
+                if(entry.opacity>.01f){
+                    ClipRect accent=entryAccentBounds();
+                    LiquidGlass.accentLine(accent.x,accent.y,accent.width*entry.opacity,theme,1);
+                }
                 List<String> sections=names();
-                if(rail()){
+                if(rail()&&!sections.isEmpty()){
                     float markerY=presentation.category(categoryBounds(group).y+4,dt,motionSettings);
+                    markerY=Math.max(categoryBounds(0).y+4,
+                            Math.min(categoryBounds(sections.size()-1).y+4,markerY));
                     UIUtils.drawDecorationGradientVertical(x+(two()?16:12),markerY,2,
                             categoryBounds(group).height-8,1,
                             LiquidGlass.accent(theme,230),
@@ -339,6 +346,10 @@ public class SettingsMenu extends GuiScreen {
         ClientSettings settings=ClientSettings.current();
         me.youngjibbit.gui.HudSpring spring=controlSprings.computeIfAbsent(value,
                 key->new me.youngjibbit.gui.HudSpring());
+        // The captured thumb follows the committed value without a spring lag.
+        // Keyboard edits and external changes still use the shared transition.
+        if(value==dragValue&&value instanceof SliderValue)
+            return spring.snap(Math.max(0,Math.min(1,target)));
         float next=spring.step(target,dt,
                 settings==null||settings.animations.getValue(),
                 settings!=null&&settings.reducedMotion.getValue(),
@@ -368,11 +379,11 @@ public class SettingsMenu extends GuiScreen {
         boolean creative=this.creative();
         preview.panel(px,py,pw,34,two()?8:5,theme,true,true,false,two()?5:7,
                 two()?.92f:.56f,two()?.18f:.4f,()->{
-            float radius=LiquidGlass.radius(two()?7:4,pw-2,32);
+            float radius=UiEffects.radius(LiquidGlass.radius(two()?7:4,pw-2,32),pw-2,32);
             UIUtils.drawRound(px+1,py+1,pw-2,32,radius,
                     two()?(creative?NeutronVisualTokens.alpha(NeutronVisualTokens.CARD.getRGB(),240):NeutronVisualTokens.CARD)
                             :LiquidGlass.fill(theme,LiquidGlass.CARD));
-            LiquidGlass.highlight(px+1,py+1,pw-2,32,radius);
+            LiquidGlass.highlight(px+1,py+1,pw-2,32,radius,UiEffects.options().surfaceOpacity);
             LiquidGlass.divider(px+8,py+15,pw-16,theme);
             me.youngjibbit.utils.render.TextEffects.direct(theme,()->text(fit("Neutron  /  HitDelayFix  /  FastPlace",pw-20),px+10,py+5,-1));
             text(fit("Aa Bb  0123456789  ·  Session Info  ·  "+selectedFamily(),pw-20),px+10,py+19,0xffc5cfdf);
@@ -454,12 +465,11 @@ public class SettingsMenu extends GuiScreen {
         boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
         boolean creative=this.creative();
         float radius=LiquidGlass.radius(modern?8:6,p.width,Math.max(1,visibleHeight));
-        UIUtils.drawDecorationRound(p.x,p.y,p.width,Math.max(1,visibleHeight),radius,
-                LiquidGlass.fill(theme,Math.round(224*opacity)));
-        UIUtils.drawGradientHorizontal(p.x+radius,p.y+1,
-                Math.max(0,p.width-radius*2),1,.5f,
-                new Color(255,250,255,Math.round(44*opacity)),new Color(255,250,255,0));
-        LiquidGlass.border(p.x,p.y,p.width,Math.max(1,visibleHeight),radius,theme,true);
+        float materialOpacity=opacity*UiEffects.options().surfaceOpacity;
+        UIUtils.drawExactDecorationRound(p.x,p.y,p.width,Math.max(1,visibleHeight),radius,
+                LiquidGlass.fill(theme,Math.round(224*materialOpacity)));
+        LiquidGlass.highlight(p.x,p.y,p.width,Math.max(1,visibleHeight),radius,materialOpacity);
+        LiquidGlass.border(p.x,p.y,p.width,Math.max(1,visibleHeight),radius,theme,true,materialOpacity);
         int count=popupRows(shown),offset=open?popupOffset:closingPopupOffset;
         int choice=open?popupChoice:closingPopupChoice;
         float marker=presentation.cursor(p.y+4+(choice-offset)*22+5,dt,settings);

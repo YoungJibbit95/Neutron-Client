@@ -164,7 +164,7 @@ public final class Diagnostics extends Module {
             resetRun();world=new WeakReference<>(mc.theWorld);player=new WeakReference<>(mc.thePlayer);connection=new WeakReference<>(pipe);
         }
     }
-    @Subscribe private final Listener<WorldEvent> worldChanged=new Listener<>(event->resetRun());
+    @Subscribe private final Listener<WorldEvent> worldChanged=new Listener<>(event->{resetRun();surface.close();});
     @Subscribe private final Listener<PlaySessionEvent> sessionChanged=new Listener<>(event->{
         if(event.getState()==PlaySessionEvent.State.ENDED)resetRun();
     });
@@ -365,7 +365,9 @@ public final class Diagnostics extends Module {
         if (performanceWidget.getValue()) {
             double[] frames = renderSnapshot.frameMilliseconds;
             double[] display=DiagnosticsPlots.easedTail(frames,widgets[0].graphTail);
-            String latest = display.length == 0 ? "No samples" : fmt(display[display.length-1]) + " ms";
+            // Labels report the observed sample; only the trace is a presentation transition.
+            String latest = frames.length == 0 || !graphSampleValid(frames[frames.length-1])
+                    ? "No samples" : fmt(frames[frames.length-1]) + " ms";
             Panel p = new Panel(widgets[0], "Frame interval", latest);
             p.plot = (theme, font, ink) -> DiagnosticsPlots.series(display, 16.7, theme, font, ink, "Frames");
             panels.add(p);
@@ -381,8 +383,7 @@ public final class Diagnostics extends Module {
         if (networkWidget.getValue()) {
             double[] samples = pingHistory.stream().mapToDouble(Integer::doubleValue).toArray();
             double[] display=DiagnosticsPlots.easedTail(samples,widgets[2].graphTail);
-            Panel p = new Panel(widgets[2], "Reported ping", ping < 0 ? "No sample" :
-                    Math.round(Float.isFinite(widgets[2].graphTail)?widgets[2].graphTail:ping) + " ms");
+            Panel p = new Panel(widgets[2], "Reported ping", ping < 0 ? "No sample" : ping + " ms");
             p.plot = (theme, font, ink) -> DiagnosticsPlots.series(display, 50, theme, font, ink, "Samples");
             panels.add(p);
         }
@@ -459,19 +460,21 @@ public final class Diagnostics extends Module {
                 glowing=!modern&&glow.getValue();
         // Immutable geometry, policy and theme are frozen before deferred execution.
         Theme theme=surface.theme(Theme.resolve(Theme.getDefaultTheme()));
-        GuiShaderBloom.afterBatch(()->surface.panel(x,y,252*s,p.height*s,
+        final long paintRun=runId;
+        GuiShaderBloom.afterBatch(()->{
+            if(paintRun!=runId)return;
+            surface.panel(x,y,252*s,p.height*s,
                 (modern?10:6)*s,theme,filled,blurred,glowing,modern?3.5f:4,
                 modern?.84f:.91f,modern?.14f:.4f,()->{
             try(RenderState state=new RenderState()) {
                 state.screenSpace();glTranslatef(x,y,0);glScalef(s,s,1);
-                if(modern&&filled){
-                    UIUtils.drawRound(2,2,248,Math.max(1,p.height-4),9,
-                            LiquidGlass.fill(theme,150));
-                    LiquidGlass.highlight(2,2,248,Math.max(1,p.height-4),9);
-                    LiquidGlass.border(2,2,248,Math.max(1,p.height-4),9,theme,false);
+                if(filled){
+                    // The enclosing surface already owns blur and scene material.
+                    // Inner framing is decoration only and follows its opacity.
+                    LiquidGlass.inset(2,2,248,Math.max(1,p.height-4),modern?9:5,theme);
                 }
                 TTFFontRenderer heading=font("Product-Sans-Bold 18"),body=font("Product-Sans-Regular 16"),small=font("Product-Sans-Regular 12");
-                int ink=modern?0xfff5f0f8:theme.isCustom()?theme.getTextColor().getRGB():0xfff0f3fa;
+                int ink=me.youngjibbit.gui.NeutronVisualTokens.ink(theme);
                 int muted=modern?0xffc6bdd0:
                         Theme.interpolateRGB(ink,theme.getPrimaryGradientRGB(),.22f)|0xff000000;
                 heading.drawString(p.title,modern?12:9,7,ink);
@@ -499,7 +502,7 @@ public final class Diagnostics extends Module {
                 if(p.graph!=null){graph(p.graph,9,yy+1,234,23,theme);small.drawString("Frame interval (ms)",10,yy+24,muted);}
                 small.drawString(fit(p.lines.size()>p.visibleRows?"Scroll in chat/editor  "+(w.scroll+1)+"-"+(w.scroll+p.visibleRows)+" / "+p.lines.size():p.footer,small,234),9,p.height-9,muted);
             }
-        }));
+        });});
     }
     static boolean graphSampleValid(double sample){
         return Double.isFinite(sample)&&sample>=0;
@@ -507,8 +510,7 @@ public final class Diagnostics extends Module {
     /** No invented point for absent frame measurements; data gaps stay visible. */
     private static void graph(double[] samples,float x,float y,float width,float height,Theme theme) {
         try(RenderState state=new RenderState()) {
-            glDisable(GL_TEXTURE_2D);glEnable(GL_BLEND);
-            glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
+            DiagnosticsPlots.prepare();
             double maximum=33.3;
             for(double sample:samples)if(graphSampleValid(sample))maximum=Math.max(maximum,sample);
             glLineWidth(1);glColor4f(1,1,1,.14f);

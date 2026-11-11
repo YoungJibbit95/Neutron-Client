@@ -197,7 +197,7 @@ public class ClickModule extends Component {
                 settings==null?"Balanced":settings.motionIntensity.getValue());
         toggleProgress=Math.max(0,Math.min(1,toggle));
         toggleBounce=Math.min(.1f,Math.abs(toggle-toggleProgress));
-        openProgress=Math.max(0,Math.min(1.08f,panelReveal.transition(
+        openProgress=Math.max(0,Math.min(1,panelReveal.transition(
                 open?1:0,seconds,settings)));
         // Combo geometry must be frozen from the same spring sample as the clip.
         for(Sub<?> value:values){
@@ -319,6 +319,23 @@ public class ClickModule extends Component {
         return false;
     }
 
+    /** Assigned bindings stay visible in both Panel presentations. Input remains screen-owned. */
+    private float drawPanelBinding(Theme theme,float right,float top){
+        if(module.getKey()==0)return right;
+        TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 16");
+        String key=org.lwjgl.input.Keyboard.getKeyName(module.getKey());
+        if(key==null)key="?";
+        boolean conflict=keyConflict();
+        if(conflict)key+=" !";
+        key=ClickControlStyle.fit(font,key,Math.max(8,Math.min(54,width*.25f)-10));
+        float chipWidth=Math.max(18,font.getWidth(key)+10),left=right-chipWidth;
+        MenuSurface.plate(left,top,chipWidth,16,theme,conflict,0);
+        font.drawString(key,left+(chipWidth-font.getWidth(key))/2,
+                top+(16-font.getHeight(key))/2,
+                conflict?0xffffb975:me.youngjibbit.gui.LegacyUiStyle.ink(theme));
+        return left-6;
+    }
+
     private void drawPanelHeader(Theme theme, boolean hover) {
         if(modernCard){
             drawNeutronTwoHeader(theme,hover);
@@ -343,16 +360,7 @@ public class ClickModule extends Component {
                     me.youngjibbit.gui.LegacyUiStyle.accent(theme,.9f));
 
         me.youngjibbit.utils.font.TTFFontRenderer title = Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18");
-        float right = x + width - 28;
-        if (module.getKey() != 0) {
-            String key = org.lwjgl.input.Keyboard.getKeyName(module.getKey());
-            if (key == null) key = "?";
-            boolean conflict = keyConflict();
-            if (conflict) key += " !";
-            key = ClickControlStyle.fit(title, key, Math.min(60, width / 4));
-            right -= title.getWidth(key);
-            title.drawString(key, right, y + 6, conflict ? 0xffffb975 : me.youngjibbit.utils.render.UiEffects.alpha(text, .72f));
-        }
+        float right = drawPanelBinding(theme,x+width-28,y+4);
         int titleInk = text;
         title.drawString(ClickControlStyle.fit(title, module.getName(), right - x - 24), x + 19, y + 6, titleInk);
         Pulsar.INSTANCE.getFontManager().getFont("icon1 23").drawString(openProgress > .5f ? "h" : "i",
@@ -378,7 +386,8 @@ public class ClickModule extends Component {
                 Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18");
         me.youngjibbit.utils.font.TTFFontRenderer descFont=
                 Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Regular 16");
-        String name=ClickControlStyle.fit(title,module.getName(),Math.max(16,width-96));
+        float titleRight=module.getKey()==0?x+width-83:drawPanelBinding(theme,x+width-70,y+4);
+        String name=ClickControlStyle.fit(title,module.getName(),Math.max(0,titleRight-x-13));
         title.drawString(name,x+13,y+5,NeutronVisualTokens.INK);
         String description=module.getDescription();
         if(description==null||description.trim().isEmpty())description="Module settings";

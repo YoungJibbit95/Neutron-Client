@@ -7,8 +7,6 @@ import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.module.ModuleInfo;
 import me.youngjibbit.utils.Theme;
-import me.youngjibbit.utils.RenderUtil;
-import me.youngjibbit.utils.Wrapper;
 import me.youngjibbit.utils.render.ShaderUtil;
 import me.youngjibbit.utils.render.UiEffects;
 import me.youngjibbit.utils.render.EffectMotion;
@@ -18,25 +16,19 @@ import me.youngjibbit.gui.LiquidGlass;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.value.impl.CheckBoxValue;
 import me.youngjibbit.value.impl.ComboValue;
-import me.youngjibbit.value.impl.SliderValue;
 import me.zero.alpine.listener.Listener;
 import me.zero.alpine.listener.Subscribe;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.FontRenderer;
-import net.minecraft.client.gui.Gui;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.GLAllocation;
 import net.minecraft.client.renderer.GlStateManager;
-import net.minecraft.client.renderer.RenderHelper;
 import net.minecraft.client.renderer.culling.Frustum;
 import net.minecraft.client.renderer.entity.RenderManager;
 import net.minecraft.client.renderer.entity.RendererLivingEntity;
-import net.minecraft.client.shader.Framebuffer;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.util.AxisAlignedBB;
-import org.lwjgl.opengl.Display;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.util.glu.GLU;
 
@@ -47,7 +39,6 @@ import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @ModuleInfo(name="Nametags",description="Projected panels follow Client Settings; team text keeps its semantic color.",category=Category.Render)
 public class Nametags extends Module {
@@ -61,6 +52,9 @@ public class Nametags extends Module {
     Theme currentTheme = applyTheme();
 
     private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Static", "Flame", "Neon", "Lines"}, 0);
+    // Append optional presentation values; existing config identifiers keep their order.
+    private final CheckBoxValue playerHead = new CheckBoxValue("Player Head", this, false);
+    private final CheckBoxValue distance = new CheckBoxValue("Distance", this, false);
     private ShaderUtil nametagFlameShader, nametagNeonShader, nametagLinesShader;
     private final java.util.Map<Entity, EffectMotion> flameMotions = new java.util.IdentityHashMap<>();
     private final java.util.Set<Entity> flameMotionSeen = java.util.Collections.newSetFromMap(new java.util.IdentityHashMap<Entity, Boolean>());
@@ -96,7 +90,7 @@ public class Nametags extends Module {
     }
 
     @Subscribe
-    private final Listener<WorldEvent> onWorldEvent = new Listener<>(event -> resetMotion());
+    private final Listener<WorldEvent> onWorldEvent = new Listener<>(event -> {resetMotion();surfaces.close();});
 
     private void clearFlameMotion() {
         flameMotions.clear(); flameMotionSeen.clear();
@@ -111,8 +105,8 @@ public class Nametags extends Module {
     @Subscribe
     private final Listener<Event2D> on2D = new Listener<>(e->
     {
-        if(mc.theWorld==null||mc.thePlayer==null){resetMotion();return;}
-        if(motionWorld!=mc.theWorld){resetMotion();motionWorld=mc.theWorld;}
+        if(mc.theWorld==null||mc.thePlayer==null){resetMotion();surfaces.close();return;}
+        if(motionWorld!=mc.theWorld){resetMotion();surfaces.close();motionWorld=mc.theWorld;}
         if(!"Flame".equals(mode.getValue()))clearFlameMotion();
         flameMotionSeen.clear();healthMotionSeen.clear();
         ClientSettings motion=ClientSettings.current();
@@ -125,8 +119,9 @@ public class Nametags extends Module {
         lastHealthFrame=healthNow;
         try(me.youngjibbit.core.diagnostics.RenderTimings.Scope timing=me.youngjibbit.core.diagnostics.RenderTimings.INSTANCE.scope("Nametags / labels")) {
         java.util.List<EntityPlayer> players=new java.util.ArrayList<>();for(Entity candidate:mc.theWorld.loadedEntityList)if(replacementCandidate(candidate,mc.getRenderManager()))players.add((EntityPlayer)candidate);if(players.isEmpty())return;
-        currentTheme=Theme.getDefaultTheme();
-        me.youngjibbit.utils.render.GuiShaderBloom.beginBatch();try{surfaces.withScene(currentTheme,()->{
+        try(me.youngjibbit.utils.render.RenderState state=new me.youngjibbit.utils.render.RenderState()) {
+        currentTheme=surfaces.theme(Theme.getDefaultTheme());
+        me.youngjibbit.utils.render.GuiShaderBloom.beginBatch();try{surfaces.withScene(currentTheme,true,true,5,policy->{
         for (Object object : players)
         {
             EntityLivingBase ent;
@@ -139,37 +134,20 @@ public class Nametags extends Module {
             ESP.mc.entityRenderer.setupOverlayRendering();
             if (posVec == null) continue;
             GL11.glPushMatrix();
-            RenderHelper.enableStandardItemLighting();
-            GlStateManager.enablePolygonOffset();
-            GlStateManager.doPolygonOffset(1.0f, -1500000.0f);
+            try {
             GlStateManager.disableLighting();
             GlStateManager.disableDepth();
             GlStateManager.enableBlend();
-            GlStateManager.enableBlend();
-            float x = (float) posVec.x - 8;
-            float w = (float) posVec.z - x;
-            float y = (float) posVec.y;
-            float h = (float) posVec.w - y;
-
-            float clampedWidth = Math.min(w, 80);  // Limit width to 100
-            float clampedHeight = Math.min(h, 160);
-
-            int[] outlineColors = getStaticOutlineGradientColors(currentTheme);
-            int teamColor1 = Color.green.getRGB();
+            GlStateManager.depthMask(false);
             int healthBarColor = this.getHealthColor(ent);
-            int color01 = outlineColors[0];
-            int color02 = outlineColors[1];
             long cT = (long)(UiEffects.time()*1000);
-            float cycleDuration = 1500.0f;
-            float o = (cT % 3000L) / 3000.0f;
-            int interpolatedColor = interpolateTwoColorsSmoothly(color01, color02, cT, cycleDuration);
+            int interpolatedColor = interpolateTwoColorsSmoothly(currentTheme.getPrimaryGradientRGB(),
+                    currentTheme.getSecondaryGradientRGB(), cT, 1500.0f);
             if (ent instanceof EntityPlayer)
             {
                 EntityPlayer player = (EntityPlayer) ent;
                 String health = wrappedHealth(player) + "";
-                String hp = String.valueOf(player.getHealth());
-                float maxHealth = Math.max(1, player.getMaxHealth());
-                float healthTarget = Math.max(0, Math.min(1, player.getHealth() / maxHealth));
+                float healthTarget = healthRatio(player.getHealth(), player.getMaxHealth());
                 HudSpring spring = healthMotions.get(player);
                 if (spring == null) {
                     spring = new HudSpring();
@@ -180,42 +158,55 @@ public class Nametags extends Module {
                 float shownHealth = Math.max(0, Math.min(1,
                         spring.step(healthTarget, healthDt, animated, reduced, intensity)));
 
-                int length = (int) Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Medium 15").getWidth(player.getCommandSenderName() + " | " + health) + 6;
+                me.youngjibbit.utils.font.TTFFontRenderer font = Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Medium 15");
+                String name = player.getCommandSenderName() + " | ";
+                float nameWidth = font.getWidth(name);
+                // Fixed health/distance columns keep damage and movement from shifting the label.
+                float healthWidth = Math.max(font.getWidth("00.00"), font.getWidth(health));
+                float headWidth = playerHead.getValue() && player instanceof net.minecraft.client.entity.AbstractClientPlayer ? 12 : 0;
+                float distanceWidth = distance.getValue() ? font.getWidth("999 m") + 5 : 0;
+                float tagWidth = 6 + headWidth + nameWidth + healthWidth + distanceWidth;
+                float tagHeight = 15;
+                float tagX = (float)((posVec.x + posVec.z) * .5) - tagWidth * .5f;
+                float tagY = (float)posVec.y - tagHeight - 3;
+                float tagRadius = UiEffects.radius(LiquidGlass.radius(3, tagWidth, tagHeight),tagWidth,tagHeight);
                 int tagColor = mc.thePlayer.isOnSameTeam(player) ? Color.green.getRGB() : interpolatedColor;
                 String nm = mode.getValue();
                 if (nm.equals("Flame") || nm.equals("Neon") || nm.equals("Lines")) {
-                    renderShaderNametag(entity, x - 7, y - 16, length + 2, 11, currentTheme, tagColor);
+                    renderShaderNametag(entity, tagX, tagY, tagWidth, tagHeight, currentTheme, tagColor,policy.opacity);
                 } else {
-                    UiEffects.drawGlow(x - 8, y - 17, length + 2, 11, 3, tagColor, 0.65f, 2, 1);
-                    float tagRadius = LiquidGlass.radius(3, length + 2, 11);
-                    UIUtils.drawDecorationRound(x - 7, y - 16, length + 2, 11, tagRadius,
-                            LiquidGlass.fill(currentTheme, 204));
-                    LiquidGlass.highlight(x - 7, y - 16, length + 2, 11, tagRadius);
-                    UIUtils.drawRoundOutline(x - 7, y - 16, length + 2, 11, 3, 0.45f,
-                            new Color(0, 0, 0, 1), UiEffects.color(tagColor, 0.62f));
+                    UiEffects.drawGlow(tagX, tagY, tagWidth, tagHeight, Math.round(tagRadius), tagColor, 0.65f, 2, 1);
+                    UiEffects.drawPanelFill(tagX, tagY, tagWidth, tagHeight, tagRadius,
+                            LiquidGlass.fill(currentTheme, Math.round(150*policy.opacity)), 5);
+                    LiquidGlass.highlight(tagX, tagY, tagWidth, tagHeight, tagRadius,policy.opacity);
+                    LiquidGlass.border(tagX,tagY,tagWidth,tagHeight,tagRadius,currentTheme,false,policy.opacity);
                 }
                 // A slim semantic rail makes health changes readable without relying on color alone.
-                float railX = x - 5, railWidth = Math.max(0, length - 4), railY = y - 4.6f;
+                float railX = tagX + 3, railWidth = tagWidth - 6, railY = tagY + tagHeight - 3;
                 UIUtils.drawDecorationRound(railX, railY, railWidth, 1.4f, .7f,
                         new Color(255, 255, 255, 28));
                 if (railWidth * shownHealth > .05f)
-                    UIUtils.drawDecorationRound(railX, railY, railWidth * shownHealth, 1.4f, .7f,
+                    UIUtils.drawDecorationRound(railX, railY, railWidth * shownHealth, 1.4f,
+                            Math.min(.7f,railWidth*shownHealth*.5f),
                             UiEffects.color(healthBarColor, .92f));
-
-                if(Wrapper.mc.thePlayer.getTeam() != null && player.getTeam() != null && Wrapper.mc.thePlayer.getTeam().isSameTeam(player.getTeam()))
-                {
-                    Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Medium 15").drawStringWithShadow(player.getCommandSenderName() + " | " + health, x - 5, y - 14, Color.green.getRGB());
-                } else {
-                    Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Medium 15").drawStringWithShadow(player.getCommandSenderName() + " | " + health, x - 5, y - 14, -1);
+                if (headWidth > 0) {
+                    net.minecraft.client.entity.AbstractClientPlayer clientPlayer = (net.minecraft.client.entity.AbstractClientPlayer)player;
+                    CompactHudVisuals.skin(clientPlayer.getLocationSkin(),tagX+3,tagY+1,10,3,1);
+                }
+                float textX = tagX + 3 + headWidth;
+                int nameColor = mc.thePlayer.isOnSameTeam(player) ? Color.green.getRGB() : -1;
+                font.drawStringWithShadow(name, textX, tagY+2, nameColor);
+                font.drawStringWithShadow(health, textX+nameWidth, tagY+2, nameColor);
+                if (distance.getValue()) {
+                    float meters=mc.thePlayer.getDistanceToEntity(player);
+                    String range=Float.isFinite(meters)&&meters>=0?Math.min(999,Math.round(meters))+" m":"-- m";
+                    font.drawStringWithShadow(range,textX+nameWidth+healthWidth+5,tagY+2,0xffb9c8d9);
                 }
             }
-            GlStateManager.enableDepth();
-            GlStateManager.disableBlend();
-            GlStateManager.disablePolygonOffset();
-            GlStateManager.doPolygonOffset(1.0f, 1500000.0f);
-            GlStateManager.popMatrix();
+            } finally { GlStateManager.popMatrix(); }
         }
         });}finally{me.youngjibbit.utils.render.GuiShaderBloom.flushBatch(2,2);}
+        }
         } finally { flameMotions.keySet().retainAll(flameMotionSeen);
             healthMotions.keySet().retainAll(healthMotionSeen); }
     });
@@ -304,7 +295,13 @@ public class Nametags extends Module {
     }
 
     public static float wrappedHealth(EntityLivingBase entity){
-        return Math.round(entity.getHealth() * 100.0f) / 100.0f;
+        float health=entity.getHealth();
+        return Float.isFinite(health)?Math.round(Math.max(0,health) * 100.0f) / 100.0f:0;
+    }
+
+    static float healthRatio(float health,float maximum) {
+        return Float.isFinite(health)&&Float.isFinite(maximum)&&maximum>0
+                ?Math.max(0,Math.min(1,health/maximum)):0;
     }
 
     private static int interpolateTwoColorsSmoothly(int color1, int color2, long currentTime, float cycleDuration) {
@@ -327,22 +324,8 @@ public class Nametags extends Module {
         return (0xFF << 24) | (red << 16) | (green << 8) | blue;
     }
 
-    private int[] getStaticOutlineGradientColors(Theme theme)
-    {
-        Theme resolvedTheme = Theme.resolve(theme);
-        int color1 = resolvedTheme.getPrimaryGradientRGB();
-        int color2 = resolvedTheme.getSecondaryGradientRGB();
-
-        return new int[]{
-                color1,
-                color2,
-                color1,
-                color2
-        };
-    }
-
     private int getHealthColor(EntityLivingBase player) {
-        return Color.HSBtoRGB(Math.max(0.0f, Math.min(player.getHealth(), player.getMaxHealth()) / player.getMaxHealth()) / 3.0f, 0.56f, 1.0f) | 0xFF000000;
+        return Color.HSBtoRGB(healthRatio(player.getHealth(),player.getMaxHealth()) / 3.0f, 0.56f, 1.0f) | 0xFF000000;
     }
 
     private ShaderUtil getNametagShader(String mode) {
@@ -359,10 +342,10 @@ public class Nametags extends Module {
         return null;
     }
 
-    private void renderShaderNametag(Entity entity, float x, float y, float w, float h, Theme theme, int tagColor) {
+    private void renderShaderNametag(Entity entity, float x, float y, float w, float h, Theme theme, int tagColor,float opacity) {
         ShaderUtil shader=getNametagShader(mode.getValue());
         if(shader==null)return;
-        UiEffects.drawPanelFill(x,y,w,h,3,LiquidGlass.fill(theme,150),5);
+        UiEffects.drawPanelFill(x,y,w,h,3,LiquidGlass.fill(theme,Math.round(150*opacity)),5);
         boolean teammate=entity instanceof EntityPlayer && mc.thePlayer.isOnSameTeam((EntityPlayer)entity);
         int primary=teammate?tagColor:theme.getPrimaryGradientRGB();
         int secondary=teammate?tagColor:theme.getSecondaryGradientRGB();

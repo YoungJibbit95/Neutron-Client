@@ -172,7 +172,8 @@ public class ClickGui extends GuiScreen {
         fitWindow();
         float step = categoryStep();
         ClientSettings motionSettings=ClientSettings.current();
-        selectionOffset=panelMotion.category(selectedCategory.ordinal()*step,delta,motionSettings);
+        selectionOffset=PanelMotion.clamp(panelMotion.category(selectedCategory.ordinal()*step,delta,motionSettings),
+                0,(CATEGORIES.length-1)*step);
         float entry=panelMotion.entrance(delta,motionSettings);
         layoutModules(delta);
         advanceMotion(delta,mouseX,mouseY);

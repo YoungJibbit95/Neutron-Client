@@ -36,16 +36,21 @@ public final class Keystrokes extends Module {
     {for(int i=0;i<creativePresses.length;i++)creativePresses[i]=new HudSpring();}
     {for(int i=0;i<hoverSprings.length;i++)hoverSprings[i]=new HudSpring();}
     private boolean downBefore,dragging;private float grabX,grabY;
+    private void resetMotion(){
+        previous=0;lastWorld=null;java.util.Arrays.fill(presses,0);
+        for(HudSpring spring:modernPresses)spring.reset();
+        for(HudSpring spring:creativePresses)spring.reset();
+        for(HudSpring spring:hoverSprings)spring.reset();
+    }
+    @Subscribe private final Listener<me.youngjibbit.event.world.WorldEvent> world=new Listener<>(event->{
+        resetMotion();surface.close();HudDrag.cancel(this);dragging=downBefore=false;
+    });
     @Subscribe private final Listener<Event2D> render=new Listener<>(e->{
         if(mc.thePlayer==null||!me.youngjibbit.module.impl.client.HUD.visible()){
-            HudDrag.cancel(this);dragging=downBefore=false;return;
+            resetMotion();surface.close();HudDrag.cancel(this);dragging=downBefore=false;return;
         }
         if(lastWorld!=mc.theWorld){
-            lastWorld=mc.theWorld;previous=0;
-            java.util.Arrays.fill(presses,0);
-            for(HudSpring spring:modernPresses)spring.reset();
-            for(HudSpring spring:creativePresses)spring.reset();
-            for(HudSpring spring:hoverSprings)spring.reset();
+            resetMotion();surface.close();lastWorld=mc.theWorld;
             HudDrag.cancel(this);dragging=downBefore=false;
         }
         float w=80,h=mouse.getValue()?101:77,x=Math.max(0,Math.min(positionX.getValue().floatValue(),e.getSr().getScaledWidth()-w)),y=Math.max(0,Math.min(positionY.getValue().floatValue(),e.getSr().getScaledHeight()-h));
@@ -63,14 +68,14 @@ public final class Keystrokes extends Module {
         final boolean themeModern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
         final boolean modern=modernDesign||(themeModern&&!creativeDesign);
         final boolean creative=creativeDesign;
-        Theme theme=(modern||creative)?Theme.resolve(ThemeCatalog.global().current()):Theme.getDefaultTheme();
+        Theme theme=surface.theme((modern||creative)?Theme.resolve(ThemeCatalog.global().current()):Theme.getDefaultTheme());
         TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Medium 18");
         ClientSettings motion=ClientSettings.current();
         final boolean animated=motion==null||motion.animations.getValue();
         final boolean reduced=motion!=null&&motion.reducedMotion.getValue();
         final String intensity=motion==null?"Balanced":motion.motionIntensity.getValue();
         // One shared scene, individual keys, and transparent space between them.
-        Runnable controls=()->{
+        java.util.function.Consumer<UiEffects.SurfacePolicy> controls=policy->{
             for(int i=0;i<(mouse.getValue()?7:5);i++){
                 boolean isDown=keys[i].isKeyDown();
                 float target=isDown?1:0;
@@ -89,7 +94,8 @@ public final class Keystrokes extends Module {
                     presses[i]=Math.max(0,Math.min(1,creativePresses[i].step(
                             target,dt,animated,reduced,intensity)));
                 }else{
-                    presses[i]+=(target-presses[i])*UiEffects.response(dt,24);
+                    presses[i]=!animated||reduced?target:
+                            presses[i]+(target-presses[i])*UiEffects.response(dt,24);
                 }
                 float px=left+(i==0?28:i<4?(i-1)*28:i==6?42:0),
                         py=top+(i==0?0:i<4?28:i==4?56:80);
@@ -100,11 +106,10 @@ public final class Keystrokes extends Module {
                 if(modern){
                     // Modern: kompakte dunkle Tastenplatte mit subtiler Hover-Animation.
                     float plateAlpha=190+16*hover;
-                    float plateRadius=Math.min(5,Math.min(cw-2,ch-2)/2);
-                    UIUtils.drawDecorationRound(px+1,py+1,cw-2,ch-2,plateRadius,
-                            LiquidGlass.fill(theme,Math.round(plateAlpha)));
-                    LiquidGlass.highlight(px+1,py+1,cw-2,ch-2,plateRadius);
-                    LiquidGlass.border(px+1,py+1,cw-2,ch-2,plateRadius,theme,isDown);
+                    float plateRadius=UiEffects.radius(5,cw-2,ch-2);
+                    drawKeyPlate(px+1,py+1,cw-2,ch-2,plateRadius,theme,plateAlpha,policy);
+                    LiquidGlass.highlight(px+1,py+1,cw-2,ch-2,plateRadius,policy.opacity);
+                    LiquidGlass.border(px+1,py+1,cw-2,ch-2,plateRadius,theme,isDown,policy.opacity);
                     if(presses[index]>.001f){
                         UIUtils.drawDecorationGradientVertical(px+2,py+2,
                                 Math.max(0,cw-4),Math.max(0,ch-4),4,
@@ -118,16 +123,12 @@ public final class Keystrokes extends Module {
                     float cs=creativeScale(presses[index]);
                     float cx=px+(cw-cw*cs)/2,cy=py+(ch-ch*cs)/2;
                     float cw2=cw*cs,ch2=ch*cs;
-                    UIUtils.drawRound(cx+1,cy+1,Math.max(0,cw2-2),Math.max(0,ch2-2),
-                            5*cs,new Color(40,36,52,Math.round(200+35*hover)));
-                    if(isDown){
-                        UIUtils.drawRoundOutline(cx,cy,Math.max(0,cw2),Math.max(0,ch2),
-                                5*cs,.7f,new Color(0,0,0,0),
-                                new Color(theme.getPrimaryGradientColor().getRed(),
-                                        theme.getPrimaryGradientColor().getGreen(),
-                                        theme.getPrimaryGradientColor().getBlue(),
-                                        Math.round(255*(.55f+.45f*hover))));
-                    }
+                    float plateRadius=UiEffects.radius(5*cs,cw2-2,ch2-2);
+                    float outlineRadius=UiEffects.radius(5*cs,cw2,ch2);
+                    drawKeyPlate(cx+1,cy+1,Math.max(0,cw2-2),Math.max(0,ch2-2),
+                            plateRadius,theme,200+35*hover,policy);
+                    LiquidGlass.highlight(cx+1,cy+1,Math.max(0,cw2-2),Math.max(0,ch2-2),plateRadius,policy.opacity);
+                    LiquidGlass.border(cx,cy,Math.max(0,cw2),Math.max(0,ch2),outlineRadius,theme,isDown,policy.opacity);
                     UIUtils.drawDecorationGradientVertical(px+1,py+1,cw-2,ch-2,3,
                             UiEffects.color(theme.getPrimaryGradientRGB(),.12f+.18f*hover),
                             UiEffects.color(theme.getSecondaryGradientRGB(),.08f+.12f*hover));
@@ -145,17 +146,22 @@ public final class Keystrokes extends Module {
                 }
             }
         };
-        surface.withScene(theme,controls);
+        surface.withScene(theme,true,true,5,controls);
     });
+    private static void drawKeyPlate(float x,float y,float w,float h,float radius,Theme theme,float alpha,
+                                     UiEffects.SurfacePolicy policy){
+        if(policy.blur&&(!policy.background||!UiEffects.material()))
+            UiEffects.drawBlurredRect(x,y,w,h,radius,Color.WHITE,5,1);
+        if(policy.background){
+            if(UiEffects.material())UIUtils.drawSceneRound(x,y,w,h,radius);
+            else UIUtils.drawDecorationRound(x,y,w,h,radius,LiquidGlass.fill(theme,Math.round(alpha*policy.opacity)));
+        }
+    }
     /** Press motion stays inside each original key cell, including spring overshoot. */
     static float creativeScale(float press){return 1f-.08f*Math.max(0f,Math.min(1f,press));}
     static String keyLabel(int key){if(key==-100)return "LMB";if(key==-99)return "RMB";String label=net.minecraft.client.settings.GameSettings.getKeyDisplayString(key);return label==null?"?":label;}
     @Override public void onDisable(){
-        surface.close();HudDrag.cancel(this);previous=0;lastWorld=null;
-        dragging=downBefore=false;java.util.Arrays.fill(presses,0);
-        for(HudSpring spring:modernPresses)spring.reset();
-        for(HudSpring spring:creativePresses)spring.reset();
-        for(HudSpring spring:hoverSprings)spring.reset();
+        surface.close();HudDrag.cancel(this);resetMotion();dragging=downBefore=false;
         super.onDisable();
     }
 }

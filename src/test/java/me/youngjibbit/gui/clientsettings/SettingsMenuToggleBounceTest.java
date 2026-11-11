@@ -29,6 +29,18 @@ public class SettingsMenuToggleBounceTest {
         }
         assertEquals(original,owner.roundness.getValue(),0);
     }
+    @Test public void capturedSliderThumbFollowsTheCommittedPointerWithoutLag() throws Exception {
+        SettingsMenu menu=new SettingsMenu();ClientSettings owner=new ClientSettings();
+        follow(menu,owner.roundness,0,0);
+        java.lang.reflect.Field drag=SettingsMenu.class.getDeclaredField("dragValue");drag.setAccessible(true);
+        drag.set(menu,owner.roundness);
+        for(float fraction:new float[]{1,.12f,.8f,0})
+            assertEquals(fraction,follow(menu,owner.roundness,fraction,0),0);
+        drag.set(menu,null);
+        float eased=follow(menu,owner.roundness,1,.016f);
+        assertTrue("Released slider uses the configured transition",eased>0&&eased<1);
+        assertEquals(5,owner.roundness.getValue(),0);
+    }
     private static float follow(SettingsMenu menu,Value<?> value,float target,float dt) throws Exception {
         Method m=SettingsMenu.class.getDeclaredMethod("follow",Value.class,float.class,float.class);
         m.setAccessible(true);

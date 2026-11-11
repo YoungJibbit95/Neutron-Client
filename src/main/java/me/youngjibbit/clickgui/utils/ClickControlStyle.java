@@ -21,9 +21,10 @@ public final class ClickControlStyle {
     public static void row(float x, float y, float width, float height, Theme theme, boolean active) {
         if (width <= 20 || height <= 2) return;
         float radius = LiquidGlass.radius(4, width - 20, height);
-        UIUtils.drawDecorationRound(x + 10, y, Math.max(0, width - 20), height, radius,
-                LiquidGlass.fill(theme, active ? 82 : 26));
-        if (active) LiquidGlass.highlight(x + 10, y, width - 20, height, radius);
+        float opacity = UiEffects.options().surfaceOpacity;
+        UIUtils.drawExactDecorationRound(x + 10, y, Math.max(0, width - 20), height, radius,
+                LiquidGlass.fill(theme, Math.round((active ? 82 : 26) * opacity)));
+        if (active) LiquidGlass.highlight(x + 10, y, width - 20, height, radius, opacity);
     }
     /** A hairline and a tinted fill inside the stronger outer module contour. */
     public static void panelField(float x, float y, float width, float height, Theme theme, boolean active) {

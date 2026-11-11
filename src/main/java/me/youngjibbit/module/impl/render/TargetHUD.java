@@ -73,7 +73,7 @@ public class TargetHUD extends Module {
         if(!HUD.visible()){resetTarget();surface.close();return;}
         boolean down=Mouse.isCreated()&&Mouse.isButtonDown(0);
         if(mc.gameSettings.showDebugInfo){resetTarget();previousButton=down;return;}
-        if(worldContext!=mc.theWorld){resetTarget();worldContext=mc.theWorld;previousButton=down;}
+        if(worldContext!=mc.theWorld){resetTarget();surface.close();worldContext=mc.theWorld;previousButton=down;}
         boolean chat=mc.currentScreen instanceof GuiChat;
         ScaledResolution sr=new ScaledResolution(mc);
         int sw=sr.getScaledWidth(),sh=sr.getScaledHeight();
@@ -250,18 +250,19 @@ public class TargetHUD extends Module {
                         float plateAlpha=alpha*(policy.style<0?policy.opacity:1);
                         surface.inheritedPanel(x+fit.x+bx*fit.scale,y+fit.y,bw*fit.scale,34*fit.scale,
                                 (creative?11:13)*fit.scale,f.theme,plateAlpha,()->{});
-                        float mainRadius=Math.min((creative?11:13)*fit.scale,17*fit.scale);
-                        LiquidGlass.highlight(x+fit.x+bx*fit.scale,y+fit.y,bw*fit.scale,34*fit.scale,mainRadius);
+                        float mainRadius=UiEffects.radius((creative?11:13)*fit.scale,bw*fit.scale,34*fit.scale);
+                        float chromeAlpha=policy.background?alpha*policy.opacity:0;
+                        LiquidGlass.highlight(x+fit.x+bx*fit.scale,y+fit.y,bw*fit.scale,34*fit.scale,mainRadius,chromeAlpha);
                         LiquidGlass.border(x+fit.x+bx*fit.scale,y+fit.y,bw*fit.scale,34*fit.scale,
-                                mainRadius,f.theme,false);
+                                mainRadius,f.theme,false,chromeAlpha);
                         if(creative)surface.inheritedPanel(x+fit.x+fit.scale,y+fit.y+3*fit.scale,
                                 28*fit.scale,28*fit.scale,14*fit.scale,f.theme,plateAlpha,()->{});
                         if(creative){
-                            float portraitRadius=Math.min(14*fit.scale,14*fit.scale);
+                            float portraitRadius=UiEffects.radius(14*fit.scale,28*fit.scale,28*fit.scale);
                             LiquidGlass.highlight(x+fit.x+fit.scale,y+fit.y+3*fit.scale,
-                                    28*fit.scale,28*fit.scale,portraitRadius);
+                                    28*fit.scale,28*fit.scale,portraitRadius,chromeAlpha);
                             LiquidGlass.border(x+fit.x+fit.scale,y+fit.y+3*fit.scale,
-                                    28*fit.scale,28*fit.scale,portraitRadius,f.theme,false);
+                                    28*fit.scale,28*fit.scale,portraitRadius,f.theme,false,chromeAlpha);
                         }
                         glTranslatef(x+fit.x,y+fit.y,0);glScalef(fit.scale,fit.scale,1);
                         int accent=f.theme.getPrimaryGradientRGB();

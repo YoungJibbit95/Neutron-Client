@@ -3,6 +3,7 @@ package me.youngjibbit.module.impl.render;
 import me.youngjibbit.core.diagnostics.CorrectionHistory;
 import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.font.TTFFontRenderer;
+import me.youngjibbit.utils.render.UiEffects;
 
 import java.util.List;
 
@@ -29,38 +30,62 @@ final class DiagnosticsPlots {
     }
 
     static void series(double[] values, double floor, Theme theme, TTFFontRenderer font, int ink, String axis) {
-        double maximum = floor;
-        for (double sample : values) if (sample >= 0 && Double.isFinite(sample)) maximum = Math.max(maximum, sample);
+        double maximum = seriesMaximum(values, floor);
+        int count = values == null ? 0 : values.length;
+        boolean hasSamples = false;
+        if (values != null) for (double sample : values) hasSamples |= Diagnostics.graphSampleValid(sample);
         final float left = 37, right = 242, top = 28, bottom = 60;
         font.drawString(Integer.toString((int)Math.ceil(maximum)), 9, top - 2, ink);
         font.drawString("0", 9, bottom - 4, ink);
         font.drawString(axis, left, 65, ink);
+        if (!hasSamples) font.drawString("No samples", left + 62, top + 11, ink);
         prepare();
+        color(ink, .1f);
+        glBegin(GL_LINES);
+        segment(left, top, right, top);
+        segment(left, (top + bottom) / 2, right, (top + bottom) / 2);
+        glEnd();
         color(ink, .23f);
         glBegin(GL_LINES);
         segment(left, top, left, bottom);
         segment(left, bottom, right, bottom);
         glEnd();
         // Missing ping is -1. Keep the gap so that reconnects never look like zero latency.
-        color(theme.getPrimaryGradientRGB(), 1);
         float previousX = 0, previousY = 0;
+        int previousColor = theme.getPrimaryGradientRGB();
         boolean connected = false;
         glBegin(GL_LINES);
-        for (int i = 0; i < values.length; i++) {
+        for (int i = 0; i < count; i++) {
             double sample = values[i];
             if (sample < 0 || !Double.isFinite(sample)) {
                 connected = false;
                 continue;
             }
-            float x = values.length == 1 ? right : left + (right-left) * i / (values.length-1);
+            float progress = count == 1 ? 1 : i / (float)(count - 1);
+            float x = left + (right-left) * progress;
             float y = bottom - (float)(sample / maximum) * (bottom-top);
-            if (connected) segment(previousX, previousY, x, y);
-            else segment(x, y, x+1, y);
+            int rgb = UiEffects.options().gradients ? Theme.interpolateRGB(theme.getPrimaryGradientRGB(),
+                    theme.getSecondaryGradientRGB(), progress) : theme.getPrimaryGradientRGB();
+            if (connected) {
+                color(previousColor, 1); glVertex2f(previousX, previousY);
+                color(rgb, 1); glVertex2f(x, y);
+            } else {
+                color(rgb, 1); segment(Math.max(left, x - 1), y, Math.min(right, x + 1), y);
+            }
             previousX = x;
             previousY = y;
+            previousColor = rgb;
             connected = true;
         }
         glEnd();
+    }
+
+    /** A zero/empty series always has a finite positive range; absent samples stay gaps. */
+    static double seriesMaximum(double[] values, double floor) {
+        double maximum = Double.isFinite(floor) && floor > 0 ? floor : 1;
+        if (values != null) for (double sample : values)
+            if (Diagnostics.graphSampleValid(sample)) maximum = Math.max(maximum, sample);
+        return maximum;
     }
 
     static void direction(float yaw, float pitch, Theme theme, TTFFontRenderer font, int ink) {
@@ -135,11 +160,24 @@ final class DiagnosticsPlots {
         glEnd();
     }
 
-    private static void prepare() {
-        glDisable(GL_TEXTURE_2D);
+    static void prepare() {
+        // The caller owns a RenderState scope. Fixed-function plots cannot inherit
+        // a shader or an enabled secondary texture unit from world/UI rendering.
+        org.lwjgl.opengl.GL20.glUseProgram(0);
+        for (int unit = 0; unit < 5; unit++) {
+            org.lwjgl.opengl.GL13.glActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0 + (unit == 4 ? 16 : unit));
+            glDisable(GL_TEXTURE_2D);
+        }
+        org.lwjgl.opengl.GL13.glActiveTexture(org.lwjgl.opengl.GL13.GL_TEXTURE0);
         glDisable(GL_CULL_FACE);
+        glDisable(GL_DEPTH_TEST);
+        glDisable(GL_ALPHA_TEST);
+        glDisable(GL_LIGHTING);
+        glDisable(GL_FOG);
         glEnable(GL_BLEND);
         glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+        org.lwjgl.opengl.GL14.glBlendEquation(org.lwjgl.opengl.GL14.GL_FUNC_ADD);
+        glShadeModel(GL_SMOOTH);
         glLineWidth(1);
     }
 

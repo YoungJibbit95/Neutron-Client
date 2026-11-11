@@ -46,6 +46,33 @@ public class Neutron20LiquidGlassTest {
         assertEquals(0, glassFill(-9).getAlpha());
     }
 
+    @Test public void invalidGeometryCannotReachNativeDrawingOrProduceNonfiniteRadii() {
+        for(float invalid:new float[]{Float.NaN,Float.POSITIVE_INFINITY,Float.NEGATIVE_INFINITY}) {
+            assertEquals(0,LiquidGlass.radius(7,5,invalid,20),0);
+            assertEquals(0,LiquidGlass.radius(7,5,20,invalid),0);
+            assertTrue(Float.isFinite(LiquidGlass.radius(invalid,18)));
+            assertTrue(!LiquidGlass.validRectangle(invalid,0,20,10));
+            assertTrue(!LiquidGlass.validRectangle(0,invalid,20,10));
+            LiquidGlass.card(invalid,0,20,10,4,Theme.PinkLemonade,false,0);
+            LiquidGlass.highlight(0,0,invalid,10,4);
+        }
+        assertTrue(!LiquidGlass.validRectangle(Float.MAX_VALUE,0,Float.MAX_VALUE,10));
+        assertTrue(!LiquidGlass.validRectangle(0,0,-1,10));
+        assertTrue(LiquidGlass.validRectangle(-20,-10,20,10));
+    }
+
+    @Test public void revealOpacityIsBoundedAndAppliedOnceToOpticalChrome() {
+        assertEquals(46,LiquidGlass.opacityAlpha(LiquidGlass.HIGHLIGHT,1));
+        assertEquals(23,LiquidGlass.opacityAlpha(LiquidGlass.HIGHLIGHT,.5f));
+        assertEquals(0,LiquidGlass.opacityAlpha(LiquidGlass.HIGHLIGHT,0));
+        assertEquals(255,LiquidGlass.opacityAlpha(1000,2));
+        assertEquals(0,LiquidGlass.opacityAlpha(-1,1));
+        for(float invalid:new float[]{-1,Float.NaN,Float.POSITIVE_INFINITY,Float.NEGATIVE_INFINITY})
+            assertEquals(0,LiquidGlass.opacityAlpha(46,invalid));
+        LiquidGlass.highlight(0,0,20,10,4,0);
+        LiquidGlass.border(0,0,20,10,4,Theme.PinkLemonade,true,0);
+    }
+
     @Test public void paletteEndpointsRemainThePinkLemonadeTheme() {
         assertEquals(0xFFFF00EA, Theme.PinkLemonade.getPrimaryGradientRGB());
         assertEquals(0xFFFF6200, Theme.PinkLemonade.getSecondaryGradientRGB());

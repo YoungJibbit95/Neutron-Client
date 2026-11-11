@@ -67,7 +67,7 @@ test_classpath="$repo_root/target/test-classes:$repo_root/target/classes:$depend
 collect_screenshots() (
   local name="$1" preview image destination
   shopt -s nullglob
-  for preview in gui-preview dropdown-preview arraylist-preview session-preview theme-preview settings-preview neutron-ui-preview shader-preview hud-preview armor-preview chat-preview trash-preview target-esp-preview; do
+  for preview in gui-preview dropdown-preview arraylist-preview session-preview theme-preview settings-preview neutron-ui-preview shader-preview hud-preview armor-preview chat-preview trash-preview target-esp-preview diagnostics-preview neutron20-preview; do
     for image in "$fixtures/$name/$preview/"*.png; do
       destination="$screenshots/$name/$preview"
       mkdir -p "$destination" && cp -- "$image" "$destination/" || return "$?"
@@ -175,6 +175,16 @@ suite_trash() {
     'PASS: Trash registry/icons/variants' -Dpulsar.trash.check=true &&
   require_images trash trash-preview
 }
+suite_diagnostics() {
+  run_check diagnostics me.youngjibbit.module.impl.render.SessionInfoRenderCheck \
+    'PASS: diagnostics production panels' -Dpulsar.diagnostics.check=true &&
+  require_images diagnostics diagnostics-preview
+}
+suite_neutron20() {
+  run_check neutron20 me.youngjibbit.module.impl.render.SessionInfoRenderCheck \
+    'PASS: Neutron 2.0 independent Nametags/Keystrokes pixels' -Dpulsar.neutron20.hud.check=true &&
+  require_images neutron20 neutron20-preview
+}
 suite_target_esp() {
   run_check target_esp me.youngjibbit.module.impl.render.TargetEspRenderCheck \
     'PASS: TargetESP production halo/marker, exact placement, depth, clip, state, fallback and bounded resource lifetime' &&
@@ -210,7 +220,7 @@ suite_chat() {
 
 failed_suites=()
 suite_results=()
-for suite in panel dropdown arraylist session shader_modes target_esp trash chat; do
+for suite in panel dropdown arraylist session shader_modes target_esp trash chat diagnostics neutron20; do
   suite_result=0
   "suite_$suite" 2>&1 | tee "$logs/$suite-suite.log" || suite_result=$?
   suite_results+=("$suite: exit $suite_result")
@@ -228,13 +238,13 @@ printf '%s\n' '::group::Native UI visual review copies'
 printf '%s\n' '::endgroup::'
 
 if (( ${#failed_suites[@]} != 0 )); then
-  printf 'FAIL: Native UI suites failed: %s. All eight suites were attempted; see each suite log.\n' \
+  printf 'FAIL: Native UI suites failed: %s. All ten suites were attempted; see each suite log.\n' \
     "${failed_suites[*]}" | tee "$logs/summary.log"
   exit 1
 fi
 
 printf '%s\n' \
-  'PASS: Eight separate native JVMs completed with production shaders, FBO/readback and fixture diagnostics enabled.' \
-  'Coverage: panel/subcategories, dropdown/library/config actions, Arraylist, compact TargetHUD/SessionInfo/ArmorHUD, compact Island/docking, animated chat/input/links/resize, Theme editor, Client settings, Library transitions, searchable Trash menu, TargetESP production halo/hitpoint and Flame/Neon/Lines ESP/UI contours.' \
+  'PASS: Ten separate native JVMs completed with production shaders, FBO/readback and fixture diagnostics enabled.' \
+  'Coverage: panel/subcategories, dropdown/library/config actions, Arraylist, compact TargetHUD/SessionInfo/ArmorHUD, compact Island/docking, animated chat/input/links/resize, Theme editor, Client settings, Library transitions, searchable Trash menu, TargetESP production halo/hitpoint, Flame/Neon/Lines ESP/UI contours, diagnostics graphs and independent Nametags/Keystrokes data/motion/lifecycle.' \
   'Not covered: game-world rendering, native Display/fullscreen/VSync, multiplayer or full client bootstrap.' \
   | tee "$logs/summary.log"

@@ -25,6 +25,10 @@ public final class DiagnosticsRenderCheck {
         draw(hud,new File(out,"idle.png"));
         hud.displayMode.setValue("Simple");
         draw(hud,new File(out,"simple-empty.png"));
+        Field pingHistory=Diagnostics.class.getDeclaredField("pingHistory");pingHistory.setAccessible(true);
+        @SuppressWarnings("unchecked") Deque<Integer> zeroSamples=(Deque<Integer>)pingHistory.get(hud);
+        zeroSamples.addAll(Arrays.asList(0,0,0));set(hud,"ping",0);
+        draw(hud,new File(out,"simple-zero.png"));zeroSamples.clear();
         hud.displayMode.setValue("Text");
         AtomicLong clock=new AtomicLong(1);RenderTimings timings=new RenderTimings(clock::get);Object profiler=new Object();timings.enable(profiler);timings.frame();
         for(int i=0;i<60;i++) {
@@ -79,8 +83,19 @@ public final class DiagnosticsRenderCheck {
             hud.layout(p,320,180);SessionInfoRenderCheck.require(p.widget.x>=4&&p.widget.y>=4&&p.widget.x+p.widget.width<=316.01&&p.widget.y+p.widget.height<=176.01,"Small-screen bounds");
             SessionInfoRenderCheck.require(p.visibleRows<=12,"Unbounded visible rows");
         }
+        // A world transition between paint scheduling and bloom flush must not revive stale diagnostics.
+        SessionInfoRenderCheck.backdrop();java.awt.image.BufferedImage beforeUnload=SessionInfoRenderCheck.capture();
+        GuiShaderBloom.beginBatch();
+        for(Diagnostics.Panel p:hud.panels()){hud.layout(p,320,180);hud.paint(p,1/60f);}
+        @SuppressWarnings("unchecked") me.zero.alpine.listener.Listener<me.youngjibbit.event.world.WorldEvent> worldListener=
+                (me.zero.alpine.listener.Listener<me.youngjibbit.event.world.WorldEvent>)SessionInfoRenderCheck.get(hud,"worldChanged");
+        worldListener.accept(new me.youngjibbit.event.world.WorldEvent.Unload(mc.theWorld));
+        RenderDiagnostics.enabled=true;RenderDiagnostics.reset();GuiShaderBloom.flushBatch(2,3);
+        SessionInfoRenderCheck.require(WatermarkCheck.equal(beforeUnload,SessionInfoRenderCheck.capture()),"Stale diagnostics repainted after world unload");
+        SessionInfoRenderCheck.require(RenderDiagnostics.framebufferCreates==0&&RenderDiagnostics.programCreates==0,"Stale diagnostics recreated GPU resources");
+        RenderDiagnostics.enabled=false;
         SessionInfoRenderCheck.require(glGetError()==GL_NO_ERROR,"Diagnostics leaked an OpenGL error");hud.onDisable();
-        System.out.println("PASS: diagnostics production panels, CPU meters/frame graph, empty/compact/developer states, two themes, bounded long data and layout.");
+        System.out.println("PASS: diagnostics production panels, CPU meters/frame graph, empty/zero/compact/developer states, two themes, bounded long data and layout.");
     }
     private static void draw(Diagnostics hud,File path)throws Exception {
         SessionInfoRenderCheck.backdrop();ScaledResolution sr=new ScaledResolution(SessionInfoRenderCheck.mc);

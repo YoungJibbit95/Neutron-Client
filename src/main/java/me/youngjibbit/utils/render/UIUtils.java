@@ -199,6 +199,18 @@ public class UIUtils
     private static int decorations,sceneMasks,exactGeometry,literalGradients;
     /** Literal color swatches, identity tiles and semantic badges keep their color while sharing rounded geometry. */
     public static void drawDecorationRound(float x,float y,float width,float height,float radius,Color color){decorations++;try{drawRound(x,y,width,height,radius,color);}finally{decorations--;}}
+    /** A token-based component has already resolved and bounded its corner radius. */
+    public static void drawExactDecorationRound(float x,float y,float width,float height,float radius,Color color){
+        decorations++;exactGeometry++;
+        try{drawRound(x,y,width,height,radius,color);}finally{exactGeometry--;decorations--;}
+    }
+    /** Match an already-resolved fill contour without applying global roundness twice. */
+    public static void drawExactDecorationOutline(float x,float y,float width,float height,float radius,
+                                                   float thickness,Color color,Color outline,float themeAccent){
+        decorations++;exactGeometry++;
+        try{drawRoundOutline(x,y,width,height,radius,thickness,color,outline,themeAccent);}
+        finally{exactGeometry--;decorations--;}
+    }
     /** Color pickers and preset swatches display their literal colors, independent of global effects. */
     public static void drawLiteralGradient(float x,float y,float width,float height,float radius,Color first,Color second){
         decorations++;literalGradients++;try{drawGradientHorizontal(x,y,width,height,radius,first,second);}finally{literalGradients--;decorations--;}

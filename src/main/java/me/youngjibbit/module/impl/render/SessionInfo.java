@@ -46,8 +46,8 @@ public class SessionInfo extends Module {
     private final SliderValue positionY=new SliderValue("Position Y",this,40.0,-16384,16384);
     private double lastPositionX=50,lastPositionY=40;
     private final CompactHudMotion killChange=new CompactHudMotion(),deathChange=new CompactHudMotion(),stateChange=new CompactHudMotion();
-    private long lastMotionFrame;
-    private void resetMotion(){killChange.reset();deathChange.reset();stateChange.reset();lastMotionFrame=0;}
+    private long lastMotionFrame,sceneEpoch;
+    private void resetMotion(){killChange.reset();deathChange.reset();stateChange.reset();lastMotionFrame=0;sceneEpoch++;}
     @Override public void onValueChange(){if(positionX!=null&&positionX.getValue()!=lastPositionX){lastPositionX=positionX.getValue();x=(float)lastPositionX;}if(positionY!=null&&positionY.getValue()!=lastPositionY){lastPositionY=positionY.getValue();y=(float)lastPositionY;}}
     public void resetPosition(){positionX.reset();positionY.reset();x=50;y=40;dragging=false;me.youngjibbit.utils.render.HudDrag.cancel(this);}
 
@@ -72,6 +72,9 @@ public class SessionInfo extends Module {
 
     @Subscribe private final Listener<Event2D> render = new Listener<>(event -> {
         if (isToggled()) renderSession();
+    });
+    @Subscribe private final Listener<me.youngjibbit.event.world.WorldEvent> world = new Listener<>(event -> {
+        resetMotion();surface.close();dragging=false;me.youngjibbit.utils.render.HudDrag.cancel(this);
     });
     @Subscribe private final Listener<TickEvent> editorContext = new Listener<>(event -> {
         boolean button=Mouse.isCreated()&&Mouse.isButtonDown(0);
@@ -218,43 +221,44 @@ public class SessionInfo extends Module {
         }
     }
     private void compactBlock(Frame frame,float x,float y,float w,float h,UiEffects.SurfacePolicy policy){
-        if(policy.blur)UiEffects.drawBlurredRect(frame.x+x,frame.y+y,w,h,11,Color.WHITE,Math.max(1,Math.round(frame.blurRadius)),1);
+        if(policy.blur&&(!policy.background||!UiEffects.material()))UiEffects.drawBlurredRect(frame.x+x,frame.y+y,w,h,11,Color.WHITE,Math.max(1,Math.round(frame.blurRadius)),1);
         if(policy.background){
             // Forced material eligibility must survive low opacity; only legacy fallback scales its ink.
             if(UiEffects.material())UIUtils.drawSceneRound(frame.x+x,frame.y+y,w,h,11);
             else UIUtils.drawRound(frame.x+x,frame.y+y,w,h,11,new Color(17,23,34,Math.round(232*policy.opacity)));
-            float radius=Math.min(11,Math.min(w,h)/2);
-            LiquidGlass.highlight(frame.x+x,frame.y+y,w,h,radius);
-            LiquidGlass.border(frame.x+x,frame.y+y,w,h,radius,frame.theme,false);
+            float radius=UiEffects.radius(11,w,h);
+            LiquidGlass.highlight(frame.x+x,frame.y+y,w,h,radius,policy.opacity);
+            LiquidGlass.border(frame.x+x,frame.y+y,w,h,radius,frame.theme,false,policy.opacity);
         }
     }
 
     void paint(Frame frame) {
+        final long epoch=sceneEpoch;
         if(compact(frame.design)){
-            GuiShaderBloom.afterBatch(()->surface.withScene(frame.theme,frame.background,frame.blur,frame.blurRadius,
-                    policy->compactContent(frame,policy)));
+            GuiShaderBloom.afterBatch(()->{
+                if(epoch!=sceneEpoch)return;
+                surface.withScene(frame.theme,frame.background,frame.blur,frame.blurRadius,
+                        policy->compactContent(frame,policy));
+            });
             return;
         }
         final boolean modern="Neutron 2.0".equals(frame.design)||"Modern".equals(frame.design)||"Creative".equals(frame.design);
-        GuiShaderBloom.afterBatch(() -> surface.designedPanel(frame.x,frame.y,frame.width,frame.height,frame.radius,frame.theme,
+        GuiShaderBloom.afterBatch(() -> {
+            if(epoch!=sceneEpoch)return;
+            surface.designedPanel(frame.x,frame.y,frame.width,frame.height,frame.radius,frame.theme,
                 frame.background,frame.blur,modern?false:frame.glow,frame.blurRadius,
                 modern?.82f:"Outline".equals(frame.design)?0.78f:0.48f,
                 modern?.16f:"Outline".equals(frame.design)||"Rue (Rise)".equals(frame.design)?0.9f:0,
-                "Tenacity".equals(frame.design),()->content(frame)));
+                "Tenacity".equals(frame.design),()->content(frame));
+        });
     }
 
     private void content(Frame frame) {
         try (GuiClip ignored=GuiClip.push(new ClipRect(frame.x+2,frame.y+2,frame.width-4,frame.height-4))) {
             boolean modern="Neutron 2.0".equals(frame.design)||"Modern".equals(frame.design)||"Creative".equals(frame.design);
                 if(modern&&frame.background){
-                float innerRadius=Math.max(0,frame.radius-2);
-                UIUtils.drawRound(frame.x+2,frame.y+2,Math.max(1,frame.width-4),
-                        Math.max(1,frame.height-4),innerRadius,
-                        LiquidGlass.fill(frame.theme,150));
-                LiquidGlass.highlight(frame.x+2,frame.y+2,Math.max(1,frame.width-4),
-                        Math.max(1,frame.height-4),innerRadius);
-                LiquidGlass.border(frame.x+2,frame.y+2,Math.max(1,frame.width-4),
-                        Math.max(1,frame.height-4),innerRadius,frame.theme,false);
+                LiquidGlass.inset(frame.x+2,frame.y+2,Math.max(1,frame.width-4),
+                        Math.max(1,frame.height-4),Math.max(0,frame.radius-2),frame.theme);
             }
             float ruleY=frame.y+(modern?23:18);
             UIUtils.drawGradientHorizontal(frame.x+(modern?11:1),ruleY,

@@ -46,4 +46,15 @@ public class Neutron20HudCompatibilityTest {
         assertNotEquals(low, high);
         assertEquals(low, ArmorHUD.durabilityColor(Theme.PinkLemonade, Float.NaN));
     }
+
+    @Test public void nametagHealthUsesActualCapacityAndRejectsNonfiniteData() {
+        assertEquals(.4f,Nametags.healthRatio(8,20),.0001f);
+        assertEquals(.5f,Nametags.healthRatio(20,40),.0001f);
+        assertEquals(1,Nametags.healthRatio(30,20),0);
+        assertEquals(0,Nametags.healthRatio(-5,20),0);
+        for(float invalid:new float[]{0,-1,Float.NaN,Float.POSITIVE_INFINITY,Float.NEGATIVE_INFINITY})
+            assertEquals(0,Nametags.healthRatio(8,invalid),0);
+        for(float invalid:new float[]{Float.NaN,Float.POSITIVE_INFINITY,Float.NEGATIVE_INFINITY})
+            assertEquals(0,Nametags.healthRatio(invalid,20),0);
+    }
 }

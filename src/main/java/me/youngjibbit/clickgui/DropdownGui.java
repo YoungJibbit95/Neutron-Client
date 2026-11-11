@@ -33,6 +33,7 @@ public class DropdownGui extends GuiScreen {
     private final List<CategoryPanel> panels = new ArrayList<>();
     private final ArrayListSurface scene = new ArrayListSurface(), toolbarSurface = new ArrayListSurface();
     private final me.youngjibbit.gui.UiSpring[] toolbarMotion={new me.youngjibbit.gui.UiSpring(),new me.youngjibbit.gui.UiSpring(),new me.youngjibbit.gui.UiSpring()};
+    private final me.youngjibbit.gui.UiSpring searchMotion=new me.youngjibbit.gui.UiSpring();
     private final TextEffects headingEffects = new TextEffects();
     private CategoryPanel dragging, scrolling;
     private float scrollGrab;
@@ -235,13 +236,25 @@ public class DropdownGui extends GuiScreen {
     private ClipRect themeBounds() { ClipRect r = toolbarBounds(); return new ClipRect(r.x + r.width - 106, r.y + 2, 58, 18); }
     private ClipRect resetBounds() { ClipRect r = toolbarBounds(); return new ClipRect(r.x + r.width - 42, r.y + 2, 38, 18); }
 
+    /** Sample each control once before painting; search never shares a button's state. */
+    protected void advanceToolbarMotion(float dt,int mouseX,int mouseY){
+        ClientSettings settings=ClientSettings.current();
+        boolean available=binding==null&&dragging==null&&scrolling==null;
+        searchMotion.stepForInput(dt,searchBounds().contains(mouseX,mouseY),
+                searchFocus,false,available,settings);
+        toolbarMotion[0].step(dt,configBounds().contains(mouseX,mouseY),false,false,available,settings);
+        toolbarMotion[1].step(dt,themeBounds().contains(mouseX,mouseY),false,false,available,settings);
+        toolbarMotion[2].step(dt,resetBounds().contains(mouseX,mouseY),false,false,available,settings);
+    }
+
     private void drawToolbar(Theme theme,int mouseX,int mouseY,float dt) {
+        advanceToolbarMotion(dt,mouseX,mouseY);
         ClipRect r = toolbarBounds();
         toolbarSurface.panel(r.x, r.y, r.width, r.height, 4, theme, true, true, true, 8, .88f, .8f, () -> {
             LiquidGlass.highlight(r.x,r.y,r.width,r.height,4);
             ClipRect s = searchBounds();
             MenuSurface.plate(s.x, s.y, s.width, s.height, theme,
-                    searchFocus && showsKeyboardFocus(), toolbarMotion[0].amount());
+                    searchFocus && showsKeyboardFocus(), searchMotion.amount());
             me.youngjibbit.gui.LegacyUiStyle.icon("search", s.x + 4, s.y + 4, 9,
                     UiEffects.alpha(ink(theme), .55f));
             try (GuiClip ignored = GuiClip.push(new ClipRect(s.x + 14, s.y, s.width - 27, s.height))) {
@@ -249,16 +262,15 @@ public class DropdownGui extends GuiScreen {
                 font().drawString(ClickControlStyle.fit(font(), text, s.width - 31), s.x + 14, s.y + 4, ink(theme));
             }
             if (!search.isEmpty()) font().drawString("x", s.x + s.width - 11, s.y + 4, ink(theme));
-            button(configBounds(), "Library", theme,0,mouseX,mouseY,dt);
-            button(themeBounds(), "Themes", theme,1,mouseX,mouseY,dt);
-            button(resetBounds(), "Reset", theme,2,mouseX,mouseY,dt);
+            button(configBounds(), "Library", theme,0);
+            button(themeBounds(), "Themes", theme,1);
+            button(resetBounds(), "Reset", theme,2);
         });
         String hint = "LMB Toggle   RMB Settings   MMB Bind";
         font().drawCenteredString(hint, width / 2f, height - 45, ink(theme));
     }
 
-    private void button(ClipRect r, String text, Theme theme,int index,int mouseX,int mouseY,float dt) {
-        toolbarMotion[index].step(dt,r.contains(mouseX,mouseY),false,false,binding==null,me.youngjibbit.module.impl.client.ClientSettings.current());
+    private void button(ClipRect r, String text, Theme theme,int index) {
         r = GuiStyle.buttonBounds(r, toolbarMotion[index]);
         MenuSurface.plate(r.x, r.y, r.width, r.height, theme, false, toolbarMotion[index].amount());
         GuiStyle.feedback(r,toolbarMotion[index]);
@@ -481,6 +493,7 @@ public class DropdownGui extends GuiScreen {
     void cancelInteraction() {
         dragging = scrolling = null;
         for(me.youngjibbit.gui.UiSpring motion:toolbarMotion)motion.reset();
+        searchMotion.reset();
         for(CategoryPanel panel:panels)panel.headerMotion.reset();
         focus = pressed = hovered = null;
         binding = null;

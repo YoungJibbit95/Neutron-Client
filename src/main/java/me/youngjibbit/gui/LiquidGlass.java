@@ -3,6 +3,7 @@ package me.youngjibbit.gui;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.render.UIUtils;
+import me.youngjibbit.utils.render.UiEffects;
 import java.awt.Color;
 
 /**
@@ -28,6 +29,7 @@ public final class LiquidGlass {
     public static final int FOCUS = 118;
 
     public static final Color HIGHLIGHT_INK = new Color(255, 248, 255, HIGHLIGHT);
+    private static final Color TRANSPARENT = new Color(0, 0, 0, 0);
 
     /** Maps the user's 0–18 roundness onto a token base radius. */
     public static float radius(float base) {
@@ -48,6 +50,7 @@ public final class LiquidGlass {
 
     /** Pure variant that additionally keeps the radius inside its rectangle. */
     public static float radius(float base, float setting, float width, float height) {
+        if (!Float.isFinite(width) || !Float.isFinite(height) || width <= 0 || height <= 0) return 0;
         float limit = Math.max(0, Math.min(width, height) / 2f);
         return Math.max(0, Math.min(limit, radius(base, setting)));
     }
@@ -86,78 +89,105 @@ public final class LiquidGlass {
      */
     public static void card(float x, float y, float width, float height, float base,
                             Theme theme, boolean selected, float hover) {
-        if (!(width > 0) || !(height > 0)) return;
+        if (!validRectangle(x, y, width, height)) return;
         theme = Theme.resolve(theme);
         float amount = clamp01(hover);
         float radius = radius(base, width, height);
-        int fill = selected ? CARD_SELECTED : amount > .55f ? CARD_HOVER : CARD;
-        UIUtils.drawDecorationRound(x, y, width, height, radius, fill(theme, fill));
+        float opacity = surfaceOpacity();
+        if (opacity <= 0) return;
+        int fill = selected ? CARD_SELECTED : Math.round(CARD + (CARD_HOVER - CARD) * amount);
+        UIUtils.drawExactDecorationRound(x, y, width, height, radius, fill(theme, opacityAlpha(fill, opacity)));
         if (selected) {
-            UIUtils.drawDecorationRound(x, y, width, height, radius, accent(theme, 30));
+            UIUtils.drawExactDecorationRound(x, y, width, height, radius, accent(theme, opacityAlpha(30, opacity)));
         } else if (amount > .02f) {
-            UIUtils.drawDecorationRound(x, y, width, height, radius,
-                    ink(theme, Math.round(16 * amount)));
+            UIUtils.drawExactDecorationRound(x, y, width, height, radius,
+                    ink(theme, opacityAlpha(16, amount * opacity)));
         }
-        highlight(x, y, width, height, radius);
-        border(x, y, width, height, radius, theme, selected);
-        if (selected) rail(x, y, width, height, radius, theme, 1f);
+        highlight(x, y, width, height, radius, opacity);
+        border(x, y, width, height, radius, theme, selected, opacity);
+        if (selected) rail(x, y, width, height, radius, theme, opacity);
     }
 
     /** A quieter nested surface: settings groups, popups and HUD plates. */
     public static void inset(float x, float y, float width, float height, float base, Theme theme) {
-        if (!(width > 0) || !(height > 0)) return;
+        if (!validRectangle(x, y, width, height)) return;
         theme = Theme.resolve(theme);
         float radius = radius(base, width, height);
-        UIUtils.drawDecorationRound(x, y, width, height, radius, fill(theme, PANEL));
-        highlight(x, y, width, height, radius);
-        border(x, y, width, height, radius, theme, false);
+        float opacity = surfaceOpacity();
+        if (opacity <= 0) return;
+        UIUtils.drawExactDecorationRound(x, y, width, height, radius, fill(theme, opacityAlpha(PANEL, opacity)));
+        highlight(x, y, width, height, radius, opacity);
+        border(x, y, width, height, radius, theme, false, opacity);
     }
 
     /** Editable field / chip / key plate. */
     public static void plate(float x, float y, float width, float height, float base,
                              Theme theme, boolean active, float hover) {
-        if (!(width > 0) || !(height > 0)) return;
+        if (!validRectangle(x, y, width, height)) return;
         theme = Theme.resolve(theme);
         float radius = radius(base, width, height);
-        UIUtils.drawDecorationRound(x, y, width, height, radius, fill(theme, CONTROL));
+        float opacity = surfaceOpacity();
+        if (opacity <= 0) return;
+        UIUtils.drawExactDecorationRound(x, y, width, height, radius, fill(theme, opacityAlpha(CONTROL, opacity)));
         if (active) {
-            UIUtils.drawDecorationRound(x, y, width, height, radius, accent(theme, 26));
+            UIUtils.drawExactDecorationRound(x, y, width, height, radius, accent(theme, opacityAlpha(26, opacity)));
         } else if (hover > .02f) {
-            UIUtils.drawDecorationRound(x, y, width, height, radius,
-                    ink(theme, Math.round(14 * clamp01(hover))));
+            UIUtils.drawExactDecorationRound(x, y, width, height, radius,
+                    ink(theme, opacityAlpha(14, clamp01(hover) * opacity)));
         }
-        UIUtils.drawGradientHorizontal(x + radius * .7f, y + .8f,
+        if (width > 4 && height > 2) UIUtils.drawLiteralGradient(x + radius * .7f, y + .8f,
                 Math.max(0, width - radius * 1.4f), .8f, .4f,
-                new Color(255, 250, 255, active ? 52 : 30),
-                new Color(255, 250, 255, 4));
-        border(x, y, width, height, radius, theme, active);
+                new Color(255, 250, 255, opacityAlpha(active ? 52 : 30, opacity)),
+                new Color(255, 250, 255, opacityAlpha(4, opacity)));
+        border(x, y, width, height, radius, theme, active, opacity);
     }
 
-    /** 1 px inner light that fades toward both horizontal ends. */
+    /** 1 px inner light that fades toward the right edge. */
     public static void highlight(float x, float y, float width, float height, float radius) {
-        if (width <= 4 || height <= 2) return;
+        highlight(x, y, width, height, radius, 1f);
+    }
+
+    /** The caller supplies its reveal/material opacity once; text is not dimmed. */
+    public static void highlight(float x, float y, float width, float height, float radius, float opacity) {
+        if (!validRectangle(x, y, width, height) || width <= 4 || height <= 2 || clamp01(opacity) <= 0) return;
+        if (!Float.isFinite(radius)) radius = 0;
         float inset = Math.max(0, Math.min(radius, width / 2f));
-        UIUtils.drawGradientHorizontal(x + inset, y + 1,
+        if (width <= inset * 2) return;
+        // Neutral optical light must not become the user's animated accent fill.
+        UIUtils.drawLiteralGradient(x + inset, y + 1,
                 Math.max(0, width - inset * 2), 1, .5f,
-                new Color(255, 250, 255, HIGHLIGHT),
-                new Color(255, 250, 255, 6));
+                new Color(255, 250, 255, opacityAlpha(HIGHLIGHT, opacity)),
+                new Color(255, 250, 255, opacityAlpha(6, opacity)));
     }
 
     public static void border(float x, float y, float width, float height, float radius,
                               Theme theme, boolean focused) {
-        if (width < 2 || height < 2) return;
+        border(x, y, width, height, radius, theme, focused, 1f);
+    }
+
+    public static void border(float x, float y, float width, float height, float radius,
+                              Theme theme, boolean focused, float opacity) {
+        if (!validRectangle(x, y, width, height) || width < 2 || height < 2 || clamp01(opacity) <= 0) return;
         // A disabled border setting must stay disabled; keyboard focus keeps its own
         // rails and fills, so no information depends on this hairline.
-        if (!me.youngjibbit.utils.render.UiEffects.options().border) return;
-        Color edge = focused ? accent(theme, FOCUS) : ink(Theme.resolve(theme), HAIRLINE);
-        UIUtils.drawRoundOutline(x + .5f, y + .5f, Math.max(1, width - 1), Math.max(1, height - 1),
-                Math.max(0, radius - .5f), .65f, new Color(0, 0, 0, 1), edge);
+        if (!UiEffects.options().border || UiEffects.options().borderOpacity <= 0) return;
+        theme = Theme.resolve(theme);
+        float thickness = theme.isCustom() ? Math.min(.65f, Math.max(0, theme.getOutlineWidth() * .55f)) : .65f;
+        int alpha = opacityAlpha(focused ? FOCUS : HAIRLINE, clamp01(opacity) * theme.getOutlineStrength());
+        if (thickness <= 0 || alpha <= 0) return;
+        Color edge = focused ? accent(theme, alpha) : ink(theme, alpha);
+        float boundedRadius = Float.isFinite(radius) ? Math.max(0, Math.min(radius, Math.min(width, height) / 2f)) : 0;
+        // UIUtils applies borderOpacity; applying it here as well would square the preference.
+        UIUtils.drawExactDecorationOutline(x + .5f, y + .5f, Math.max(1, width - 1), Math.max(1, height - 1),
+                Math.max(0, boundedRadius - .5f), thickness, TRANSPARENT, edge, focused ? 1 : 0);
     }
 
     /** Vertical magenta → orange rail for the selected navigation item. */
     public static void rail(float x, float y, float width, float height, float radius,
                             Theme theme, float amount) {
-        if (height <= 10 || amount <= .001f) return;
+        if (!validRectangle(x, y, width, height) || width < 4 || height <= 10 || clamp01(amount) <= .001f) return;
+        if (!Float.isFinite(radius)) radius = 0;
+        radius = Math.max(0, Math.min(radius, Math.min(width, height) / 2f));
         float top = y + Math.max(4, radius * .55f);
         float length = Math.max(0, height - Math.max(8, radius * 1.1f));
         UIUtils.drawDecorationGradientVertical(x + 1.5f, top, 2, length, 1,
@@ -167,20 +197,29 @@ public final class LiquidGlass {
     }
 
     public static void divider(float x, float y, float width, Theme theme) {
-        if (width <= 0) return;
-        UIUtils.drawGradientHorizontal(x, y, width, .7f, .35f,
+        if (!validRectangle(x, y, width, .7f)) return;
+        UIUtils.drawLiteralGradient(x, y, width, .7f, .35f,
                 ink(theme, 34), new Color(255, 255, 255, 4));
     }
 
     /** Thin accent underline used below headings and preview strips. */
     public static void accentLine(float x, float y, float width, Theme theme, float amount) {
-        if (width <= 0 || amount <= .001f) return;
+        if (!validRectangle(x, y, width, 1.4f) || clamp01(amount) <= .001f) return;
         theme = Theme.resolve(theme);
-        UIUtils.drawLiteralGradient(x, y, Math.max(.01f, width * clamp01(amount)), 1.4f, .7f,
+        UIUtils.drawGradientHorizontal(x, y, Math.max(.01f, width * clamp01(amount)), 1.4f, .7f,
                 accent(theme, 190), NeutronVisualTokens.secondary(theme, 96));
     }
 
     private static int clamp(int alpha) { return Math.max(0, Math.min(255, alpha)); }
+    static int opacityAlpha(int alpha, float opacity) { return Math.round(clamp(alpha) * clamp01(opacity)); }
+    static boolean validRectangle(float x, float y, float width, float height) {
+        return Float.isFinite(x) && Float.isFinite(y) && Float.isFinite(width) && Float.isFinite(height)
+                && width > 0 && height > 0 && Float.isFinite(x + width) && Float.isFinite(y + height);
+    }
+    private static float surfaceOpacity() {
+        UiEffects.SceneContext scene = UiEffects.scene();
+        return clamp01(scene == null ? UiEffects.options().surfaceOpacity : scene.policy.opacity);
+    }
     private static float clamp01(float value) {
         return Float.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
     }
