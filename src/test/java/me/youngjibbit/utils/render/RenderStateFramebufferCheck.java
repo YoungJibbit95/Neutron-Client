@@ -17,6 +17,7 @@ public final class RenderStateFramebufferCheck {
     public static void run()throws Exception{
         new RenderStateFramebufferCheck().selection();
         ContextCapabilities caps=GLContext.getCapabilities();
+        checkIndependentTargets(caps);
         boolean[] available={caps.OpenGL30,caps.GL_ARB_framebuffer_object,caps.GL_EXT_framebuffer_object};
         Field type=OpenGlHelper.class.getDeclaredField("framebufferType");type.setAccessible(true);int original=type.getInt(null);
         int target=glGetInteger(GL30.GL_FRAMEBUFFER_BINDING);
@@ -56,6 +57,41 @@ public final class RenderStateFramebufferCheck {
                 System.out.println("PASS native FBO API "+api+": live restore, deleted bindTarget/close, no resurrection");
             }
         }finally{type.setInt(null,original);OpenGlHelper.glBindFramebuffer(OpenGlHelper.GL_FRAMEBUFFER,target);}
+    }
+    private static void checkIndependentTargets(ContextCapabilities caps) {
+        if(!caps.OpenGL30&&!caps.GL_ARB_framebuffer_object&&!caps.GL_EXT_framebuffer_blit){
+            System.out.println("SKIP split FBO target probe: capability unavailable");return;
+        }
+        try(RenderState outer=new RenderState()){
+            net.minecraft.client.shader.Framebuffer draw=new net.minecraft.client.shader.Framebuffer(24,24,false);
+            net.minecraft.client.shader.Framebuffer read=new net.minecraft.client.shader.Framebuffer(24,24,false);
+            try{
+                bindSplit(caps,draw.framebufferObject,read.framebufferObject);
+                glViewport(2,3,13,17);
+                try(RenderState state=new RenderState()){
+                    OpenGlHelper.glBindFramebuffer(OpenGlHelper.GL_FRAMEBUFFER,0);glViewport(0,0,1,1);
+                    state.bindTarget();
+                    require(glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING)==draw.framebufferObject,"bindTarget draw source");
+                    require(glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING)==draw.framebufferObject,"bindTarget scene-copy source");
+                    java.nio.IntBuffer viewport=org.lwjgl.BufferUtils.createIntBuffer(16);glGetInteger(GL_VIEWPORT,viewport);
+                    require(viewport.get(0)==2&&viewport.get(1)==3&&viewport.get(2)==13&&viewport.get(3)==17,"bindTarget viewport contract");
+                }
+                require(glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING)==draw.framebufferObject,"Split draw target lost");
+                require(glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING)==read.framebufferObject,"Split read target lost");
+                int deletedRead=read.framebufferObject;
+                try(RenderState state=new RenderState()){read.deleteFramebuffer();}
+                require(glGetInteger(GL30.GL_DRAW_FRAMEBUFFER_BINDING)==draw.framebufferObject,"Read deletion changed draw target");
+                require(glGetInteger(GL30.GL_READ_FRAMEBUFFER_BINDING)==0,"Deleted read target resurrected");
+                require(!RenderState.framebufferExists(deletedRead,RenderState.framebufferApi(caps.OpenGL30,caps.GL_ARB_framebuffer_object,caps.GL_EXT_framebuffer_object)),"Deleted read name recreated");
+                require(glGetError()==GL_NO_ERROR,"Separate FBO restoration error");
+            }finally{draw.deleteFramebuffer();read.deleteFramebuffer();}
+        }
+        System.out.println("PASS independent draw/read FBO restore, scene-copy source, viewport, deleted read target");
+    }
+    private static void bindSplit(ContextCapabilities caps,int draw,int read){
+        if(caps.OpenGL30){GL30.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER,draw);GL30.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER,read);}
+        else if(caps.GL_ARB_framebuffer_object){ARBFramebufferObject.glBindFramebuffer(GL30.GL_DRAW_FRAMEBUFFER,draw);ARBFramebufferObject.glBindFramebuffer(GL30.GL_READ_FRAMEBUFFER,read);}
+        else{EXTFramebufferObject.glBindFramebufferEXT(GL30.GL_DRAW_FRAMEBUFFER,draw);EXTFramebufferObject.glBindFramebufferEXT(GL30.GL_READ_FRAMEBUFFER,read);}
     }
     private static void require(boolean value,String message){if(!value)throw new AssertionError(message);}
 }

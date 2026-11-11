@@ -449,6 +449,8 @@ public class OpenGlHelper
         {
             GL20.glUseProgram(program);
         }
+        if (me.youngjibbit.utils.render.RenderDiagnostics.enabled)
+            me.youngjibbit.utils.render.RenderDiagnostics.programBinds++;
     }
 
     public static int glCreateProgram()
@@ -688,14 +690,20 @@ public class OpenGlHelper
             {
                 case 0:
                     GL30.glBindFramebuffer(target, framebufferIn);
+                    if (me.youngjibbit.utils.render.RenderDiagnostics.enabled)
+                        me.youngjibbit.utils.render.RenderDiagnostics.framebufferBinds++;
                     break;
 
                 case 1:
                     ARBFramebufferObject.glBindFramebuffer(target, framebufferIn);
+                    if (me.youngjibbit.utils.render.RenderDiagnostics.enabled)
+                        me.youngjibbit.utils.render.RenderDiagnostics.framebufferBinds++;
                     break;
 
                 case 2:
                     EXTFramebufferObject.glBindFramebufferEXT(target, framebufferIn);
+                    if (me.youngjibbit.utils.render.RenderDiagnostics.enabled)
+                        me.youngjibbit.utils.render.RenderDiagnostics.framebufferBinds++;
             }
         }
     }

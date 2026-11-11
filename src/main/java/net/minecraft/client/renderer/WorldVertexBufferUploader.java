@@ -1,5 +1,6 @@
 package net.minecraft.client.renderer;
 
+import me.youngjibbit.utils.render.RenderDiagnostics;
 import java.nio.ByteBuffer;
 import java.util.List;
 import net.minecraft.client.renderer.vertex.VertexFormat;
@@ -80,6 +81,7 @@ public class WorldVertexBufferUploader
             else
             {
                 GL11.glDrawArrays(p_181679_1_.getDrawMode(), 0, p_181679_1_.getVertexCount());
+                if (RenderDiagnostics.enabled) RenderDiagnostics.drawSubmissions++;
             }
 
             int j1 = 0;

@@ -863,14 +863,20 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
     {
         PacketThreadUtil.checkThreadAndEnqueue(packetIn, this, this.gameController);
 
+        // Full replacement also clears omitted sections; unload must retire old observations.
+        if (packetIn.func_149274_i())
+            me.youngjibbit.core.diagnostics.ChunkPipelineMetrics.INSTANCE.forgetColumn(packetIn.getChunkX(), packetIn.getChunkZ());
+
+        if (packetIn.func_149274_i() && packetIn.getExtractedSize() == 0)
+        {
+            this.clientWorldController.doPreChunk(packetIn.getChunkX(), packetIn.getChunkZ(), false);
+            return;
+        }
+
+        // Decoded data on the client thread, before world application; excludes network/server time.
+        me.youngjibbit.core.diagnostics.ChunkPipelineMetrics.INSTANCE.dataAvailable(packetIn.getChunkX(), packetIn.getChunkZ(), packetIn.getExtractedSize() & 0xffff);
         if (packetIn.func_149274_i())
         {
-            if (packetIn.getExtractedSize() == 0)
-            {
-                this.clientWorldController.doPreChunk(packetIn.getChunkX(), packetIn.getChunkZ(), false);
-                return;
-            }
-
             this.clientWorldController.doPreChunk(packetIn.getChunkX(), packetIn.getChunkZ(), true);
         }
 
@@ -1523,6 +1529,8 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
         {
             int j = packetIn.getChunkX(i);
             int k = packetIn.getChunkZ(i);
+            me.youngjibbit.core.diagnostics.ChunkPipelineMetrics.INSTANCE.forgetColumn(j, k);
+            me.youngjibbit.core.diagnostics.ChunkPipelineMetrics.INSTANCE.dataAvailable(j, k, packetIn.getChunkSize(i) & 0xffff);
             this.clientWorldController.doPreChunk(j, k, true);
             this.clientWorldController.invalidateBlockReceiveRegion(j << 4, 0, k << 4, (j << 4) + 15, 256, (k << 4) + 15);
             Chunk chunk = this.clientWorldController.getChunkFromChunkCoords(j, k);

@@ -1,0 +1,13 @@
+{
+  "scope": "Compact JSON copies preserve all recorded values and sample order; no samples filtered.",
+  "files": {
+    "benchmark-provenance.json": "84c1e6f128ec880b10e73949361fdbac3cc8cf806b8ff9d8b273fff8f2ed5c97",
+    "cache-comparison.json": "c7d20e8be034c3f87f9c93d9b5363adb2390c60c1bdf2f6cfa16094e90320176",
+    "cache-1-baseline.json": "9e789694cd668d86fb5da64e61b07a81c72ffd21b764c5533a4cc1a61e9e54ee",
+    "cache-1-candidate.json": "baca67ecdc6b493e34d65d31dfac375281b8b422c70d93fc61449c6c77cbbc3c",
+    "cache-2-baseline.json": "b4304ef09f98cefd3a5bcfa5c32d75a38c1cc928b79591e77895ff207d7b22ef",
+    "cache-2-candidate.json": "f284f59dd21acd0092f5ec54a13e0f61982dbe8b769257b95753f097c5715faa",
+    "cache-3-baseline.json": "d5b501c7634ec25cc9254bd00592810500eef35ca01155e068c9a26ef28b149f",
+    "cache-3-candidate.json": "415f7fed2bafc6c64383d55104ef4661650fc28de132921e76cfc03714d7190c"
+  }
+}

@@ -20,6 +20,7 @@ import net.minecraft.client.renderer.VertexBufferUploader;
 import net.minecraft.client.renderer.WorldRenderer;
 import net.minecraft.client.renderer.WorldVertexBufferUploader;
 import net.minecraft.client.renderer.vertex.VertexBuffer;
+import net.minecraft.src.Config;
 import net.minecraft.util.EnumWorldBlockLayer;
 import net.minecraft.util.MathHelper;
 import org.apache.logging.log4j.LogManager;
@@ -35,7 +36,7 @@ public class ChunkRenderDispatcher
     private final BlockingQueue<RegionRenderCacheBuilder> queueFreeRenderBuilders;
     private final WorldVertexBufferUploader worldVertexUploader;
     private final VertexBufferUploader vertexUploader;
-    private final Queue < ListenableFutureTask<? >> queueChunkUploads;
+    private final Queue<PendingUpload> queueChunkUploads;
     private final ChunkRenderWorker renderWorker;
     private final int countRenderBuilders;
     private List<RegionRenderCacheBuilder> listPausedBuilders;
@@ -48,10 +49,10 @@ public class ChunkRenderDispatcher
     public ChunkRenderDispatcher(int p_i4_1_)
     {
         this.listThreadedWorkers = Lists.<ChunkRenderWorker>newArrayList();
-        this.queueChunkUpdates = Queues.<ChunkCompileTaskGenerator>newArrayBlockingQueue(100);
+        this.queueChunkUpdates = new ChunkCompileQueue(100);
         this.worldVertexUploader = new WorldVertexBufferUploader();
         this.vertexUploader = new VertexBufferUploader();
-        this.queueChunkUploads = Queues. < ListenableFutureTask<? >> newArrayDeque();
+        this.queueChunkUploads = Queues.<PendingUpload>newArrayDeque();
         this.listPausedBuilders = new ArrayList();
         int i = Math.max(1, (int)((double)Runtime.getRuntime().maxMemory() * 0.3D) / 10485760);
         int j = Math.max(1, MathHelper.clamp_int(Runtime.getRuntime().availableProcessors() - 2, 1, i / 5));
@@ -88,51 +89,52 @@ public class ChunkRenderDispatcher
         return String.format("pC: %03d, pU: %1d, aB: %1d", new Object[] {Integer.valueOf(this.queueChunkUpdates.size()), Integer.valueOf(this.queueChunkUploads.size()), Integer.valueOf(this.queueFreeRenderBuilders.size())});
     }
 
-    public boolean runChunkUploads(long p_178516_1_)
+    public boolean runChunkUploads(long finishTimeNano)
     {
-        boolean flag = false;
+        return this.runChunkUploads(finishTimeNano, Long.MAX_VALUE);
+    }
 
+    /** Soft limits between complete revisions. One group may overrun for progress. */
+    public boolean runChunkUploads(long finishTimeNano, long maxUploadBytes)
+    {
+        boolean uploaded = false;
+        long bytes = 0L;
         while (true)
         {
-            boolean flag1 = false;
-            ListenableFutureTask listenablefuturetask = null;
-
+            PendingUpload upload;
             synchronized (this.queueChunkUploads)
             {
-                listenablefuturetask = (ListenableFutureTask)this.queueChunkUploads.poll();
+                upload = this.queueChunkUploads.poll();
             }
-
-            if (listenablefuturetask != null)
-            {
-                listenablefuturetask.run();
-                flag1 = true;
-                flag = true;
-            }
-
-            if (p_178516_1_ == 0L || !flag1)
-            {
-                break;
-            }
-
-            long i = p_178516_1_ - System.nanoTime();
-
-            if (i < 0L)
-            {
-                break;
-            }
+            if (upload == null) break;
+            if (upload.task.isCancelled()) continue;
+            upload.task.run();
+            uploaded = true;
+            bytes += upload.bytes;
+            if (finishTimeNano == 0L || bytes >= maxUploadBytes
+                    || (finishTimeNano != Long.MAX_VALUE
+                        && System.nanoTime() - finishTimeNano >= 0L)) break;
         }
-
-        return flag;
+        return uploaded;
     }
 
     public boolean updateChunkLater(RenderChunk chunkRenderer)
+    {
+        return this.updateChunkLater(chunkRenderer, false);
+    }
+
+    public boolean updateChunkLater(RenderChunk chunkRenderer, boolean urgent)
     {
         chunkRenderer.getLockCompileTask().lock();
         boolean flag;
 
         try
         {
+            // Dirty invalidations remain pending while the current build progresses.
+            if (chunkRenderer.hasPendingCompileTask()) return false;
             final ChunkCompileTaskGenerator chunkcompiletaskgenerator = chunkRenderer.makeCompileTaskChunk();
+            chunkcompiletaskgenerator.setUrgent(urgent);
+            chunkcompiletaskgenerator.beginTrace(this.queueChunkUpdates.size());
             chunkcompiletaskgenerator.addFinishRunnable(new Runnable()
             {
                 public void run()
@@ -144,7 +146,7 @@ public class ChunkRenderDispatcher
 
             if (!flag1)
             {
-                chunkcompiletaskgenerator.finish();
+                chunkcompiletaskgenerator.finish("compile-queue-full");
             }
 
             flag = flag1;
@@ -165,6 +167,7 @@ public class ChunkRenderDispatcher
         try
         {
             ChunkCompileTaskGenerator chunkcompiletaskgenerator = chunkRenderer.makeCompileTaskChunk();
+            chunkcompiletaskgenerator.beginTrace(this.queueChunkUpdates.size());
 
             try
             {
@@ -211,9 +214,21 @@ public class ChunkRenderDispatcher
         this.queueFreeRenderBuilders.addAll(list);
     }
 
-    public void freeRenderBuilder(RegionRenderCacheBuilder p_178512_1_)
+    public void freeRenderBuilder(RegionRenderCacheBuilder builder)
     {
-        this.queueFreeRenderBuilders.add(p_178512_1_);
+        resetRenderBuilder(builder);
+        this.queueFreeRenderBuilders.add(builder);
+    }
+
+    static void resetRenderBuilder(RegionRenderCacheBuilder builder)
+    {
+        for (EnumWorldBlockLayer layer : RenderChunk.ENUM_WORLD_BLOCK_LAYERS)
+        {
+            WorldRenderer renderer = builder.getWorldRendererByLayer(layer);
+            if (renderer.isDrawing()) renderer.finishDrawing();
+            renderer.reset();
+            renderer.setTranslation(0.0D, 0.0D, 0.0D);
+        }
     }
 
     public RegionRenderCacheBuilder allocateRenderBuilder() throws InterruptedException
@@ -237,6 +252,7 @@ public class ChunkRenderDispatcher
 
             if (chunkcompiletaskgenerator != null)
             {
+                chunkcompiletaskgenerator.beginTrace(this.queueChunkUpdates.size());
                 chunkcompiletaskgenerator.addFinishRunnable(new Runnable()
                 {
                     public void run()
@@ -245,11 +261,12 @@ public class ChunkRenderDispatcher
                     }
                 });
                 boolean flag2 = this.queueChunkUpdates.offer(chunkcompiletaskgenerator);
+                if (!flag2) chunkcompiletaskgenerator.finish("compile-queue-full");
                 return flag2;
             }
 
-            boolean flag = true;
-            flag1 = flag;
+            // Keep the later sort request when another task owns this renderer.
+            flag1 = false;
         }
         finally
         {
@@ -287,11 +304,111 @@ public class ChunkRenderDispatcher
 
             synchronized (this.queueChunkUploads)
             {
-                this.queueChunkUploads.add(listenablefuturetask);
+                this.queueChunkUploads.add(new PendingUpload(listenablefuturetask, getUploadSize(p_178503_2_)));
                 return listenablefuturetask;
             }
         }
     }
+
+    /** A complete revision, including empty meshes, is consumed on the GL thread. */
+    public ListenableFuture<Object> uploadChunk(final ChunkCompileTaskGenerator generator)
+    {
+        final CompiledChunk compiled = generator.getCompiledChunk();
+        final RegionRenderCacheBuilder builder = generator.getRegionRenderCacheBuilder();
+        long bytes = 0L;
+        for (EnumWorldBlockLayer layer : RenderChunk.ENUM_WORLD_BLOCK_LAYERS)
+        {
+            if (shouldUploadLayer(generator, compiled, layer))
+                bytes += getUploadSize(builder.getWorldRendererByLayer(layer));
+        }
+        final long uploadBytes = bytes;
+        ListenableFutureTask<Object> task = ListenableFutureTask.create(new Runnable()
+        {
+            public void run()
+            {
+                if (!Minecraft.getMinecraft().isCallingFromMinecraftThread())
+                    throw new IllegalStateException("Chunk upload requires the client thread");
+                RenderChunk chunk = generator.getRenderChunk();
+                chunk.getLockCompileTask().lock();
+                generator.getLock().lock();
+                try
+                {
+                    if (!chunk.isCompileTaskCurrent(generator)
+                            || generator.getStatus() != ChunkCompileTaskGenerator.Status.UPLOADING)
+                    {
+                        if (generator.getTrace() != null) generator.getTrace().cancelled("stale-upload");
+                        generator.setStatus(ChunkCompileTaskGenerator.Status.DONE);
+                        return;
+                    }
+                    if (generator.getTrace() != null) generator.getTrace().uploadStarted();
+                    // No frame can draw a mixture of new and old layer buffers.
+                    for (EnumWorldBlockLayer layer : RenderChunk.ENUM_WORLD_BLOCK_LAYERS)
+                    {
+                        if (shouldUploadLayer(generator, compiled, layer))
+                            ChunkRenderDispatcher.this.uploadChunk(layer,
+                                    builder.getWorldRendererByLayer(layer), chunk, compiled);
+                    }
+                    if (chunk.publishCompiledChunk(generator) && generator.getTrace() != null)
+                        generator.getTrace().uploaded(uploadBytes);
+                }
+                finally
+                {
+                    generator.getLock().unlock();
+                    chunk.getLockCompileTask().unlock();
+                }
+            }
+        }, null);
+        if (Minecraft.getMinecraft().isCallingFromMinecraftThread()) task.run();
+        else
+        {
+            synchronized (this.queueChunkUploads)
+            {
+                this.queueChunkUploads.add(new PendingUpload(task, bytes));
+            }
+        }
+        return task;
+    }
+
+    private static boolean shouldUploadLayer(ChunkCompileTaskGenerator generator,
+            CompiledChunk compiled, EnumWorldBlockLayer layer)
+    {
+        return generator.getType() == ChunkCompileTaskGenerator.Type.REBUILD_CHUNK
+                ? compiled.isLayerStarted(layer)
+                : layer == EnumWorldBlockLayer.TRANSLUCENT && compiled.getState() != null
+                        && !compiled.isLayerEmpty(layer);
+    }
+
+    private static long getUploadSize(WorldRenderer renderer)
+    {
+        return getUploadSize(renderer, renderer.getDrawMode() == 7 && Config.isQuadsToTriangles());
+    }
+
+    /** Account for the uploader's existing quad-to-triangle expansion without doing it twice. */
+    static long getUploadSize(WorldRenderer renderer, boolean triangulate)
+    {
+        long bytes = renderer.getByteBuffer().remaining();
+        return triangulate && renderer.getDrawMode() == 7 ? bytes / 4L * 6L : bytes;
+    }
+
+    private static final class PendingUpload
+    {
+        final ListenableFutureTask<Object> task;
+        final long bytes;
+        PendingUpload(ListenableFutureTask<Object> task, long bytes)
+        {
+            this.task = task;
+            this.bytes = bytes;
+        }
+    }
+
+    public int getPendingCompileCount() { return this.queueChunkUpdates.size(); }
+    public int getPendingUploadCount()
+    {
+        synchronized (this.queueChunkUploads) { return this.queueChunkUploads.size(); }
+    }
+    public int getBuilderCount() { return this.countRenderBuilders; }
+    public int getAvailableBuilderCount() { return this.queueFreeRenderBuilders.size(); }
+    public int getWorkerCount() { return this.listThreadedWorkers.size(); }
 
     private void uploadDisplayList(WorldRenderer p_178510_1_, int p_178510_2_, RenderChunk chunkRenderer)
     {

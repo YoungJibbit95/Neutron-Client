@@ -1,0 +1,160 @@
+{
+  "date": "2026-11-11",
+  "baselineRevision": "97c263c792864d03c2271670121fd72d53bbfeb1",
+  "baselineJarSha256": "f80b4a65ceb77786b0469675fac3f014fe79fa17601cfdbc909bab46559a8fe8",
+  "candidate": "working tree before final combined CI; source hashes below identify the reviewed diagnostic classes",
+  "java": "Eclipse Temurin 1.8.0_482-b08",
+  "junit": "4.13.2",
+  "pureSuite": {
+    "tests": 41,
+    "failures": 0,
+    "classes": [
+      "FrameTimeStatisticsTest",
+      "FrameTimeCaptureTest",
+      "ChunkPipelineMetricsTest",
+      "GpuPassTimingsTest"
+    ],
+    "output": "diagnostics-41-tests.txt",
+    "boundary": "clock/backend-injected logic tests; no native GL or game world"
+  },
+  "smartDisable": {
+    "baselineTests": 10,
+    "candidateTests": 10,
+    "failures": 0,
+    "boundary": "Historical fresh isolated JVM runs of the original fixture; subsequent JIT-dependent fixture reproduction and correction are recorded separately below. Final supported full-suite CI remains required.",
+    "candidateClasspath": "target/test-classes:target/classes:target/render-classpath.txt entries",
+    "baselineClasspath": "target/test-classes:exact baseline JAR:target/render-classpath.txt entries",
+    "environment": "JAVA_TOOL_OPTIONS removed for child processes; java.io.tmpdir and java.awt.headless passed directly"
+  },
+  "nativeBoundary": "Execution attempts failed before GL context creation. These are environmental failures, not native PASS. Capture test was subsequently strengthened and recompiled; final native execution remains unperformed.",
+  "originalFullSuiteSha256": "e13d72567d9282756c7446e6691e47efa7f5207493863d226299521b3352a28e",
+  "sourceSha256": {
+    "src/main/java/me/youngjibbit/core/diagnostics/FrameTimeStatistics.java": "01f90abeaa7e83360a110a82e32bd4d68ce4c557427651261c7857b881976f73",
+    "src/test/java/me/youngjibbit/core/diagnostics/FrameTimeStatisticsTest.java": "14614ee02a88a21b7cf323380c7f6082468df89fa7a35413f08386c54729472d",
+    "src/main/java/me/youngjibbit/core/diagnostics/FrameTimeCapture.java": "3982650acf649ec4fb4f9de5c6ae582c0881b83b68370b9dec4b5b7124cbc00c",
+    "src/test/java/me/youngjibbit/core/diagnostics/FrameTimeCaptureTest.java": "8d89756b44a8c6c01ce0c4f4ab6e0523d0814b6820475b06e02368fa75fcbe03",
+    "src/main/java/me/youngjibbit/core/diagnostics/ChunkPipelineMetrics.java": "476f3ca7e9fe3bfb28304917f63cc08db9f6dc99b6fe4c8b2cf31308d51750c1",
+    "src/test/java/me/youngjibbit/core/diagnostics/ChunkPipelineMetricsTest.java": "16e345d5f2ed26b4caec58c71241e3b61640a14afe024e93b16df1481efa4c12",
+    "src/main/java/me/youngjibbit/core/diagnostics/GpuPassTimings.java": "da62071ba8e924e2c81e55b2b947248abc8de974c5fbbf6dd5080af4bab589a8",
+    "src/test/java/me/youngjibbit/core/diagnostics/GpuPassTimingsTest.java": "9e12796f3fef3db7adff23876a4be84d4047f9cb28067bdf14b6c54cbf4ff24f",
+    "src/test/java/me/youngjibbit/core/network/SmartDisableLifecycleTest.java": "d233ceebcf3e6a7b3f1234e46f12ce1410ea03406ee3a9b5c0567fcc44908c5f"
+  },
+  "evidenceSha256": {
+    "candidate-suite-summary.txt": "f7bf47eb0d1b900559c308c0756b6ab3bf8390a9b230e0a96cba43e92e4455c6",
+    "capture-native-compile.txt": "6025ba102fc0f5a346f94f22044cd4b6a70dee394d069dff8e373d43dde4cbcb",
+    "capture-native-context-blocked.txt": "6f8fe96a63f6f84ee37c7a403467357f37106d49ef99031c19a8dbfbcf596c3f",
+    "chunk-association-15-tests.txt": "8b5e2d8aa78ec6e55651eeffc278ce802acdeb41bc92d527944b9855b7c91d12",
+    "core-and-chunk-56-tests.txt": "e06c8f1dcdc112d0934bb10314f1ccdf87c41d6d10f84d9bd4c407ba687185c7",
+    "diagnostics-41-tests.txt": "98c6b94047b29bed630ac9700de1652933d864fd9b2d6bd9f62712fb61226c06",
+    "gpu-native-context-blocked.txt": "65ae7702fdaa0a99941084b54947085c271b06f6ce872e98fe27f59d01d3e96f",
+    "smart-disable-baseline-isolated.txt": "2f3ffe6a689702cbfd3fc42ada3173f53d5429f21b868dc0168be7640df29ebb",
+    "smart-disable-candidate-isolated.txt": "bc634a3c56fbbe42ba5ec8fd43d9dc430241d87c77bd519c3fc2ffdfee51fca4"
+  },
+  "coreCombinedSuite": {
+    "tests": 56,
+    "failures": 0,
+    "coreTests": 41,
+    "overlappingChunkMetricTests": 15,
+    "output": "core-and-chunk-56-tests.txt",
+    "boundary": "isolated Java 8 production lifecycle/queue fixtures with mock GL uploads; reported by independent core implementer and raw output retained"
+  },
+  "smartDisableFixtureCorrection": {
+    "review": "Independent source review accepted: all original 10 test methods and assertions retained, one client-isolation test added, production Module toggle/enable/disable and ModuleSmartDisable remain exercised.",
+    "initialPullRequest": 184,
+    "initialPullRequestHeadReportedByIntegrator": "afaf969cf9f852bec0aff391d03e5896740b938d",
+    "candidateLocalSourceCommitBeforeFixtureFix": "45731532484035fd0b679d6faa409d34dca8e737",
+    "sourceFile": "src/test/java/me/youngjibbit/core/network/SmartDisableLifecycleTest.java",
+    "sourceSha256": "d233ceebcf3e6a7b3f1234e46f12ce1410ea03406ee3a9b5c0567fcc44908c5f",
+    "productionClassesIndependentlyHashCompared": {
+      "me/youngjibbit/module/Module.class": {
+        "baseline_sha256": "1788755dbc2519b875381446fccfc53028ced7828c9f8b78ac6ba061087ebcb2",
+        "candidate_sha256": "1788755dbc2519b875381446fccfc53028ced7828c9f8b78ac6ba061087ebcb2"
+      },
+      "me/youngjibbit/core/module/ModuleSmartDisable.class": {
+        "baseline_sha256": "f2c32df86bd4ce834b1ed170c04aa8dc6dbd2b2e1b65e6babb65c3d74a7e5590",
+        "candidate_sha256": "f2c32df86bd4ce834b1ed170c04aa8dc6dbd2b2e1b65e6babb65c3d74a7e5590"
+      }
+    },
+    "before": {
+      "baselineForcedJit": {
+        "tests": 10,
+        "failures": 7
+      },
+      "candidateForcedJit": {
+        "tests": 10,
+        "failures": 7
+      },
+      "candidateInterpreter": {
+        "tests": 10,
+        "failures": 0
+      }
+    },
+    "after": [
+      {
+        "name": "baseline-default",
+        "jvm_flags": [],
+        "tests": 11,
+        "failures": 0,
+        "exit_code": 0,
+        "log_sha256": "d3fb27aade9658e7eb17dfba5bfba651b55a63693ec41ec810c87184bc19fa9d"
+      },
+      {
+        "name": "baseline-interpreter",
+        "jvm_flags": [
+          "-Xint"
+        ],
+        "tests": 11,
+        "failures": 0,
+        "exit_code": 0,
+        "log_sha256": "7af0ce57d7b808f7b8a85d18a49afa98c52fe959bbcbc95873f80c24fff00527"
+      },
+      {
+        "name": "baseline-forced-supplier-jit",
+        "jvm_flags": [
+          "-Xcomp",
+          "-XX:CompileCommand=compileonly,me/youngjibbit/module/Module.lambda$enableSmartDisable$0",
+          "-XX:CompileCommand=compileonly,me/youngjibbit/core/network/SmartDisableLifecycleTest$Guarded.lambda$new$0"
+        ],
+        "tests": 11,
+        "failures": 0,
+        "exit_code": 0,
+        "log_sha256": "08fc9ef5fee3f9e31ddaa00ec839231b2ff728793e132b1fb0401818d50bb51f"
+      },
+      {
+        "name": "candidate-default",
+        "jvm_flags": [],
+        "tests": 11,
+        "failures": 0,
+        "exit_code": 0,
+        "log_sha256": "3b3f792bc4cd6e3b1f18e86dd43713182abc4bcb8ca59bce50782ea5b0005f3f"
+      },
+      {
+        "name": "candidate-interpreter",
+        "jvm_flags": [
+          "-Xint"
+        ],
+        "tests": 11,
+        "failures": 0,
+        "exit_code": 0,
+        "log_sha256": "77d7d41b5fe5c5b419f9b384b25ce9dd4f519a9a57807f3a72056d5ba06e02cd"
+      },
+      {
+        "name": "candidate-forced-supplier-jit",
+        "jvm_flags": [
+          "-Xcomp",
+          "-XX:CompileCommand=compileonly,me/youngjibbit/module/Module.lambda$enableSmartDisable$0",
+          "-XX:CompileCommand=compileonly,me/youngjibbit/core/network/SmartDisableLifecycleTest$Guarded.lambda$new$0"
+        ],
+        "tests": 11,
+        "failures": 0,
+        "exit_code": 0,
+        "log_sha256": "1b2a00ab33d4a5415d48a7491fd55d0fce40f5a047c537c8ce7ad2609ee2f203"
+      }
+    ],
+    "evidence": "../core-2026-11/smart-disable-jit-fixture.json",
+    "boundary": "Isolated fixture correction and JIT reproduction, not final full-suite CI. No gameplay/SmartDisable production change or assertion weakening."
+  },
+  "linkedEvidenceSha256": {
+    "../core-2026-11/smart-disable-jit-fixture.json": "efcec8fdc72f035283a9d48d7208e1261eda06e46ccfcfe3dbf7a0a63dc52a0a"
+  }
+}
