@@ -81,6 +81,13 @@ public class ClickGui extends GuiScreen {
     private float footerHeight(){return two()?24:FOOTER;}
     private float rowGap(){return two()?5:CARD_GAP;}
 
+    /** Readable local chrome; the enclosing frame keeps ownership of the shared material. */
+    private static Color chromeBacking(Theme theme) {
+        int rgb=Theme.interpolateRGB(0xff18202c,theme.getBackground().getRGB()|0xff000000,.14f);
+        int alpha=Math.round(218*Math.max(0,Math.min(1,UiEffects.options().surfaceOpacity)));
+        return new Color((rgb&0xffffff)|(alpha<<24),true);
+    }
+
     protected ClipRect categoryBounds(int index){return new ClipRect(x+5,y+headerHeight()+4+index*categoryStep(),sidebarWidth()-10,categoryStep()-4);}
     private ClipRect chromeBounds(int id){return id==0?searchBounds():id==1?themeBounds():categoryBounds(id-2);}
     private void resetMotion(){
@@ -187,7 +194,14 @@ public class ClickGui extends GuiScreen {
 
         try (GuiClip windowClip = GuiClip.push(new ClipRect(x + 2, y + 2, width - 4, height - 4))) {
             if(two()){
-                // The material belongs to the outer frame. Only navigation and controls get readable backing.
+                // Local chrome stays legible on bright glass without covering the open content area.
+                Color chromeFill=chromeBacking(theme);
+                UIUtils.drawDecorationRound(x+5,y+5,sidebarWidth()-10,headerHeight()-10,6,chromeFill);
+                UIUtils.drawDecorationRound(viewport.x,y+headerHeight()+4,viewport.width,
+                        detailHeaderHeight()-3,6,chromeFill);
+                float footerY=y+height-footerHeight()-2;
+                UIUtils.drawDecorationRound(x+5,footerY,sidebarWidth()-10,footerHeight()-4,6,chromeFill);
+                UIUtils.drawDecorationRound(viewport.x,footerY,viewport.width,footerHeight()-4,6,chromeFill);
                 UIUtils.drawDecorationRound(x+5,y+headerHeight()+3,sidebarWidth()-10,
                         height-headerHeight()-footerHeight()-7,8,new Color(17,23,33,182));
                 UIUtils.drawDecorationRound(x+sidebarWidth(),y+headerHeight()+14,
@@ -326,14 +340,16 @@ public class ClickGui extends GuiScreen {
             String title=search.trim().isEmpty()?selectedCategory.name():"Search results";
             String count=modules.size()+(!search.trim().isEmpty()?(modules.size()==1?" result":" results"):(modules.size()==1?" module":" modules"));
             TTFFontRenderer heading=Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 18");
-            heading.drawString(title,viewport.x+1,y+headerHeight()+8,
+            heading.drawString(two()?ClickControlStyle.fit(heading,title,
+                            Math.max(0,viewport.width-font().getWidth(count)-26)):title,
+                    viewport.x+(two()?8:1),y+headerHeight()+8,
                     two()?NeutronVisualTokens.INK:0xffedf0f7);
-            font().drawString(count,viewport.x+viewport.width-font().getWidth(count)-2,
+            font().drawString(count,viewport.x+viewport.width-font().getWidth(count)-(two()?8:2),
                     y+headerHeight()+8,two()?NeutronVisualTokens.MUTED:0xffaab3c3);
             if(two()){
                 TTFFontRenderer small=Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Regular 16");
-                small.drawString(ClickControlStyle.fit(small,NeutronVisualTokens.categoryDescription(selectedCategory),viewport.width-6),
-                        viewport.x+1,y+headerHeight()+24,NeutronVisualTokens.MUTED);
+                small.drawString(ClickControlStyle.fit(small,NeutronVisualTokens.categoryDescription(selectedCategory),viewport.width-16),
+                        viewport.x+8,y+headerHeight()+24,NeutronVisualTokens.MUTED);
                 float footerTop=y+height-footerHeight()-5;
                 UIUtils.drawDecorationRound(x+sidebarWidth()+15,footerTop,
                         Math.max(1,width-sidebarWidth()-30),1,.5f,NeutronVisualTokens.HAIRLINE);
@@ -346,9 +362,9 @@ public class ClickGui extends GuiScreen {
                         "/ Search  ·  Tab  ·  K Bind";
                 font().drawString(shortcuts,viewport.x,y+height-FOOTER+5,0xffaab3c3);
             }else{
-                Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Regular 16")
-                        .drawString("Tab: focus   ·   /: search   ·   K: bind",
-                                viewport.x,y+height-footerHeight()+2,NeutronVisualTokens.FAINT);
+                TTFFontRenderer hints=Pulsar.INSTANCE.getFontManager().getFont("Product-Sans-Regular 16");
+                hints.drawString(ClickControlStyle.fit(hints,"Tab: focus   ·   /: search   ·   K: bind",
+                                viewport.width-16),viewport.x+8,y+height-footerHeight()+2,NeutronVisualTokens.MUTED);
             }
             if(maxScroll>0){
                 float thumb=Math.max(16,viewport.height*viewport.height/(viewport.height+maxScroll));

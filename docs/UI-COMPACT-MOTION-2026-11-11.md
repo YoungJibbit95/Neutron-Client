@@ -32,7 +32,7 @@ The migration applies only to TargetHUD's mode value. Invalid or unrelated value
 
 Notification and contextual content expand below a stable top capsule. The attachment occupies approximately 52–74% of the capsule width; content length no longer stretches the whole watermark. Rounded, feathered vector geometry gives status icons consistent weight. Check reveal, loading orbit and value changes animate within bounded space.
 
-Circle widgets use six fixed positions: Left 1–3 and Right 1–3. In the HUD editor, drag a visible widget onto another dock and release to move or swap it. The three persisted dock settings are appended to existing values to preserve prior ordering. Rendering resolves duplicate saved positions without writing settings; a completed drop normalizes the visible arrangement before swapping.
+With **Island Widget Placement → Outside**, circle widgets use six fixed positions: Left 1–3 and Right 1–3. In the HUD editor, drag a visible widget onto another dock and release to move or swap it. The three persisted dock settings are appended to existing values to preserve prior ordering. Rendering resolves duplicate saved positions without writing settings; a completed drop normalizes the visible arrangement before swapping.
 
 While editing, layout reserves all six destinations, including in small GUI viewports. Normal rendering reserves the occupied composition. HUD reset restores the dock defaults.
 
@@ -40,7 +40,7 @@ While editing, layout reserves all six destinations, including in small GUI view
 
 The message history and typing bar share the existing inherited surface renderer. The message panel sizes itself to visible content. A bounded entrance/exit response supplies slide and bounce; row movement, focus and typing each have a small independent motion state.
 
-The existing GuiTextField continues to own editing, selection, history and autocomplete. Public link picking uses the same frame snapshot, scale, clipping and animated line coordinates as rendering. Input clicks subtract the current typing transform. Resizing preserves the draft and cursor/selection and rewraps retained messages. A scrolled history anchor is tracked by original component identity and text offset. Refreshing a nonzero-ID message does not delete its retained source.
+The existing GuiTextField continues to own editing, selection, history and autocomplete. Public link picking uses the same frame snapshot, scale, clipping and animated line coordinates as rendering. Raw mouse pixels are sampled at their centers and converted using the physical framebuffer height, including odd display sizes. Input clicks subtract the current typing transform. Resizing preserves the draft and cursor/selection and rewraps retained messages. A scrolled history anchor is tracked by original component identity and text offset without injected formatting codes; reflow keeps its old characters inside the newly wrapped row. Refreshing a nonzero-ID message does not delete its retained source.
 
 Reduced Motion or disabled UI animations settles positional channels immediately. Message age still controls the vanilla ten-second lifetime. Closing input is rendered briefly by the HUD after GuiChat leaves the active-screen slot.
 
@@ -56,11 +56,11 @@ Motion uses bounded scalar state, reusable arrays and existing surface ownership
 
 The normal Java 8 regression remains required. The native UI driver runs six independent JVM suites: panel, dropdown, arraylist, session/HUD/Island, shader modes and chat. It retains production shader/FBO diagnostics and fails on missing checks, images or native errors. Coverage includes:
 
-- Compact HUD geometry, mode migration and motion bounds.
+- Compact HUD geometry, mode migration and motion bounds; isolated material/opacity checks and item-texture pixels.
 - Dock placement, duplicate persisted slots, small viewports and drop behavior.
-- Real chat glyph/link picking at multiple scales; editing, history, autocomplete and resize.
+- Real chat glyph/link picking at multiple scales and odd display sizes; editing, formatted history, autocomplete and resize.
 - Opening, typing, closing, expiry and reduced-motion behavior.
-- Production menu controls, local readability and GL state restoration.
+- Production menu controls, local readability, small-height Library action geometry and GL state restoration.
 - Warm-render framebuffer, program, shader and font-texture allocation checks.
 
 Original PNGs and logs are uploaded as CI artifacts. Bounded JPEG review copies of selected real fixture images are also embedded in job logs for remote visual inspection. The separate render-performance workflow retains its unchanged exact-pixel baseline checks and synthetic timing evidence.

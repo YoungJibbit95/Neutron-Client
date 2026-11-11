@@ -41,7 +41,7 @@ public class GuiNewChat extends Gui
     private final float[] lineX = new float[100], lineY = new float[100], lineAlpha = new float[100];
     private final IntBuffer parentScissor = BufferUtils.createIntBuffer(16);
     private final Runnable messageContents = this::drawMessageContents, inputContents = this::drawInputContents;
-    private int presentedCount, viewportHeight, viewportScale, wrappedWidth = -1;
+    private int presentedCount, viewportHeight, viewportPixelHeight, viewportScale, wrappedWidth = -1;
     private float originX, originY, renderScale, surfaceX, surfaceY, surfaceWidth, surfaceHeight;
     private boolean snapLinePositions = true;
     private GuiTextField presentedInput, closingInput;
@@ -67,6 +67,7 @@ public class GuiNewChat extends Gui
         int effectiveWidth = ChatMotion.textWidth(getChatWidth(), getChatScale(), resolution.getScaledWidth());
         if (wrappedWidth != effectiveWidth) refreshChat();
         viewportHeight = resolution.getScaledHeight();
+        viewportPixelHeight = this.mc.displayHeight;
         viewportScale = resolution.getScaleFactor();
         originX = 4;
         originY = viewportHeight - 30 + motion.chatSlide();
@@ -399,8 +400,9 @@ public class GuiNewChat extends Gui
     public IChatComponent getChatComponent(int mouseX, int mouseY)
     {
         if (!getChatOpen() || presentedCount == 0 || viewportScale <= 0) return null;
-        float screenX = mouseX / (float) viewportScale;
-        float screenY = viewportHeight - mouseY / (float) viewportScale - 1;
+        // Mouse indices address framebuffer pixels; use their centers, matching rasterized glyph coverage.
+        float screenX = (mouseX + .5f) / viewportScale;
+        float screenY = (viewportPixelHeight - mouseY - .5f) / viewportScale;
         if (screenX < surfaceX + 2 || screenX >= surfaceX + surfaceWidth - 2
                 || screenY < surfaceY + 2 || screenY >= surfaceY + surfaceHeight - 2) return null;
         float x = (screenX - originX) / renderScale, y = (screenY - originY) / renderScale;

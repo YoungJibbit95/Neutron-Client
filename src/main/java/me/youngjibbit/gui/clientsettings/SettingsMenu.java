@@ -217,7 +217,7 @@ public class SettingsMenu extends GuiScreen {
                 heading.drawString("Client settings",x+(two()?16:39),y+11,
                         two()?NeutronVisualTokens.INK:0xfff1f4fa);
                 if(!compactLegacy())text(fit("Appearance, motion and type — changes apply live",w-48),
-                        x+(two()?16:39),y+33,two()?(creative?NeutronVisualTokens.accent(theme,160).getRGB():NeutronVisualTokens.MUTED):LegacyUiStyle.MUTED);
+                        x+(two()?16:39),y+33,two()?NeutronVisualTokens.MUTED:LegacyUiStyle.MUTED);
                 // The global screen exit animation stays owned by GuiTransitions.
                 // The entry accent uses the same spring policy; text/input remain ready.
                 if(me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(me.youngjibbit.theme.ThemeMode.selected())
@@ -260,7 +260,7 @@ public class SettingsMenu extends GuiScreen {
                         w-inset()-78),x+inset()+34,two()?y+59:sectionY()+7,
                         two()?NeutronVisualTokens.INK:LegacyUiStyle.INK);
                 if(!compactLegacy())text(fit(description(),view().width),view().x,two()?y+80:y+86,
-                        two()?(creative?NeutronVisualTokens.accent(theme,150).getRGB():NeutronVisualTokens.MUTED):LegacyUiStyle.MUTED);
+                        two()?NeutronVisualTokens.MUTED:LegacyUiStyle.MUTED);
                 try(GuiClip clip=GuiClip.push(view())){
                     List<Value<?>> values=rows();
                     for(int i=0;i<values.size();i++)if(!view().intersect(rowBounds(i)).isEmpty())drawValue(i,values.get(i),theme,dt,mx,my);
@@ -458,7 +458,7 @@ public class SettingsMenu extends GuiScreen {
                 boolean highlighted=option==choice||(open&&mx>=p.x&&mx<=p.x+p.width
                         &&my>=top&&my<top+22);
                 if(!two()&&highlighted)UIUtils.drawDecorationRound(p.x+4,top+1,p.width-8,20,4,LegacyUiStyle.alpha(LegacyUiStyle.control(theme,true).getRGB(),opacity));
-                int ink=two()&&highlighted?theme.getPrimaryGradientRGB():LegacyUiStyle.INK;
+                int ink=two()&&highlighted?Theme.interpolateRGB(NeutronVisualTokens.INK,theme.getPrimaryGradientRGB(),.18f):LegacyUiStyle.INK;
                 if(!two()&&option==shown.getSelectedIndex())LegacyUiStyle.icon("check",p.x+p.width-19,top+6,10,fadeInk(theme.getPrimaryGradientRGB(),opacity));
                 text(fit(options[option],p.width-30),p.x+10,top+7,fadeInk(ink,opacity));
             }

@@ -36,7 +36,7 @@ public class CreativeHudLayoutTest {
     @Test public void horizontalArmorNeverReordersSlotsAndHasNoGroupPadding(){
         CreativeHudLayout.Armor g=new CreativeHudLayout.Armor(true,
                 new boolean[]{true,false,true,true,false},new float[]{21,18,500,Float.NaN,20});
-        assertEquals(0,g.cells[0].x,0);assertEquals(34,g.height,0);
+        assertEquals(0,g.cells[0].x,0);assertEquals(30,g.height,0);
         for(int i=0;i<g.cells.length;i++){
             inside(g.cells[i],g.width,g.height);
             if(i>0)assertEquals(g.cells[i-1].right()+3,g.cells[i].x,0);

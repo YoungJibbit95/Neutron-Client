@@ -69,10 +69,11 @@ public final class ChatPresentationNativeCheck {
             checkRenderedLinks(mc, chat, log);
             checkInputAndResize(mc, chat, log);
             checkReflowAndHistory(mc, chat, log);
+            checkFormattedReflowAnchor(mc, chat, log);
             checkMotion(mc, chat, log, settings);
             checkWarmResources(mc, chat, log, settings);
             require(glGetError() == GL_NO_ERROR, "Chat presentation left a GL error");
-            System.out.println("PASS: compact chat presentation: rendered link hits at .5/.8/1 scale, input cursor and resize selection, viewport reflow and scroll anchor, opening/typing/closing/reopening, reduced motion, zero warm GPU allocations; chat-preview PNGs");
+            System.out.println("PASS: compact chat presentation: rendered link hits at .5/.8/1 scale on even/odd displays, input cursor and resize selection, viewport reflow and formatted text scroll anchor, opening/typing/closing/reopening, reduced motion, zero warm GPU allocations; chat-preview PNGs");
         } finally {
             RenderDiagnostics.enabled = diagnostics;
             log.clearChatMessages();
@@ -94,27 +95,38 @@ public final class ChatPresentationNativeCheck {
     }
 
     private static void checkRenderedLinks(Minecraft mc, GuiChat chat, GuiNewChat log) throws Exception {
-        for (float scale : new float[]{.5f, .8f, 1}) {
-            log.clearChatMessages();
-            mc.gameSettings.chatScale = scale;
-            chat.initGui();
-            ChatComponentText message = new ChatComponentText("Fixture: ");
-            message.setChatStyle(new ChatStyle().setColor(EnumChatFormatting.GRAY));
-            ChatComponentText link = new ChatComponentText("INSPECT LINK");
-            link.setChatStyle(new ChatStyle().setColor(EnumChatFormatting.AQUA)
-                    .setChatClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/fixture-inspect")));
-            message.appendSibling(link);
-            log.printChatMessage(message);
-            chat.inputField.setText("Synthetic draft — no message sent");
-            GuiChatInputNativeCheck.draw(mc, chat);
-            BufferedImage image = capture(mc);
-            requireLinkPixels(mc, log, image, "/fixture-inspect");
-            float x = number(log, "originX") + (ChatMotion.TEXT_INSET + 4) * scale;
-            float y = number(log, "originY") + (floats(log, "lineY")[0] + mc.fontRendererObj.FONT_HEIGHT + 1) * scale;
-            require(componentAt(mc, log, x, y) == null, "Inter-line gap activates a chat component at scale " + scale);
-            require(componentAt(mc, log, number(log, "surfaceX") - 1, y) == null,
-                    "A clipped outside pixel activates a chat component");
-            ImageIO.write(image, "png", new File(OUTPUT, "links-scale-" + scale + ".png"));
+        try {
+            for (int[] display : new int[][]{{1280, 960}, {853, 721}}) {
+                resize(mc, chat, display[0], display[1], 2);
+                require(new ScaledResolution(mc).getScaleFactor() == 2, "Link fixture must exercise GUI scale 2");
+                for (float scale : new float[]{.5f, .8f, 1}) {
+                    log.clearChatMessages();
+                    mc.gameSettings.chatScale = scale;
+                    chat.initGui();
+                    ChatComponentText message = new ChatComponentText("Fixture: ");
+                    message.setChatStyle(new ChatStyle().setColor(EnumChatFormatting.GRAY));
+                    ChatComponentText link = new ChatComponentText("INSPECT LINK");
+                    link.setChatStyle(new ChatStyle().setColor(EnumChatFormatting.AQUA)
+                            .setChatClickEvent(new ClickEvent(ClickEvent.Action.SUGGEST_COMMAND, "/fixture-inspect")));
+                    message.appendSibling(link);
+                    log.printChatMessage(message);
+                    chat.inputField.setText("Synthetic draft — no message sent");
+                    GuiChatInputNativeCheck.draw(mc, chat);
+                    BufferedImage image = capture(mc);
+                    String suffix = display[0] == 1280 ? "" : "-" + display[0] + "x" + display[1];
+                    // Keep the failing frame available even when a glyph-edge assertion below fails.
+                    ImageIO.write(image, "png", new File(OUTPUT, "links-scale-" + scale + suffix + ".png"));
+                    requireLinkPixels(mc, log, image, "/fixture-inspect");
+                    float x = number(log, "originX") + (ChatMotion.TEXT_INSET + 4) * scale;
+                    float y = number(log, "originY") + (floats(log, "lineY")[0] + mc.fontRendererObj.FONT_HEIGHT + 1) * scale;
+                    require(componentAt(mc, log, x, y) == null,
+                            "Inter-line gap activates a chat component at " + display[0] + "x" + display[1] + ", scale " + scale);
+                    require(componentAt(mc, log, number(log, "surfaceX") - 1, y) == null,
+                            "A clipped outside pixel activates a chat component");
+                }
+            }
+        } finally {
+            resize(mc, chat, 1280, 960, 2);
         }
     }
 
@@ -180,6 +192,65 @@ public final class ChatPresentationNativeCheck {
         snapshot(mc, "narrow-scrolled-history.png");
         log.resetScroll();
         resize(mc, chat, 1280, 960, 2);
+    }
+
+    /** Compare displayed source text, independently of ChatLine's offset bookkeeping. */
+    private static void checkFormattedReflowAnchor(Minecraft mc, GuiChat chat, GuiNewChat log) throws Exception {
+        float previousWidth = mc.gameSettings.chatWidth, previousScale = mc.gameSettings.chatScale;
+        boolean previousColours = mc.gameSettings.chatColours;
+        try {
+            log.clearChatMessages();
+            mc.gameSettings.chatColours = true;
+            mc.gameSettings.chatWidth = .25f;
+            mc.gameSettings.chatScale = 1;
+            chat.initGui();
+            StringBuilder sourceText = new StringBuilder();
+            for (int i = 0; i < 250; i++) sourceText.append(String.format(java.util.Locale.ROOT, "M%03d ", i));
+            String original = sourceText.toString();
+            ChatComponentText source = new ChatComponentText(original);
+            source.setChatStyle(new ChatStyle().setColor(EnumChatFormatting.AQUA).setBold(true));
+            log.printChatMessageWithOptionalDeletion(source, 1701);
+            log.scroll(17);
+            GuiChatInputNativeCheck.draw(mc, chat);
+            int narrowRows = lines(log, "field_146253_i").size();
+            require(narrowRows > 40 && narrowRows < 100, "Formatted fixture must exercise many retained wraps without truncation");
+            ChatLine before = ((ChatLine[]) field(GuiNewChat.class, "presentedLines").get(log))[0];
+            String oldVisible = visibleText(before);
+            int anchor = original.indexOf(oldVisible);
+            require(!oldVisible.isEmpty() && anchor > 0 && original.indexOf(oldVisible, anchor + 1) < 0,
+                    "The scrolled anchor must identify a unique visible source-text range");
+            snapshot(mc, "formatted-history-narrow.png");
+
+            // Both settings materially change the number of wraps and the artificial style prefixes.
+            mc.gameSettings.chatWidth = 1;
+            mc.gameSettings.chatScale = .8f;
+            GuiChatInputNativeCheck.draw(mc, chat);
+            ChatLine after = ((ChatLine[]) field(GuiNewChat.class, "presentedLines").get(log))[0];
+            String newVisible = visibleText(after);
+            int newStart = original.indexOf(newVisible);
+            require(lines(log, "field_146253_i").size() < narrowRows / 2,
+                    "Formatted reflow fixture did not substantially change wrapping");
+            require(!newVisible.isEmpty() && newStart >= 0 && original.indexOf(newVisible, newStart + 1) < 0,
+                    "Reflowed visible fragment is no longer an exact unique part of its source text");
+            require(newStart <= anchor && anchor < newStart + newVisible.length(),
+                    "Formatted reflow skipped the visible anchor: old source position " + anchor
+                            + ", new displayed range " + newStart + ".." + (newStart + newVisible.length()));
+            require(newVisible.substring(anchor - newStart).startsWith(
+                            oldVisible.substring(0, Math.min(oldVisible.length(), newVisible.length() - (anchor - newStart)))),
+                    "The old visible anchor's characters changed during formatted reflow");
+            require(after.getChatLineID() == 1701 && lines(log, "chatLines").size() == 1,
+                    "Formatted reflow replaced or duplicated the source message");
+            snapshot(mc, "formatted-history-wide-scale.png");
+        } finally {
+            mc.gameSettings.chatWidth = previousWidth;
+            mc.gameSettings.chatScale = previousScale;
+            mc.gameSettings.chatColours = previousColours;
+            log.resetScroll();
+        }
+    }
+
+    private static String visibleText(ChatLine line) {
+        return EnumChatFormatting.getTextWithoutFormattingCodes(line.getChatComponent().getUnformattedText());
     }
 
     private static void checkMotion(Minecraft mc, GuiChat chat, GuiNewChat log, ClientSettings settings) throws Exception {
@@ -269,13 +340,49 @@ public final class ChatPresentationNativeCheck {
             int color = image.getRGB(px, py), r = color >> 16 & 255, g = color >> 8 & 255, b = color & 255;
             if (g > 180 && b > 180 && r + 45 < g) {
                 IChatComponent component = log.getChatComponent(px, mc.displayHeight - py - 1);
-                require(component != null && component.getChatStyle().getChatClickEvent() != null
-                                && action.equals(component.getChatStyle().getChatClickEvent().getValue()),
-                        "Actual visible link pixel misses its component at chat scale " + chatScale + ": " + px + "," + py);
+                if (component == null || component.getChatStyle().getChatClickEvent() == null
+                        || !action.equals(component.getChatStyle().getChatClickEvent().getValue())) {
+                    throw new AssertionError("Actual visible link pixel misses its component: "
+                            + linkHitDiagnostic(mc, log, px, py, color, component));
+                }
                 count++;
             }
         }
         require(count > 2, "No readable link glyph pixels rendered at chat scale " + chatScale);
+    }
+
+    private static String linkHitDiagnostic(Minecraft mc, GuiNewChat log, int px, int py,
+                                            int color, IChatComponent picked) throws Exception {
+        int guiScale = new ScaledResolution(mc).getScaleFactor();
+        float chatScale = mc.gameSettings.chatScale;
+        float ox = number(log, "originX"), oy = number(log, "originY");
+        float lx = floats(log, "lineX")[0], ly = floats(log, "lineY")[0];
+        float cornerX = (px / (float) guiScale - ox) / chatScale - lx;
+        float centerX = ((px + .5f) / guiScale - ox) / chatScale - lx;
+        float cornerY = (py / (float) guiScale - oy) / chatScale - ly;
+        float centerY = ((py + .5f) / guiScale - oy) / chatScale - ly;
+        ChatLine shown = ((ChatLine[]) field(GuiNewChat.class, "presentedLines").get(log))[0];
+        StringBuilder spans = new StringBuilder();
+        int offset = 0;
+        for (IChatComponent part : shown.getChatComponent()) if (part instanceof ChatComponentText) {
+            String raw = ((ChatComponentText) part).getChatComponentText_TextValue();
+            int width = mc.fontRendererObj.getStringWidth(GuiUtilRenderComponents.func_178909_a(raw, false));
+            spans.append('[').append(offset).append(',').append(offset + width).append("] ")
+                    .append(EnumChatFormatting.getTextWithoutFormattingCodes(raw)).append(" -> ")
+                    .append(part.getChatStyle().getChatClickEvent()).append("; ");
+            offset += width;
+        }
+        return "display=" + mc.displayWidth + "x" + mc.displayHeight + ", guiScale=" + guiScale
+                + ", chatScale=" + chatScale + ", pixel=" + px + "," + py
+                + ", rawMouse=" + px + "," + (mc.displayHeight - py - 1)
+                + ", rgb=" + String.format(java.util.Locale.ROOT, "%06x", color & 0xffffff)
+                + ", lineRelativeCorner=" + cornerX + "," + cornerY
+                + ", lineRelativeCenter=" + centerX + "," + centerY
+                + ", origin=" + ox + "," + oy + ", line=" + lx + "," + ly
+                + ", clip=" + number(log, "surfaceX") + "," + number(log, "surfaceY")
+                + "," + number(log, "surfaceWidth") + "," + number(log, "surfaceHeight")
+                + ", picked=" + (picked == null ? "<null>" : EnumChatFormatting.getTextWithoutFormattingCodes(picked.getUnformattedText()))
+                + ", componentSpans=" + spans;
     }
 
     private static IChatComponent componentAt(Minecraft mc, GuiNewChat log, float x, float y) {

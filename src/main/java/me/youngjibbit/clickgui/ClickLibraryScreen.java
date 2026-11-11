@@ -97,9 +97,22 @@ public class ClickLibraryScreen extends GuiScreen {
     }
     protected ClipRect nameBounds() {
         if(legacyConfigs())return new ClipRect(x+16,y+h-(compactConfigs()?74:84),w-32,compactConfigs()?22:25);
-        if (!themes) return splitConfigs() ? new ClipRect(detailsX(), y + 208, detailsWidth(), 22)
-                : new ClipRect(x + 12, y + h - 44, w - 102, 22);
+        if (!themes) {
+            if(splitConfigs()){
+                ClipRect section=saveSectionBounds();
+                return new ClipRect(section.x,section.y+section.height+2,section.width,22);
+            }
+            return new ClipRect(x+12,y+h-44,w-102,22);
+        }
         return new ClipRect(x + 12, y + h - 78, w - 24, 22);
+    }
+    /** The save form follows Rename as one stack; paint and hit testing share these bounds. */
+    protected ClipRect saveSectionBounds() {
+        if(!legacyConfigs()&&splitConfigs()){
+            ClipRect rename=actionBounds(4);
+            return new ClipRect(detailsX(),rename.y+rename.height+10,detailsWidth(),14);
+        }
+        return new ClipRect(x+12,y+h-59,w-24,14);
     }
     protected ClipRect actionBounds(int id) {
         if(legacyConfigs()) {
@@ -116,7 +129,11 @@ public class ClickLibraryScreen extends GuiScreen {
             if (id == 3) { ClipRect search = searchBounds(); return new ClipRect(search.x + search.width + 6, search.y, 64, 20); }
             if (splitConfigs()) {
                 if (id == 4) return new ClipRect(detailsX(), y + 172, detailsWidth(), 26);
-                return new ClipRect(detailsX(), y + (id == 0 ? 236 : id == 1 ? 112 : 144), detailsWidth(), 26);
+                if (id == 0) {
+                    ClipRect field=nameBounds();
+                    return new ClipRect(field.x,field.y+field.height+6,field.width,26);
+                }
+                return new ClipRect(detailsX(), y + (id == 1 ? 112 : 144), detailsWidth(), 26);
             }
             if (id == 0) return new ClipRect(x + w - 84, y + h - 44, 72, 22);
             float third = Math.max(1,(w - 36) / 3);
@@ -419,9 +436,13 @@ public class ClickLibraryScreen extends GuiScreen {
             text("Selected config",detailsX(),y+66,detailsWidth(),UiEffects.alpha(ink,.72f));
             String visible = visibleConfigSelection();
             text(visible.isEmpty() ? "Choose a config" : visible, detailsX(), y+87, detailsWidth(), ink);
-            UIUtils.drawDecorationRound(detailsX(),y+181,detailsWidth(),1,0,UiEffects.color(ink,.12f));
-            text("Save current setup",detailsX(),y+190,detailsWidth(),ink);
-        } else text("Save current setup as",x+12,y+h-59,w-24,UiEffects.alpha(ink,.8f));
+            ClipRect section=saveSectionBounds();
+            UIUtils.drawDecorationRound(section.x,section.y-6,section.width,1,0,UiEffects.color(ink,.12f));
+            text("Save current setup",section.x,section.y,section.width,ink);
+        } else {
+            ClipRect section=saveSectionBounds();
+            text("Save current setup as",section.x,section.y,section.width,UiEffects.alpha(ink,.8f));
+        }
     }
     private void field(ClipRect r,String value,boolean focused,int ink) {
         if(ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())){

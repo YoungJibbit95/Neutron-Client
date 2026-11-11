@@ -29,7 +29,7 @@ public final class UiReviewImages {
         List<Path> images;
         try (Stream<Path> paths = Files.walk(root)) {
             images = paths.filter(Files::isRegularFile).filter(path -> selected(root.relativize(path).toString().replace('\\', '/')))
-                    .sorted().limit(18).collect(Collectors.toList());
+                    .sorted().limit(24).collect(Collectors.toList());
         }
         for (Path path : images) {
             BufferedImage source = ImageIO.read(path.toFile());
@@ -67,10 +67,11 @@ public final class UiReviewImages {
         if (path.startsWith("chat/chat-preview/")) return name.equals("links-scale-1.0.png")
                 || name.equals("opening.png") || name.equals("typing.png") || name.equals("closing.png")
                 || name.equals("reduced-motion.png") || name.equals("resize-selected-draft.png")
-                || name.equals("narrow-wrapped-tail.png") || name.equals("narrow-scrolled-history.png");
+                || name.equals("narrow-wrapped-tail.png") || name.equals("narrow-scrolled-history.png")
+                || name.equals("formatted-history-narrow.png") || name.equals("formatted-history-wide-scale.png");
         if (path.startsWith("panel/gui-preview/")) return name.startsWith("compact-");
         if (path.startsWith("session/session-preview/")) return name.startsWith("island-compact-") || name.equals("island-glyph-motion.png");
-        if (path.startsWith("session/hud-preview/")) return name.startsWith("compact-") && name.endsWith("-640x360.png");
+        if (path.startsWith("session/hud-preview/")) return name.startsWith("compact-") && name.endsWith("-1280x720.png");
         if (path.startsWith("session/armor-preview/")) {
             String lower = name.toLowerCase(java.util.Locale.ROOT);
             return (lower.startsWith("modern-") || lower.startsWith("creative-")) && lower.endsWith("-horizontal.png");
