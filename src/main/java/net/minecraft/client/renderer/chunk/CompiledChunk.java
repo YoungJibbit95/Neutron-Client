@@ -7,6 +7,7 @@ import net.minecraft.client.renderer.WorldRenderer;
 import net.minecraft.tileentity.TileEntity;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.EnumWorldBlockLayer;
+import me.youngjibbit.core.diagnostics.ChunkPipelineMetrics;
 
 public class CompiledChunk
 {
@@ -36,6 +37,10 @@ public class CompiledChunk
     private SetVisibility setVisibility = new SetVisibility();
     private WorldRenderer.State state;
     private BitSet[] animatedSprites = new BitSet[RenderChunk.ENUM_WORLD_BLOCK_LAYERS.length];
+    private volatile ChunkPipelineMetrics.Trace renderTrace;
+
+    public void setRenderTrace(ChunkPipelineMetrics.Trace trace) { this.renderTrace = trace; }
+    public ChunkPipelineMetrics.Trace getRenderTrace() { return this.renderTrace; }
 
     public boolean isEmpty()
     {

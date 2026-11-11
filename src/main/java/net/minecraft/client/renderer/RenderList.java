@@ -72,6 +72,12 @@ public class RenderList extends ChunkRenderContainer
             }
 
             GlStateManager.resetColor();
+            // Includes deferred region display lists; main-camera submission only.
+            if (me.youngjibbit.core.diagnostics.ChunkPipelineMetrics.INSTANCE.isRecording()
+                    && (!Config.isShaders() || !net.optifine.shaders.Shaders.isShadowPass))
+            {
+                for (RenderChunk submitted : this.renderChunks) submitted.onDrawSubmitted();
+            }
             this.renderChunks.clear();
         }
     }
