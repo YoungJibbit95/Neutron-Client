@@ -1,4 +1,4 @@
-"""Ensure the two Linux native-check runtimes, with one signed Ubuntu fallback.
+"""Ensure Linux native-check runtimes with one Ubuntu-signed mirror fallback.
 
 Run through sudo on the Noble CI runner. Running the helper itself as root also
 lets its temporary directory cleanup remove files that APT creates as root/_apt.
@@ -28,15 +28,12 @@ PACKAGES = {
     ),
 }
 ARCHIVE_KEYRING = "/usr/share/keyrings/ubuntu-archive-keyring.gpg"
-DIRECT_SOURCES = """Types: deb
-URIs: https://archive.ubuntu.com/ubuntu/
-Suites: noble noble-updates noble-backports
-Components: main restricted universe multiverse
-Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
-
-Types: deb
-URIs: https://security.ubuntu.com/ubuntu/
-Suites: noble-security
+# The Linux Kernel Archives Ubuntu mirror uses an independent DNS domain.
+# APT still authenticates every archive pocket with the installed Ubuntu keyring:
+# https://documentation.ubuntu.com/security/software-integrity/archive-verification/
+FALLBACK_SOURCES = """Types: deb
+URIs: https://mirrors.edge.kernel.org/ubuntu/
+Suites: noble noble-updates noble-backports noble-security
 Components: main restricted universe multiverse
 Signed-By: /usr/share/keyrings/ubuntu-archive-keyring.gpg
 """
@@ -78,7 +75,7 @@ def isolated_sources(temp_parent):
             child.chmod(0o755)
         source_file = directory / "ubuntu.sources"
         with source_file.open("w", encoding="ascii", newline="\n") as stream:
-            stream.write(DIRECT_SOURCES)
+            stream.write(FALLBACK_SOURCES)
         source_file.chmod(0o644)
         yield (
             "-o", "Dir::Etc::SourceList=" + str(source_file),
@@ -149,7 +146,8 @@ def install_runtime(profile, *, runner=None, temp_parent=None):
         run_apt(runner, ("update", "--error-on=any"), UPDATE_TIMEOUT_SECONDS)
         run_apt(runner, install_arguments, INSTALL_TIMEOUT_SECONDS)
     except subprocess.CalledProcessError as error:
-        print("Runner APT sources failed (exit %s); trying direct signed Ubuntu sources once."
+        print("Runner APT sources failed (exit %s); trying the Linux Kernel Archives "
+              "Ubuntu mirror once, with Ubuntu archive signature verification."
               % error.returncode, file=sys.stderr, flush=True)
     else:
         require_installed(PACKAGES[profile])
