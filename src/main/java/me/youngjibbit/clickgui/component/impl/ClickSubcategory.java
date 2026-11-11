@@ -5,6 +5,7 @@ import me.youngjibbit.clickgui.component.Component;
 import me.youngjibbit.clickgui.utils.ClickControlStyle;
 import me.youngjibbit.clickgui.utils.ClipRect;
 import me.youngjibbit.gui.HudSpring;
+import me.youngjibbit.gui.LiquidGlass;
 import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.font.TTFFontRenderer;
@@ -59,7 +60,8 @@ public final class ClickSubcategory extends Component.Sub<SubcategoryValue> {
         float over=Math.max(0,Math.min(1,getPresentation().amount()));
         float left=x+(compact?7:12),mid=y+height/2;
         UIUtils.drawDecorationRound(x+4,y+1,width-8,height-2,5,
-                UiEffects.color(ink,.025f+.025f*over+.018f*progress));
+                LiquidGlass.fill(theme,Math.round(48+40*over+26*progress)));
+        LiquidGlass.highlight(x+4,y+1,width-8,height-2,5);
         // A restrained vertical rail connects disclosure to its settings, never an enable indicator.
         UIUtils.drawDecorationRound(left,mid-4,2,8,1,UiEffects.color(theme.getPrimaryGradientRGB(),.48f+.42f*progress));
         if(childReveal.height>1)UIUtils.drawDecorationRound(x+7,y+height+2,1,

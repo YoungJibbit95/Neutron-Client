@@ -6,6 +6,9 @@ on:
     paths:
       - 'src/main/java/me/youngjibbit/utils/**'
       - 'src/main/java/me/youngjibbit/core/diagnostics/**'
+      - 'src/main/java/me/youngjibbit/gui/**'
+      - 'src/main/java/me/youngjibbit/clickgui/**'
+      - 'src/main/java/me/youngjibbit/module/impl/render/**'
       - 'src/main/java/me/youngjibbit/theme/ThemeCatalog.java'
       - 'src/main/java/net/minecraft/client/Minecraft.java'
       - 'src/main/java/net/minecraft/client/renderer/**'

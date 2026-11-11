@@ -31,10 +31,7 @@ public final class LegacyUiStyle {
         if (width > 0) UIUtils.drawDecorationRound(x, y, width, .7f, .35f, hairline(theme));
     }
     public static void card(float x, float y, float width, float height, Theme theme, boolean selected, boolean hover) {
-        if (width <= 0 || height <= 0) return;
-        UIUtils.drawRound(x, y, width, height, CONTROL_RADIUS,
-                selected ? control(theme, true) : hover ? new Color(45, 55, 71) : control(theme, false));
-        if (selected) UIUtils.drawDecorationRound(x + 1, y + 7, 2, Math.max(0, height - 14), 1, accent(theme, .9f));
+        LiquidGlass.card(x, y, width, height, CONTROL_RADIUS, theme, selected, hover ? 1 : 0);
     }
 
     /** Small stroke icons share the control ink and remain independent of installed icon fonts. */
@@ -77,6 +74,38 @@ public final class LegacyUiStyle {
                     box(2, 2, 9, 9, c); box(6, 6, 8, 8, c); break;
                 case "search":
                     box(2, 2, 8, 8, c); line(9, 9, 14, 14, c); break;
+                case "heart":
+                    line(8, 14, 2.5f, 8, c); line(2.5f, 8, 2.5f, 4.5f, c);
+                    line(2.5f, 4.5f, 5.25f, 3.25f, c); line(5.25f, 3.25f, 8, 6, c);
+                    line(8, 6, 10.75f, 3.25f, c); line(10.75f, 3.25f, 13.5f, 4.5f, c);
+                    line(13.5f, 4.5f, 13.5f, 8, c); line(13.5f, 8, 8, 14, c); break;
+                case "range":
+                    line(1.5f, 8, 14.5f, 8, c); line(1.5f, 5, 1.5f, 11, c);
+                    line(14.5f, 5, 14.5f, 11, c); dot(8, 8, c); break;
+                case "sword": case "kills":
+                    line(3, 13, 11.5f, 4.5f, c); line(11.5f, 4.5f, 13, 3, c);
+                    line(10, 3, 13, 3, c); line(13, 3, 13, 6, c);
+                    line(4.5f, 9.5f, 6.5f, 11.5f, c); break;
+                case "armor":
+                    line(3, 3, 8, 2, c); line(8, 2, 13, 3, c);
+                    line(3, 3, 2, 9, c); line(13, 3, 14, 9, c);
+                    line(2, 9, 5, 12, c); line(14, 9, 11, 12, c);
+                    line(5, 12, 8, 13, c); line(11, 12, 8, 13, c); break;
+                case "clock": case "time":
+                    circle(8, 8, 6, c); line(8, 4.5f, 8, 8, c); line(8, 8, 10.5f, 9.5f, c); break;
+                case "eye":
+                    line(1.5f, 8, 4, 5, c); line(4, 5, 8, 4, c); line(8, 4, 12, 5, c);
+                    line(12, 5, 14.5f, 8, c); line(14.5f, 8, 12, 11, c); line(12, 11, 8, 12, c);
+                    line(8, 12, 4, 11, c); line(4, 11, 1.5f, 8, c); dot(8, 8, c); break;
+                case "bolt":
+                    line(9, 1.5f, 4.5f, 8.5f, c); line(4.5f, 8.5f, 8, 8.5f, c);
+                    line(8, 8.5f, 7, 14.5f, c); line(7, 14.5f, 11.5f, 7.5f, c);
+                    line(11.5f, 7.5f, 8, 7.5f, c); line(8, 7.5f, 9, 1.5f, c); break;
+                case "bell":
+                    line(3, 11, 4, 9.5f, c); line(4, 9.5f, 4, 6.5f, c);
+                    line(4, 6.5f, 8, 3, c); line(8, 3, 12, 6.5f, c);
+                    line(12, 6.5f, 12, 9.5f, c); line(12, 9.5f, 13, 11, c);
+                    line(3, 11, 13, 11, c); line(7, 13, 9, 13, c); break;
                 case "back":
                     line(11, 3, 6, 8, c); line(6, 8, 11, 13, c); break;
                 case "close":
@@ -100,6 +129,15 @@ public final class LegacyUiStyle {
         }
     }
     private static void dot(float x, float y, Color color) { disc(x,y,1,color); }
+    private static void circle(float cx,float cy,float radius,Color color) {
+        float previousX=cx+radius,previousY=cy;
+        for(int i=1;i<=12;i++){
+            double angle=i*Math.PI/6;
+            float nextX=cx+(float)Math.cos(angle)*radius,nextY=cy+(float)Math.sin(angle)*radius;
+            line(previousX,previousY,nextX,nextY,color);
+            previousX=nextX;previousY=nextY;
+        }
+    }
     private static void box(float x, float y, float w, float h, Color c) {
         line(x, y, x + w, y, c); line(x + w, y, x + w, y + h, c);
         line(x + w, y + h, x, y + h, c); line(x, y + h, x, y, c);

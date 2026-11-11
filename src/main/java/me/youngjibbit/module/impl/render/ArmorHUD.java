@@ -4,6 +4,7 @@ import me.youngjibbit.Pulsar;
 import me.youngjibbit.clickgui.utils.ClipRect;
 import me.youngjibbit.clickgui.utils.GuiClip;
 import me.youngjibbit.gui.HudSpring;
+import me.youngjibbit.gui.LiquidGlass;
 import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.theme.ThemeCatalog;
 import me.youngjibbit.module.impl.client.ClientSettings;
@@ -40,13 +41,13 @@ public class ArmorHUD extends Module {
     private final CompactHudMotion[] slotChanges=new CompactHudMotion[5];
     private final Object[] previousItems=new Object[5];
     private static final String[] SLOT_NAMES={"Head","Body","Legs","Feet","Hand"};
-    private long durabilityFrame;
+    private long durabilityFrame,sceneEpoch;
     private Object durabilityWorld;
     { for(int i=0;i<durabilitySprings.length;i++){durabilitySprings[i]=new HudSpring();slotChanges[i]=new CompactHudMotion();} }
     private void clearDurabilityMotion(){
         for(HudSpring spring:durabilitySprings)spring.reset();
         for(CompactHudMotion motion:slotChanges)motion.reset();Arrays.fill(previousItems,null);
-        durabilityFrame=0;
+        durabilityFrame=0;sceneEpoch++;
     }
     private final SliderValue positionX=new SliderValue("Position X",this,100.0,-16384,16384);
     private final SliderValue positionY=new SliderValue("Position Y",this,300.0,-16384,16384);
@@ -59,10 +60,13 @@ public class ArmorHUD extends Module {
     private float x=100,y=300,width,height,grabX,grabY;
     private boolean dragging,previousButton;
     @Subscribe public final Listener<Event2D> render=new Listener<>(e->{if(isToggled())renderArmorHUD();});
+    @Subscribe private final Listener<me.youngjibbit.event.world.WorldEvent> world=new Listener<>(e->{
+        clearDurabilityMotion();durabilityWorld=null;surface.close();dragging=false;HudDrag.cancel(this);
+    });
     @Override public void onDisable(){dragging=false;clearDurabilityMotion();durabilityWorld=null;me.youngjibbit.utils.render.HudDrag.cancel(this);surface.close();super.onDisable();}
     public void renderArmorHUD(){
         if(!me.youngjibbit.module.impl.client.HUD.visible()){dragging=false;clearDurabilityMotion();HudDrag.cancel(this);surface.close();return;}
-        if(mc.thePlayer==null||mc.gameSettings.showDebugInfo){dragging=false;clearDurabilityMotion();previousButton=Mouse.isCreated()&&Mouse.isButtonDown(0);return;}
+        if(mc.thePlayer==null||mc.gameSettings.showDebugInfo){dragging=false;clearDurabilityMotion();HudDrag.cancel(this);if(mc.thePlayer==null){durabilityWorld=null;surface.close();}previousButton=Mouse.isCreated()&&Mouse.isButtonDown(0);return;}
         ScaledResolution sr=new ScaledResolution(mc);
         Frame frame=layout(mc.thePlayer.inventory.armorInventory,mc.thePlayer.getHeldItem(),sr.getScaledWidth(),sr.getScaledHeight());
         boolean down=Mouse.isCreated()&&Mouse.isButtonDown(0);
@@ -72,7 +76,7 @@ public class ArmorHUD extends Module {
         frame.x=x;frame.y=y;paint(frame);
     }
     Frame layout(ItemStack[] armor,ItemStack hand,int sw,int sh){
-        if(durabilityWorld!=mc.theWorld){durabilityWorld=mc.theWorld;clearDurabilityMotion();}
+        if(durabilityWorld!=mc.theWorld){durabilityWorld=mc.theWorld;clearDurabilityMotion();surface.close();}
         long now=System.nanoTime();
         float dt=durabilityFrame==0||now<=durabilityFrame?0:
                 Math.min(.05f,(now-durabilityFrame)/1_000_000_000f);
@@ -165,26 +169,35 @@ public class ArmorHUD extends Module {
 
     /** Shared content geometry: Modern groups the rail; Creative uses detached round tabs. */
     private void paintCompact(Frame f){
-        GuiShaderBloom.afterBatch(()->surface.withScene(f.theme,f.background,f.blur,3,policy->{
+        final long epoch=sceneEpoch;
+        GuiShaderBloom.afterBatch(()->{
+            if(epoch!=sceneEpoch)return;
+            surface.withScene(f.theme,f.background,f.blur,3,policy->{
             try(RenderState state=new RenderState()){
                 state.screenSpace();
                 try(GuiClip clip=GuiClip.push(new ClipRect(f.x,f.y,f.width*f.scale,f.height*f.scale))){
                     glTranslatef(f.x,f.y,0);glScalef(f.scale,f.scale,1);
                     boolean creative="Creative".equals(f.design);
                     if(!creative){
-                        if(policy.blur)UiEffects.drawBlurredRect(0,0,f.width,f.height,10,Color.WHITE,3,1);
+                        if(policy.blur&&(!policy.background||!UiEffects.material()))UiEffects.drawBlurredRect(0,0,f.width,f.height,10,Color.WHITE,3,1);
                         if(policy.background){
                             if(UiEffects.material())UIUtils.drawSceneRound(0,0,f.width,f.height,10);
                             else UIUtils.drawRound(0,0,f.width,f.height,10,new Color(17,23,34,Math.round(232*policy.opacity)));
+                            float radius=Math.max(0,UiEffects.radius(10,f.width,f.height)-1);
+                            LiquidGlass.highlight(1,1,Math.max(1,f.width-2),Math.max(1,f.height-2),radius,policy.opacity);
+                            LiquidGlass.border(1,1,Math.max(1,f.width-2),Math.max(1,f.height-2),radius,f.theme,false,policy.opacity);
                         }
                     }
                     for(Cell cell:f.cells){
                         if(creative){
-                            if(policy.blur)UiEffects.drawBlurredRect(cell.x,cell.y,cell.w,cell.h,8,Color.WHITE,3,1);
+                            if(policy.blur&&(!policy.background||!UiEffects.material()))UiEffects.drawBlurredRect(cell.x,cell.y,cell.w,cell.h,8,Color.WHITE,3,1);
                             if(policy.background){
                                 if(UiEffects.material())UIUtils.drawSceneRound(cell.x,cell.y,cell.w,cell.h,8);
                                 else UIUtils.drawRound(cell.x,cell.y,cell.w,cell.h,8,
                                         new Color(17,23,34,Math.round(232*policy.opacity)));
+                                float radius=UiEffects.radius(8,cell.w,cell.h);
+                                LiquidGlass.highlight(cell.x,cell.y,cell.w,cell.h,radius,policy.opacity);
+                                LiquidGlass.border(cell.x,cell.y,cell.w,cell.h,radius,f.theme,false,policy.opacity);
                             }
                         }else if(policy.background)UIUtils.drawDecorationRound(cell.x,cell.y,cell.w,cell.h,7,
                                 new Color(133,160,195,Math.round((cell.item==null?12:18)*policy.opacity)));
@@ -226,7 +239,8 @@ public class ArmorHUD extends Module {
                     }finally{mc.getRenderItem().zLevel=oldZ;}
                 }
             }
-        }));
+            });
+        });
     }
     private static String fitLabel(String text,TTFFontRenderer font,float available){
         if(font.getWidth(text)<=available)return text;
@@ -261,7 +275,10 @@ public class ArmorHUD extends Module {
         if(f.cells.isEmpty())return;
         final boolean modern="Modern".equals(f.design)||f.modern;
         if(f.modern){paintCompact(f);return;}
-        GuiShaderBloom.afterBatch(()->surface.panel(f.x,f.y,f.width*f.scale,f.height*f.scale,
+        final long epoch=sceneEpoch;
+        GuiShaderBloom.afterBatch(()->{
+            if(epoch!=sceneEpoch)return;
+            surface.panel(f.x,f.y,f.width*f.scale,f.height*f.scale,
                 (f.modern?9:5)*f.scale,f.theme,f.background,f.blur,f.glow,
                 f.modern?3:4,f.modern?.82f:.7f,
                 f.background?(f.modern?.14f:.7f):0,()->{
@@ -320,7 +337,8 @@ public class ArmorHUD extends Module {
                     }
                 }finally{mc.getRenderItem().zLevel=oldZ;}
             }
-        }));
+            });
+        });
     }
     // Equipment information is a ratio, independent of decorative motion and direction.
     static int durabilityColor(Theme theme,float remaining){

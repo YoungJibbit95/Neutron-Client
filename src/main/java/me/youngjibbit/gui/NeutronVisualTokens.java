@@ -28,6 +28,21 @@ public final class NeutronVisualTokens {
             RADIUS_CARD = 8, RADIUS_CONTROL = 7;
     public static final float GUTTER = 12, ROW_GAP = 7, CARD_HEIGHT = 44;
 
+    /* Neutron 2.0 liquid-glass layers. Existing opaque tokens stay for screens
+       that are not part of this pass (Watermark, MainMenu, ArrayList). */
+    public static Color glassCard() { return LiquidGlass.fill(
+            me.youngjibbit.utils.Theme.getDefaultTheme(), LiquidGlass.CARD); }
+    public static Color glassControl() { return LiquidGlass.fill(
+            me.youngjibbit.utils.Theme.getDefaultTheme(), LiquidGlass.CONTROL); }
+    public static Color glassPanel() { return LiquidGlass.fill(
+            me.youngjibbit.utils.Theme.getDefaultTheme(), LiquidGlass.PANEL); }
+    public static Color glassBorder() { return new Color(236, 228, 244, LiquidGlass.HAIRLINE); }
+    public static Color glassHighlight() { return LiquidGlass.HIGHLIGHT_INK; }
+
+    public static float radiusControl() { return LiquidGlass.radius(RADIUS_CONTROL); }
+    public static float radiusCard() { return LiquidGlass.radius(RADIUS_CARD); }
+    public static float radiusFrame() { return LiquidGlass.radius(RADIUS_FRAME); }
+
     public static Color alpha(int argb, int alpha) {
         return new Color((argb & 0xffffff) | (Math.max(0,Math.min(255,alpha)) << 24),true);
     }
