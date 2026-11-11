@@ -10,6 +10,11 @@ import me.youngjibbit.module.Module;
 import me.youngjibbit.module.ModuleInfo;
 import me.youngjibbit.module.ModuleManager;
 import me.youngjibbit.module.impl.client.ClientSettings;
+import me.youngjibbit.module.impl.combat.Aura;
+import me.youngjibbit.module.impl.player.InventoryManager;
+import me.youngjibbit.module.impl.player.Stealer;
+import me.youngjibbit.module.impl.render.TargetESP;
+import me.youngjibbit.module.impl.world.Scaffold;
 import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.utils.render.UiEffects;
 import me.youngjibbit.value.Value;
@@ -91,6 +96,51 @@ public class SettingSubcategoryTest {
         assertEquals("Placement",bridge.get("place_delay"));
         assertEquals("Safety",bridge.get("clutch"));
         assertEquals("Aiming",bridge.get("adaptive_noise_profile"));
+    }
+
+    @Test public void targetEspUsesThreeCompleteSemanticSectionsInPresentationOrder(){
+        TargetESP target=new TargetESP();
+        List<Value<?>> original=new ArrayList<>(target.getValues());
+        List<SubcategoryValue> sections=SettingSubcategories.create(target,target.getValues());
+        List<String> names=new ArrayList<>();
+        for(SubcategoryValue section:sections)names.add(section.getName());
+        assertEquals(Arrays.asList("Halo","Hitpoint","Appearance"),names);
+        Map<String,String> groups=assignments(target);
+        assertEquals(original.size(),groups.size());
+        for(String id:Arrays.asList("target_halo","halo_radius_padding","halo_width","halo_speed","halo_trail","halo_motion"))
+            assertEquals(id,"Halo",groups.get(id));
+        for(String id:Arrays.asList("hitpoint","hitpoint_source","hitpoint_size","hitpoint_ray_length","show_ray_misses"))
+            assertEquals(id,"Hitpoint",groups.get(id));
+        for(String id:Arrays.asList("opacity","glow_strength","through_walls","color_source","custom_color"))
+            assertEquals(id,"Appearance",groups.get(id));
+        assertEquals("Presentation must preserve live value registration",original,target.getValues());
+    }
+
+    @Test public void targetEspSectionsRetainTheirSwitchesWhenTheirOptionalChildrenAreHidden(){
+        TargetESP target=new TargetESP();
+        List<SubcategoryValue> sections=SettingSubcategories.create(target,target.getValues());
+        assertEquals(6,sections.get(0).visibleCount());
+        assertEquals(5,sections.get(1).visibleCount());
+        assertEquals(4,sections.get(2).visibleCount());
+        target.getBooleanSetting("Target Halo").setValue(false);
+        target.getBooleanSetting("Hitpoint").setValue(false);
+        assertEquals(1,sections.get(0).visibleCount());assertTrue(sections.get(0).isVisible());
+        assertEquals(1,sections.get(1).visibleCount());assertTrue(sections.get(1).isVisible());
+        target.getModeSetting("Color Source").setValue("Custom");
+        assertEquals(5,sections.get(2).visibleCount());
+        assertEquals("Hitpoint",assignments(target).get("hitpoint_ray_length"));
+    }
+
+    @Test public void allFourSmartDisableModulesKeepOptInLifecycleValuesInSafety(){
+        for(Module owner:Arrays.asList(new Aura(),new Scaffold(),new Stealer(),new InventoryManager())){
+            Map<String,String> groups=assignments(owner);
+            for(String name:Arrays.asList("Smart Disable on Death","Smart Disable on World Change")){
+                CheckBoxValue option=owner.getBooleanSetting(name);
+                assertNotNull(owner.getName()+": "+name,option);
+                assertFalse("Lifecycle stops stay opt-in for "+owner.getName(),option.getValue());
+                assertEquals(owner.getName()+": "+name,"Safety",groups.get(option.getId()));
+            }
+        }
     }
     private static Map<String,String> assignments(Module module){
         Map<String,String> result=new HashMap<>();

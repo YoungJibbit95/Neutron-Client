@@ -3,6 +3,7 @@ package me.youngjibbit.module;
 import lombok.Getter;
 import lombok.AccessLevel;
 import me.youngjibbit.core.activity.ModuleToggleJournal;
+import me.youngjibbit.core.module.ModuleSmartDisable;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.value.Value;
 import me.youngjibbit.value.impl.CheckBoxValue;
@@ -38,6 +39,8 @@ public abstract class Module implements Subscriber {
     private Consumer<Boolean> persistenceListener;
     private boolean configUpdate;
     private final Set<Value<?>> configChanges = new LinkedHashSet<>();
+    @Getter(AccessLevel.NONE)
+    private ModuleSmartDisable smartDisable;
 
     public void setPersistenceListener(Consumer<Boolean> listener) {
         persistenceListener = listener;
@@ -59,6 +62,7 @@ public abstract class Module implements Subscriber {
 
     public void beginConfigUpdate() {
         beginSettingsUpdate();
+        if (smartDisable != null) smartDisable.resetConfigDefaults();
     }
 
     /** Batch explicit setting edits without applying legacy config defaults. */
@@ -145,11 +149,18 @@ public abstract class Module implements Subscriber {
     }
 
     public void onEnable() {
+        if (smartDisable != null) smartDisable.enable();
         Pulsar.BUS.subscribe(this);
     }
 
     public void onDisable() {
+        if (smartDisable != null) smartDisable.disable();
         Pulsar.BUS.unsubscribe(this);
+    }
+
+    /** Call at the end of an opted-in module's setting registration. */
+    protected final void enableSmartDisable() {
+        if (smartDisable == null) smartDisable = new ModuleSmartDisable(this, () -> mc);
     }
 
     public void onToggle() {
@@ -187,6 +198,7 @@ public abstract class Module implements Subscriber {
             persistentChange(true);
             completed = true;
         } finally {
+            if (!this.toggled && smartDisable != null) smartDisable.disable();
             toggleObservation.end(mc, this, id, name, this.toggled, completed);
         }
     }

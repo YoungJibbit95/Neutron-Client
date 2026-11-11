@@ -30,7 +30,9 @@ public class InventoryManagerSafetyTest {
    InventoryManager m=new InventoryManager();Drops d=new Drops(f.mc);f.mc.playerController=d;
    f.player.inventoryContainer=new net.minecraft.inventory.ContainerPlayer(f.player.inventory,false,f.player);
    f.player.openContainer=f.player.inventoryContainer;
+   f.mc.currentScreen=new net.minecraft.client.gui.inventory.GuiInventory(f.player);
    for(boolean full:new boolean[]{false,true}) {
+    f.player.ticksExisted++;
     Arrays.fill(f.player.inventory.mainInventory,null);
     if(full) for(int i=0;i<9;i++)f.player.inventory.mainInventory[i]=new ItemStack(Items.stick);
     ItemStack plain=new ItemStack(Items.diamond_pickaxe),best=new ItemStack(Items.diamond_pickaxe);best.addEnchantment(Enchantment.efficiency,5);

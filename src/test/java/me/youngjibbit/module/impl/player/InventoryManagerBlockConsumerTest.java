@@ -33,6 +33,7 @@ import static org.junit.Assert.*;
 public class InventoryManagerBlockConsumerTest {
     private static InventoryManager manager() {
         InventoryManager manager = new InventoryManager();
+        manager.layout.setValue("Legacy");
         manager.random.setValue(false);
         manager.maxBlocks.setValue(1.0);
         return manager;
@@ -479,6 +480,7 @@ public class InventoryManagerBlockConsumerTest {
                 assertEquals(37, ((C0EPacketClickWindow) packet).getSlotId());
                 assertEquals(0, ((C0EPacketClickWindow) packet).getUsedButton());
                 assertNull("at most one actual action per update", f.channel.readOutbound());
+                f.player.ticksExisted++;
                 Pulsar.BUS.post(new EventUpdate());
                 assertNull("the bow is already correctly placed after the first swap", f.channel.readOutbound());
                 assertEquals(Items.diamond_sword, f.player.inventory.mainInventory[0].getItem());

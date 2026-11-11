@@ -7,6 +7,7 @@ import me.youngjibbit.module.impl.combat.Velocity;
 import me.youngjibbit.module.impl.movement.Speed;
 import me.youngjibbit.module.impl.player.NoSlow;
 import net.minecraft.item.ItemStack;
+import net.minecraft.init.Blocks;
 import net.minecraft.init.Items;
 import me.youngjibbit.core.combat.*;
 import me.youngjibbit.event.player.PlayerMoveUpdateEvent;
@@ -487,6 +488,11 @@ public class AuraMovementConsistencyTest {
             try (Run run = new Run("Einfach")) {
                 run.f.run.fixture.aura.setToggled(false);
                 run.remoteTarget();
+                // This positive jump case needs real support, not just a synthetic onGround flag.
+                AxisAlignedBB grounded = run.player.getEntityBoundingBox();
+                run.f.run.scene.blocks.put(new BlockPos(run.player.posX, grounded.minY - 1, run.player.posZ),
+                        Blocks.stone.getDefaultState());
+                assertFalse(run.f.run.scene.getCollidingBoundingBoxes(run.player, grounded.offset(0, -.01, 0)).isEmpty());
                 Velocity velocity = new Velocity();
                 velocity.mode.setValue("Legit Jumpreset");
                 velocity.setToggled(true);
@@ -499,6 +505,20 @@ public class AuraMovementConsistencyTest {
                         Pulsar.BUS.post(sample);
                         assertEquals(expected, sample.isJump());
                     }
+                    run.player.ticksExisted++;
+                    run.player.onGround = false;
+                    run.player.setEntityBoundingBox(grounded.offset(0, .42, 0));
+                    impulse(run);
+                    MovementInputEvent airborne = new MovementInputEvent(0, 1, false, false);
+                    Pulsar.BUS.post(airborne);
+                    assertFalse("airborne input never creates an automatic jump", airborne.isJump());
+                    run.player.ticksExisted++;
+                    run.player.onGround = true;
+                    impulse(run);
+                    MovementInputEvent staleGround = new MovementInputEvent(0, 1, false, false);
+                    Pulsar.BUS.post(staleGround);
+                    assertFalse("onGround without a support surface still cannot jump", staleGround.isJump());
+                    run.player.setEntityBoundingBox(grounded);
                     assertFalse(run.f.walk().stream().anyMatch(C02PacketUseEntity.class::isInstance));
                 } finally { velocity.setToggled(false); }
             }

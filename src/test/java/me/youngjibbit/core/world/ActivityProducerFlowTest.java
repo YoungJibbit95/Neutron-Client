@@ -117,6 +117,7 @@ public class ActivityProducerFlowTest {
             f.player.inventory.mainInventory[3] = new ItemStack(Blocks.planks, 48, 2);
             f.player.inventory.mainInventory[8] = new ItemStack(Blocks.tnt, 4);
             InventoryManager manager = new InventoryManager();
+            manager.layout.setValue("Legacy");
             manager.random.setValue(false); manager.maxBlocks.setValue(8D); manager.autoArmor.setValue(false);
             ScaffoldClientFlowTest.set(InventoryManager.class, manager, "activityClock", (LongSupplier) clock::get);
             ScaffoldClientFlowTest.set(InventoryManager.class, manager, "startDelayTimer", new ReadyTimer());
@@ -185,16 +186,20 @@ public class ActivityProducerFlowTest {
                     assertNull("observed invalidation cannot revive on an ABA restoration", manager.getActivitySnapshot());
                     assertEquals("historical data remain immutable", 1, observed.getProcessed());
 
+                    // The first swap consumed this tick; a fresh producer update belongs to the next one.
+                    f.player.ticksExisted++;
                     Pulsar.BUS.post(new EventUpdate());
                     InventoryActivitySnapshot complete = manager.getActivitySnapshot();
                     assertNotNull(complete); assertTrue(complete.isComplete()); assertEquals(-1, complete.getTotal());
                     assertEquals(0, drain(f, C0EPacketClickWindow.class));
                     clock.set(InventoryActivitySnapshot.TTL_NANOS + 1);
                     assertNull("no producer heartbeat means no stale display", manager.getActivitySnapshot());
+                    f.player.ticksExisted++;
                     Pulsar.BUS.post(new EventUpdate());
                     assertNotNull(manager.getActivitySnapshot());
                     f.mc.currentScreen = RotationBehaviorHookTest.bare(GuiInventory.class);
                     assertNull("even the same screen type is a different lifetime", manager.getActivitySnapshot());
+                    f.player.ticksExisted++;
                     Pulsar.BUS.post(new EventUpdate());
                     assertNotNull(manager.getActivitySnapshot());
                     f.mc.theWorld = RotationBehaviorHookTest.bare(WorldClient.class);
@@ -236,6 +241,7 @@ public class ActivityProducerFlowTest {
                 ContainerChest chest = new ContainerChest(f.player.inventory, storage, f.player);
                 f.player.openContainer = chest;
                 f.mc.currentScreen = RotationBehaviorHookTest.bare(GuiChest.class);
+                ((GuiChest) f.mc.currentScreen).inventorySlots = chest;
                 Stealer stealer = new Stealer();
                 stealer.getBooleanSetting("Auto Close").setValue(false);
                 stealer.getBooleanSetting("Randomness").setValue(false);
@@ -247,20 +253,34 @@ public class ActivityProducerFlowTest {
                 try {
                     assertNull(stealer.getActivitySnapshot());
                     Pulsar.BUS.post(new EventUpdate());
+                    InventoryActivitySnapshot first = stealer.getActivitySnapshot();
+                    assertNotNull(first); assertFalse(first.isComplete());
+                    assertEquals(InventoryActivitySnapshot.Producer.STEALER, first.getProducer());
+                    assertEquals(1, first.getProcessed()); assertEquals(2, first.getTotal());
+                    assertNull(storage.getStackInSlot(0)); assertNotNull(storage.getStackInSlot(1));
+                    assertEquals(1, drain(f, C0EPacketClickWindow.class));
+                    Pulsar.BUS.post(new EventUpdate());
+                    assertNotNull("the second stack must survive repeated updates in the same client tick", storage.getStackInSlot(1));
+                    assertEquals(1, stealer.getActivitySnapshot().getProcessed());
+                    assertEquals(0, drain(f, C0EPacketClickWindow.class));
+                    f.player.ticksExisted++;
+                    Pulsar.BUS.post(new EventUpdate());
                     InventoryActivitySnapshot completed = stealer.getActivitySnapshot();
                     assertNotNull(completed); assertTrue(completed.isComplete());
                     assertEquals(InventoryActivitySnapshot.Producer.STEALER, completed.getProducer());
                     assertEquals(2, completed.getProcessed()); assertEquals(2, completed.getTotal());
                     assertNull(storage.getStackInSlot(0)); assertNull(storage.getStackInSlot(1));
-                    assertEquals(2, drain(f, C0EPacketClickWindow.class));
+                    assertEquals(1, drain(f, C0EPacketClickWindow.class));
                     for (int read = 0; read < 100; read++) assertSame(completed, stealer.getActivitySnapshot());
                     assertNull(f.channel.readOutbound());
                     f.mc.currentScreen = RotationBehaviorHookTest.bare(GuiChest.class);
+                    ((GuiChest) f.mc.currentScreen).inventorySlots = chest;
                     assertNull(stealer.getActivitySnapshot());
 
                     storage.setInventorySlotContents(0, new ItemStack(Items.diamond, 3));
                     RejectingController rejected = new RejectingController(f);
                     f.mc.playerController = rejected;
+                    f.player.ticksExisted++;
                     Pulsar.BUS.post(new EventUpdate());
                     InventoryActivitySnapshot attempt = stealer.getActivitySnapshot();
                     assertNotNull(attempt); assertFalse(attempt.isComplete());
@@ -272,6 +292,7 @@ public class ActivityProducerFlowTest {
                     for (int read = 0; read < 100; read++) assertSame(attempt, stealer.getActivitySnapshot());
                     assertEquals(1, rejected.clicks);
                     rejected.onClick = () -> stealer.setToggled(false);
+                    f.player.ticksExisted++;
                     Pulsar.BUS.post(new EventUpdate());
                     assertNull("an action callback cannot republish after disable", stealer.getActivitySnapshot());
                     assertEquals(0, attempt.getProcessed());

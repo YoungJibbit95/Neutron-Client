@@ -143,7 +143,9 @@ public class GuiChat extends GuiScreen
                 this.sendChatMessage(s);
             }
 
-            this.mc.displayGuiScreen((GuiScreen)null);
+            // Local commands can intentionally replace chat with a client editor.
+            // Close only the chat screen that handled Enter, not the new destination.
+            if (this.mc.currentScreen == this) this.mc.displayGuiScreen((GuiScreen)null);
         }
     }
 

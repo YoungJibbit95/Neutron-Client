@@ -8,6 +8,8 @@ import me.youngjibbit.gui.MainMenu;
 import me.youngjibbit.gui.UiSpring;
 import me.youngjibbit.gui.clientsettings.SettingsMenu;
 import me.youngjibbit.module.impl.client.ClientSettings;
+import me.youngjibbit.module.impl.player.InventoryManager;
+import me.youngjibbit.gui.inventory.TrashMenuScreen;
 import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.font.TTFFontRenderer;
 import me.youngjibbit.utils.render.*;
@@ -17,13 +19,14 @@ import java.io.IOException;
 
 /** A small navigation hub. Module editing belongs exclusively to the ClickGUI. */
 public class SideGuiScreen extends GuiScreen {
-    private static final String[] TITLES={"Configs","Themes","Client settings","Accounts"};
+    private static final String[] TITLES={"Configs","Themes","Client settings","Accounts","Trash filters"};
     private static final String[] DETAILS={"Save and restore your setup","Palettes and visual identity",
-            "Appearance, motion and HUD","Manage your local profiles"};
-    private static final String[] ICONS={"save","palette","settings","accounts"};
+            "Appearance, motion and HUD","Manage your local profiles","Search items and edit your blacklist"};
+    private static final String[] ICONS={"save","palette","settings","accounts","delete"};
+    private static final int[] NAVIGATION={1,2,3,4,6,5};
     private final GuiScreen parent;
     private final ArrayListSurface surface=new ArrayListSurface();
-    private final UiSpring[] motion=new UiSpring[6];
+    private final UiSpring[] motion=new UiSpring[7];
     private float x,y,w,h;
     private int navFocus=1,pressed=-1;
     private long lastFrame=System.nanoTime();
@@ -37,17 +40,19 @@ public class SideGuiScreen extends GuiScreen {
         for(UiSpring spring:motion)spring.reset();
     }
     private void layout() {
-        w=Math.min(496,Math.max(1,width-20));h=Math.min(296,Math.max(1,height-20));
+        w=Math.min(496,Math.max(1,width-20));h=Math.min(344,Math.max(1,height-20));
         x=(width-w)/2;y=(height-h)/2;
     }
     protected ClipRect window(){return new ClipRect(x,y,w,h);}
     private int columns(){return w>=280?2:1;}
     protected ClipRect tabBounds(int id) {
         if(id==5)return new ClipRect(x+w-76,y+10,62,24);
-        if(id<1||id>4)return new ClipRect(0,0,0,0);
-        int cols=columns(),row=(id-1)/cols,column=(id-1)%cols;
+        if(id<1||id>6)return new ClipRect(0,0,0,0);
+        int index=id==6?4:id-1;
+        int cols=columns(),row=index/cols,column=index%cols;
         float top=h<240?58:78,gap=8,cell=(w-28-(cols-1)*gap)/cols;
-        float pitch=(Math.max(32,h-top-33)+gap)/((4+cols-1)/cols);
+        float pitch=(Math.max(32,h-top-33)+gap)/((5+cols-1)/cols);
+        if(index==4&&cols==2)cell=w-28;
         return new ClipRect(x+14+column*(cell+gap),y+top+row*pitch,cell,Math.max(18,pitch-gap));
     }
     private TTFFontRenderer font(){return ClickControlStyle.font();}
@@ -66,7 +71,7 @@ public class SideGuiScreen extends GuiScreen {
                     Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Bold 28").drawString("Library",x+16,y+13,ink);
                     if(h>=240)text("Your client, organized.",x+16,y+38,w-32,LegacyUiStyle.MUTED);
                     LegacyUiStyle.rule(x+16,y+(h<240?44:62),w-32,theme);
-                    for(int id=1;id<=5;id++) {
+                    for(int id:NAVIGATION) {
                         ClipRect hit=tabBounds(id);
                         motion[id].stepForInput(dt,hit.contains(mx,my),navFocus==id,pressed==id,true,ClientSettings.current());
                         ClipRect r=GuiStyle.buttonBounds(hit,motion[id]);
@@ -78,12 +83,13 @@ public class SideGuiScreen extends GuiScreen {
                         }
                         boolean large=r.height>=60;
                         float iconSize=large?24:18,iconY=large?r.y+13:r.y+(r.height-iconSize)/2;
-                        LegacyUiStyle.icon(ICONS[id-1],r.x+12,iconY,iconSize,theme.getPrimaryGradientRGB());
+                        int index=id==6?4:id-1;
+                        LegacyUiStyle.icon(ICONS[index],r.x+12,iconY,iconSize,theme.getPrimaryGradientRGB());
                         float labelX=r.x+12+iconSize+10;
-                        text(TITLES[id-1],labelX,large?r.y+16:r.y+(r.height-10)/2,r.width-(labelX-r.x)-12,ink);
-                        if(large)text(DETAILS[id-1],r.x+12,r.y+r.height-22,r.width-24,LegacyUiStyle.MUTED);
+                        text(TITLES[index],labelX,large?r.y+16:r.y+(r.height-10)/2,r.width-(labelX-r.x)-12,ink);
+                        if(large)text(DETAILS[index],r.x+12,r.y+r.height-22,r.width-24,LegacyUiStyle.MUTED);
                     }
-                    if(h>=180)text("Module settings are in the ClickGUI",x+16,y+h-18,w-32,LegacyUiStyle.FAINT);
+                    if(h>=180)text("Quick access: .trash opens your item filters",x+16,y+h-18,w-32,LegacyUiStyle.FAINT);
                 }
             });
         }
@@ -97,12 +103,23 @@ public class SideGuiScreen extends GuiScreen {
             case 3:open(new SettingsMenu(this));break;
             case 4:open(new GuiAltManager(null,this));break;
             case 5:open(parent);break;
+            case 6:openTrash();break;
             default:break;
         }
     }
+    protected void openTrash() {
+        if(Pulsar.INSTANCE.getMm()==null)return;
+        InventoryManager manager=(InventoryManager)Pulsar.INSTANCE.getMm().getModule(InventoryManager.class);
+        if(manager!=null)open(new TrashMenuScreen(this,manager));
+    }
+    private void moveFocus(int step) {
+        int index=0;
+        for(int i=0;i<NAVIGATION.length;i++)if(NAVIGATION[i]==navFocus){index=i;break;}
+        navFocus=NAVIGATION[Math.floorMod(index+step,NAVIGATION.length)];
+    }
     @Override protected void mouseClicked(int mx,int my,int button)throws IOException {
         if(button!=0)return;layout();
-        for(int id=1;id<=5;id++)if(tabBounds(id).contains(mx,my)) {
+        for(int id:NAVIGATION)if(tabBounds(id).contains(mx,my)) {
             navFocus=id;pressed=id;activate(id);return;
         }
     }
@@ -110,12 +127,12 @@ public class SideGuiScreen extends GuiScreen {
     protected boolean shift(){return Keyboard.isCreated()&&isShiftKeyDown();}
     @Override protected void keyTyped(char c,int key)throws IOException {
         if(key==Keyboard.KEY_ESCAPE){open(parent);return;}
-        if(key==Keyboard.KEY_TAB){navFocus=Math.floorMod(navFocus-1+(shift()?-1:1),5)+1;return;}
+        if(key==Keyboard.KEY_TAB){moveFocus(shift()?-1:1);return;}
         if(key==Keyboard.KEY_LEFT||key==Keyboard.KEY_RIGHT) {
-            navFocus=Math.floorMod(navFocus-1+(key==Keyboard.KEY_LEFT?-1:1),5)+1;return;
+            moveFocus(key==Keyboard.KEY_LEFT?-1:1);return;
         }
         if(key==Keyboard.KEY_UP||key==Keyboard.KEY_DOWN) {
-            navFocus=Math.floorMod(navFocus-1+(key==Keyboard.KEY_UP?-columns():columns()),5)+1;return;
+            moveFocus(key==Keyboard.KEY_UP?-columns():columns());return;
         }
         if(key==Keyboard.KEY_RETURN||key==Keyboard.KEY_NUMPADENTER||key==Keyboard.KEY_SPACE)activate(navFocus);
     }

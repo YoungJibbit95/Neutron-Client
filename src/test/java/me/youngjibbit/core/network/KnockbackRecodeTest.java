@@ -31,6 +31,7 @@ public class KnockbackRecodeTest {
 
     @Test public void meleeResetPrecedesApplicationAndNeverAddsSprintImpulseOrOverwritesServerY() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
+            f.supportPlayerOnFloor();
             f.world.entities.put(1, f.player);
             JumpReset reset = new JumpReset(() -> 0, () -> 0);
             reset.setToggled(true);
@@ -50,6 +51,7 @@ public class KnockbackRecodeTest {
 
     @Test public void resetRejectsMissingOrExpiredEvidenceProjectileWaterChanceAndReusedEntityIds() throws Exception {
         for (int scenario = 0; scenario < 8; scenario++) try (ExploitHookFixture f = new ExploitHookFixture()) {
+            f.supportPlayerOnFloor();
             f.world.entities.put(1, f.player);
             AtomicLong now = new AtomicLong();
             JumpReset reset = new JumpReset(now::get, () -> .5);
@@ -73,6 +75,7 @@ public class KnockbackRecodeTest {
 
     @Test public void legitVelocityLeavesPacketIntactAndRequestsExactlyOneInputJump() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
+            f.supportPlayerOnFloor();
             f.world.entities.put(1, f.player); f.player.sprint = true;
             Velocity velocity = new Velocity(); velocity.setToggled(true);
             try {
@@ -87,6 +90,7 @@ public class KnockbackRecodeTest {
 
     @Test public void cancelledVelocityAndContextChangesCannotLeaveAJumpRequest() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
+            f.supportPlayerOnFloor();
             f.world.entities.put(1, f.player); f.player.sprint = true;
             Velocity velocity = new Velocity(); velocity.setToggled(true);
             NetworkTestSupport.Observer observer = new NetworkTestSupport.Observer(); Pulsar.BUS.subscribe(observer);
@@ -102,6 +106,7 @@ public class KnockbackRecodeTest {
 
     @Test public void standaloneResetOwnsTheJumpWhenBothModulesAreEnabled() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
+            f.supportPlayerOnFloor();
             f.world.entities.put(1, f.player); f.player.sprint = true;
             Velocity velocity = new Velocity(); JumpReset reset = new JumpReset(() -> 0, () -> 0);
             velocity.setToggled(true); reset.setToggled(true);
