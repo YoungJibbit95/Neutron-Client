@@ -2,6 +2,7 @@ package me.youngjibbit.clickgui.component.impl;
 
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.clickgui.utils.ClickControlStyle;
+import me.youngjibbit.gui.LiquidGlass;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.font.TTFFontRenderer;
@@ -18,6 +19,10 @@ public final class DropdownModule extends ClickModule {
     @Override public void drawScreen(int mouseX, int mouseY) {
         Theme theme = Theme.resolve(Theme.getDefaultTheme());
         float active = getToggleProgress();
+        float over = Math.min(1, Math.abs(getPresentation().amount()));
+        if (over > .02f)
+            UIUtils.drawDecorationRound(x + 1, y + 1, Math.max(1, width - 2), ROW_HEIGHT - 2, 3,
+                    LiquidGlass.fill(theme, Math.round(20 + 46 * over)));
         // One vertical accent ramp across the category, as in the reference.
         if (active > .001f) {
             UIUtils.drawDecorationGradientVertical(x, y, width, ROW_HEIGHT, 0,

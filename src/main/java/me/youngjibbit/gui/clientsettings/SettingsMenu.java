@@ -10,6 +10,7 @@ import me.youngjibbit.utils.render.*;
 import me.youngjibbit.gui.NeutronVisualTokens;
 import me.youngjibbit.clickgui.utils.MenuSurface;
 import me.youngjibbit.gui.LegacyUiStyle;
+import me.youngjibbit.gui.LiquidGlass;
 import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.clickgui.utils.*;
 import me.youngjibbit.notifications.*;
@@ -54,12 +55,16 @@ public class SettingsMenu extends GuiScreen {
     private void resetMotion(){
         pressed=-1;
         for(me.youngjibbit.gui.UiSpring state:actionMotion)state.reset();
+        valueMotion.clear();categoryMotion.clear();
         controlSprings.clear();presentation.reset();
         closingPopupValue=null;closingPopupBounds=null;
         lastFrame=System.nanoTime();
     }
     @Override public void initGui(){
         resetMotion();
+        // A resize invalidates the old pointer capture but keeps typed input and
+        // the logical dropdown selection available in the new layout.
+        drag=-1;dragValue=null;
         if(Keyboard.isCreated()){
             if(!ownsKeyboardRepeat){previousRepeat=Keyboard.areRepeatEventsEnabled();ownsKeyboardRepeat=true;}
             Keyboard.enableRepeatEvents(true);
@@ -106,6 +111,11 @@ public class SettingsMenu extends GuiScreen {
     private boolean compactLegacy(){return !two()&&h<340;}
     private boolean legacyPreview(){return !two()&&!compactLegacy();}
     private float sectionY(){return y+(compactLegacy()?44:58);}
+    /** Header accent stays above section controls at every supported GUI height. */
+    protected ClipRect entryAccentBounds(){
+        return new ClipRect(x+(two()?16:39),y+(two()?49:compactLegacy()?35:50),
+                Math.max(0,w-(two()?32:58)),1);
+    }
     protected ClipRect view(){
         if(two())return new ClipRect(x+inset(),y+94,w-inset()-14,Math.max(1,h-186));
         float top=compactLegacy()?78:104,bottom=legacyPreview()?108:62;
@@ -191,7 +201,7 @@ public class SettingsMenu extends GuiScreen {
             boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
             boolean creative=this.creative();
             surface.panel(x,y,w,h,two()?14:8,theme,true,true,!two(),
-                    two()?4:5,two()?.98f:.9f,two()?.2f:.8f,()->{
+                    two()?4:6,two()?.94f:.76f,two()?.18f:.52f,()->{
                 if(two()){
                     if(rail()) UIUtils.drawDecorationRound(x+5,y+58,Math.max(1,inset()-10),h-96,8,
                             new Color(17,23,33,182));
@@ -206,9 +216,9 @@ public class SettingsMenu extends GuiScreen {
                                 NeutronVisualTokens.accent(theme,(int)(140+90*Math.abs((float)Math.sin(pulse*.4f)))));
                     }
                 }else{
-                    LegacyUiStyle.rule(x+14,y+(compactLegacy()?35:49),w-28,theme);
+                    LiquidGlass.divider(x+14,y+(compactLegacy()?35:49),w-28,theme);
                     if(rail()){
-                        UIUtils.drawDecorationRound(x+8,y+58,inset()-20,h-114,6,LegacyUiStyle.alpha(LegacyUiStyle.panel(theme).getRGB(),.55f));
+                        LiquidGlass.inset(x+8,y+58,inset()-20,h-114,6,theme);
                         LegacyUiStyle.rule(x+inset(),y+h-54,w-inset()-14,theme);
                     }
                     LegacyUiStyle.icon("settings",x+15,y+13,16,theme.getPrimaryGradientRGB());
@@ -220,18 +230,19 @@ public class SettingsMenu extends GuiScreen {
                         x+(two()?16:39),y+33,two()?NeutronVisualTokens.MUTED:LegacyUiStyle.MUTED);
                 // The global screen exit animation stays owned by GuiTransitions.
                 // The entry accent uses the same spring policy; text/input remain ready.
-                if(me.youngjibbit.theme.ThemeMode.APPROACH_TWO.equals(me.youngjibbit.theme.ThemeMode.selected())
-                        &&entry.opacity>.01f)
-                    UIUtils.drawLiteralGradient(x+16,y+49+Math.max(0,entry.slideY*.22f),
-                            Math.max(.01f,(w-32)*entry.opacity),2,1,
-                            theme.getPrimaryGradientColor(),theme.getSecondaryGradientColor());
+                if(entry.opacity>.01f){
+                    ClipRect accent=entryAccentBounds();
+                    LiquidGlass.accentLine(accent.x,accent.y,accent.width*entry.opacity,theme,1);
+                }
                 List<String> sections=names();
-                if(rail()){
+                if(rail()&&!sections.isEmpty()){
                     float markerY=presentation.category(categoryBounds(group).y+4,dt,motionSettings);
-                    UIUtils.drawDecorationRound(x+(two()?16:12),markerY,2,
+                    markerY=Math.max(categoryBounds(0).y+4,
+                            Math.min(categoryBounds(sections.size()-1).y+4,markerY));
+                    UIUtils.drawDecorationGradientVertical(x+(two()?16:12),markerY,2,
                             categoryBounds(group).height-8,1,
-                            two()?(creative?NeutronVisualTokens.accent(theme,235):NeutronVisualTokens.accent(theme,220)):
-                                    theme.getPrimaryGradientColor());
+                            LiquidGlass.accent(theme,230),
+                            NeutronVisualTokens.secondary(theme,190));
                     for(int i=0;i<sections.size();i++){
                         ClipRect r=categoryBounds(i);boolean selected=i==group;
                         me.youngjibbit.gui.UiSpring motion=categoryMotion.computeIfAbsent(sections.get(i),k->new me.youngjibbit.gui.UiSpring());
@@ -241,7 +252,7 @@ public class SettingsMenu extends GuiScreen {
                             MenuSurface.card(r.x+3,r.y+1,r.width-6,r.height-2,theme,selected,motion.amount());
                         if(!two()){
                             if(selected||motion.amount()>.05f)MenuSurface.card(r.x+3,r.y+1,r.width-6,r.height-2,theme,selected,motion.amount());
-                            LegacyUiStyle.icon(i==0?"palette":i==5?"rename":i==6?"load":"settings",r.x+10,r.y+(r.height-12)/2,12,selected?LegacyUiStyle.INK:LegacyUiStyle.FAINT);
+                            LegacyUiStyle.icon(sectionIcon(sections.get(i)),r.x+10,r.y+(r.height-12)/2,12,selected?LegacyUiStyle.INK:LegacyUiStyle.FAINT);
                         }
                         text(fit(two()?sections.get(i):sectionLabel(sections.get(i)),r.width-(two()?14:35)),
                                 r.x+(two()?14:29),r.y+(r.height-font().getLineHeight())/2,
@@ -303,19 +314,12 @@ public class SettingsMenu extends GuiScreen {
             boolean on=((CheckBoxValue)value).getValue();
             float amount=follow(value,on?1:0,dt),sx=control.x+control.width-38,sy=control.y+6;
             text(on?"On":"Off",sx-25,control.y+9,on?0xffe5ecf7:0xff9da9bb);
-            if(two()){
-                UIUtils.drawDecorationRound(sx,sy,34,16,8,NeutronVisualTokens.CONTROL);
-                if(amount>.006f)UIUtils.drawDecorationRound(sx+1,sy+1,
-                        Math.max(1,32*Math.min(1,amount)),14,7,
-                        NeutronVisualTokens.accent(theme,185));
-                UIUtils.drawDecorationRound(sx+3+18*Math.max(0,Math.min(1,amount)),sy+3,
-                        10,10,5,new Color(251,247,252));
-            }else{
-                UIUtils.drawDecorationRound(sx,sy,34,16,8,
-                        new Color(Theme.interpolateRGB(0xff3a4659,theme.getPrimaryGradientRGB(),Math.max(0,Math.min(1,amount))),true));
-                UIUtils.drawDecorationRound(sx+3+18*Math.max(-.03f,Math.min(1.03f,amount)),sy+3,10,10,5,
-                        new Color(GuiStyle.ink(0xfff3f6fc,motion),true));
-            }
+            LiquidGlass.plate(sx,sy,34,16,8,theme,on,0);
+            if(amount>.006f)UIUtils.drawDecorationRound(sx+1,sy+1,
+                    Math.max(1,32*Math.min(1,amount)),14,7,
+                    LiquidGlass.accent(theme,Math.round(150+55*Math.min(1,amount))));
+            UIUtils.drawDecorationRound(sx+3+18*Math.max(0,Math.min(1,amount)),sy+3,
+                    10,10,5,new Color(251,247,252));
         }else if(value instanceof SliderValue){
             SliderValue slider=(SliderValue)value;
             String shown=editing==index?input+"_":number(slider);
@@ -323,11 +327,12 @@ public class SettingsMenu extends GuiScreen {
             text(fit(shown,control.width-12),two()?control.x+3:control.x+control.width-6-shownWidth,control.y+(two()?2:1),two()?GuiStyle.ink(0xffe5edf9,motion):LegacyUiStyle.INK);
             float fraction=(float)((slider.getValue()-slider.getMin())/Math.max(.0001,slider.getMax()-slider.getMin()));
             float amount=follow(value,fraction,dt);ClipRect track=sliderTrack(index);
-            UIUtils.drawDecorationRound(track.x,track.y,track.width,track.height,1,
-                    two()?NeutronVisualTokens.TRACK:LegacyUiStyle.alpha(LegacyUiStyle.MUTED,.22f));
+            UIUtils.drawDecorationRound(track.x,track.y,track.width,track.height,track.height/2,
+                    LiquidGlass.fill(theme,188));
+            UIUtils.drawRoundOutline(track.x,track.y,track.width,Math.max(1,track.height),
+                    track.height/2,.5f,new Color(0,0,0,1),LiquidGlass.ink(theme,34));
             UIUtils.drawDecorationRound(track.x,track.y,Math.max(.01f,track.width*amount),
-                    track.height,1,two()?(creative?NeutronVisualTokens.accent(theme,225):NeutronVisualTokens.accent(theme,215)):
-                            theme.getPrimaryGradientColor());
+                    track.height,track.height/2,LiquidGlass.accent(theme,225));
             UIUtils.drawDecorationRound(track.x-3+track.width*amount,track.y-2,
                     6,6,3,new Color(0xffedf3ff,true));
         }else{
@@ -341,6 +346,10 @@ public class SettingsMenu extends GuiScreen {
         ClientSettings settings=ClientSettings.current();
         me.youngjibbit.gui.HudSpring spring=controlSprings.computeIfAbsent(value,
                 key->new me.youngjibbit.gui.HudSpring());
+        // The captured thumb follows the committed value without a spring lag.
+        // Keyboard edits and external changes still use the shared transition.
+        if(value==dragValue&&value instanceof SliderValue)
+            return spring.snap(Math.max(0,Math.min(1,target)));
         float next=spring.step(target,dt,
                 settings==null||settings.animations.getValue(),
                 settings!=null&&settings.reducedMotion.getValue(),
@@ -369,9 +378,13 @@ public class SettingsMenu extends GuiScreen {
         boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
         boolean creative=this.creative();
         preview.panel(px,py,pw,34,two()?8:5,theme,true,true,false,two()?5:7,
-                two()?.92f:.45f,two()?.18f:.35f,()->{
-            UIUtils.drawRound(px+1,py+1,pw-2,32,two()?7:4,
-                    two()?(creative?NeutronVisualTokens.alpha(NeutronVisualTokens.CARD.getRGB(),240):NeutronVisualTokens.CARD):LegacyUiStyle.alpha(LegacyUiStyle.panel(theme).getRGB(),.42f));
+                two()?.92f:.56f,two()?.18f:.4f,()->{
+            float radius=UiEffects.radius(LiquidGlass.radius(two()?7:4,pw-2,32),pw-2,32);
+            UIUtils.drawRound(px+1,py+1,pw-2,32,radius,
+                    two()?(creative?NeutronVisualTokens.alpha(NeutronVisualTokens.CARD.getRGB(),240):NeutronVisualTokens.CARD)
+                            :LiquidGlass.fill(theme,LiquidGlass.CARD));
+            LiquidGlass.highlight(px+1,py+1,pw-2,32,radius,UiEffects.options().surfaceOpacity);
+            LiquidGlass.divider(px+8,py+15,pw-16,theme);
             me.youngjibbit.utils.render.TextEffects.direct(theme,()->text(fit("Neutron  /  HitDelayFix  /  FastPlace",pw-20),px+10,py+5,-1));
             text(fit("Aa Bb  0123456789  ·  Session Info  ·  "+selectedFamily(),pw-20),px+10,py+19,0xffc5cfdf);
             if(creative&&UiEffects.motion()){
@@ -386,6 +399,19 @@ public class SettingsMenu extends GuiScreen {
         if("Gradients / Motion".equals(name))return "Color & motion";
         if("HUD behavior".equals(name))return "HUD layout";
         return name;
+    }
+    private static String sectionIcon(String name){
+        switch(name){
+            case "Appearance":return "palette";
+            case "Blur / Liquid Glass":return "eye";
+            case "Glow":return "bolt";
+            case "Gradients / Motion":return "refresh";
+            case "Notifications":return "bell";
+            case "Typography":return "rename";
+            case "World effects":return "settings";
+            case "HUD behavior":return "range";
+            default:return "settings";
+        }
     }
     private String selectedFamily(){ClientSettings c=ClientSettings.current();return c==null?"Original":c.fontFamily.getValue();}
     private ClipRect popupViewport(){
@@ -438,12 +464,12 @@ public class SettingsMenu extends GuiScreen {
         // outgoing visual are animated. Its fixed hit rectangles never move.
         boolean modern=ThemeMode.APPROACH_TWO.equals(ThemeMode.selected());
         boolean creative=this.creative();
-        UIUtils.drawDecorationRound(p.x-1,p.y-1,p.width+2,Math.max(1,visibleHeight+2),
-                modern?9:7,modern?(creative?NeutronVisualTokens.alpha(0xffa4a0b3,Math.round(55*opacity)):NeutronVisualTokens.alpha(
-                        0xffa4a0b3,Math.round(47*opacity))):
-                        LegacyUiStyle.alpha(LegacyUiStyle.MUTED,.22f*opacity));
-        UIUtils.drawDecorationRound(p.x,p.y,p.width,Math.max(1,visibleHeight),
-                modern?8:6,new Color(23,28,39,Math.round(245*opacity)));
+        float radius=LiquidGlass.radius(modern?8:6,p.width,Math.max(1,visibleHeight));
+        float materialOpacity=opacity*UiEffects.options().surfaceOpacity;
+        UIUtils.drawExactDecorationRound(p.x,p.y,p.width,Math.max(1,visibleHeight),radius,
+                LiquidGlass.fill(theme,Math.round(224*materialOpacity)));
+        LiquidGlass.highlight(p.x,p.y,p.width,Math.max(1,visibleHeight),radius,materialOpacity);
+        LiquidGlass.border(p.x,p.y,p.width,Math.max(1,visibleHeight),radius,theme,true,materialOpacity);
         int count=popupRows(shown),offset=open?popupOffset:closingPopupOffset;
         int choice=open?popupChoice:closingPopupChoice;
         float marker=presentation.cursor(p.y+4+(choice-offset)*22+5,dt,settings);

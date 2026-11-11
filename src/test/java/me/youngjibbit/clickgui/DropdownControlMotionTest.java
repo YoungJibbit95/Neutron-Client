@@ -73,6 +73,8 @@ public class DropdownControlMotionTest {
         void up(){mouseReleased(-1,-1,0);}
         void key(int code)throws Exception{keyTyped(' ',code);}
         void wheel(int x,int y,int steps){scrollAt(x,y,steps);}
+        void toolbar(float dt,int x,int y){advanceToolbarMotion(dt,x,y);}
+        ClipRect searchRect(){return searchBounds();}
         /** Calls the exact production cleanup path without touching native GL resources. */
         void closeInputHeadless(){cancelInteraction();}
     }
@@ -80,6 +82,23 @@ public class DropdownControlMotionTest {
         @SuppressWarnings("unchecked") List<Object> list=(List<Object>)reflect(screen,"panels");
         for(Object item:list)if(reflect(item,"category")==wanted)return item;
         throw new AssertionError(wanted);
+    }
+
+    @Test public void searchAndLibraryHoverUseIndependentResettableStates()throws Exception {
+        Screen screen=new Screen();screen.size(640,480);settings.animations.setValue(false);
+        me.youngjibbit.gui.UiSpring search=(me.youngjibbit.gui.UiSpring)reflect(screen,"searchMotion");
+        me.youngjibbit.gui.UiSpring[] toolbar=(me.youngjibbit.gui.UiSpring[])reflect(screen,"toolbarMotion");
+        ClipRect query=screen.searchRect();
+        screen.toolbar(0,(int)(query.x+query.width/2),(int)(query.y+query.height/2));
+        assertEquals(1,search.amount(),0);
+        for(me.youngjibbit.gui.UiSpring button:toolbar)assertEquals(0,button.amount(),0);
+        java.lang.reflect.Method method=DropdownGui.class.getDeclaredMethod("configBounds");method.setAccessible(true);
+        ClipRect library=(ClipRect)method.invoke(screen);
+        screen.toolbar(0,(int)(library.x+library.width/2),(int)(library.y+library.height/2));
+        assertEquals(0,search.amount(),0);assertEquals(1,toolbar[0].amount(),0);
+        assertEquals(0,toolbar[1].amount(),0);assertEquals(0,toolbar[2].amount(),0);
+        screen.closeInputHeadless();assertEquals(0,search.amount(),0);
+        for(me.youngjibbit.gui.UiSpring button:toolbar)assertEquals(0,button.amount(),0);
     }
 
     @Test public void columnReversalKeepsOriginalHitGeometryAndLogicalClosure() throws Exception {

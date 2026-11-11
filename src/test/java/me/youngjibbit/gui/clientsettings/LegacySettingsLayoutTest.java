@@ -30,6 +30,7 @@ public class LegacySettingsLayoutTest {
         ClipRect row(int i){return rowBounds(i);}
         ClipRect field(int i){return controlBounds(i);}
         ClipRect action(int i){return actionBounds(i);}
+        ClipRect accent(){return entryAccentBounds();}
         ClipRect popup(){return popupBounds();}
         ClipRect track(int row){return sliderTrack(row);}
         void key(int key)throws Exception{keyTyped(' ',key);}
@@ -60,6 +61,14 @@ public class LegacySettingsLayoutTest {
                 assertTrue(category.y+category.height<=screen.action(2).y-6);
                 screen.click(category);assertEquals(i,state("group"));
             }
+        }
+    }
+
+    @Test public void headerAccentStaysAboveNavigationAtCompactAndFullSizes() {
+        for(int[] size:new int[][]{{320,240},{334,234},{580,342},{640,360},{854,480}}) {
+            screen.size(size[0],size[1]);ClipRect accent=screen.accent(),navigation=screen.action(0);
+            contained(new ClipRect(0,0,size[0],size[1]),accent);
+            assertTrue("Header accent intersects section navigation",accent.y+accent.height<navigation.y);
         }
     }
 
