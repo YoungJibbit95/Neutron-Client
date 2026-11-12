@@ -6,9 +6,11 @@ import java.util.function.LongSupplier;
 import static java.lang.Math.*;
 
 /**
- * NScaffold's instance-local port of DemisePrivate e219a97 RotationManager/RotationHandler.
+ * Instance-local port of DemisePrivate e219a97 RotationManager/RotationHandler.
  * Source: wtf/demise/utils/player/rotation (AGPL-3.0). Arithmetic, integer mouse counts,
- * frame timing and the 150-ms expiry/return are retained. Scene guards belong to the adapter.
+ * frame timing and the 150-ms expiry/return are retained by the default engine. BedBreaker opts
+ * into bounded continuous acquisition/return without changing that source-parity path.
+ * Scene guards belong to the adapter.
  */
 public final class DemiseRotationEngine {
     public enum Smoothing { Linear, Relative }
@@ -23,6 +25,13 @@ public final class DemiseRotationEngine {
 
     private final LongSupplier millis, nanos;
     private final FloatRandom random;
+    private final boolean continuous;
+    private boolean returning;
+    private float[] continuousWireBase;
+    /** Continuous owners never publish an accumulated whole-angle catch-up after a rejected C03. */
+    public static final float MAX_CONTINUOUS_PACKET_TURN = 45;
+    public static final float MAX_CONTINUOUS_FRAME_TURN = 12;
+    private static final float CONTINUOUS_EPSILON = .0001f;
     private float[] currentRotation = {0, 0}, serverRotation, previousRotation, targetRotation;
     private float lastDelta, rotDiffBuildUp, randYawSpeed, randPitchSpeed;
     private boolean enabled, silent = true, reset = true, accel;
@@ -40,10 +49,24 @@ public final class DemiseRotationEngine {
     }
 
     public DemiseRotationEngine(LongSupplier millis, LongSupplier nanos, FloatRandom random) {
+        this(millis, nanos, random, false);
+    }
+
+    private DemiseRotationEngine(LongSupplier millis, LongSupplier nanos, FloatRandom random, boolean continuous) {
         if (millis == null || nanos == null || random == null) throw new IllegalArgumentException("rotation clock/random");
         this.millis = millis; this.nanos = nanos; this.random = random;
+        this.continuous = continuous;
         tickTime = accelTime = activeTime = shortStopTime = millis.getAsLong();
         lastFrameTime = nanos.getAsLong();
+    }
+
+    /** BedBreaker opts into continuous acquisition/tracking/return; the source-parity default is unchanged. */
+    public static DemiseRotationEngine continuous() {
+        return continuous(System::currentTimeMillis, System::nanoTime, DemiseRotationEngine::randomizeFloat);
+    }
+
+    public static DemiseRotationEngine continuous(LongSupplier millis, LongSupplier nanos, FloatRandom random) {
+        return new DemiseRotationEngine(millis, nanos, random, true);
     }
 
     /** The source's randomizeDouble upper bound is max+1 unless both bounds are below one. */
@@ -55,8 +78,16 @@ public final class DemiseRotationEngine {
 
     /** Original UpdateEvent: sample once; setRotation reuses these speeds across frames. */
     public void updateSpeeds(DemiseRotationSettings.Snapshot settings) {
-        randYawSpeed = random.sample(settings.yawRotationSpeedMin, settings.yawRotationSpeedMax);
-        randPitchSpeed = random.sample(settings.pitchRotationSpeedMin, settings.pitchRotationSpeedMax);
+        if (continuous) {
+            // Independent sliders may cross while editing; the continuous owner keeps a valid interval.
+            randYawSpeed = random.sample(Math.min(settings.yawRotationSpeedMin, settings.yawRotationSpeedMax),
+                    Math.max(settings.yawRotationSpeedMin, settings.yawRotationSpeedMax));
+            randPitchSpeed = random.sample(Math.min(settings.pitchRotationSpeedMin, settings.pitchRotationSpeedMax),
+                    Math.max(settings.pitchRotationSpeedMin, settings.pitchRotationSpeedMax));
+        } else {
+            randYawSpeed = random.sample(settings.yawRotationSpeedMin, settings.yawRotationSpeedMax);
+            randPitchSpeed = random.sample(settings.pitchRotationSpeedMin, settings.pitchRotationSpeedMax);
+        }
     }
 
     /** Original Clutch only overwrites the sampled speeds; all other settings still apply. */
@@ -64,6 +95,10 @@ public final class DemiseRotationEngine {
 
     public void setRotation(float[] target, DemiseRotationSettings.Snapshot settings) {
         if (target == null || target.length < 2 || !Float.isFinite(target[0]) || !Float.isFinite(target[1])) return;
+        if (continuous && !shouldRotate()) {
+            if (serverRotation != null) currentRotation = serverRotation.clone();
+            continuousWireBase = currentRotation.clone();
+        }
         float horizontal = randYawSpeed, vertical = randPitchSpeed;
         if (settings.shortStop && shouldShortStop(settings)) {
             horizontal = random.sample(0, .1f);
@@ -81,7 +116,8 @@ public final class DemiseRotationEngine {
             lastDelta = previousRotation == null ? 0 : rotationDifference(currentRotation, previousRotation);
             tickTime = now;
         }
-        targetRotation = target;
+        targetRotation = continuous ? target.clone() : target;
+        returning = false;
         silent = settings.silent;
         hSpeed = horizontal; vSpeed = vertical;
         smoothMode = settings.smoothMode;
@@ -120,6 +156,7 @@ public final class DemiseRotationEngine {
      */
     public Aim mouseUpdate(float cameraYaw, float cameraPitch, float sensitivity) {
         if (currentRotation == null) currentRotation = new float[]{cameraYaw, cameraPitch};
+        if (continuous) return continuousUpdate(cameraYaw, cameraPitch, sensitivity);
         float beforeYaw = currentRotation[0], beforePitch = currentRotation[1];
         boolean hadResidual = targetRotation != null
                 && (angleDifference(targetRotation[0], beforeYaw) != 0 || angleDifference(targetRotation[1], beforePitch) != 0);
@@ -138,6 +175,118 @@ public final class DemiseRotationEngine {
         lastFrameStationary = enabled && timeScale > 0 && hadResidual && targetRotation != null
                 && currentRotation[0] == beforeYaw && currentRotation[1] == beforePitch;
         return new Aim(currentRotation[0], currentRotation[1]);
+    }
+
+    /** Stop task refreshes immediately, while preserving a rotation-only tail and its movement settings. */
+    public void beginReturn() {
+        enabled = false;
+        returning = shouldRotate();
+    }
+
+    public boolean returning() { return returning && shouldRotate(); }
+
+    /** Changing Silent while tracking must not copy a distant server pose straight into the camera. */
+    public Aim cameraAim(float cameraYaw, float cameraPitch) {
+        if (!continuous) return currentAim();
+        if (!shouldRotate() || !Float.isFinite(cameraYaw) || !Float.isFinite(cameraPitch)
+                || !Float.isFinite(timeScale) || timeScale <= 0) return new Aim(cameraYaw, cameraPitch);
+        float yaw = angleDifference(currentRotation[0], cameraYaw) * .5f;
+        float pitch = (currentRotation[1] - cameraPitch) * .5f;
+        double length = Math.hypot(yaw, pitch);
+        double maximum = MAX_CONTINUOUS_FRAME_TURN * Math.min(timeScale, 4F / 3F) / (4D / 3D);
+        if (length > maximum) {
+            yaw = (float) (yaw * (maximum / length));
+            pitch = (float) (pitch * (maximum / length));
+        }
+        return new Aim(cameraYaw + yaw, MathHelper.clamp_float(cameraPitch + pitch, -90, 90));
+    }
+
+    /** A different accepted owner is the starting pose at a handoff, never an old invisible trajectory. */
+    public void resumeFromServer() {
+        if (!continuous || !shouldRotate() || serverRotation == null) return;
+        currentRotation = serverRotation.clone();
+        continuousWireBase = serverRotation.clone();
+        previousDeltaYaw = previousDeltaPitch = interpolatedAccelDeltaYaw = interpolatedAccelDeltaPitch = 0;
+    }
+
+    private Aim continuousUpdate(float cameraYaw, float cameraPitch, float sensitivity) {
+        if (!Float.isFinite(cameraYaw) || !Float.isFinite(cameraPitch) || !Float.isFinite(sensitivity))
+            return new Aim(currentRotation[0], currentRotation[1]);
+        cameraPitch = MathHelper.clamp_float(cameraPitch, -90, 90);
+        if (enabled && millis.getAsLong() - activeTime > 150) beginReturn();
+        if (!shouldRotate()) {
+            currentRotation = new float[]{cameraYaw, cameraPitch};
+            return new Aim(cameraYaw, cameraPitch);
+        }
+        float[] target = enabled ? targetRotation : new float[]{cameraYaw, cameraPitch};
+        returning = !enabled;
+        float yawDifference = angleDifference(target[0], currentRotation[0]);
+        float pitchDifference = MathHelper.clamp_float(target[1], -90, 90) - currentRotation[1];
+        // A sub-pixel residual replaces the source's visible <1-degree snap/dead zone.
+        float epsilon = Math.max(CONTINUOUS_EPSILON, Math.max(Math.ulp(currentRotation[0]), Math.ulp(target[0])));
+        if (returning && Math.hypot(yawDifference, pitchDifference) <= epsilon) {
+            currentRotation = new float[]{cameraYaw, cameraPitch};
+            targetRotation = null; returning = false; reset = true;
+            previousDeltaYaw = previousDeltaPitch = interpolatedAccelDeltaYaw = interpolatedAccelDeltaPitch = 0;
+            return new Aim(cameraYaw, cameraPitch);
+        }
+        if (!Float.isFinite(timeScale) || timeScale <= 0) return new Aim(currentRotation[0], currentRotation[1]);
+        float savedH = hSpeed, savedV = vSpeed;
+        float factor = MathHelper.clamp_float(smoothingFactor, .01f, 1);
+        if (returning) {
+            // A short stop or a deliberately tiny tracking speed must not strand a disabled owner.
+            hSpeed = Math.max(15, randYawSpeed); vSpeed = Math.max(15, randPitchSpeed);
+            factor = Math.max(.15f, factor);
+        }
+        int[] delta;
+        try { delta = limitRotations(target, MathHelper.clamp_float(sensitivity, 0, 1)); }
+        finally { hSpeed = savedH; vSpeed = savedV; }
+        float f = MathHelper.clamp_float(sensitivity, 0, 1) * .6F + .2F;
+        float count = f * f * f * 8;
+        float yawStep = delta[0] * timeScale * count * factor;
+        float pitchStep = -delta[1] * timeScale * count * factor;
+        float horizontal = returning ? Math.max(15, randYawSpeed) : hSpeed;
+        float vertical = returning ? Math.max(15, randPitchSpeed) : vSpeed;
+        yawStep = continuousStep(yawStep, yawDifference, horizontal, factor, currentRotation[0]);
+        pitchStep = continuousStep(pitchStep, pitchDifference, vertical, factor, currentRotation[1]);
+        double distance = Math.hypot(yawStep, pitchStep);
+        double frameMaximum = MAX_CONTINUOUS_FRAME_TURN * Math.min(timeScale, 4F / 3F) / (4D / 3D);
+        if (distance > frameMaximum) {
+            yawStep = (float) (yawStep * (frameMaximum / distance));
+            pitchStep = (float) (pitchStep * (frameMaximum / distance));
+        }
+        float nextYaw = currentRotation[0] + yawStep, nextPitch = MathHelper.clamp_float(currentRotation[1] + pitchStep, -90, 90);
+        float[] wire = serverRotation != null ? serverRotation : continuousWireBase;
+        if (wire != null) {
+            double fromWire = Math.hypot(angleDifference(nextYaw, wire[0]), nextPitch - wire[1]);
+            double previousFromWire = Math.hypot(angleDifference(currentRotation[0], wire[0]), currentRotation[1] - wire[1]);
+            // Never clamp a handoff by teleporting the visible trajectory. The adapter rebases that handoff.
+            if (fromWire > MAX_CONTINUOUS_PACKET_TURN && previousFromWire <= MAX_CONTINUOUS_PACKET_TURN + .001) {
+                double low = 0, high = 1;
+                for (int i = 0; i < 20; i++) {
+                    double part = (low + high) * .5;
+                    double length = Math.hypot(angleDifference(currentRotation[0] + (float) (yawStep * part), wire[0]),
+                            currentRotation[1] + pitchStep * part - wire[1]);
+                    if (length <= MAX_CONTINUOUS_PACKET_TURN) low = part; else high = part;
+                }
+                nextYaw = currentRotation[0] + (float) (yawStep * low);
+                nextPitch = currentRotation[1] + (float) (pitchStep * low);
+            }
+        }
+        currentRotation = new float[]{nextYaw, nextPitch}; reset = false;
+        return new Aim(nextYaw, nextPitch);
+    }
+
+    private float continuousStep(float proposed, float difference, float speed, float factor, float from) {
+        if (difference == 0 || speed <= 0) return 0;
+        float remaining = Math.abs(difference);
+        if (proposed == 0) {
+            float fraction = Math.min(.5f, timeScale * factor * (smoothMode == Smoothing.Relative ? .25f : 1));
+            proposed = Math.copySign(Math.min(remaining * fraction, speed * timeScale * factor), difference);
+        }
+        if (Math.signum(proposed) == Math.signum(difference)) proposed = Math.copySign(Math.min(Math.abs(proposed), remaining * .5f), proposed);
+        if (from + proposed == from) proposed = Math.copySign(Math.min(remaining, Math.ulp(from)), difference);
+        return proposed;
     }
 
     private void handleRotation(float[] target, float cameraYaw, float cameraPitch, float sensitivity) {
@@ -198,8 +347,10 @@ public final class DemiseRotationEngine {
     /** The shared transport supplies only an accepted C03 from this scene. */
     public void observeAcceptedPacket(boolean rotating, float yaw, float pitch) {
         if (!rotating) { rotDiffBuildUp = 0; return; }
+        if (continuous && (!Float.isFinite(yaw) || !Float.isFinite(pitch) || Math.abs(pitch) > 90)) return;
         if (serverRotation != null && shouldRotate()) rotDiffBuildUp += angleDifference(yaw, serverRotation[0]);
         serverRotation = new float[]{yaw, pitch};
+        if (continuous) continuousWireBase = serverRotation.clone();
     }
 
     /** Original PlayerSP aliases currentRotation while active (it does not clone this array). */
@@ -224,6 +375,8 @@ public final class DemiseRotationEngine {
         currentRotation = new float[]{cameraYaw, cameraPitch};
         targetRotation = previousRotation = serverRotation = null;
         enabled = false; reset = true; lastFrameStationary = false;
+        returning = false;
+        continuousWireBase = null;
         correction = Correction.None;
         previousDeltaYaw = previousDeltaPitch = interpolatedAccelDeltaYaw = interpolatedAccelDeltaPitch = 0;
         rotDiffBuildUp = lastDelta = 0;

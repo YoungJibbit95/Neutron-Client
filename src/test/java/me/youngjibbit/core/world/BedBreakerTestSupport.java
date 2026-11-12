@@ -3,6 +3,8 @@ package me.youngjibbit.core.world;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.combat.RotationBehaviorHookTest;
 import me.youngjibbit.core.combat.RotationManager;
+import me.youngjibbit.core.network.NetworkTestSupport;
+import me.youngjibbit.core.observation.RuntimeObservation;
 import me.youngjibbit.event.motion.EventMotion;
 import me.youngjibbit.event.motion.EventRotation;
 import me.youngjibbit.event.packet.EventPacket;
@@ -28,12 +30,15 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.PlayerCapabilities;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Bootstrap;
+import net.minecraft.inventory.ContainerPlayer;
 import net.minecraft.network.Packet;
 import net.minecraft.network.play.client.C07PacketPlayerDigging;
+import net.minecraft.network.play.client.C03PacketPlayer;
 import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.BlockPos;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.MovingObjectPosition;
+import net.minecraft.util.MovementInputFromOptions;
 import net.minecraft.util.Vec3;
 import net.minecraft.world.World;
 import net.minecraft.world.border.WorldBorder;
@@ -45,6 +50,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.concurrent.atomic.AtomicLong;
 
 /** Native world ray/controller/transport with a tiny explicit block store; no game window or server claim. */
 final class BedBreakerTestSupport {
@@ -57,7 +63,7 @@ final class BedBreakerTestSupport {
         @Override public float getPlayerRelativeBlockHardness(EntityPlayer player, World world, BlockPos pos) { return hardness; }
         @Override public void onBlockClicked(World world, BlockPos pos, EntityPlayer player) { clicked.run(); }
     }
-    static final class BedWorld extends WorldClient implements BedBreakerPlanner.Access {
+    static final class BedWorld extends WorldClient implements DemiseBedBreakerGeometry.Access {
         Map<BlockPos, IBlockState> blocks;
         WorldBorder border;
         Runnable afterRay, beforeRemoval;
@@ -85,7 +91,6 @@ final class BedBreakerTestSupport {
         @Override public boolean extinguishFire(EntityPlayer player, BlockPos pos, EnumFacing side) { return false; }
         public boolean loaded(BlockPos pos) { return isBlockLoaded(pos); }
         public IBlockState state(BlockPos pos) { return getBlockState(pos); }
-        public AxisAlignedBB bounds(BlockPos pos, IBlockState state) { return state.getBlock().getCollisionBoundingBox(this, pos, state); }
         public MovingObjectPosition ray(Vec3 from, Vec3 to) { return rayTraceBlocks(from, to, false, false, false); }
     }
     static BedWorld world() throws Exception {
@@ -111,6 +116,11 @@ final class BedBreakerTestSupport {
             automaticCalls++; return super.onPlayerDamageBlock(pos, face, state, valid, lifecycle, look);
         }
         @Override public void attackEntity(EntityPlayer player, Entity target) { manualAttacks++; }
+        @Override public boolean onPlayerDamageBed(BlockPos pos, EnumFacing face, IBlockState state,
+                                                  java.util.function.BooleanSupplier valid, java.util.function.BooleanSupplier lifecycle,
+                                                  java.util.function.Supplier<Vec3> look) {
+            automaticCalls++; return super.onPlayerDamageBed(pos, face, state, valid, lifecycle, look);
+        }
     }
     static final class Observer implements Subscriber {
         Consumer<EventPacket> action = event -> { };
@@ -123,6 +133,7 @@ final class BedBreakerTestSupport {
         final BedBreaker module;
         final Controller controller;
         final Observer observer = new Observer();
+        final AtomicLong millis = new AtomicLong(1000), nanos = new AtomicLong(1000000000L);
         final Map<Class<? extends Module>, Module> modules;
         final BlockPos pos = new BlockPos(0, 64, 2);
         final Method input;
@@ -130,8 +141,13 @@ final class BedBreakerTestSupport {
             Bootstrap.register();
             f = new RotationBehaviorHookTest.Fixture(); world = world(); bed = new Bed();
             f.mc.theWorld = world; f.player.worldObj = world;
+            // Competing modules now run their real update hooks, including NScaffold's hotbar scan.
+            f.player.inventoryContainer = new ContainerPlayer(f.player.inventory, false, f.player);
+            f.player.openContainer = f.player.inventoryContainer;
             f.player.capabilities = new PlayerCapabilities(); f.player.onGround = true;
             f.player.posX = .5; f.player.posY = 64; f.player.posZ = .5;
+            f.player.setEntityBoundingBox(new AxisAlignedBB(.2, 64, .2, .8, 65.8, .8));
+            field(EntityPlayerSP.class, "mc").set(f.player, f.mc);
             field(Minecraft.class, "mcThread").set(f.mc, Thread.currentThread());
             field(Minecraft.class, "mcSoundHandler").set(f.mc, RotationBehaviorHookTest.bare(Sound.class));
             Effects effects = RotationBehaviorHookTest.bare(Effects.class); effects.callback = () -> { };
@@ -141,42 +157,89 @@ final class BedBreakerTestSupport {
             f.mc.gameSettings = RotationBehaviorHookTest.bare(GameSettings.class);
             f.mc.gameSettings.keyBindAttack = RotationBehaviorHookTest.bare(KeyBinding.class);
             f.mc.gameSettings.keyBindUseItem = RotationBehaviorHookTest.bare(KeyBinding.class);
+            f.mc.gameSettings.keyBindForward = RotationBehaviorHookTest.bare(KeyBinding.class);
+            f.mc.gameSettings.keyBindBack = RotationBehaviorHookTest.bare(KeyBinding.class);
+            f.mc.gameSettings.keyBindLeft = RotationBehaviorHookTest.bare(KeyBinding.class);
+            f.mc.gameSettings.keyBindRight = RotationBehaviorHookTest.bare(KeyBinding.class);
+            f.mc.gameSettings.keyBindJump = RotationBehaviorHookTest.bare(KeyBinding.class);
+            f.mc.gameSettings.keyBindSneak = RotationBehaviorHookTest.bare(KeyBinding.class);
+            f.mc.gameSettings.keyBindSprint = RotationBehaviorHookTest.bare(KeyBinding.class);
             f.mc.gameSettings.mouseSensitivity = .5f;
+            f.player.movementInput = new MovementInputFromOptions(f.mc.gameSettings);
             controller = new Controller(f.mc, f.player.sendQueue); f.mc.playerController = controller;
             field(NetHandlerPlayClient.class, "gameController").set(f.player.sendQueue, f.mc);
             f.player.sendQueue.clientWorldController = world;
+            f.network.configureClientPackets(new NetworkTestSupport.MainThread(), f.player.sendQueue::observeAcceptedOutbound);
             modules = (Map<Class<? extends Module>, Module>) field(ModuleManager.class, "modulesByClass").get(Pulsar.INSTANCE.getMm());
             module = new BedBreaker(); modules.put(BedBreaker.class, module);
-            module.getBooleanSetting("Swing").setValue(false);
-            module.getNumberSetting("Turn Speed").setValue(180D); module.setToggled(true);
+            field(BedBreaker.class, "rotationEngine").set(module,
+                    DemiseRotationEngine.continuous(millis::get, nanos::get, (min, max) -> min));
+            module.legit.setValue(true);
+            module.setToggled(true);
             world.blocks.put(pos, bed.getDefaultState());
             input = Minecraft.class.getDeclaredMethod("sendClickBlockToController", boolean.class); input.setAccessible(true);
             Pulsar.BUS.subscribe(observer);
         }
         void aim() {
-            BedBreakerPlanner.Target target = new BedBreakerPlanner(world).select(f.player.getPositionEyes(1), 4.5, null, true, () -> true);
+            DemiseBedBreakerGeometry.Target target = DemiseBedBreakerGeometry.find(new DemiseBedBreakerGeometry.Access() {
+                public boolean loaded(BlockPos pos) { return world.isBlockLoaded(pos); }
+                public IBlockState state(BlockPos pos) { return world.getBlockState(pos); }
+            }, f.player.getPositionVector(), f.player.getEyeHeight(), () -> true);
             if (target == null) throw new AssertionError("fixture bed not visible");
-            float[] pose = BedBreakerPlanner.rotations(f.player.getPositionEyes(1), target.aim);
+            float[] pose = DemiseBedBreakerGeometry.rotations(f.player.getPositionEyes(1), target.pos);
             f.player.rotationYaw = pose[0]; f.player.rotationPitch = pose[1];
+            module.rotationEngine.clear(pose[0], pose[1]);
+            if (f.player.ticksExisted % 2 != 0) next();
+            update();
             pick();
             rotation();
+            next();
         }
         void rotation() {
-            RotationManager manager = f.runtime.getRotationManager(); manager.bindConnection(f.network.getClientPackets());
-            manager.beginMotion(f.player, world, f.player.rotationYaw, f.player.rotationPitch);
-            EventMotion event = new EventMotion(f.player.posX, f.player.posY, f.player.posZ,
-                    f.player.rotationYaw, f.player.rotationPitch, true);
-            Pulsar.BUS.post(new EventRotation(event)); manager.resolve(event);
-            manager.finishMotion(event.getYaw(), event.getPitch(), true);
+            frames(5);
+            observed(() -> {
+                RotationManager manager = f.runtime.getRotationManager(); manager.bindConnection(f.network.getClientPackets());
+                manager.beginMotion(f.player, world, f.player.rotationYaw, f.player.rotationPitch);
+                DemiseRotationHooks.prepareRotation();
+                EventMotion event = new EventMotion(f.player.posX, f.player.posY, f.player.posZ,
+                        f.player.rotationYaw, f.player.rotationPitch, true);
+                manager.resolve(event);
+                RotationManager.ResolvedC03SendTicket ticket = manager.captureResolvedC03SendTicket(f.player.rotationYaw, f.player.rotationPitch);
+                C03PacketPlayer packet = new C03PacketPlayer.C05PacketPlayerLook(event.getYaw(), event.getPitch(), true);
+                Packet<?> accepted = f.player.sendQueue.addToSendQueueTracked(packet,
+                        outgoing -> ticket == null || ticket.guard(packet).test(outgoing));
+                manager.finishMotion(event.getYaw(), event.getPitch(), accepted == packet && (ticket == null || ticket.isCurrent()));
+                DemiseRotationHooks.modelAfterMotion(f.player, event.getYaw(), event.getPitch());
+            });
             pick();
         }
+        void frames(int count) {
+            for (int i = 0; i < count; i++) {
+                millis.addAndGet(10); nanos.addAndGet(10000000L);
+                DemiseRotationHooks.mousePre(); DemiseRotationHooks.mouseUpdate(); DemiseRotationHooks.angle(f.player);
+            }
+        }
+        void observed(Runnable body) {
+            RuntimeObservation observation = f.runtime.getObservation();
+            observation.beginOuterTick();
+            try { observation.observePlayerStep(f.player, () -> { body.run(); return true; }, step -> step.getAsBoolean()); }
+            finally { observation.endOuterTick(); }
+        }
+        void update() { observed(() -> DemiseRotationHooks.update(f.player)); }
         void pick() {
             Vec3 eyes = f.player.getPositionEyes(1), look = f.player.getLook(1);
             double reach = controller.getBlockReachDistance();
             f.mc.objectMouseOver = world.ray(eyes, eyes.addVector(look.xCoord * reach, look.yCoord * reach, look.zCoord * reach));
         }
-        void input(boolean attack) throws Exception { input.invoke(f.mc, attack); }
-        void next() { f.player.ticksExisted++; }
+        void input(boolean attack) throws Exception {
+            RuntimeObservation observation = f.runtime.getObservation();
+            observation.beginOuterTick();
+            try {
+                input.invoke(f.mc, attack);
+                observation.observePlayerStep(f.player, () -> { DemiseRotationHooks.update(f.player); return true; }, step -> step.getAsBoolean());
+            } finally { observation.endOuterTick(); }
+        }
+        void next() { f.player.ticksExisted++; pick(); }
         float progress() throws Exception { return field(PlayerControllerMP.class, "curBlockDamageMP").getFloat(controller); }
         List<C07PacketPlayerDigging> digs() {
             List<C07PacketPlayerDigging> result = new ArrayList<>(); Object packet;

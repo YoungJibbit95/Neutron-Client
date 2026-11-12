@@ -19,6 +19,7 @@ import me.youngjibbit.core.observation.RuntimeObservation;
 import me.youngjibbit.core.network.PacketPipeline;
 import me.youngjibbit.core.world.AdaptiveBridgeMotion;
 import me.youngjibbit.core.world.AdaptiveBridgePlanner;
+import me.youngjibbit.core.world.DemiseRotationHooks;
 import net.minecraft.client.entity.EntityPlayerSP;
 import net.minecraft.client.network.NetHandlerPlayClient;
 import net.minecraft.network.Packet;
@@ -248,13 +249,17 @@ public final class RotationManager {
         RuntimeObservation observation = RuntimeServices.observation();
         if (mc == null || player != mc.thePlayer || mc.theWorld == null || player.worldObj != mc.theWorld
                 || observation == null || observation.getCurrentStep() == null || !player.isEntityAlive()
-                || player.isRiding() || player.isSpectator() || mc.currentScreen != null || !mc.inGameHasFocus
+                || player.isRiding() || player.isSpectator()
                 || mc.getRenderViewEntity() != player || player.sendQueue == null) return;
+        boolean inactiveView = mc.currentScreen != null || !mc.inGameHasFocus || mc.isGamePaused();
+        if (inactiveView && !DemiseRotationHooks.bedReturnActive()) return;
         Object step = observation.getCurrentStep();
         PacketPipeline pipeline = player.sendQueue.getNetworkManager().getClientPackets();
         if (pipeline == null || !pipeline.isActive() || !player.sendQueue.getNetworkManager().isChannelOpen()) return;
         SceneContext scene = observation.captureScene();
-        if (!scene.isValid() || scene.isSuspended() || observation.getCurrentStep() != step) return;
+        if (!scene.isValid() || observation.getCurrentStep() != step) return;
+        final boolean rotationOnly = scene.isSuspended();
+        if (rotationOnly && !DemiseRotationHooks.bedReturnActive()) return;
         bindConnection(pipeline);
         beginMotion(player, mc.theWorld, player.rotationYaw, player.rotationPitch);
         final long preparingSequence = sequence;
@@ -262,14 +267,18 @@ public final class RotationManager {
                 new EventMotion(player.posX, player.getEntityBoundingBox().minY, player.posZ,
                         player.rotationYaw, player.rotationPitch, player.onGround));
         try {
-            me.youngjibbit.core.world.DemiseRotationHooks.prepareRotation();
-            Pulsar.BUS.post(preparation);
+            if (rotationOnly) DemiseRotationHooks.prepareBedReturn();
+            else {
+                DemiseRotationHooks.prepareRotation();
+                Pulsar.BUS.post(preparation);
+            }
             if (sequence != preparingSequence || !collecting || observation.getCurrentStep() != step) return;
             Request requested = winner;
             resolve(preparation.motion());
             if (sequence != preparingSequence || !collecting || observation.getCurrentStep() != step) return;
             if (requested != null && requested.guarded && winner != requested) return;
             Request preparedRequest = winner;
+            if (rotationOnly && (preparedRequest == null || !preparedRequest.bedReturn)) return;
             MoveFixController.Mode mode = RotationCorrections.movementModeFor(preparedRequest == null ? null : preparedRequest.source);
             if (sequence != preparingSequence || !collecting || observation.getCurrentStep() != step) return;
             if (preparedRequest != null && preparedRequest.guarded
@@ -293,6 +302,7 @@ public final class RotationManager {
         MovementFrame frame = movementFrame;
         if (frame == null || !frame.current() || frame.movementReady) return;
         frame.movementReady = true;
+        if (frame.rotationOnly) return;
         Pulsar.BUS.post(new MovementReadyEvent());
         if (movementFrame == frame && frame.current()) frame.preparation.runBeforePhysics();
     }
@@ -307,7 +317,7 @@ public final class RotationManager {
         // Claim before the scene supplier: a callback cannot send this physical step twice.
         frame.claimed = true;
         SceneContext fresh = frame.observation.captureScene();
-        return movementFrame == frame && frame.current() && fresh.isValid() && !fresh.isSuspended()
+        return movementFrame == frame && frame.current() && fresh.isValid() && (!fresh.isSuspended() || frame.rotationOnly)
                 && frame.scene.sameSceneAs(fresh);
     }
 
@@ -333,6 +343,7 @@ public final class RotationManager {
         final WeakReference<PacketPipeline> pipeline;
         final long frameSequence, epoch, suspension;
         final Request request;
+        final boolean rotationOnly;
         final EventRotation preparation;
         final MovementRotation rotation;
         boolean claimed, movementReady;
@@ -341,6 +352,7 @@ public final class RotationManager {
                       Request request, EventRotation preparation, float yaw, float pitch, MoveFixController.Mode mode) {
             this.observation = observation; this.step = step; this.scene = scene;
             this.pipeline = new WeakReference<>(pipeline); this.request = request;
+            rotationOnly = scene.isSuspended() && request != null && request.bedReturn;
             this.preparation = preparation;
             frameSequence = sequence; epoch = pipeline.getContextVersion();
             suspension = observation.getObservedSuspensionRevision();
@@ -349,10 +361,12 @@ public final class RotationManager {
         boolean current() {
             PacketPipeline pipe = pipeline.get();
             return collecting && sequence == frameSequence && observation == RuntimeServices.observation()
+                    && (rotationOnly || mc.currentScreen == null && mc.inGameHasFocus && !mc.isGamePaused())
                     && observation.getCurrentStep() == step && observation.getActiveOuterTickId() >= 0
                     && observation.getObservedConnectionGeneration() == scene.getConnectionGeneration()
                     && observation.getObservedSuspensionRevision() == suspension
                     && pipe != null && pipe.isActive() && pipe.getContextVersion() == epoch && isConnection(pipe)
+                    && (!rotationOnly || request.bedReturn && DemiseRotationHooks.bedReturnActive())
                     && mc.thePlayer == motionPlayer.get() && mc.theWorld == motionWorld.get()
                     && mc.thePlayer != null && mc.thePlayer.worldObj == mc.theWorld;
         }
@@ -487,6 +501,8 @@ public final class RotationManager {
     private void offer(Request request) {
         if (!collecting || request.source==null || isReleaseSource(request.source)
                 || !Float.isFinite(request.yaw) || !Float.isFinite(request.pitch)) return;
+        if (winner != null && winner.bedReturn && !request.bedReturn && mc != null
+                && (mc.currentScreen != null || !mc.inGameHasFocus || mc.isGamePaused())) return;
         cancelVisibleAssistStop();
         offeredSources.add(request.source);
         cancelRotationRelease();
@@ -889,11 +905,12 @@ public final class RotationManager {
                     && (release == null || currentRotationRelease() != release)) return false;
             if (!sameFrame() || !sameObjects() || observation == null || observation != RuntimeServices.observation()
                     || outerTick < 0 || observation.getActiveOuterTickId() != outerTick
-                    || scene == null || !scene.isValid() || scene.isSuspended()) return false;
+                    || scene == null || !scene.isValid() || scene.isSuspended() && !request.bedReturn) return false;
+            if (request.bedReturn && !DemiseRotationHooks.bedReturnActive()) return false;
             if (request.guarded && !guardedRequestCurrent(request, motionSequence)) return false;
             // Sampling maintains existing observer identity/generation bookkeeping, never action quota.
             SceneContext fresh = observation.captureScene();
-            return fresh.isValid() && !fresh.isSuspended() && scene.sameSceneAs(fresh)
+            return fresh.isValid() && (!fresh.isSuspended() || request.bedReturn) && scene.sameSceneAs(fresh)
                     && (!request.guarded || guardedRequestCurrent(request, motionSequence))
                     && sameFrame() && sameObjects() && observation == RuntimeServices.observation()
                     && observation.getActiveOuterTickId() == outerTick
@@ -1888,6 +1905,8 @@ public final class RotationManager {
         final float cameraYaw,cameraPitch;
         final BooleanSupplier valid;
         final boolean guarded;
+        /** Immutable exception for an already-live Bed return, never ordinary targeting or another source. */
+        final boolean bedReturn;
         boolean checkingGuard, guardRejected;
         BridgeMotionScope bridgeScope;
         BridgeRotationCandidate bridgeCandidate;
@@ -1899,6 +1918,7 @@ public final class RotationManager {
                 BooleanSupplier valid,boolean guarded) {
             this.source=source;this.priority=priority;this.yaw=yaw;this.pitch=pitch;
             this.visible=visible;this.cameraYaw=cameraYaw;this.cameraPitch=cameraPitch;this.valid=valid;this.guarded=guarded;
+            bedReturn = guarded && "bedbreaker".equals(source) && DemiseRotationHooks.bedReturnMatches(yaw,pitch);
         }
     }
 }

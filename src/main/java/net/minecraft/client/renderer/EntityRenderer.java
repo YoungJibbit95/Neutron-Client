@@ -1317,6 +1317,10 @@ public class EntityRenderer implements IResourceManagerReloadListener
                 this.mc.thePlayer.setAngles(f2, f3 * (float)i);
             }
         }
+        else
+        {
+            me.youngjibbit.core.world.DemiseRotationHooks.mouseInactive();
+        }
 
         this.mc.mcProfiler.endSection();
 

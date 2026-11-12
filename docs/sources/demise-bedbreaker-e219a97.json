@@ -1,0 +1,162 @@
+{
+  "repository": "YoungJibbit95/DemisePrivate",
+  "commit": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+  "verified_reference_main": "e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb",
+  "license_note": "Pinned README states AGPL-3; the complete pinned tree contains no root LICENSE. User expressly requested this source port. Existing notices and attribution retained.",
+  "files": [
+    {
+      "path": "src/main/java/wtf/demise/features/modules/impl/player/BedBreaker.java",
+      "blob": "f3eb8bab8cb2b087d87568f6184e10d0781275e2",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/features/modules/impl/player/BedBreaker.java",
+      "bytes": 3965,
+      "sha256": "fac21cde5da806c5ad63e5271355d361ac9b126b8521db0637c0cb3e89ea9564"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/player/rotation/RotationManager.java",
+      "blob": "e17d1fe4a7cd0702025e3f870f57ab454b91f3a2",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/player/rotation/RotationManager.java",
+      "bytes": 7396,
+      "sha256": "a8b876a3389168eced65b7598d65c01f6fc572018489682c186a38e27a2e5e67"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/player/rotation/RotationHandler.java",
+      "blob": "29555b7cfca3b1e5cccad94e4d5ed06902784a31",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/player/rotation/RotationHandler.java",
+      "bytes": 11747,
+      "sha256": "324af8fe2070b8afda50ed2588ef93a78da0efc87055f3850646b6c1c5c9589f"
+    },
+    {
+      "path": "README.md",
+      "blob": "ac3c47ef7c38a6180b201f2bea2b586a43f9de7b",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/README.md",
+      "bytes": 3548,
+      "sha256": "be318f5c0e5d3c1c89e8cff46d27418426b9fc17aa5218071b8b4a45ffac30c9"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/player/MoveUtil.java",
+      "blob": "bd1c4a35710e21784f5150f15f6730b23cab874d",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/player/MoveUtil.java",
+      "bytes": 12983,
+      "sha256": "01f9f5d549bd1343f01b3614fa57ea32485540336fedebc1ca6f9bdf79b8f7f3"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/player/rotation/RotationUtils.java",
+      "blob": "8b6b870489603d843635776e4f4545f3466f7696",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/player/rotation/RotationUtils.java",
+      "bytes": 8949,
+      "sha256": "f17e645758b358d2281c576583819efdcfea092dfb9edd60759dc7eb6dba1622"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/player/rotation/enums/MovementCorrectionMode.java",
+      "blob": "447ebe6524414a46ef760540ff5add2b674df836",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/player/rotation/enums/MovementCorrectionMode.java",
+      "bytes": 121,
+      "sha256": "3b7ca082b9c8a0a358a1631a96c17c40b45a3e785bc80ebc39ff4ce3ff2cbcd8"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/player/rotation/enums/SmoothMode.java",
+      "blob": "4297456136cc96baad382a67b5c97069f620a053",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/player/rotation/enums/SmoothMode.java",
+      "bytes": 101,
+      "sha256": "05bdae7080123bc4a5843e14f82a69fca58eccc352abc0090c76174286ac35ee"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/math/MathUtils.java",
+      "blob": "ddac1882345afeaad801759e11f1320126fc5740",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/math/MathUtils.java",
+      "bytes": 6257,
+      "sha256": "f18586db1a4b870146f38903a1864f9cde7c04830d16fd29f5a8294d762224a7"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/math/TimerUtils.java",
+      "blob": "f199879f05ee0815948abb43a4ecfe9c6c61d201",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/math/TimerUtils.java",
+      "bytes": 775,
+      "sha256": "bd8aaadaf520204ea9b44785372c5f92955929a61c5c4f3a636b00a0618f7222"
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/modules/Module.java",
+      "blob": "36bc24f899302f21623b26dfd8059715484b6e04",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/features/modules/Module.java",
+      "bytes": 4468,
+      "sha256": "f4f3635ed30f2e80b7e26b5314c0fb55bbcc1d310202efca7c0a201668740488"
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/values/impl/SliderValue.java",
+      "blob": "ca570c03fc7f81b9cff22c458bfb0d4d30cfe2c9",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/features/values/impl/SliderValue.java",
+      "bytes": 1555,
+      "sha256": "cde1ee70224189109b3704ff8d4456c7586aaf834b4035c0bf1cd88df5730eed"
+    },
+    {
+      "path": "src/main/java/wtf/demise/features/values/impl/ModeValue.java",
+      "blob": "ec75d377e4f7526451c3709649b03d54b88fa10f",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/features/values/impl/ModeValue.java",
+      "bytes": 1335,
+      "sha256": "c8892f6cc998d37573432e3799aee9439f20636cbb338a8c33d44e8959b03b71"
+    },
+    {
+      "path": "src/main/java/net/minecraft/util/BlockPos.java",
+      "blob": "eeb6c44d798f54c98f12d87ef4ecaa8edcd53836",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/net/minecraft/util/BlockPos.java",
+      "bytes": 9033,
+      "sha256": "5856b137163288196941ba1fab4c4116bd8a3cb754357da014b79d84d9274d0f"
+    },
+    {
+      "path": "src/main/java/net/minecraft/util/Vec3i.java",
+      "blob": "973ef3e8b2d0989a7a851bc4da0d65ec68cda64b",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/net/minecraft/util/Vec3i.java",
+      "bytes": 2716,
+      "sha256": "8f3b500eaca38123e891af9a23989761053e5141e2a6c54f05b2f54768e0944f"
+    },
+    {
+      "path": "src/main/java/net/minecraft/client/entity/AbstractClientPlayer.java",
+      "blob": "4a156b7f12c004d3c6b4906cc3052eebefacb79d",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/net/minecraft/client/entity/AbstractClientPlayer.java",
+      "bytes": 7218,
+      "sha256": "875b29db50a0e7168aaf53bf3f8c689449e68b29e746098e0ca7fda22f9ce0b1"
+    },
+    {
+      "path": "src/main/java/net/minecraft/client/entity/EntityPlayerSP.java",
+      "blob": "471c255be4b9c75553175619bebbc96c2b20a277",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/net/minecraft/client/entity/EntityPlayerSP.java",
+      "bytes": 26590,
+      "sha256": "212aaf94301ba9176b8c930fa55c26d4561e97e972ab1bd99c765f485e171e30"
+    },
+    {
+      "path": "src/main/java/net/minecraft/client/renderer/EntityRenderer.java",
+      "blob": "054bf6edfb6a69118cf483b4683b6d0fa26a2534",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/net/minecraft/client/renderer/EntityRenderer.java",
+      "bytes": 103936,
+      "sha256": "aab9a140a0989c941c52a3dae98cc612ebfad9ef511c906481ae46e84365c23b"
+    },
+    {
+      "path": "src/main/java/net/minecraft/entity/Entity.java",
+      "blob": "b2bb5141d923dc011e9729b64dd2d8951482663d",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/net/minecraft/entity/Entity.java",
+      "bytes": 71755,
+      "sha256": "391d281464dfc368f32ecd84e070f13812f423c618535268eb2c3d486b73633b"
+    },
+    {
+      "path": "src/main/java/net/minecraft/client/multiplayer/PlayerControllerMP.java",
+      "blob": "56cc21f4d9e685b61d0cbb006a68d22c1cbcaaf9",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/net/minecraft/client/multiplayer/PlayerControllerMP.java",
+      "bytes": 18551,
+      "sha256": "188e08ce54e6c49ca3282c408eb23bf3ac6eb0d0dd4c3cba240e83ce6710708d"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/player/PlayerUtils.java",
+      "blob": "a97ea2d49db30ce5088d665ae900d3cf99541e33",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/player/PlayerUtils.java",
+      "bytes": 12942,
+      "sha256": "19814aef41766e5a148516a7a0bd9f5285335d884d68c0987717a495d7f63429"
+    },
+    {
+      "path": "src/main/java/wtf/demise/utils/packet/PacketUtils.java",
+      "blob": "c347bda225d1f100a911dcf7bc56ccdaff3c096e",
+      "url": "https://github.com/YoungJibbit95/DemisePrivate/blob/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb/src/main/java/wtf/demise/utils/packet/PacketUtils.java",
+      "bytes": 1010,
+      "sha256": "644d75a3c0bd568c9b92b37cca275e8f84840dcd33da5f579b04fa5b16e72cfa"
+    }
+  ]
+}

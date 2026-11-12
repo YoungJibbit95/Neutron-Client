@@ -50,12 +50,18 @@ public final class RotationCorrections {
         Minecraft mc = Minecraft.getMinecraft();
         if (mc == null || mc.thePlayer == null || mc.theWorld == null || !mc.thePlayer.isEntityAlive()
                 || mc.thePlayer.isDead || mc.thePlayer.isSpectator() || mc.thePlayer.isRiding()
-                || mc.currentScreen != null || !mc.inGameHasFocus || mc.getRenderViewEntity() != mc.thePlayer) return null;
+                || mc.getRenderViewEntity() != mc.thePlayer) return null;
         ModuleManager modules = Pulsar.INSTANCE.getMm();
         if (modules == null) return null;
         RotationManager rotation = RuntimeServices.rotation();
         if (mc.getNetHandler()==null || !mc.getNetHandler().getNetworkManager().isChannelOpen()) return null;
         String owner = rotation.getConfirmedOwner(mc.thePlayer, mc.theWorld, mc.getNetHandler().getNetworkManager().getClientPackets());
+        if (mc.currentScreen != null || !mc.inGameHasFocus || mc.isGamePaused()) {
+            BedBreaker bed = (BedBreaker) modules.getModule(BedBreaker.class);
+            // UI suspension stops actions, while the already-owned Bed return keeps its movement basis.
+            if (!BedBreaker.ROTATION_SOURCE.equals(owner) || bed == null
+                    || !bed.rotationEngine.returning() || !bed.correctionEnabled()) return null;
+        }
         if (RotationManager.isReleaseSource(owner)) {
             RotationManager.ReleaseView release = rotation.getRotationRelease();
             return release != null && owner.equals(release.releaseSource)
@@ -158,7 +164,7 @@ public final class RotationCorrections {
         if (selected == null || selected.movement == MoveFixController.Mode.OFF || selected.preserveHeading)
             return rawForward;
         // Demise rewrites keyboard axes before slowdown. Sprint consumes those axes directly.
-        if (NScaffold.ROTATION_SOURCE.equals(selected.owner)) return rawForward;
+        if (demiseOwner(selected.owner)) return rawForward;
         return MoveFixController.correct(rawStrafe, rawForward, cameraYaw,
                 selected.yaw, selected.movement).forward;
     }
@@ -170,7 +176,7 @@ public final class RotationCorrections {
     public static float directMotionYaw(float cameraYaw, float cameraDirectionYaw, float strafe, float forward) {
         Selection selected = currentMovement();
         if (selected == null || selected.movement == MoveFixController.Mode.OFF || selected.preserveHeading) return cameraDirectionYaw;
-        if (NScaffold.ROTATION_SOURCE.equals(selected.owner)
+        if (demiseOwner(selected.owner)
                 || selected.movement == MoveFixController.Mode.ROTATION_BOUND
                 || selected.movement == MoveFixController.Mode.LEGACY_STRICT)
             return selected.yaw + (cameraDirectionYaw - cameraYaw);
@@ -186,7 +192,7 @@ public final class RotationCorrections {
         // keys; vanilla still applies sneak/item strength and its diagonal cap once.
         // The selected placement yaw and its packet/action authority are untouched.
         if (selected.preserveHeading) return;
-        if (NScaffold.ROTATION_SOURCE.equals(selected.owner)) {
+        if (demiseOwner(selected.owner)) {
             // RotationHandler.onStrafe changes only yaw; onMove has already fixed raw axes.
             event.setYaw(selected.yaw);
             return;
@@ -214,8 +220,8 @@ public final class RotationCorrections {
                     release.yaw, release.pitch, vanillaBodyYaw, release.progress);
         }
         Selection selected = current();
-        // NScaffold uses the original EntityLivingBase model fields and vanilla interpolation.
-        if (selected != null && NScaffold.ROTATION_SOURCE.equals(selected.owner)) {
+        // Demise owners use the original EntityLivingBase model fields and vanilla interpolation.
+        if (selected != null && demiseOwner(selected.owner)) {
             BODY.reset();
             return null;
         }
@@ -226,4 +232,8 @@ public final class RotationCorrections {
 
     public static void reset(String source) { BODY.reset(source); }
     public static void reset() { BODY.reset(); }
+
+    private static boolean demiseOwner(String source) {
+        return NScaffold.ROTATION_SOURCE.equals(source) || BedBreaker.ROTATION_SOURCE.equals(source);
+    }
 }
