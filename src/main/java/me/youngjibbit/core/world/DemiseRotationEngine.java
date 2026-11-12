@@ -187,7 +187,10 @@ public final class DemiseRotationEngine {
         float pitch = (currentRotation[1] - cameraPitch) * .5f;
         double length = Math.hypot(yaw, pitch);
         double maximum = MAX_CONTINUOUS_FRAME_TURN * Math.min(timeScale, 4F / 3F) / (4D / 3D);
-        if (length > maximum) { yaw *= maximum / length; pitch *= maximum / length; }
+        if (length > maximum) {
+            yaw = (float) (yaw * (maximum / length));
+            pitch = (float) (pitch * (maximum / length));
+        }
         return new Aim(cameraYaw + yaw, MathHelper.clamp_float(cameraPitch + pitch, -90, 90));
     }
 
@@ -241,7 +244,10 @@ public final class DemiseRotationEngine {
         pitchStep = continuousStep(pitchStep, pitchDifference, vertical, factor, currentRotation[1]);
         double distance = Math.hypot(yawStep, pitchStep);
         double frameMaximum = MAX_CONTINUOUS_FRAME_TURN * Math.min(timeScale, 4F / 3F) / (4D / 3D);
-        if (distance > frameMaximum) { yawStep *= frameMaximum / distance; pitchStep *= frameMaximum / distance; }
+        if (distance > frameMaximum) {
+            yawStep = (float) (yawStep * (frameMaximum / distance));
+            pitchStep = (float) (pitchStep * (frameMaximum / distance));
+        }
         float nextYaw = currentRotation[0] + yawStep, nextPitch = MathHelper.clamp_float(currentRotation[1] + pitchStep, -90, 90);
         float[] wire = serverRotation != null ? serverRotation : continuousWireBase;
         if (wire != null) {
