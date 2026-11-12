@@ -3,6 +3,8 @@ package me.youngjibbit.core.world;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.activity.ScaffoldActivitySnapshot;
 import me.youngjibbit.core.combat.RotationBehaviorHookTest;
+import me.youngjibbit.core.observation.AutomatedActionAdmission;
+import me.youngjibbit.core.observation.RuntimeObservation;
 import me.youngjibbit.event.motion.EventMotion;
 import me.youngjibbit.event.motion.EventMove;
 import me.youngjibbit.event.packet.EventPacket;
@@ -15,12 +17,16 @@ import me.youngjibbit.module.impl.movement.Sprint;
 import me.youngjibbit.module.impl.world.NScaffold;
 import me.zero.alpine.event.EventPhase;
 import me.zero.alpine.listener.Listener;
+import net.minecraft.block.Block;
 import net.minecraft.block.state.IBlockState;
+import net.minecraft.block.material.Material;
 import net.minecraft.client.gui.GuiChat;
 import net.minecraft.client.multiplayer.PlayerControllerMP;
+import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.client.settings.KeyBinding;
 import net.minecraft.entity.Entity;
+import net.minecraft.entity.SharedMonsterAttributes;
 import net.minecraft.entity.player.InventoryPlayer;
 import net.minecraft.entity.player.PlayerCapabilities;
 import net.minecraft.init.Blocks;
@@ -32,12 +38,15 @@ import net.minecraft.network.play.client.C03PacketPlayer;
 import net.minecraft.network.play.client.C08PacketPlayerBlockPlacement;
 import net.minecraft.network.play.client.C09PacketHeldItemChange;
 import net.minecraft.network.play.client.C0APacketAnimation;
+import net.minecraft.profiler.Profiler;
+import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.BlockPos;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.MovementInput;
 import net.minecraft.util.MovementInputFromOptions;
 import net.minecraft.util.MovingObjectPosition;
 import net.minecraft.util.Vec3;
+import net.minecraft.world.border.WorldBorder;
 import org.junit.Test;
 
 import java.lang.reflect.Field;
@@ -47,8 +56,8 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.BooleanSupplier;
-import java.util.function.BiFunction;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 
 import static org.junit.Assert.*;
 
@@ -66,11 +75,47 @@ public class NScaffoldFlowTest {
     @Test public void angleSelectsTheOriginalLastSlotWhileCosmeticConsumersKeepTheOldSlot() throws Exception {
         isolated("angleSelectsTheOriginalLastSlotWhileCosmeticConsumersKeepTheOldSlot");
     }
-    @Test public void updatePlacesThroughTheGuardedControllerBeforeFreshInputAndNeverFromPost() throws Exception {
-        isolated("updatePlacesThroughTheGuardedControllerBeforeFreshInputAndNeverFromPost");
+    @Test public void updatePreparesThenAcceptedWalkingPlacesAfterInputExactlyOnce() throws Exception {
+        isolated("updatePreparesThenAcceptedWalkingPlacesAfterInputExactlyOnce");
     }
-    @Test public void rayTraceDispatchUsesOriginalSupportFaceHitAndPreviousBlockRules() throws Exception {
-        isolated("rayTraceDispatchUsesOriginalSupportFaceHitAndPreviousBlockRules");
+    @Test public void realRayMissesAndWrongFacesNeverPlaceOrChangeSuccessfulHistory() throws Exception {
+        isolated("realRayMissesAndWrongFacesNeverPlaceOrChangeSuccessfulHistory");
+    }
+    @Test public void realRayUsesReportedPositionAndAcceptedWireAngles() throws Exception {
+        isolated("realRayUsesReportedPositionAndAcceptedWireAngles");
+    }
+    @Test public void lowCpsDoesNotCatchUpOrDependOnRenderFrameCount() throws Exception {
+        isolated("lowCpsDoesNotCatchUpOrDependOnRenderFrameCount");
+    }
+    @Test public void onePhysicalTickCannotSpendTwoAttemptsAcrossWalkingSequences() throws Exception {
+        isolated("onePhysicalTickCannotSpendTwoAttemptsAcrossWalkingSequences");
+    }
+    @Test public void legitModeRequiresARealRayAndNativeFourTickDelay() throws Exception {
+        isolated("legitModeRequiresARealRayAndNativeFourTickDelay");
+    }
+    @Test public void rejectedC03AndForeignOwnerCannotAuthorizePlacement() throws Exception {
+        isolated("rejectedC03AndForeignOwnerCannotAuthorizePlacement");
+    }
+    @Test public void rejectedControllerAttemptConsumesCadenceWithoutInventingHistory() throws Exception {
+        isolated("rejectedControllerAttemptConsumesCadenceWithoutInventingHistory");
+    }
+    @Test public void edgeSafetyHoldsOnlyUnsupportedMotionAndReleasesAfterPlacement() throws Exception {
+        isolated("edgeSafetyHoldsOnlyUnsupportedMotionAndReleasesAfterPlacement");
+    }
+    @Test public void movingBridgeStaysSupportedAcrossRealRaysAndFrameSequences() throws Exception {
+        isolated("movingBridgeStaysSupportedAcrossRealRaysAndFrameSequences");
+    }
+    @Test public void movingLegitBridgeStaysSupportedAcrossRealRaysAndFrameSequences() throws Exception {
+        isolated("movingLegitBridgeStaysSupportedAcrossRealRaysAndFrameSequences");
+    }
+    @Test public void relativeFramesReachARealSupportWithinThreeSecondsWithoutMovingTheCamera() throws Exception {
+        isolated("relativeFramesReachARealSupportWithinThreeSecondsWithoutMovingTheCamera");
+    }
+    @Test public void acceleratedFramesEscapeARealSupportMissWithinTwoSeconds() throws Exception {
+        isolated("acceleratedFramesEscapeARealSupportMissWithinTwoSeconds");
+    }
+    @Test public void reenableDuringSceneOrAdmissionCaptureRejectsThePreviousGeneration() throws Exception {
+        isolated("reenableDuringSceneOrAdmissionCaptureRejectsThePreviousGeneration");
     }
     @Test public void tellyUsesOriginalGroundCountersAndSeparateStraightAndDiagonalWindows() throws Exception {
         isolated("tellyUsesOriginalGroundCountersAndSeparateStraightAndDiagonalWindows");
@@ -128,17 +173,65 @@ public class NScaffoldFlowTest {
         return field(NScaffold.class, name).getInt(module);
     }
 
-    public static class Scene extends ScaffoldClientFlowTest.Scene {
+    /** Map-backed world storage with the actual World voxel traversal and block ray intersection. */
+    public static class Scene extends WorldClient {
+        Map<BlockPos,IBlockState> blocks;
+        WorldBorder border;
+        AtomicLong motionTime;
         int blockReads, rayReads;
-        BiFunction<Vec3,Vec3,MovingObjectPosition> rayResponse;
+        Vec3 lastRayFrom, lastRayTo;
+        public Scene() { super(null, null, 0, null, null); }
         @Override public IBlockState getBlockState(BlockPos position) {
             blockReads++;
-            return super.getBlockState(position);
+            return blocks.getOrDefault(position, Blocks.air.getDefaultState());
         }
+        @Override public boolean isBlockLoaded(BlockPos position) { return true; }
+        @Override public WorldBorder getWorldBorder() { return border; }
+        @Override public Entity getEntityByID(int id) {
+            for (Entity entity : loadedEntityList) if (entity.getEntityId() == id) return entity;
+            return null;
+        }
+        @Override public List<Entity> getEntitiesInAABBexcluding(Entity excluded, AxisAlignedBB area,
+                com.google.common.base.Predicate<? super Entity> predicate) {
+            List<Entity> found = new ArrayList<>();
+            for (Entity entity : loadedEntityList)
+                if (entity != excluded && entity.getEntityBoundingBox().intersectsWith(area)
+                        && (predicate == null || predicate.apply(entity))) found.add(entity);
+            return found;
+        }
+        @Override public boolean canBlockBePlaced(Block block, BlockPos position, boolean ignore, EnumFacing side,
+                                                  Entity entity, ItemStack stack) {
+            return getBlockState(position).getBlock().getMaterial().isReplaceable();
+        }
+        @Override public boolean setBlockState(BlockPos position, IBlockState state, int flags) {
+            blocks.put(position, state); return true;
+        }
+        @Override public void playSoundEffect(double x, double y, double z, String sound, float volume, float pitch) { }
         @Override public MovingObjectPosition rayTraceBlocks(Vec3 from, Vec3 to, boolean liquid, boolean empty, boolean last) {
             rayReads++;
-            return rayResponse == null ? super.rayTraceBlocks(from, to, liquid, empty, last) : rayResponse.apply(from, to);
+            lastRayFrom = from; lastRayTo = to;
+            return super.rayTraceBlocks(from, to, liquid, empty, last);
         }
+        @Override public List<AxisAlignedBB> getCollidingBoundingBoxes(Entity entity, AxisAlignedBB area) {
+            List<AxisAlignedBB> collisions = new ArrayList<>();
+            for (Map.Entry<BlockPos,IBlockState> cell : blocks.entrySet())
+                cell.getValue().getBlock().addCollisionBoxesToList(this, cell.getKey(), cell.getValue(), area, collisions, entity);
+            return collisions;
+        }
+        @Override public boolean isAreaLoaded(BlockPos from, BlockPos to, boolean allowEmpty) { return true; }
+        @Override public boolean canLightningStrike(BlockPos pos) { return false; }
+        @Override public boolean isFlammableWithin(AxisAlignedBB area) { return false; }
+        @Override public boolean handleMaterialAcceleration(AxisAlignedBB area, Material material, Entity entity) {
+            // This fixture contains stone and air; no fluid can accelerate the real player physics.
+            return false;
+        }
+        @Override public void playSound(double x, double y, double z, String name, float volume, float pitch, boolean delay) { }
+    }
+
+    /** Keep headless collision physics independent of OptiFine's rendering profiler. */
+    private static final class CollisionProfiler extends Profiler {
+        @Override public void startSection(String name) { }
+        @Override public void endSection() { }
     }
 
     /** Calls Entity's real ground-counter producer without running unrelated entity simulation. */
@@ -159,12 +252,22 @@ public class NScaffoldFlowTest {
         @Override public void close() { Pulsar.BUS.unsubscribe(packets); }
     }
 
+    private static final class MotionObserver implements AutoCloseable {
+        private final Listener<EventMotion> motions;
+        MotionObserver(Consumer<EventMotion> action) {
+            motions = new Listener<>((EventMotion event) -> action.accept(event));
+            Pulsar.BUS.subscribe(motions);
+        }
+        @Override public void close() { Pulsar.BUS.unsubscribe(motions); }
+    }
+
     private static final class Run implements AutoCloseable {
         final float originalForward = MovementInput.moveForward, originalStrafe = MovementInput.moveStrafe;
         final RotationBehaviorHookTest.Fixture f = new RotationBehaviorHookTest.Fixture();
         final NScaffold module = new NScaffold();
         final AtomicLong millis = new AtomicLong(1_000);
         final AtomicLong activityNanos = new AtomicLong(1_000_000_000L);
+        final AtomicLong placementNanos = new AtomicLong(1_000_000_000L);
         final AtomicLong nanos;
         final Scene world;
         final GroundCounter ground = RotationBehaviorHookTest.bare(GroundCounter.class);
@@ -182,9 +285,11 @@ public class NScaffoldFlowTest {
             world = RotationBehaviorHookTest.bare(Scene.class);
             world.blocks = prepared.blocks; world.border = prepared.border; world.motionTime = prepared.motionTime;
             field(net.minecraft.world.World.class, "loadedEntityList").set(world, new ArrayList<Entity>());
+            field(net.minecraft.world.World.class, "theProfiler").set(world, new CollisionProfiler());
             f.mc.theWorld = world; f.player.worldObj = world;
             nanos = world.motionTime; nanos.set(1_000_000_000L);
             f.player.capabilities = new PlayerCapabilities();
+            f.player.getAttributeMap().registerAttribute(SharedMonsterAttributes.movementSpeed).setBaseValue(.1);
             f.player.width = .6F; f.player.height = 1.8F;
             f.player.inventory = new InventoryPlayer(f.player);
             f.player.inventory.currentItem = 2;
@@ -209,10 +314,11 @@ public class NScaffoldFlowTest {
             MovementInput.moveForward = MovementInput.moveStrafe = 0;
             field(NScaffold.class, "millis").set(module, (LongSupplier) millis::get);
             field(NScaffold.class, "activityClock").set(module, (LongSupplier) activityNanos::get);
+            field(NScaffold.class, "placementClock").set(module, (LongSupplier) placementNanos::get);
             field(NScaffold.class, "clutchTime").setLong(module, millis.get());
             field(NScaffold.class, "sneakTime").setLong(module, millis.get());
             field(NScaffold.class, "rotationEngine").set(module, new DemiseRotationEngine(millis::get, nanos::get, (min, max) -> min));
-            // Center avoids thousands of geometry samples here; Normal has dedicated pinned-source fixtures.
+            // Lifecycle cases use a simple center aim; the moving bridge below uses the default Normal planner.
             module.getModeSetting("Rotations").setValue("Center");
             module.getBooleanSetting("Swing").setValue(false);
             f.runtime.getObservation().beginOuterTick();
@@ -241,14 +347,47 @@ public class NScaffoldFlowTest {
             DemiseRotationHooks.mouseUpdate();
             f.player.setAngles(physicalYaw, physicalPitch);
         }
+        void frameAt(long now) {
+            millis.set(now / 1_000_000L); nanos.set(now);
+            DemiseRotationHooks.mousePre();
+            DemiseRotationHooks.mouseUpdate();
+            f.player.setAngles(0, 0);
+        }
+        void physicsAt(long now) {
+            millis.set(now / 1_000_000L); nanos.set(now); placementNanos.set(now);
+            step(() -> {
+                groundTick(f.player.onGround);
+                DemiseRotationHooks.update(f.player);
+                f.runtime.getRotationManager().prepareMovement(f.player);
+                f.player.movementInput.updatePlayerMoveState();
+                inputs++;
+                f.runtime.getRotationManager().beforeMovementPhysics();
+                f.player.moveStrafing = MovementInput.moveStrafe * .98F;
+                f.player.moveForward = MovementInput.moveForward * .98F;
+                f.player.prevPosX = f.player.posX; f.player.prevPosY = f.player.posY; f.player.prevPosZ = f.player.posZ;
+                // Vanilla travel executes MoveFix, acceleration, EntityPlayerSP.moveEntity,
+                // collision resolution, gravity and drag before this tick's C03 and C08.
+                f.player.moveEntityWithHeading(f.player.moveStrafing, f.player.moveForward);
+                f.player.onUpdateWalkingPlayer();
+            });
+        }
         void step(Runnable body) {
             f.runtime.getObservation().beginOuterTick();
             try {
+                f.player.ticksExisted++;
+                // Minecraft.runTick owns this decrement, once per physical tick.
+                if (f.mc.rightClickDelayTimer > 0) f.mc.rightClickDelayTimer--;
                 f.runtime.getObservation().observePlayerStep(f.player, () -> { body.run(); return true; }, step -> step.getAsBoolean());
             } finally { f.runtime.getObservation().endOuterTick(); }
         }
-        void update() { step(() -> DemiseRotationHooks.update(f.player)); }
+        void updateOnly() { step(() -> DemiseRotationHooks.update(f.player)); }
+        void update() { updateAt(placementNanos.get() + 50_000_000L); }
+        void updateAt(long now) {
+            placementNanos.set(now);
+            step(() -> { DemiseRotationHooks.update(f.player); f.player.onUpdateWalkingPlayer(); });
+        }
         void updateThenInput(Runnable afterUpdate) {
+            placementNanos.addAndGet(50_000_000L);
             step(() -> {
                 DemiseRotationHooks.update(f.player);
                 afterUpdate.run();
@@ -258,6 +397,48 @@ public class NScaffoldFlowTest {
                 f.runtime.getRotationManager().beforeMovementPhysics();
                 f.player.onUpdateWalkingPlayer();
             });
+        }
+        void frames(int count) { for (int frame = 0; frame < count; frame++) frame(0, 0); }
+        Vec3 wireEyes() { return f.player.getLastReportedPosition().addVector(0, f.player.getEyeHeight(), 0); }
+        MovingObjectPosition ray(float yaw, float pitch) {
+            Vec3 eyes = wireEyes(), direction = Entity.getVectorForRotation(pitch, yaw);
+            return world.rayTraceBlocks(eyes, eyes.addVector(direction.xCoord * 4.5, direction.yCoord * 4.5,
+                    direction.zCoord * 4.5), false, false, false);
+        }
+        void alignRealRay() throws Exception {
+            updateOnly();
+            for (int frame = 0; frame < 120; frame++) {
+                frame(0, 0);
+                DemiseRotationEngine.Aim aim = module.rotationEngine.currentAim();
+                DemiseScaffoldGeometry.PlaceData data =
+                        (DemiseScaffoldGeometry.PlaceData) field(NScaffold.class, "data").get(module);
+                MovingObjectPosition hit = aim == null ? null : ray(aim.yaw, aim.pitch);
+                if (data != null && hit != null && hit.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK
+                        && data.blockPos.equals(hit.getBlockPos()) && data.facing == hit.sideHit) return;
+            }
+            fail("Demise render frames did not acquire the real support face");
+        }
+        void bridgeDiagnostic(int fps, int tick, int stopped) throws Exception {
+            NScaffoldRaycast.Plan plan = (NScaffoldRaycast.Plan) field(NScaffold.class, "rayPlan").get(module);
+            float wireYaw = f.runtime.getRotationManager().getEffectiveYaw();
+            float wirePitch = f.runtime.getRotationManager().getEffectivePitch();
+            MovingObjectPosition hit = ray(wireYaw, wirePitch);
+            MovingObjectPosition actionHit = NScaffoldRaycast.trace(world, wireEyes(), wireYaw, wirePitch,
+                    f.mc.playerController.getBlockReachDistance(), plan, () -> true);
+            MovingObjectPosition targetHit = plan == null ? null : ray(plan.yaw, plan.pitch);
+            System.out.printf(java.util.Locale.ROOT,
+                    "NScaffold bridge diagnostic placement=%s fps=%d tick=%d stopped=%d pos=(%.9f,%.9f,%.9f) wire=%s motion=(%.9f,%.9f) "
+                            + "status=%s plan=%s support=%s face=%s planAngles=%s currentAim=%s targetAngles=%s target=%s "
+                            + "planningEyes=%s wireAngles=(%.6f,%.6f) wireHit=%s actionHit=%s targetHit=%s owner=%s%n",
+                    module.getModeSetting("Placement mode").getValue(), fps, tick, stopped,
+                    f.player.posX, f.player.posY, f.player.posZ, f.player.getLastReportedPosition(),
+                    f.player.motionX, f.player.motionZ, module.getStatus(), plan == null ? null : plan.destination,
+                    plan == null ? null : plan.data.blockPos, plan == null ? null : plan.data.facing,
+                    plan == null ? null : java.util.Arrays.toString(plan.rotation()),
+                    java.util.Arrays.toString(module.rotationEngine.rotation()),
+                    java.util.Arrays.toString((float[]) field(DemiseRotationEngine.class, "targetRotation").get(module.rotationEngine)),
+                    module.targetBlock, field(NScaffold.class, "planningEyes").get(module), wireYaw, wirePitch,
+                    hit, actionHit, targetHit, f.runtime.getRotationManager().getConfirmedOwner());
         }
         void walking() { step(() -> f.player.onUpdateWalkingPlayer()); }
         void motion(EventPhase phase) {
@@ -325,7 +506,7 @@ public class NScaffoldFlowTest {
 
         @Test public void angleSelectsTheOriginalLastSlotWhileCosmeticConsumersKeepTheOldSlot() throws Exception {
             try (Run r = new Run()) {
-                assertEquals(2, r.f.player.inventory.currentItem);
+                assertEquals("the initial Update prepares the original last eligible slot", 8, r.f.player.inventory.currentItem);
                 r.frame(0, 0);
                 assertEquals(8, r.f.player.inventory.currentItem);
                 assertEquals(2, NScaffold.displayedSlot(r.f.player));
@@ -340,87 +521,623 @@ public class NScaffoldFlowTest {
             }
         }
 
-        @Test public void updatePlacesThroughTheGuardedControllerBeforeFreshInputAndNeverFromPost() throws Exception {
+        @Test public void updatePreparesThenAcceptedWalkingPlacesAfterInputExactlyOnce() throws Exception {
             try (Run r = new Run()) {
-                r.module.getBooleanSetting("RayTrace").setValue(false);
-                r.forward(true); r.frame(0, 0);
-                assertFalse(r.world.blocks.containsKey(r.target));
+                r.forward(true); r.alignRealRay();
                 r.updateThenInput(() -> {
                     assertEquals("fresh input has not been sampled yet", 0, r.inputs);
-                    assertEquals(Blocks.stone, r.world.getBlockState(r.target).getBlock());
-                    assertEquals(15, r.f.player.inventory.mainInventory[8].stackSize);
+                    assertFalse("Update only prepares the target", r.world.blocks.containsKey(r.target));
+                    assertEquals(16, r.f.player.inventory.mainInventory[8].stackSize);
                 });
+                assertEquals(1, r.inputs);
+                assertEquals(Blocks.stone, r.world.getBlockState(r.target).getBlock());
+                assertEquals(15, r.f.player.inventory.mainInventory[8].stackSize);
                 assertEquals(NScaffold.Status.BUILDING, r.module.getStatus());
                 List<Object> packets = r.drain(); assertEquals(1, r.placements(packets));
-                int slot = -1, placement = -1, animation = -1;
+                int movement = -1, slot = -1, placement = -1, animation = -1;
                 for (int index = 0; index < packets.size(); index++) {
                     Object packet = packets.get(index);
+                    if (packet instanceof C03PacketPlayer) movement = index;
                     if (packet instanceof C09PacketHeldItemChange) slot = index;
                     if (packet instanceof C08PacketPlayerBlockPlacement) placement = index;
                     if (packet instanceof C0APacketAnimation) animation = index;
                 }
-                assertTrue(slot >= 0); assertTrue(slot < placement); assertTrue(placement < animation);
+                assertTrue("the current C03 is accepted before a placement", movement >= 0 && movement < placement);
+                assertTrue(slot >= 0 && slot < placement); assertTrue(placement < animation);
                 assertEquals(8, ((C09PacketHeldItemChange) packets.get(slot)).getSlotId());
+                assertTrue(r.f.runtime.getRotationManager().canUseRotation("nscaffold", false));
                 r.clearPlacedBlock();
                 EventMotion post = new EventMotion(.5, 64, .5, 0, 0, true);
                 post.setEventPhase(EventPhase.POST); post.setAccepted(true);
-                Pulsar.BUS.post(post); Pulsar.BUS.post(post);
-                assertFalse(r.world.blocks.containsKey(r.target)); assertEquals(0, r.placements(r.drain()));
+                r.step(() -> { Pulsar.BUS.post(post); Pulsar.BUS.post(post); });
+                assertFalse("a previous C03 cannot authorize a new physical tick", r.world.blocks.containsKey(r.target));
+                assertEquals(0, r.placements(r.drain()));
                 r.update(); assertTrue(r.world.blocks.containsKey(r.target)); assertEquals(1, r.placements(r.drain()));
             }
         }
 
-        @Test public void rayTraceDispatchUsesOriginalSupportFaceHitAndPreviousBlockRules() throws Exception {
+        @Test public void realRayMissesAndWrongFacesNeverPlaceOrChangeSuccessfulHistory() throws Exception {
             try (Run r = new Run()) {
-                assertTrue("the original RayTrace default stays enabled", r.module.getBooleanSetting("RayTrace").getValue());
-                r.frame(0, 0);
-                DemiseScaffoldGeometry.PlaceData data = (DemiseScaffoldGeometry.PlaceData) field(NScaffold.class, "data").get(r.module);
-                BlockPos support = new BlockPos(-1, 63, 0);
-                assertEquals(support, data.blockPos); assertEquals(EnumFacing.EAST, data.facing);
+                assertTrue(r.module.getBooleanSetting("RayTrace").getValue());
+                r.module.getModeSetting("Rotations").setValue("Reverse");
+                r.module.getBooleanSetting("Static-ify").setValue(true); r.forward(true);
+                r.frames(80); r.update();
+                assertTrue("the miss still has an accepted NScaffold C03", r.f.runtime.getRotationManager().canUseRotation("nscaffold", false));
+                assertNull("this real northward ray misses the western support",
+                        r.ray(r.f.runtime.getRotationManager().getEffectiveYaw(), r.f.runtime.getRotationManager().getEffectivePitch()));
+                assertEquals(0, r.placements(r.drain()));
+                assertNull(field(NScaffold.class, "previousBlock").get(r.module));
 
-                BlockPos wrongSupport = new BlockPos(1, 63, 0);
-                r.world.blocks.put(wrongSupport, Blocks.stone.getDefaultState());
-                r.world.rayResponse = (from, to) -> new MovingObjectPosition(new Vec3(1.25, 64, .75), EnumFacing.UP, wrongSupport);
-                r.update(); assertEquals(0, r.placements(r.drain()));
-                assertEquals(wrongSupport.up(), field(NScaffold.class, "previousBlock").get(r.module));
-                assertEquals(0, counter(r.module, "blocksPlacedJump"));
-
-                r.module.getBooleanSetting("Strict rayTrace").setValue(true);
-                r.world.rayResponse = (from, to) -> new MovingObjectPosition(new Vec3(-.25, 64, .75), EnumFacing.UP, support);
-                r.update(); assertEquals(0, r.placements(r.drain()));
-                assertEquals(support.up(), field(NScaffold.class, "previousBlock").get(r.module));
-                assertFalse(r.world.blocks.containsKey(support.up()));
-
-                r.module.getBooleanSetting("Strict rayTrace").setValue(false);
-                r.update(); List<Object> nonStrict = r.drain(); assertEquals(1, r.placements(nonStrict));
-                C08PacketPlayerBlockPlacement above = null;
-                for (Object packet : nonStrict) if (packet instanceof C08PacketPlayerBlockPlacement)
-                    above = (C08PacketPlayerBlockPlacement) packet;
-                assertNotNull(above); assertEquals(support, above.getPosition());
-                assertEquals(EnumFacing.UP.getIndex(), above.getPlacedBlockDirection());
-                assertEquals(.75F, above.getPlacedBlockOffsetX(), 0);
-                assertEquals(1F, above.getPlacedBlockOffsetY(), 0); assertEquals(.75F, above.getPlacedBlockOffsetZ(), 0);
-                assertTrue(r.world.blocks.containsKey(support.up())); assertFalse(r.world.blocks.containsKey(r.target));
-                assertEquals(1, counter(r.module, "blocksPlacedJump"));
-
-                BlockPos occupied = support.south(); r.world.blocks.put(occupied, Blocks.stone.getDefaultState());
-                r.world.rayResponse = (from, to) -> new MovingObjectPosition(new Vec3(-.25, 63.75, 1), EnumFacing.SOUTH, support);
-                r.update(); assertEquals(0, r.placements(r.drain()));
-                assertEquals("previousBlock follows the ray even when the controller refuses an occupied target",
-                        occupied, field(NScaffold.class, "previousBlock").get(r.module));
-                assertEquals(1, counter(r.module, "blocksPlacedJump")); assertEquals(15, r.f.player.inventory.mainInventory[8].stackSize);
-
-                r.module.getBooleanSetting("Strict rayTrace").setValue(true);
-                r.world.rayResponse = (from, to) -> new MovingObjectPosition(new Vec3(0, 63.25, .75), EnumFacing.EAST, support);
-                r.update(); List<Object> strict = r.drain(); assertEquals(1, r.placements(strict));
-                C08PacketPlayerBlockPlacement exact = null;
-                for (Object packet : strict) if (packet instanceof C08PacketPlayerBlockPlacement)
-                    exact = (C08PacketPlayerBlockPlacement) packet;
-                assertNotNull(exact); assertEquals(EnumFacing.EAST.getIndex(), exact.getPlacedBlockDirection());
-                assertEquals(1F, exact.getPlacedBlockOffsetX(), 0);
-                assertEquals(.25F, exact.getPlacedBlockOffsetY(), 0); assertEquals(.75F, exact.getPlacedBlockOffsetZ(), 0);
-                assertTrue(r.world.blocks.containsKey(r.target)); assertEquals(2, counter(r.module, "blocksPlacedJump"));
+                r.module.getModeSetting("Rotations").setValue("Center"); r.alignRealRay(); r.update();
+                assertTrue(r.world.blocks.containsKey(r.target)); assertEquals(1, r.placements(r.drain()));
                 assertEquals(r.target, field(NScaffold.class, "previousBlock").get(r.module));
+                BlockPos obstruction = new BlockPos(0, 64, 0);
+                for (boolean strict : new boolean[]{false, true}) {
+                    r.clearPlacedBlock(); r.module.getBooleanSetting("Strict rayTrace").setValue(strict);
+                    int placed = counter(r.module, "blocksPlacedJump");
+                    int stack = r.f.player.inventory.mainInventory[8].stackSize;
+                    r.world.blocks.put(obstruction, Blocks.stone.getDefaultState());
+                    r.update();
+                    MovingObjectPosition hit = r.ray(r.f.runtime.getRotationManager().getEffectiveYaw(),
+                            r.f.runtime.getRotationManager().getEffectivePitch());
+                    assertNotNull(hit); assertEquals(obstruction, hit.getBlockPos()); assertEquals(EnumFacing.UP, hit.sideHit);
+                    assertEquals("neither ray mode may build on an unrelated face", 0, r.placements(r.drain()));
+                    assertFalse(r.world.blocks.containsKey(r.target)); assertFalse(r.world.blocks.containsKey(obstruction.up()));
+                    assertEquals(placed, counter(r.module, "blocksPlacedJump"));
+                    assertEquals(stack, r.f.player.inventory.mainInventory[8].stackSize);
+                    assertEquals("a rejected ray cannot change placement history", r.target, field(NScaffold.class, "previousBlock").get(r.module));
+                    r.world.blocks.remove(obstruction); r.alignRealRay(); r.update();
+                    assertEquals(1, r.placements(r.drain())); assertTrue(r.world.blocks.containsKey(r.target));
+                    assertEquals(placed + 1, counter(r.module, "blocksPlacedJump"));
+                }
+            }
+        }
+
+
+        @Test public void realRayUsesReportedPositionAndAcceptedWireAngles() throws Exception {
+            try (Run r = new Run()) {
+                // This displacement is below vanilla's C03 position threshold.
+                r.f.player.setPosition(.52, 64, .5);
+                r.f.player.rotationYaw = -37; r.f.player.rotationPitch = 8;
+                r.alignRealRay();
+                final Vec3[] usedEyes = {null};
+                try (PacketObserver ignored = new PacketObserver(event -> {
+                    if (event.isPre() && event.isOutbound() && event.getPacket() instanceof C08PacketPlayerBlockPlacement)
+                        usedEyes[0] = r.world.lastRayFrom;
+                })) { r.update(); }
+                List<Object> packets = r.drain(); assertEquals(1, r.placements(packets));
+                assertNotNull(usedEyes[0]);
+                assertEquals(.5, r.f.player.getLastReportedPosition().xCoord, 1e-12);
+                assertEquals(.5, usedEyes[0].xCoord, 1e-12);
+                assertEquals(64 + (double) r.f.player.getEyeHeight(), usedEyes[0].yCoord, 1e-12);
+                assertEquals(.5, usedEyes[0].zCoord, 1e-12);
+                assertEquals(.52, r.f.player.posX, 1e-12);
+                assertEquals(-37, r.f.player.rotationYaw, 0); assertEquals(8, r.f.player.rotationPitch, 0);
+                C08PacketPlayerBlockPlacement click = null;
+                C03PacketPlayer walking = null;
+                for (Object packet : packets) {
+                    if (packet instanceof C03PacketPlayer) walking = (C03PacketPlayer) packet;
+                    if (packet instanceof C08PacketPlayerBlockPlacement) click = (C08PacketPlayerBlockPlacement) packet;
+                }
+                assertNotNull(walking); assertFalse("the accepted position remains unchanged", walking.isMoving());
+                assertNotNull(click); assertEquals(new BlockPos(-1, 63, 0), click.getPosition());
+                assertEquals(EnumFacing.EAST.getIndex(), click.getPlacedBlockDirection());
+                assertEquals(1F, click.getPlacedBlockOffsetX(), 1e-6F);
+                assertTrue(click.getPlacedBlockOffsetY() > 0 && click.getPlacedBlockOffsetY() < 1);
+                assertTrue(click.getPlacedBlockOffsetZ() > 0 && click.getPlacedBlockOffsetZ() < 1);
+                assertTrue(r.world.blocks.containsKey(r.target));
+            }
+        }
+
+        @Test public void lowCpsDoesNotCatchUpOrDependOnRenderFrameCount() throws Exception {
+            try (Run r = new Run()) {
+                r.module.getNumberSetting("Min CPS").setValue(2D);
+                r.module.getNumberSetting("Max CPS").setValue(2D);
+                r.alignRealRay();
+                long first = r.placementNanos.get();
+                r.updateAt(first); assertEquals("the first valid opportunity is immediate", 1, r.placements(r.drain()));
+                r.clearPlacedBlock();
+                for (int tick = 1; tick < 10; tick++) {
+                    r.frames(new int[]{1, 4, 2, 7}[tick % 4]);
+                    assertEquals("render frames cannot place", 0, r.placements(r.drain()));
+                    r.updateAt(first + tick * 50_000_000L);
+                    assertEquals("the complete CPS interval is required", 0, r.placements(r.drain()));
+                    assertFalse(r.world.blocks.containsKey(r.target));
+                }
+                r.updateAt(first + 500_000_000L); assertEquals(1, r.placements(r.drain()));
+                r.clearPlacedBlock();
+                long afterStall = first + 10_000_000_000L;
+                r.updateAt(afterStall); assertEquals("missed intervals create one opportunity only", 1, r.placements(r.drain()));
+                r.clearPlacedBlock();
+                r.updateAt(afterStall); r.updateAt(afterStall + 499_999_999L);
+                assertEquals(0, r.placements(r.drain())); assertFalse(r.world.blocks.containsKey(r.target));
+                r.updateAt(afterStall + 500_000_000L); assertEquals(1, r.placements(r.drain()));
+                assertEquals(4, counter(r.module, "blocksPlacedJump"));
+                assertEquals(12, r.f.player.inventory.mainInventory[8].stackSize);
+            }
+        }
+
+        @Test public void onePhysicalTickCannotSpendTwoAttemptsAcrossWalkingSequences() throws Exception {
+            try (Run r = new Run()) {
+                r.alignRealRay();
+                final long[] sequence = {-1};
+                r.step(() -> {
+                    DemiseRotationHooks.update(r.f.player); r.f.player.onUpdateWalkingPlayer();
+                    sequence[0] = r.f.runtime.getRotationManager().getMotionSequence();
+                    assertTrue(r.world.blocks.containsKey(r.target));
+                    r.clearPlacedBlock();
+                    EventMotion duplicate = new EventMotion(r.f.player.posX, r.f.player.posY, r.f.player.posZ,
+                            r.f.runtime.getRotationManager().getEffectiveYaw(), r.f.runtime.getRotationManager().getEffectivePitch(), true);
+                    duplicate.setEventPhase(EventPhase.POST); duplicate.setAccepted(true);
+                    Pulsar.BUS.post(duplicate); Pulsar.BUS.post(duplicate);
+                    // Additional walking frames cannot turn one player tick into another click budget.
+                    for (int extra = 0; extra < 3; extra++) {
+                        r.placementNanos.addAndGet(1_000_000_000L);
+                        DemiseRotationHooks.update(r.f.player); r.f.player.onUpdateWalkingPlayer();
+                    }
+                });
+                assertTrue(r.f.runtime.getRotationManager().getMotionSequence() > sequence[0]);
+                assertEquals(1, r.placements(r.drain())); assertFalse(r.world.blocks.containsKey(r.target));
+                assertEquals(1, counter(r.module, "blocksPlacedJump"));
+                r.update(); assertEquals(1, r.placements(r.drain())); assertTrue(r.world.blocks.containsKey(r.target));
+            }
+        }
+
+        @Test public void legitModeRequiresARealRayAndNativeFourTickDelay() throws Exception {
+            try (Run r = new Run()) {
+                r.module.getModeSetting("Placement mode").setValue("Legit");
+                r.module.getBooleanSetting("RayTrace").setValue(false);
+                r.module.getModeSetting("Rotations").setValue("Reverse");
+                r.module.getBooleanSetting("Static-ify").setValue(true); r.forward(true);
+                r.frames(80); r.update();
+                assertEquals("Legit cannot bypass an invalid real ray", 0, r.placements(r.drain()));
+                assertEquals(0, r.f.mc.rightClickDelayTimer);
+                r.module.getModeSetting("Rotations").setValue("Center"); r.alignRealRay();
+                long first = r.placementNanos.get(); r.updateAt(first);
+                List<Object> initial = r.drain(); assertEquals(1, r.placements(initial)); assertEquals(4, r.f.mc.rightClickDelayTimer);
+                for (Object packet : initial) if (packet instanceof C08PacketPlayerBlockPlacement)
+                    assertNotEquals("Legit must not emit an extra air-use", 255, ((C08PacketPlayerBlockPlacement) packet).getPlacedBlockDirection());
+                assertFalse(r.f.mc.gameSettings.keyBindUseItem.isKeyDown());
+                assertFalse(r.f.mc.gameSettings.keyBindUseItem.isPressed());
+                r.clearPlacedBlock();
+                for (int tick = 1; tick <= 3; tick++) {
+                    r.updateAt(first + tick * 50_000_000L);
+                    assertEquals(4 - tick, r.f.mc.rightClickDelayTimer);
+                    assertEquals(0, r.placements(r.drain()));
+                }
+                r.updateAt(first + 200_000_000L);
+                assertEquals(1, r.placements(r.drain())); assertEquals(4, r.f.mc.rightClickDelayTimer);
+                assertTrue(r.world.blocks.containsKey(r.target)); assertEquals(14, r.f.player.inventory.mainInventory[8].stackSize);
+                assertFalse(r.f.mc.gameSettings.keyBindUseItem.isKeyDown());
+                assertFalse(r.f.mc.gameSettings.keyBindUseItem.isPressed());
+            }
+        }
+
+        @Test public void rejectedC03AndForeignOwnerCannotAuthorizePlacement() throws Exception {
+            try (Run r = new Run()) {
+                r.module.getNumberSetting("Min CPS").setValue(1D); r.module.getNumberSetting("Max CPS").setValue(1D);
+                r.alignRealRay(); long now = r.placementNanos.get();
+                final int[] rejected = {0};
+                try (PacketObserver ignored = new PacketObserver(event -> {
+                    if (event.isPre() && event.isOutbound() && event.getPacket() instanceof C03PacketPlayer) {
+                        rejected[0]++; event.cancel();
+                    }
+                })) { r.updateAt(now); }
+                assertEquals(1, rejected[0]); assertEquals(0, r.placements(r.drain()));
+                assertFalse(r.f.runtime.getRotationManager().canUseRotation("nscaffold", false));
+                assertNull(field(NScaffold.class, "previousBlock").get(r.module));
+                try (MotionObserver ignored = new MotionObserver(event -> {
+                    if (event.isPre()) {
+                        DemiseRotationEngine.Aim aim = r.module.rotationEngine.currentAim();
+                        r.f.runtime.getRotationManager().request("fixture-owner", 100, aim.yaw, aim.pitch);
+                    }
+                })) { r.updateAt(now); }
+                assertTrue(r.f.runtime.getRotationManager().canUseRotation("fixture-owner", false));
+                assertFalse(r.f.runtime.getRotationManager().canUseRotation("nscaffold", false));
+                assertEquals(0, r.placements(r.drain())); assertFalse(r.world.blocks.containsKey(r.target));
+                assertEquals(16, r.f.player.inventory.mainInventory[8].stackSize);
+                r.updateAt(now);
+                assertEquals("rejected authority did not consume the immediate first opportunity", 1, r.placements(r.drain()));
+                assertTrue(r.world.blocks.containsKey(r.target)); assertEquals(r.target, field(NScaffold.class, "previousBlock").get(r.module));
+            }
+        }
+
+        @Test public void rejectedControllerAttemptConsumesCadenceWithoutInventingHistory() throws Exception {
+            try (Run r = new Run()) {
+                r.module.getNumberSetting("Min CPS").setValue(2D); r.module.getNumberSetting("Max CPS").setValue(2D);
+                r.alignRealRay(); long first = r.placementNanos.get();
+                final int[] rejected = {0};
+                try (PacketObserver ignored = new PacketObserver(event -> {
+                    if (event.isPre() && event.isOutbound() && event.getPacket() instanceof C08PacketPlayerBlockPlacement) {
+                        rejected[0]++; event.cancel();
+                    }
+                })) { r.updateAt(first); }
+                assertEquals("the real controller reached its C08 transport boundary", 1, rejected[0]);
+                assertEquals(0, r.placements(r.drain())); assertFalse(r.world.blocks.containsKey(r.target));
+                assertEquals(16, r.f.player.inventory.mainInventory[8].stackSize);
+                assertEquals(0, counter(r.module, "blocksPlacedJump"));
+                assertNull(field(NScaffold.class, "previousBlock").get(r.module));
+                r.updateAt(first + 499_999_999L);
+                assertEquals("controller rejection cannot grant an immediate retry", 0, r.placements(r.drain()));
+                assertNull(field(NScaffold.class, "previousBlock").get(r.module));
+                r.updateAt(first + 500_000_000L);
+                assertEquals(1, r.placements(r.drain())); assertTrue(r.world.blocks.containsKey(r.target));
+                assertEquals(1, counter(r.module, "blocksPlacedJump"));
+                assertEquals(r.target, field(NScaffold.class, "previousBlock").get(r.module));
+            }
+        }
+
+        @Test public void edgeSafetyHoldsOnlyUnsupportedMotionAndReleasesAfterPlacement() throws Exception {
+            try (Run r = new Run()) {
+                assertEquals("Stop", r.module.getModeSetting("Edge safety").getValue());
+                r.module.getNumberSetting("Min CPS").setValue(2D); r.module.getNumberSetting("Max CPS").setValue(2D);
+                r.f.player.setPosition(.2, 64, .5); r.walking(); r.drain();
+                r.f.player.motionX = .4; r.f.player.motionZ = 0;
+                EventMove held = DemiseRotationHooks.move(r.f.player, .4, -.08, 0);
+                assertTrue(held.getX() >= 0 && held.getX() < .1);
+                assertEquals(-.08, held.getY(), 0); assertEquals(0, held.getZ(), 0);
+                assertEquals("edge protection changes the displacement, not persistent momentum", .4, r.f.player.motionX, 0);
+                assertEquals(NScaffold.Status.EDGE_GUARD, r.module.getStatus());
+                assertFalse(r.world.getCollidingBoundingBoxes(r.f.player,
+                        r.f.player.getEntityBoundingBox().offset(held.getX(), -.05, held.getZ())).isEmpty());
+
+                r.module.getModeSetting("Edge safety").setValue("Off");
+                assertEquals(.4, DemiseRotationHooks.move(r.f.player, .4, 0, 0).getX(), 0);
+                r.module.getModeSetting("Edge safety").setValue("Sneak");
+                assertTrue("Sneak uses the actual unsupported movement forecast", r.input().isSneak());
+                r.module.getModeSetting("Edge safety").setValue("Stop");
+                assertFalse(r.input().isSneak());
+                r.f.player.movementInput.jump = true;
+                assertEquals("intentional takeoff is preserved", .4, DemiseRotationHooks.move(r.f.player, .4, 0, 0).getX(), 0);
+                r.f.player.movementInput.jump = false; r.f.player.onGround = false;
+                assertEquals("airborne movement is preserved", .4, DemiseRotationHooks.move(r.f.player, .4, -.08, 0).getX(), 0);
+                r.f.player.onGround = true;
+                assertEquals("rising motion is preserved", .4, DemiseRotationHooks.move(r.f.player, .4, .42, 0).getX(), 0);
+
+                r.f.player.motionX = 0; r.alignRealRay(); r.update();
+                long first = r.placementNanos.get(); assertEquals(1, r.placements(r.drain()));
+                assertEquals(.4, DemiseRotationHooks.move(r.f.player, .4, -.08, 0).getX(), 0);
+                r.f.player.setPosition(1.2, 64, .5); r.walking(); r.drain(); r.alignRealRay();
+                r.updateAt(first + 100_000_000L);
+                assertEquals(0, r.placements(r.drain())); assertFalse(r.world.blocks.containsKey(new BlockPos(1, 63, 0)));
+                EventMove waiting = DemiseRotationHooks.move(r.f.player, .4, 0, 0);
+                assertTrue("a valid ray does not bypass CPS or edge support", waiting.getX() >= 0 && waiting.getX() < .1);
+                r.updateAt(first + 500_000_000L);
+                assertEquals(1, r.placements(r.drain())); assertTrue(r.world.blocks.containsKey(new BlockPos(1, 63, 0)));
+                assertEquals("a successful new floor releases the held motion", .4,
+                        DemiseRotationHooks.move(r.f.player, .4, 0, 0).getX(), 0);
+            }
+        }
+
+        @Test public void movingBridgeStaysSupportedAcrossRealRaysAndFrameSequences() throws Exception {
+            checkMovingBridge("Default");
+        }
+
+        @Test public void movingLegitBridgeStaysSupportedAcrossRealRaysAndFrameSequences() throws Exception {
+            checkMovingBridge("Legit");
+        }
+
+        @Test public void relativeFramesReachARealSupportWithinThreeSecondsWithoutMovingTheCamera() throws Exception {
+            try (Run r = new Run()) {
+                r.module.getModeSetting("Rotations").setValue("Normal");
+                r.module.getModeSetting("Smooth mode").setValue("Relative");
+                assertEquals("Default", r.module.getModeSetting("Placement mode").getValue());
+                assertEquals("Silent", r.module.getModeSetting("Movement correction").getValue());
+                assertTrue(r.module.getBooleanSetting("Silent").getValue());
+                assertEquals(.5F, r.f.mc.gameSettings.mouseSensitivity, 0);
+                assertEquals(.15F, r.module.getNumberSetting("Extra smoothing factor").getValue().floatValue(), 0);
+                for (String name : new String[]{"Yaw rotation speed (min)", "Yaw rotation speed (max)",
+                        "Pitch rotation speed (min)", "Pitch rotation speed (max)"})
+                    assertEquals(name, 180D, r.module.getNumberSetting(name).getValue(), 0);
+                final int[] witnessed = {0};
+                int ticks = 0, frames = 0, placements = 0;
+                long start = r.nanos.get(), period = 1_000_000_000L / 60, nextFrame = start + period;
+                try (PacketObserver ignored = new PacketObserver(event -> {
+                    if (!event.isPre() || !event.isOutbound()
+                            || !(event.getPacket() instanceof C08PacketPlayerBlockPlacement)) return;
+                    assertTrue(r.f.runtime.getRotationManager().canUseRotation("nscaffold", false));
+                    MovingObjectPosition hit = r.ray(r.f.runtime.getRotationManager().getEffectiveYaw(),
+                            r.f.runtime.getRotationManager().getEffectivePitch());
+                    assertNotNull("Relative must reach the real full-block side, not merely a target angle", hit);
+                    assertEquals(MovingObjectPosition.MovingObjectType.BLOCK, hit.typeOfHit);
+                    C08PacketPlayerBlockPlacement click = (C08PacketPlayerBlockPlacement) event.getPacket();
+                    assertEquals(new BlockPos(-1, 63, 0), hit.getBlockPos());
+                    assertEquals(EnumFacing.EAST, hit.sideHit);
+                    assertEquals(hit.getBlockPos(), click.getPosition());
+                    assertEquals(hit.sideHit.getIndex(), click.getPlacedBlockDirection());
+                    witnessed[0]++;
+                })) {
+                    while (ticks < 60 && !r.world.blocks.containsKey(r.target)) {
+                        long tickAt = start + (++ticks) * 50_000_000L;
+                        while (nextFrame <= tickAt) {
+                            r.frameAt(nextFrame); nextFrame += period; frames++;
+                            assertEquals(0, r.f.player.rotationYaw, 0); assertEquals(0, r.f.player.rotationPitch, 0);
+                        }
+                        assertEquals("render frames do not perform the controller click", 0, r.placements(r.drain()));
+                        r.millis.set(tickAt / 1_000_000L); r.nanos.set(tickAt); r.updateAt(tickAt);
+                        List<Object> packets = r.drain(); int movement = -1;
+                        for (int index = 0; index < packets.size(); index++) {
+                            if (packets.get(index) instanceof C03PacketPlayer) movement = index;
+                            if (packets.get(index) instanceof C08PacketPlayerBlockPlacement)
+                                assertTrue("the Relative click follows accepted walking", movement >= 0 && movement < index);
+                        }
+                        assertTrue("every attempt traverses walking transport", movement >= 0);
+                        placements += r.placements(packets);
+                        assertEquals(.5, r.f.player.posX, 0); assertEquals(64, r.f.player.posY, 0);
+                        assertEquals(.5, r.f.player.posZ, 0);
+                        assertEquals(0, r.f.player.rotationYaw, 0); assertEquals(0, r.f.player.rotationPitch, 0);
+                    }
+                }
+                System.out.printf(java.util.Locale.ROOT, "NScaffold Relative fps=60 ticks=%d frames=%d clicks=%d%n",
+                        ticks, frames, placements);
+                if (!r.world.blocks.containsKey(r.target)) r.bridgeDiagnostic(60, ticks, ticks);
+                assertTrue("Relative defaults must cross the reachable side within three seconds of actual frames",
+                        r.world.blocks.containsKey(r.target));
+                assertEquals(1, placements); assertEquals(1, witnessed[0]);
+                assertEquals(15, r.f.player.inventory.mainInventory[8].stackSize);
+                assertEquals(1, counter(r.module, "blocksPlacedJump"));
+                assertEquals(r.target, field(NScaffold.class, "previousBlock").get(r.module));
+                r.frame(20, -10);
+                assertEquals("physical mouse input still owns the camera", 3F, r.f.player.rotationYaw, 0);
+                assertEquals(1.5F, r.f.player.rotationPitch, 0);
+                assertEquals(0, r.placements(r.drain()));
+            }
+        }
+
+        @Test public void acceleratedFramesEscapeARealSupportMissWithinTwoSeconds() throws Exception {
+            for (int fps : new int[]{30, 144}) {
+                checkAcceleratedSupportMiss(fps, false, .25F);
+                for (float factor : new float[]{.25F, .8F, .9F})
+                    checkAcceleratedSupportMiss(fps, true, factor);
+            }
+        }
+
+        private void checkAcceleratedSupportMiss(int fps, boolean accelerate, float factor) throws Exception {
+            try (Run r = new Run()) {
+                r.module.getModeSetting("Rotations").setValue("Normal");
+                assertEquals("Linear", r.module.getModeSetting("Smooth mode").getValue());
+                r.module.getBooleanSetting("Accelerate").setValue(accelerate);
+                r.module.getNumberSetting("Yaw accel factor").setValue((double) factor);
+                r.module.getNumberSetting("Pitch accel factor").setValue((double) factor);
+                assertEquals(factor, r.module.getNumberSetting("Yaw accel factor").getValue().floatValue(), 0);
+                assertEquals(factor, r.module.getNumberSetting("Pitch accel factor").getValue().floatValue(), 0);
+                assertEquals(.15F, r.module.getNumberSetting("Extra smoothing factor").getValue().floatValue(), 0);
+                assertEquals(.5F, r.f.mc.gameSettings.mouseSensitivity, 0);
+                assertTrue(r.module.getBooleanSetting("Silent").getValue());
+                BlockPos support = new BlockPos(14, 63, -1), destination = new BlockPos(14, 63, 0);
+                r.world.blocks.clear(); r.world.blocks.put(support, Blocks.stone.getDefaultState());
+                r.f.player.setPosition(15.299980012, 64, .015443532);
+                // This exact current pose was reached by the native moving-bridge regression.
+                // Seed it once; every subsequent change comes from real render/walking hooks.
+                field(DemiseRotationEngine.class, "currentRotation").set(r.module.rotationEngine,
+                        new float[]{90.125F, 68.375F});
+                r.module.rotationEngine.setRotation(new float[]{91.10596F, 69.322525F}, r.module.rotationSettings.snapshot());
+                r.walking();
+                assertEquals("seeding a pose must not perform a placement", 0, r.placements(r.drain()));
+                assertEquals(15.299980012, r.f.player.getLastReportedPosition().xCoord, 0);
+                assertNull("the reached wire angle really misses this almost parallel side", r.ray(90.125F, 68.375F));
+                MovingObjectPosition targetHit = r.ray(91.10596F, 69.322525F);
+                assertNotNull("the geometric target is an actual reachable full-block face", targetHit);
+                assertEquals(MovingObjectPosition.MovingObjectType.BLOCK, targetHit.typeOfHit);
+                assertEquals(support, targetHit.getBlockPos()); assertEquals(EnumFacing.SOUTH, targetHit.sideHit);
+                final int[] witnessed = {0};
+                int ticks = 0, frames = 0, placements = 0;
+                long start = r.nanos.get(), period = 1_000_000_000L / fps, nextFrame = start + period;
+                try (PacketObserver ignored = new PacketObserver(event -> {
+                    if (!event.isPre() || !event.isOutbound()
+                            || !(event.getPacket() instanceof C08PacketPlayerBlockPlacement)) return;
+                    assertTrue(r.f.runtime.getRotationManager().canUseRotation("nscaffold", false));
+                    MovingObjectPosition hit = r.ray(r.f.runtime.getRotationManager().getEffectiveYaw(),
+                            r.f.runtime.getRotationManager().getEffectivePitch());
+                    assertNotNull(hit); assertEquals(MovingObjectPosition.MovingObjectType.BLOCK, hit.typeOfHit);
+                    assertEquals(support, hit.getBlockPos()); assertEquals(EnumFacing.SOUTH, hit.sideHit);
+                    C08PacketPlayerBlockPlacement click = (C08PacketPlayerBlockPlacement) event.getPacket();
+                    assertEquals(support, click.getPosition());
+                    assertEquals(EnumFacing.SOUTH.getIndex(), click.getPlacedBlockDirection());
+                    witnessed[0]++;
+                })) {
+                    while (ticks < 40 && !r.world.blocks.containsKey(destination)) {
+                        long tickAt = start + (++ticks) * 50_000_000L;
+                        while (nextFrame <= tickAt) {
+                            r.frameAt(nextFrame); nextFrame += period; frames++;
+                            assertEquals(0, r.f.player.rotationYaw, 0); assertEquals(0, r.f.player.rotationPitch, 0);
+                        }
+                        assertEquals(0, r.placements(r.drain()));
+                        r.millis.set(tickAt / 1_000_000L); r.nanos.set(tickAt); r.updateAt(tickAt);
+                        List<Object> packets = r.drain(); int movement = -1;
+                        for (int index = 0; index < packets.size(); index++) {
+                            if (packets.get(index) instanceof C03PacketPlayer) movement = index;
+                            if (packets.get(index) instanceof C08PacketPlayerBlockPlacement)
+                                assertTrue("an accepted walking packet precedes the recovery click", movement >= 0 && movement < index);
+                        }
+                        assertTrue(movement >= 0); placements += r.placements(packets);
+                        assertEquals(0, r.f.player.rotationYaw, 0); assertEquals(0, r.f.player.rotationPitch, 0);
+                    }
+                }
+                System.out.printf(java.util.Locale.ROOT,
+                        "NScaffold accel regression accelerate=%s factor=%.2f fps=%d ticks=%d frames=%d clicks=%d%n",
+                        accelerate, factor, fps, ticks, frames, placements);
+                if (!r.world.blocks.containsKey(destination)) r.bridgeDiagnostic(fps, ticks, ticks);
+                assertTrue("the real miss must recover within two seconds; accelerate=" + accelerate
+                                + " factor=" + factor + " fps=" + fps,
+                        r.world.blocks.containsKey(destination));
+                assertEquals(1, placements); assertEquals(1, witnessed[0]);
+                assertEquals(2, r.world.blocks.size());
+                assertEquals(15, r.f.player.inventory.mainInventory[8].stackSize);
+                assertEquals(1, counter(r.module, "blocksPlacedJump"));
+                assertEquals(destination, field(NScaffold.class, "previousBlock").get(r.module));
+                assertEquals(15.299980012, r.f.player.posX, 0); assertEquals(64, r.f.player.posY, 0);
+                assertEquals(.015443532, r.f.player.posZ, 0);
+            }
+        }
+
+        private void checkMovingBridge(String placementMode) throws Exception {
+            double minimumPostWarmupDistance = Double.MAX_VALUE, maximumPostWarmupDistance = 0;
+            for (int fps : new int[]{30, 60, 144}) {
+                try (Run r = new Run()) {
+                    String scenario = placementMode + "/" + fps + " FPS";
+                    r.module.getModeSetting("Rotations").setValue("Normal");
+                    assertEquals("Normal", r.module.getModeSetting("Mode").getValue());
+                    assertEquals("Default", r.module.getModeSetting("Placement mode").getValue());
+                    r.module.getModeSetting("Placement mode").setValue(placementMode);
+                    assertEquals(placementMode, r.module.getModeSetting("Placement mode").getValue());
+                    assertEquals("Silent", r.module.getModeSetting("Movement correction").getValue());
+                    assertEquals(20D, r.module.getNumberSetting("Min CPS").getValue(), 0);
+                    assertEquals(20D, r.module.getNumberSetting("Max CPS").getValue(), 0);
+                    assertTrue(r.module.getBooleanSetting("RayTrace").getValue());
+                    assertTrue(r.module.getBooleanSetting("Silent").getValue());
+                    r.f.player.inventory.mainInventory[8] = new ItemStack(Blocks.stone, 64);
+                    r.f.player.setPosition(.2, 64, .5);
+                    r.f.player.motionX = r.f.player.motionZ = 0; r.f.player.motionY = -.08;
+                    r.f.player.stepHeight = .6F; r.f.player.jumpMovementFactor = .02F;
+                    // Held strafe is ordinary walking at vanilla's .1 ground acceleration;
+                    // no fabricated impulse or manual position update advances the bridge.
+                    assertEquals(.1F, r.f.player.getAIMoveSpeed(), 0); r.left(true);
+                    final double startX = r.f.player.posX;
+                    final int[] witnessed = {0};
+                    int placements = 0, stoppedAfterWarmup = 0, longestStop = 0, stopRun = 0, lastPlacementTick = -4;
+                    int firstPlacementTick = -1;
+                    double warmupX = Double.NaN, warmupY = Double.NaN, warmupZ = Double.NaN;
+                    long start = r.nanos.get(), nextFrame = start + 1_000_000_000L / fps;
+                    long framePeriod = 1_000_000_000L / fps;
+                    final int ticks = 100, warmup = 20;
+                    try (PacketObserver ignored = new PacketObserver(event -> {
+                        if (!event.isPre() || !event.isOutbound()
+                                || !(event.getPacket() instanceof C08PacketPlayerBlockPlacement)) return;
+                        C08PacketPlayerBlockPlacement packet = (C08PacketPlayerBlockPlacement) event.getPacket();
+                        assertTrue("bridge clicks need the current accepted own C03",
+                                r.f.runtime.getRotationManager().canUseRotation("nscaffold", false));
+                        MovingObjectPosition hit = r.ray(r.f.runtime.getRotationManager().getEffectiveYaw(),
+                                r.f.runtime.getRotationManager().getEffectivePitch());
+                        assertNotNull("the wire-pose ray must intersect real stored blocks", hit);
+                        assertEquals(MovingObjectPosition.MovingObjectType.BLOCK, hit.typeOfHit);
+                        assertEquals(hit.getBlockPos(), packet.getPosition());
+                        assertEquals(hit.sideHit.getIndex(), packet.getPlacedBlockDirection());
+                        BlockPos destination = packet.getPosition().offset(hit.sideHit);
+                        assertEquals("building remains at the walking floor height", 63, destination.getY());
+                        assertTrue(r.world.getBlockState(destination).getBlock().getMaterial().isReplaceable());
+                        witnessed[0]++;
+                    })) {
+                        for (int tick = 1; tick <= ticks; tick++) {
+                            long tickAt = start + tick * 50_000_000L;
+                            int physicalBeforeFrames = r.f.player.ticksExisted;
+                            while (nextFrame <= tickAt) {
+                                r.frameAt(nextFrame);
+                                nextFrame += framePeriod;
+                            }
+                            assertEquals("render frames are not physical placement ticks",
+                                    physicalBeforeFrames, r.f.player.ticksExisted);
+                            assertEquals("mouse frames may prepare a ray but cannot click", 0, r.placements(r.drain()));
+                            double beforeX = r.f.player.posX, beforeZ = r.f.player.posZ;
+                            r.physicsAt(tickAt);
+                            List<Object> packets = r.drain();
+                            int clicks = r.placements(packets), movementIndex = -1;
+                            assertTrue("one physical tick grants at most one controller attempt", clicks <= 1);
+                            for (int index = 0; index < packets.size(); index++) {
+                                if (packets.get(index) instanceof C03PacketPlayer) movementIndex = index;
+                                if (packets.get(index) instanceof C08PacketPlayerBlockPlacement)
+                                    assertTrue("accepted walking precedes every bridge click", movementIndex >= 0 && movementIndex < index);
+                            }
+                            assertTrue("each simulated tick traverses the real walking transport", movementIndex >= 0);
+                            if (clicks > 0 && firstPlacementTick < 0) firstPlacementTick = tick;
+                            if (clicks > 0 && "Legit".equals(placementMode)) {
+                                assertTrue("moving Legit respects the four-player-tick interval: " + scenario,
+                                        tick - lastPlacementTick >= 4);
+                                assertEquals("the real placement resets the native use delay", 4, r.f.mc.rightClickDelayTimer);
+                                lastPlacementTick = tick;
+                            }
+                            placements += clicks;
+                            assertEquals("continuous stone support prevents a fall: " + scenario + " tick=" + tick,
+                                    64, r.f.player.posY, 1e-8);
+                            assertTrue(r.f.player.onGround);
+                            assertFalse(r.world.getCollidingBoundingBoxes(r.f.player,
+                                    r.f.player.getEntityBoundingBox().offset(0, -.001, 0)).isEmpty());
+                            assertEquals(0, r.f.player.rotationYaw, 0); assertEquals(0, r.f.player.rotationPitch, 0);
+                            double travelled = Math.hypot(r.f.player.posX - beforeX, r.f.player.posZ - beforeZ);
+                            if (tick > warmup && travelled < 1e-7) {
+                                stoppedAfterWarmup++; stopRun++; longestStop = Math.max(longestStop, stopRun);
+                            } else stopRun = 0;
+                            if (tick == warmup) {
+                                warmupX = r.f.player.posX; warmupY = r.f.player.posY; warmupZ = r.f.player.posZ;
+                            }
+                            if (stopRun == 3) r.bridgeDiagnostic(fps, tick, stopRun);
+                        }
+                    }
+                    double distance = r.f.player.posX - startX;
+                    // Demise's original 1/90-second frame cap makes initial turning depend on FPS.
+                    // Compare the same four seconds after tick 20; startup has its own 25-tick gate.
+                    double postWarmupDistance = r.f.player.posX - warmupX;
+                    minimumPostWarmupDistance = Math.min(minimumPostWarmupDistance, postWarmupDistance);
+                    maximumPostWarmupDistance = Math.max(maximumPostWarmupDistance, postWarmupDistance);
+                    System.out.printf(java.util.Locale.ROOT,
+                            "NScaffold bridge placement=%s fps=%d ticks=%d distance=%.4f blocks=%d stoppedAfterWarmup=%d longestStop=%d "
+                                    + "firstC08Tick=%d warmupTick=%d warmupPosition=(%.6f,%.6f,%.6f) warmupDistance=%.4f postWarmupDistance=%.4f%n",
+                            placementMode, fps, ticks, distance, placements, stoppedAfterWarmup, longestStop,
+                            firstPlacementTick, warmup, warmupX, warmupY, warmupZ, warmupX - startX, postWarmupDistance);
+                    if (distance < 12 || placements < 12 || stoppedAfterWarmup > 4 || longestStop > 2
+                            || firstPlacementTick < 1 || firstPlacementTick > 25)
+                        r.bridgeDiagnostic(fps, ticks, stopRun);
+                    assertEquals("every successful click was checked against actual geometry", placements, witnessed[0]);
+                    assertEquals(placements + 1, r.world.blocks.size());
+                    assertEquals(64 - placements, r.f.player.inventory.mainInventory[8].stackSize);
+                    assertEquals(placements, counter(r.module, "blocksPlacedJump"));
+                    assertEquals(ticks, r.inputs);
+                    assertTrue("the first real placement must arrive within 25 player ticks: " + scenario,
+                            firstPlacementTick >= 1 && firstPlacementTick <= 25);
+                    assertTrue("the bridge must make useful progress rather than merely holding the first edge: " + scenario,
+                            distance >= 12);
+                    assertTrue("the controller must extend the bridge across many distinct blocks: " + scenario, placements >= 12);
+                    assertTrue("steady 20 CPS walking must not repeatedly stop at every new edge: " + scenario,
+                            stoppedAfterWarmup <= 4);
+                    assertTrue("no persistent edge deadlock is allowed: " + scenario, longestStop <= 2);
+                }
+            }
+            assertTrue("frame count must not cause substantially different throughput in the same four seconds after warmup: " + placementMode,
+                    maximumPostWarmupDistance - minimumPostWarmupDistance <= 3);
+        }
+
+        @SuppressWarnings("unchecked")
+        @Test public void reenableDuringSceneOrAdmissionCaptureRejectsThePreviousGeneration() throws Exception {
+            for (boolean admission : new boolean[]{false, true}) {
+                try (Run r = new Run()) {
+                    r.alignRealRay();
+                    RuntimeObservation observation = r.f.runtime.getObservation();
+                    Field source = field(RuntimeObservation.class, "source");
+                    Supplier<RuntimeObservation.SceneSample> original =
+                            (Supplier<RuntimeObservation.SceneSample>) source.get(observation);
+                    final boolean[] fired = {false};
+                    long generation = field(NScaffold.class, "generation").getLong(r.module);
+                    source.set(observation, (Supplier<RuntimeObservation.SceneSample>) () -> {
+                        boolean placing = false, boundary = false;
+                        for (StackTraceElement frame : Thread.currentThread().getStackTrace()) {
+                            if (NScaffold.class.getName().equals(frame.getClassName())
+                                    && "place".equals(frame.getMethodName())) placing = true;
+                            if (admission ? AutomatedActionAdmission.class.getName().equals(frame.getClassName())
+                                    && "mayAttempt".equals(frame.getMethodName())
+                                    : NScaffold.class.getName().equals(frame.getClassName())
+                                    && "scopeCurrent".equals(frame.getMethodName())) boundary = true;
+                        }
+                        if (!fired[0] && placing && boundary) {
+                            fired[0] = true;
+                            r.module.setToggled(false);
+                            r.module.setToggled(true);
+                        }
+                        return original.get();
+                    });
+                    try { r.update(); }
+                    finally { source.set(observation, original); }
+                    assertTrue("fixture must reach the final " + (admission ? "admission" : "scene") + " callback", fired[0]);
+                    assertTrue(r.module.isToggled());
+                    assertTrue(field(NScaffold.class, "generation").getLong(r.module) > generation);
+                    assertEquals("a revived module cannot inherit the older placement", 0, r.placements(r.drain()));
+                    assertFalse(r.world.blocks.containsKey(r.target));
+                    assertEquals(16, r.f.player.inventory.mainInventory[8].stackSize);
+                    assertEquals(0, counter(r.module, "blocksPlacedJump"));
+                    assertNull(field(NScaffold.class, "previousBlock").get(r.module));
+                    r.alignRealRay(); r.update();
+                    assertEquals("fresh preparation and accepted transport restore normal placement", 1, r.placements(r.drain()));
+                    assertTrue(r.world.blocks.containsKey(r.target));
+                }
             }
         }
 
@@ -515,9 +1232,13 @@ public class NScaffoldFlowTest {
                 r.forward(true); r.frame(0, 0);
                 r.updateThenInput(() -> {});
                 assertEquals(1, counter(r.module, "blocksPlacedJump")); assertEquals(1, counter(r.module, "blocksPlacedSneak"));
+                assertFalse("input precedes this tick's successful POST click", r.f.player.movementInput.jump);
+                assertFalse(r.f.player.movementInput.sneak);
+                r.clearPlacedBlock(); r.frame(0, 0); r.updateThenInput(() -> {});
                 assertTrue(r.f.player.movementInput.jump); assertTrue(r.f.player.movementInput.sneak);
                 assertEquals(.3F, MovementInput.moveForward, 1e-6F);
-                r.clearPlacedBlock(); r.frame(0, 0); r.updateThenInput(() -> {});
+                assertEquals(2, counter(r.module, "blocksPlacedJump")); assertEquals(2, counter(r.module, "blocksPlacedSneak"));
+                r.frame(0, 0); r.updateThenInput(() -> {});
                 assertEquals("greater-than resets before equality", 0, counter(r.module, "blocksPlacedJump"));
                 assertEquals(0, counter(r.module, "blocksPlacedSneak"));
                 assertFalse(r.f.player.movementInput.jump); assertFalse(r.f.player.movementInput.sneak);
@@ -792,8 +1513,18 @@ public class NScaffoldFlowTest {
                 r.update();
                 ScaffoldActivitySnapshot refreshed = r.module.getActivitySnapshot(); assertNotNull(refreshed);
                 assertNotSame(snapshot, refreshed); assertEquals(1, refreshed.getPlacementCount());
-                assertEquals(snapshot.getSequence(), refreshed.getSequence());
+                // Update now prepares a fresh aim before POST. The occupied destination
+                // rejects the click, so PLACING changes to ALIGNING without a new placement.
+                assertEquals(ScaffoldActivitySnapshot.Status.ALIGNING, refreshed.getStatus());
+                assertEquals(snapshot.getSequence() + 1, refreshed.getSequence());
+                assertEquals(snapshot.getBlockCount(), refreshed.getBlockCount());
                 assertEquals(r.activityNanos.get(), refreshed.getObservedAtNanos());
+                assertEquals(0, r.placements(r.drain()));
+                r.update();
+                ScaffoldActivitySnapshot sameFacts = r.module.getActivitySnapshot(); assertNotNull(sameFacts);
+                assertEquals("refreshing unchanged facts must keep their sequence", refreshed.getSequence(), sameFacts.getSequence());
+                assertEquals(1, sameFacts.getPlacementCount());
+                assertEquals(ScaffoldActivitySnapshot.Status.ALIGNING, sameFacts.getStatus());
                 assertEquals(0, r.placements(r.drain()));
             }
         }

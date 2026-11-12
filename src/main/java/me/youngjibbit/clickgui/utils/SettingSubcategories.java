@@ -54,7 +54,8 @@ public final class SettingSubcategories {
             if (is(id,"movement_correction","sprint_mode","speed_mode","jump","blocks_to_jump","only_straight",
                     "safewalk","safewalk_when_no_data","hover","sneak","blocks_to_sneak","only_sneak_on_ground",
                     "tower","tower_move","pulldown_motion")) return "Movement";
-            if (is(id,"swing","raytrace","strict_raytrace")) return "Placement";
+            if (is(id,"swing","raytrace","strict_raytrace","placement_mode","min_cps","max_cps")) return "Placement";
+            if ("edge_safety".equals(id)) return "Safety";
             if ("target_block_esp".equals(id)) return "Appearance";
             return "Aiming";
         }
@@ -111,7 +112,8 @@ public final class SettingSubcategories {
         }
         if ("nscaffold".equals(module)) {
             if ("Clutch".equals(name)) return "Clutch detection, instant rotations and grounded sneak";
-            if ("Placement".equals(name)) return "Swing and placement ray tracing";
+            if ("Placement".equals(name)) return "Click mode, CPS, swing and placement ray tracing";
+            if ("Safety".equals(name)) return "Stop or sneak only at an unsupported edge";
         }
         if ("bedbreaker".equals(module) && "Targets".equals(name)) return "Bed access and target selection";
         switch (name) {

@@ -50,7 +50,7 @@ public class NScaffoldSettingsLayoutTest {
             section.setValue(true); section.setValue(false);
         }
         assertEquals(Arrays.asList("Bridge", "Clutch", "Aiming", "Rotation Speed", "Rotation Shape",
-                "Rotation Pauses", "Movement", "Placement", "Appearance"), names);
+                "Rotation Pauses", "Movement", "Placement", "Safety", "Appearance"), names);
         assertEquals(original.size(), seen.size()); assertTrue(seen.containsAll(original));
         assertEquals(original, module.getValues()); assertEquals(toggled, module.isToggled());
         for (Value<?> value : original) assertEquals(value.getId(), values.get(value), value.getValue());
@@ -75,6 +75,10 @@ public class NScaffoldSettingsLayoutTest {
         assertEquals("Movement", assignments.get("safewalk_when_no_data"));
         assertEquals("Placement", assignments.get("raytrace"));
         assertEquals("Placement", assignments.get("strict_raytrace"));
+        assertEquals("Placement", assignments.get("placement_mode"));
+        assertEquals("Placement", assignments.get("min_cps"));
+        assertEquals("Placement", assignments.get("max_cps"));
+        assertEquals("Safety", assignments.get("edge_safety"));
         assertEquals("Appearance", assignments.get("target_block_esp"));
         assertFalse(section(sections, "Rotation Speed").description().contains("per player tick"));
     }
@@ -156,6 +160,8 @@ public class NScaffoldSettingsLayoutTest {
         module.getBooleanSetting("Strict rayTrace").setValue(true);
         module.getBooleanSetting("RayTrace").setValue(false);
         visible(module, false, "Strict rayTrace"); assertTrue(module.getBooleanSetting("Strict rayTrace").getValue());
+        module.getModeSetting("Placement mode").setValue("Legit");
+        visible(module, true, "Strict rayTrace", "Placement mode", "Min CPS", "Max CPS", "Edge safety");
         module.getBooleanSetting("Jump").setValue(true); module.getBooleanSetting("Sneak").setValue(true);
         visible(module, true, "Blocks to jump", "Only straight", "Blocks to sneak", "Only sneak on ground");
         module.getNumberSetting("Blocks to jump").setValue(0D); module.getBooleanSetting("Only sneak on ground").setValue(false);

@@ -1,9 +1,10 @@
 # Demise Scaffold: Quellenzuordnung des NScaffold-Ports
 
 Referenz ist **YoungJibbit95/DemisePrivate**, Commit
-`e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb`. Der Port ersetzt die bisherigen
-eigenständigen NScaffold-Planer. Die folgenden Dateien sind die ausführende
-Quelle; passende Einstellungsnamen allein gelten nicht als Paritätsnachweis.
+`e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb`. Der ursprüngliche Port ersetzte die
+vorherigen NScaffold-Planer. Der anschließende Nutzerauftrag erweitert ausdrücklich
+RayTrace, Platzierungstiming, CPS und Kantenschutz. Diese Abweichungen sind unten
+getrennt dokumentiert; Rotation und MoveFix bleiben an die Referenz gebunden.
 
 ## Quellen
 
@@ -26,11 +27,11 @@ Originalmethoden dienen in Testressourcen als unabhängige Oracles.
 
 | Quellfunktion | Umsetzung im Host |
 | --- | --- |
-| Scaffold-Ereignisse | NScaffold.java, scoped Aufrufe an den originalen Minecraft-Positionen und passende Alpine-Listener. |
+| Scaffold-Ereignisse | NScaffold.java, scoped Frame-/Input-/Move-Hooks; Vorbereitung im Update und Platzierung nach akzeptiertem C03-POST. |
 | RotationManager / RotationHandler | DemiseRotationSettings, DemiseRotationEngine, DemiseRotationHooks; nur für NScaffold. |
 | MoveUtil.fixMovement | DemiseMoveFix: acht Kandidaten, originale Tie-Reihenfolge, vor Sneak-Skalierung. |
 | Keybind-Richtung / Speed-Helfer | DemiseScaffoldMovement, mit gespeichertem Richtungswert bei losgelassenen Tasten. |
-| findBlock / getBestRotation / rayTraceSafe | DemiseScaffoldGeometry: sechs Stufen, stabile Sortierung, Duplikate und dichte Float-Suche. |
+| findBlock / getBestRotation / rayTraceSafe | DemiseScaffoldGeometry bleibt für den expliziten RayTrace-aus-Pfad erhalten; bei RayTrace übernimmt NScaffoldRaycast die unten dokumentierte begrenzte Suche. |
 | Blockslot / Blockzahl / Blacklist | DemiseScaffoldInventory: letzter gültiger Slot, Containerplätze 36–44, originale Blockliste. |
 | SpoofSlotUtils-Consumer | displayedSlot/displayedStack in Hotbar, Itemname und ItemRenderer; echte Auswahl für Platzierung. |
 | SafeWalkEvent | Scoped Ergänzung der normalen Kantenkollision für den lokalen Spieler. |
@@ -42,16 +43,17 @@ Originalmethoden dienen in Testressourcen als unabhängige Oracles.
 
 ## Bewusst erhaltene Quelldetails
 
-Die Normal-Rotation testet im inneren Suchlauf den **bisher besten** Strahl statt
-des gerade untersuchten Kandidaten. Die Float-Schrittweite beträgt .01; die
-Schleifen werden nicht durch einen gröberen Planer ersetzt. Die Nachbarsuche
-dedupliziert ihre Offsets nicht. Vorherige Unterstützung wird vor dem Material-
-und Interaktionsfilter berücksichtigt. Es gewinnt der letzte geeignete Hotbarslot.
+Die unveränderte Referenzgeometrie testet im inneren Suchlauf den **bisher besten**
+Strahl statt des gerade untersuchten Kandidaten und dedupliziert ihre Offsets
+nicht. Diese Quirks bleiben im expliziten RayTrace-aus-Pfad und dessen
+Original-Oracles nachvollziehbar. Sie sind seit dem RayTrace-Folgeauftrag nicht
+mehr der aktive Standardpfad. Es gewinnt weiterhin der letzte geeignete Hotbarslot.
 
 Tick-Speed behält `ticksExisted - 2 % 15 == 0` mit der originalen
 Operatorpriorität. Tower-move Vanilla verändert nur motionY, während der
 stehende Vanilla-Tower zusätzlich EventMove.y verändert. On-miss-Clutch prüft
-gegen den Stützblock, der normale rotateCheck gegen dessen Zielnachbar.
+weiterhin gegen den Stützblock. Der fehlerhafte Vergleich des normalen
+rotateCheck mit dem leeren Zielnachbarn wurde auf Support und Seite korrigiert.
 
 Zufall, Float-/Integer-Zwischenschritte, Sensitivitätsquantisierung, Beschleunigung,
 Short-stop-Versuche, strikte Timer-Grenzen und der 150-ms-Ablauf bleiben erhalten.
@@ -77,8 +79,9 @@ Quellbaum, die Consumer und die Prüfsummen des vollständigen Suchmanifests fes
 3. **Szenen- und Transportvertrag:** Alte Welt-/Spieler-/Verbindungsepochen,
    unterbrochene Schritte, Menüs und reentrante Slot-/Paket-Callbacks dürfen keine
    neue Modulaktion bestätigen. Der gewöhnliche Controller bleibt mit seinen
-   vorhandenen Akzeptanzprüfungen erhalten. Keine zusätzliche Zielgeometrie,
-   Platzierungsverzögerung oder eigene Bewegungskurve wird vorgeschaltet.
+   vorhandenen Akzeptanzprüfungen erhalten. Der Folgeauftrag ergänzt die unten
+   beschriebenen geometrischen und zeitlichen Bedingungen; die Demise-
+   Rotationskurve selbst bleibt unverändert.
 4. **Fehlende Daten:** Statt Nullzugriffen des Originals warten die Adapter bei
    fehlendem Spieler, Inventar, Renderer, Stützblock oder noch unbekannten
    gesendeten Blickwinkeln für die dichte Suche. Akzeptierte C03-Winkel werden
@@ -108,8 +111,69 @@ Quellbaum, die Consumer und die Prüfsummen des vollständigen Suchmanifests fes
 
 Diese Punkte begrenzen eine Aussage über binär identische Clients. Es wird kein
 identisches Ergebnis auf fremden Servern und kein manueller Spieltest behauptet.
-Die algorithmischen Scaffold-Pfade und die dokumentierten Quelldetails werden
-gegen den festgehaltenen Stand geprüft.
+Die erhaltenen Algorithmen und Quelldetails werden gegen den festgehaltenen
+Stand geprüft. Die folgenden Erweiterungen haben eigene Verhaltensprüfungen.
+
+## RayTrace-Folgeauftrag: bewusste Änderungen
+
+Der Nutzer meldete, dass RayTrace fast alle Platzierungen verhindert und zu
+Stürzen führt, und beauftragte ausdrücklich eine schnellere Planung, Kantenschutz,
+CPS sowie die Platzierungsmodi Default/Legit. Damit gelten für diesen Bereich
+folgende zusätzliche Regeln:
+
+1. **Begrenzte echte Zielgeometrie:** NScaffoldRaycast dedupliziert die Suche,
+   prüft freie Zielzellen, reale Stützblock-Bounds und eine kleine Auswahl von
+   Innenpunkten. Jeder geprüfte Strahl gehört zum jeweiligen Kandidaten;
+   verdeckte oder unerreichbare frühe Nachbarn blockieren keine erreichbare Alternative.
+   Die bevorzugte passende Ausrichtung wird übernommen. Gültige Tangentialanteile
+   bleiben erhalten; die Korrektur verfehlter Anteile erzwingt keine unnötige
+   seitliche Drehung. Normal bevorzugt bei Bewegung einen geprüften rückwärts
+   zur physischen Eingabe gerichteten Strahl. Weitere Innenpunkte einschließlich
+   des augennächsten Punktes bleiben begrenzte Alternativen. Bei noch ungültigem
+   Iststrahl und tatsächlich gültigem Ziel innerhalb des Integer-Totbands darf
+   ein separates Engine-Ziel einen weiteren Count anfordern. Diese Zielkorrektur
+   nutzt denselben begrenzten Vorschau-Augenpunkt wie der geometrische Plan;
+   feste Bridge-Winkel erhalten sie nicht. Nur die spätere Aktionsprüfung anhand
+   der tatsächlich berichteten Pose kann eine Platzierung freigeben.
+   Für Accelerate ermittelt der Adapter nach einem tatsächlich beobachteten
+   stillstehenden Mausframe, wie viele rohe Counts die originale Float-Rundung
+   überleben. Die Engine ergänzt hierfür nur einen rücksetzbaren Beobachtungswert;
+   ihre Arithmetik, Geschwindigkeiten, Framezeit und Pausenkriterien bleiben erhalten.
+   Ein vorausberechneter Augenpunkt dient ausschließlich der frühzeitigen Rotation.
+   Bei einer neuen Brücke hat die echte Flächenmitte Vorrang vor randnahen
+   Kandidaten; nach der ersten erfolgreichen Platzierung zählt die kleinste
+   Winkeldifferenz. Ein bereits passender bevorzugter Strahl bleibt der schnelle Pfad.
+   Die eigentliche Abfrage nutzt Vanillas Voxel-DDA. Ein numerischer Überstand
+   entlang der Flächennormalen behebt zu kurze Reststrahlen innerhalb der
+   unveränderten Reichweite. Chunk-Verfügbarkeit und Zustände des tatsächlichen
+   Strahlpfads werden auch über Block-Callbacks hinweg überprüft.
+2. **Passender Platzierungszeitpunkt:** Update bereitet vor; erst ein angenommenes
+   Bewegungspaket des eigenen Rotationsbesitzers erlaubt im POST einen Versuch.
+   Der Aktionsstrahl beginnt bei getLastReportedPosition plus Augenhöhe und benutzt
+   die wirksamen Winkel dieses Pakets. Er muss Support, Seite, Ziel und Reichweite
+   bestätigen; MISS, veränderte Zustände und neue Epochen bleiben ausgeschlossen.
+   Es werden keine zusätzlichen C03-Pakete für Platzierung erzeugt.
+3. **Erfolgszustand:** previousBlock wird nur nach erfolgreicher lokaler
+   Controller-Platzierung fortgeschrieben, nicht nach einem MISS oder einer
+   Ablehnung. Das ist keine Bestätigung eines entfernten Servers.
+4. **CPS und Placement mode:** BridgePlacementCadence begrenzt Versuche mit
+   monotoner Uhr, höchstens einem Versuch pro Spielertick/Bewegungsfolge und
+   ohne nachgeholte Bursts. Default startet mit 20/20 CPS; Legit verlangt auch
+   bei ausgeschalteter RayTrace-Checkbox einen echten Treffer und zusätzlich
+   mindestens vier Spielerticks zwischen Versuchen. Die normalen Controller-,
+   Slot-, Item- und Animationspfade bleiben bestehen.
+5. **Kantenschutz:** NScaffoldEdgeGuard begrenzt nur den ungestützten Rest einer
+   geerdeten Bewegung anhand tatsächlicher Kollisionsoberflächen. Stop ist
+   Default, Sneak eine alternative frühzeitige Verlangsamung, Off deaktiviert
+   diese Erweiterung. Sprungabsicht und Luftbewegung werden nicht abgefangen.
+   Plan, Ray, CPS-Bereitschaft und Paketannahme ersetzen keinen realen Boden.
+6. **Strict rayTrace:** Auch ohne Strict muss die tatsächliche Seite zur geplanten
+   Zielzelle passen. Strict fordert darüber hinaus einen kleinen Innenabstand
+   vom Rand der realen Stützfläche, ohne einen einzelnen Zielpixel vorzuschreiben.
+
+Die 49 portierten Einstellungen bleiben erhalten; vier neue Einstellungen
+heißen Placement mode, Min CPS, Max CPS und Edge safety. Alte Profile erhalten
+deren Defaults, ausdrücklich gespeicherte neue Werte bleiben erhalten.
 
 ## Regressionen und Reproduktion
 
@@ -118,12 +182,15 @@ gegen den festgehaltenen Stand geprüft.
   Beschleunigung, Stop-/Ablaufgrenzen, MoveFix-Kandidaten und Rückführungsquirks.
 - DemiseRotationHookTest verbindet reale Angle-, Input-, Physik-, Paket- und
   Modellkonsumenten; freie Kamera, None/Strict/Silent, Nachlauf, fremde Owner,
-  Groundcounter, Normal vor/nach dem ersten akzeptierten C03 sowie Fokuswechsel
+  Groundcounter, frühe Zielplanung ohne erfundene C03-Historie sowie Fokuswechsel
   und ungültige Epochen sind gesonderte Fälle.
 - NScaffoldFlowTest verwendet reale Modul-/Controllerpfade mit synthetischer Welt
-  und lokalem Transport. Platzierung vor Input, Slotdarstellung, Telly, Clutch,
-  Zähler, Sprint-Kopplung, Tower-/Speed-Zweige, RayTrace/Strict, Lifecycle und
-  Aktivitätsdaten werden geprüft.
+  und lokalem Transport. Annahmegebundene POST-Platzierung, echte bewegte Brücken,
+  CPS, Legit-Pause, Slotdarstellung, Telly, Clutch, Zähler, Sprint-Kopplung,
+  Tower-/Speed-Zweige, RayTrace/Strict, Lifecycle und Aktivitätsdaten werden geprüft.
+- NScaffoldRaycastTest / NScaffoldEdgeGuardTest prüfen reale Treffer, Verdeckung,
+  begrenzte Sucharbeit, aktuelle Callback-Lebensdauer und den zusammenhängend
+  gestützten Weg über reale Fuß-Kollisionsflächen.
 - DemiseScaffoldGeometryTest / InventoryTest belegen die Quellsuchreihenfolge,
   Float-Abtastung, Ray-Miss-Fallback, Blacklist und letzte Slotwahl.
 - Config-/Layout-Tests prüfen Migration, Originalnamen-Vorrang, Defaults,

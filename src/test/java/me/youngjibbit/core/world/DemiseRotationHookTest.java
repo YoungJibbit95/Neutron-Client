@@ -4,8 +4,8 @@ import org.junit.Test;
 
 /** Each real-client fixture owns one fresh JVM; no Unsafe static-final/JIT cross-fixture contamination. */
 public class DemiseRotationHookTest {
-    @Test public void originalNormalWaitsOnlyForAcceptedRotationHistory() throws Exception {
-        Wave2IsolatedCase.run(DemiseRotationHookChecks.class, "originalNormalWaitsOnlyForAcceptedRotationHistory");
+    @Test public void rayPlanCanAimEarlyWithoutInventingAcceptedRotationHistory() throws Exception {
+        Wave2IsolatedCase.run(DemiseRotationHookChecks.class, "rayPlanCanAimEarlyWithoutInventingAcceptedRotationHistory");
     }
     @Test public void acceptedHistorySurvivesFocusButNeverAnotherEpoch() throws Exception {
         Wave2IsolatedCase.run(DemiseRotationHookChecks.class, "acceptedHistorySurvivesFocusButNeverAnotherEpoch");

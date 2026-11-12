@@ -30,6 +30,7 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.PlayerCapabilities;
 import net.minecraft.init.Blocks;
 import net.minecraft.init.Bootstrap;
+import net.minecraft.inventory.ContainerPlayer;
 import net.minecraft.network.Packet;
 import net.minecraft.network.play.client.C07PacketPlayerDigging;
 import net.minecraft.network.play.client.C03PacketPlayer;
@@ -37,6 +38,7 @@ import net.minecraft.util.AxisAlignedBB;
 import net.minecraft.util.BlockPos;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.MovingObjectPosition;
+import net.minecraft.util.MovementInputFromOptions;
 import net.minecraft.util.Vec3;
 import net.minecraft.world.World;
 import net.minecraft.world.border.WorldBorder;
@@ -139,6 +141,9 @@ final class BedBreakerTestSupport {
             Bootstrap.register();
             f = new RotationBehaviorHookTest.Fixture(); world = world(); bed = new Bed();
             f.mc.theWorld = world; f.player.worldObj = world;
+            // Competing modules now run their real update hooks, including NScaffold's hotbar scan.
+            f.player.inventoryContainer = new ContainerPlayer(f.player.inventory, false, f.player);
+            f.player.openContainer = f.player.inventoryContainer;
             f.player.capabilities = new PlayerCapabilities(); f.player.onGround = true;
             f.player.posX = .5; f.player.posY = 64; f.player.posZ = .5;
             f.player.setEntityBoundingBox(new AxisAlignedBB(.2, 64, .2, .8, 65.8, .8));
@@ -160,6 +165,7 @@ final class BedBreakerTestSupport {
             f.mc.gameSettings.keyBindSneak = RotationBehaviorHookTest.bare(KeyBinding.class);
             f.mc.gameSettings.keyBindSprint = RotationBehaviorHookTest.bare(KeyBinding.class);
             f.mc.gameSettings.mouseSensitivity = .5f;
+            f.player.movementInput = new MovementInputFromOptions(f.mc.gameSettings);
             controller = new Controller(f.mc, f.player.sendQueue); f.mc.playerController = controller;
             field(NetHandlerPlayClient.class, "gameController").set(f.player.sendQueue, f.mc);
             f.player.sendQueue.clientWorldController = world;

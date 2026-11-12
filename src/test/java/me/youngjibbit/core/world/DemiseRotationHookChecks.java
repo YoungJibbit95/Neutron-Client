@@ -121,20 +121,22 @@ public class DemiseRotationHookChecks {
         }
     }
 
-    @Test public void originalNormalWaitsOnlyForAcceptedRotationHistory() throws Exception {
+    @Test public void rayPlanCanAimEarlyWithoutInventingAcceptedRotationHistory() throws Exception {
         try (Run run = new Run()) {
             assertEquals("Normal",run.module.getModeSetting("Rotations").getValue());
             assertNull(run.engine.serverRotation());
             run.f.player.setAngles(0,0);
-            assertEquals(NScaffold.Status.WAITING,run.module.getStatus());
-            assertFalse("no substitute target before the first factual server angles",run.engine.shouldRotate());
+            assertEquals(NScaffold.Status.ALIGNING,run.module.getStatus());
+            assertTrue("geometry may prepare the first aim before a walking packet",run.engine.shouldRotate());
+            assertNull("an aiming preference is not factual C03 history",run.engine.serverRotation());
+            assertFalse(run.rotation.canUseRotation(NScaffold.ROTATION_SOURCE,false));
             run.step(() -> DemiseRotationHooks.update(run.f.player));
             for (Object packet : run.drain()) assertFalse(packet instanceof C08PacketPlayerBlockPlacement);
             run.f.player.sendQueue.addToSendQueue(new C03PacketPlayer.C05PacketPlayerLook(75,18,true));
             assertArrayEquals(new float[]{75,18},run.engine.serverRotation(),0);
             assertTrue("history must come from actual accepted C03 transport",run.drain().get(0) instanceof C03PacketPlayer.C05PacketPlayerLook);
             run.f.player.setAngles(0,0);
-            assertTrue("original Normal geometry can start after the accepted packet",run.engine.shouldRotate());
+            assertTrue("the accepted packet keeps the prepared Normal aim active",run.engine.shouldRotate());
             assertEquals(NScaffold.Status.ALIGNING,run.module.getStatus());
             assertEquals(0,run.f.player.rotationYaw,0); assertEquals(0,run.f.player.rotationPitch,0);
         }
@@ -159,7 +161,8 @@ public class DemiseRotationHookChecks {
             assertNull("another epoch cannot inherit the old scene's C03",run.engine.serverRotation());
             run.disable(); run.enable();
             run.f.player.setAngles(0,0);
-            assertEquals(NScaffold.Status.WAITING,run.module.getStatus()); assertFalse(run.engine.shouldRotate());
+            assertEquals(NScaffold.Status.ALIGNING,run.module.getStatus()); assertTrue(run.engine.shouldRotate());
+            assertNull("fresh geometry cannot restore the preceding epoch's history",run.engine.serverRotation());
             run.f.player.sendQueue.addToSendQueue(new C03PacketPlayer.C05PacketPlayerLook(-31,7,true));
             assertArrayEquals(new float[]{-31,7},run.engine.serverRotation(),0);
             run.f.player.setAngles(0,0); assertTrue(run.engine.shouldRotate());
