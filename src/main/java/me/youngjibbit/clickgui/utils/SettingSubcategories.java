@@ -52,7 +52,8 @@ public final class SettingSubcategories {
             if (is(id,"movement_correction","sprint_mode","speed_mode","jump","blocks_to_jump","only_straight",
                     "safewalk","safewalk_when_no_data","hover","sneak","blocks_to_sneak","only_sneak_on_ground",
                     "tower","tower_move","pulldown_motion")) return "Movement";
-            if (is(id,"swing","raytrace","strict_raytrace")) return "Placement";
+            if (is(id,"swing","raytrace","strict_raytrace","placement_mode","min_cps","max_cps")) return "Placement";
+            if ("edge_safety".equals(id)) return "Safety";
             if ("target_block_esp".equals(id)) return "Appearance";
             return "Aiming";
         }
@@ -107,7 +108,8 @@ public final class SettingSubcategories {
             if ("Rotation Speed".equals(name)) return "Yaw and pitch speed ranges sampled each update";
             if ("Rotation Shape".equals(name)) return "Frame-based smoothing and acceleration";
             if ("Rotation Pauses".equals(name)) return "Rotation buildup, stop duration and threshold attempts";
-            if ("Placement".equals(name)) return "Swing and placement ray tracing";
+            if ("Placement".equals(name)) return "Click mode, CPS, swing and placement ray tracing";
+            if ("Safety".equals(name)) return "Stop or sneak only at an unsupported edge";
         }
         switch (name) {
             case "Targets": return "Selection, reach and filters";

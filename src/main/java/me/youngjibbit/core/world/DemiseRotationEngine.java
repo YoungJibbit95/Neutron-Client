@@ -26,6 +26,7 @@ public final class DemiseRotationEngine {
     private float[] currentRotation = {0, 0}, serverRotation, previousRotation, targetRotation;
     private float lastDelta, rotDiffBuildUp, randYawSpeed, randPitchSpeed;
     private boolean enabled, silent = true, reset = true, accel;
+    private boolean lastFrameStationary;
     private Smoothing smoothMode = Smoothing.Linear;
     private Correction correction = Correction.None;
     private float hSpeed = 180, vSpeed = 180, accelFactorYaw, accelFactorPitch, smoothingFactor = 1;
@@ -119,6 +120,9 @@ public final class DemiseRotationEngine {
      */
     public Aim mouseUpdate(float cameraYaw, float cameraPitch, float sensitivity) {
         if (currentRotation == null) currentRotation = new float[]{cameraYaw, cameraPitch};
+        float beforeYaw = currentRotation[0], beforePitch = currentRotation[1];
+        boolean hadResidual = targetRotation != null
+                && (angleDifference(targetRotation[0], beforeYaw) != 0 || angleDifference(targetRotation[1], beforePitch) != 0);
         if (millis.getAsLong() - activeTime > 150) enabled = false;
         if (enabled && targetRotation != null) {
             handleRotation(targetRotation, cameraYaw, cameraPitch, sensitivity);
@@ -130,6 +134,9 @@ public final class DemiseRotationEngine {
         } else {
             handleRotation(new float[]{cameraYaw, cameraPitch}, cameraYaw, cameraPitch, sensitivity);
         }
+        // Observation only: the adapter may choose a new target after a real stalled frame.
+        lastFrameStationary = enabled && timeScale > 0 && hadResidual && targetRotation != null
+                && currentRotation[0] == beforeYaw && currentRotation[1] == beforePitch;
         return new Aim(currentRotation[0], currentRotation[1]);
     }
 
@@ -201,6 +208,8 @@ public final class DemiseRotationEngine {
     }
     public boolean shouldRotate() { return currentRotation != null && targetRotation != null; }
     public boolean enabled() { return enabled; }
+    public boolean wasLastFrameStationary() { return lastFrameStationary; }
+    public void resetFrameObservation() { lastFrameStationary = false; }
     public boolean silent() { return silent; }
     public Correction correction() { return correction; }
     public Aim currentAim() { return shouldRotate() ? new Aim(currentRotation[0], currentRotation[1]) : null; }
@@ -214,7 +223,7 @@ public final class DemiseRotationEngine {
     public void clear(float cameraYaw, float cameraPitch) {
         currentRotation = new float[]{cameraYaw, cameraPitch};
         targetRotation = previousRotation = serverRotation = null;
-        enabled = false; reset = true;
+        enabled = false; reset = true; lastFrameStationary = false;
         correction = Correction.None;
         previousDeltaYaw = previousDeltaPitch = interpolatedAccelDeltaYaw = interpolatedAccelDeltaPitch = 0;
         rotDiffBuildUp = lastDelta = 0;

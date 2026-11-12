@@ -6,6 +6,7 @@ import me.youngjibbit.core.activity.ScaffoldActivitySnapshot;
 import me.youngjibbit.core.bootstrap.RuntimeServices;
 import me.youngjibbit.core.combat.BodyRotationController;
 import me.youngjibbit.core.combat.MoveFixController;
+import me.youngjibbit.core.combat.RotationCorrections;
 import me.youngjibbit.core.combat.RotationManager;
 import me.youngjibbit.core.contract.AutomationEligibility.ModuleAction;
 import me.youngjibbit.core.contract.SceneContext;
@@ -19,6 +20,7 @@ import me.youngjibbit.event.motion.EventMove;
 import me.youngjibbit.event.packet.EventPacket;
 import me.youngjibbit.event.packet.TickEvent;
 import me.youngjibbit.event.player.MovementInputEvent;
+import me.youngjibbit.event.player.PlayerMoveUpdateEvent;
 import me.youngjibbit.event.render.Event3D;
 import me.youngjibbit.event.world.WorldEvent;
 import me.youngjibbit.module.Category;
@@ -54,11 +56,11 @@ import java.util.function.LongSupplier;
 
 /**
  * Ported from DemisePrivate e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb, Scaffold.java (AGPL-3.0).
- * Original event order, settings, arithmetic and state transitions are retained.
- * Host adapters supply Java 8 values/events, scene lifetime, guarded controller transport,
- * cosmetic slot consumers and immutable HUD facts. See docs/NSCAFFOLD-DEMISE-PARITY.md.
+ * Retains Demise's frame rotations, MoveFix, bridge styles and movement options.
+ * Placement uses a bounded ray planner, accepted walking poses, a click cadence and
+ * collision-based edge protection. See docs/NSCAFFOLD-DEMISE-PARITY.md for these extensions.
  */
-@ModuleInfo(name="NScaffold", description="Demise Scaffold: original rotations, movement and bridge behaviour.", category=Category.World)
+@ModuleInfo(name="NScaffold", description="Demise rotations, ray-traced building and edge protection.", category=Category.World)
 public final class NScaffold extends Module {
     public static final String ROTATION_SOURCE = "nscaffold";
     private static final int ROTATION_PRIORITY = 15;
@@ -81,6 +83,10 @@ public final class NScaffold extends Module {
     private final ComboValue speedMode = new ComboValue("Speed mode", this, new String[]{"Tick", "Exempt", "Diagonal", "None"}, 3);
     private final CheckBoxValue swing = new CheckBoxValue("Swing", this, true);
     private final CheckBoxValue rayTrace = new CheckBoxValue("RayTrace", this, true);
+    private final ComboValue placementMode = new ComboValue("Placement mode", this, new String[]{"Default", "Legit"}, 0);
+    private final SliderValue minCps = new SliderValue("Min CPS", this, 20D, 1, 20, true);
+    private final SliderValue maxCps = new SliderValue("Max CPS", this, 20D, 1, 20, true);
+    private final ComboValue edgeSafety = new ComboValue("Edge safety", this, new String[]{"Off", "Stop", "Sneak"}, 1);
     private final CheckBoxValue keepY = new CheckBoxValue("KeepY", this, false);
     private final CheckBoxValue speedKeepY = new CheckBoxValue("Speed keepY", this, false);
     private final CheckBoxValue jump = new CheckBoxValue("Jump", this, false);
@@ -104,6 +110,8 @@ public final class NScaffold extends Module {
     private double onGroundY;
     private int oldSlot, blocksPlacedSneak, blocksPlacedJump, tellyTicks;
     private PlaceData data;
+    private NScaffoldRaycast.Plan rayPlan;
+    private Vec3 planningEyes;
     private boolean isOnRightSide, clutching, startClutch, spoofing, shaderCalled;
     private float yaw, pitch, initialYaw, initialPitch;
     private final DemiseScaffoldMovement movement = new DemiseScaffoldMovement();
@@ -111,11 +119,19 @@ public final class NScaffold extends Module {
     private final BooleanSupplier jumpKey = NScaffold::physicalJumpDown;
     private long clutchTime = millis.getAsLong(), sneakTime = millis.getAsLong();
     private final LongSupplier activityClock = System::nanoTime;
+    private final LongSupplier placementClock = System::nanoTime;
+    private final BridgePlacementCadence cadence = new BridgePlacementCadence();
+    private BridgePlacementCadence.Scope cadenceScope;
+    private EntityPlayerSP lastAttemptPlayer;
+    private long lastAttemptSequence = -1;
+    private int lastAttemptTick = Integer.MIN_VALUE;
+    private RotationManager lastPostManager;
+    private long lastPostSequence = -1;
     private long generation, activitySequence, activityPlacements;
     private Scope scope;
     private ActivityView activityView;
     private boolean placing;
-    public enum Status { OFF, WAITING, SEARCHING, ALIGNING, BUILDING, PAUSED_AURA, TELLY_WAIT, CLUTCHING }
+    public enum Status { OFF, WAITING, SEARCHING, ALIGNING, BUILDING, PAUSED_AURA, TELLY_WAIT, CLUTCHING, EDGE_GUARD }
     private Status status = Status.OFF;
 
     public NScaffold() {
@@ -126,7 +142,7 @@ public final class NScaffold extends Module {
         for (Value<?> value : new Value<?>[]{clutchCriteria, clutchRotMode, instantAlways, instantMiss, instantPredict, autoSneakOnClutch})
             value.setVisibility(m -> clutch.getValue());
         groundTicksToSneak.setVisibility(m -> clutch.getValue() && autoSneakOnClutch.getValue());
-        strictRayTrace.setVisibility(m -> rayTrace.getValue());
+        strictRayTrace.setVisibility(m -> usesRayTrace());
         blocksToJump.setVisibility(m -> jump.getValue());
         onlyStraight.setVisibility(m -> jump.getValue());
         blocksToSneak.setVisibility(m -> sneak.getValue());
@@ -153,6 +169,7 @@ public final class NScaffold extends Module {
     }
     @Override public void onEnable() {
         generation++;
+        resetPlacementPlan();
         activityPlacements = 0;
         activityView = null;
         status = Status.WAITING;
@@ -161,6 +178,7 @@ public final class NScaffold extends Module {
         super.onEnable();
     }
     @Override public void onDisable() {
+        generation++;
         Minecraft c = client();
         if (scope != null && c != null && c.thePlayer == scope.player && c.theWorld == scope.world)
             scope.player.inventory.currentItem = oldSlot;
@@ -170,27 +188,48 @@ public final class NScaffold extends Module {
             KeyBinding.setKeyBindState(c.gameSettings.keyBindUseItem.getKeyCode(), false);
         activityView = null;
         status = Status.OFF;
+        resetPlacementPlan();
         // Mouse UPDATE owns the original 150-ms expiry and subsequent return to the camera.
         super.onDisable();
     }
-    @Override public void onValueChange() { activityView = null; }
+    @Override public void onValueChange() {
+        activityView = null;
+        // A callback cannot turn an in-flight click into an action under a different profile.
+        if (cadence != null && isToggled()) { generation++; resetPlacementPlan(); }
+    }
     public Status getStatus() { return status; }
+    private boolean usesRayTrace() { return rayTrace.getValue() || is(placementMode, "Legit"); }
+    private void resetPlacementPlan() {
+        data = null; rayPlan = null; planningEyes = null;
+        cadenceScope = null;
+        if (cadence != null) cadence.reset();
+        if (rotationEngine != null) rotationEngine.resetFrameObservation();
+    }
 
     /** AngleEvent precedes the physical mouse delta in Entity.setAngles. */
     public void onDemiseAngle() {
         if (!activeScene()) return;
         final Scope current = scope;
+        final long angleGeneration = generation;
         final Minecraft c = client();
         final EntityPlayerSP p = current.player;
-        p.inventory.currentItem = DemiseScaffoldInventory.blockSlot(p);
+        int selectedSlot = DemiseScaffoldInventory.blockSlot(p);
+        if (!currentGeneration(current, angleGeneration) || !scopeCurrent(current)) return;
+        p.inventory.currentItem = selectedSlot;
         spoofing = true;
-        data = null;
+        data = null; rayPlan = null;
         if (p.onGround) onGroundY = p.getEntityBoundingBox().minY;
         double posY = p.getEntityBoundingBox().minY;
         if (keepY.getValue() || speedKeepY.getValue() && speedEnabled() && !c.gameSettings.keyBindJump.isKeyDown()) posY = onGroundY;
         if (towerMoving() || towering()) onGroundY = posY = p.getEntityBoundingBox().minY;
         targetBlock = new BlockPos(p.posX, posY - 1, p.posZ);
-        data = DemiseScaffoldGeometry.findBlock(current.world, targetBlock, p.getPosition(), previousBlock);
+        if (usesRayTrace()) prepareRayPlan(current, targetBlock, posY);
+        else {
+            PlaceData found = DemiseScaffoldGeometry.findBlock(current.world, targetBlock, p.getPosition(), previousBlock);
+            if (!currentGeneration(current, angleGeneration) || !scopeCurrent(current)) return;
+            data = found;
+        }
+        if (generation != angleGeneration || !isToggled() || !scopeCurrent(current)) return;
         if (is(mode, "Telly")) tellyTicks = movement.straight(p, c.gameSettings) ? (int) straightTellyTicks.getValue().floatValue() : (int) diagonalTellyTicks.getValue().floatValue();
         if (auraTarget()) { status = Status.PAUSED_AURA; publishActivity(); return; }
         switch (sprintMode.getValue()) {
@@ -201,25 +240,25 @@ public final class NScaffold extends Module {
         }
         if (tower.isVisible() && (!is(tower, "Jump") && towering() || !is(towerMove, "Jump") && towerMoving()))
             blocksPlacedJump = blocksPlacedSneak = 0;
-        // Missing support is an original null dereference, not an alternate aiming mode.
         if (data == null) { status = Status.SEARCHING; publishActivity(); return; }
+        final PlaceData aiming = data;
         if (c.entityRenderer != null) c.entityRenderer.getMouseOver(1);
+        if (generation != angleGeneration || !isToggled() || !scopeCurrent(current) || data != aiming) return;
         MovingObjectPosition mouse = c.objectMouseOver;
-        boolean rotateCheck = mouse == null || mouse.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK
-                || !data.blockPos.offset(data.facing).equals(mouse.getBlockPos());
+        // A plan already preserves a suitable preferred ray; update its future aiming origin as we move.
+        boolean rotateCheck = rayPlan != null || mouse == null || mouse.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK
+                || !data.blockPos.equals(mouse.getBlockPos()) || mouse.sideHit != data.facing;
         if (rotateCheck) {
             switch (mode.getValue()) {
                 case "Normal": case "Telly":
                     switch (rotations.getValue()) {
                         case "Normal":
-                            if (waitingForServerRotation()) return;
-                            initialYaw = bestRotation()[0]; initialPitch = bestRotation()[1]; break;
+                            if (rayPlan == null && waitingForServerRotation()) return;
+                            float[] best = bestRotation(); initialYaw = best[0]; initialPitch = best[1]; break;
                         case "Center":
-                            Vec3 hitVec = DemiseScaffoldGeometry.faceCenter(data.blockPos, data.facing);
-                            initialYaw = DemiseScaffoldGeometry.rotations(p, hitVec)[0];
-                            initialPitch = DemiseScaffoldGeometry.rotations(p, hitVec)[1]; break;
+                            float[] center = centerRotation(); initialYaw = center[0]; initialPitch = center[1]; break;
                         case "GodBridge":
-                            if (!staticify.getValue() && waitingForServerRotation()) return;
+                            if (!staticify.getValue() && rayPlan == null && waitingForServerRotation()) return;
                             float movingYaw = moving() ? movement.keyYaw(p, c.gameSettings) - 180 : p.rotationYaw - 180;
                             if (p.onGround) isOnRightSide = Math.floor(p.posX + Math.cos(Math.toRadians(movingYaw)) * .5) != Math.floor(p.posX)
                                     || Math.floor(p.posZ + Math.sin(Math.toRadians(movingYaw)) * .5) != Math.floor(p.posZ);
@@ -227,7 +266,7 @@ public final class NScaffold extends Module {
                             initialYaw = Math.round(bridgeYaw / 45) * 45;
                             initialPitch = staticify.getValue() ? moving() ? 75.7f : 90f : bestRotation()[1]; break;
                         case "Reverse":
-                            if (!staticify.getValue() && waitingForServerRotation()) return;
+                            if (!staticify.getValue() && rayPlan == null && waitingForServerRotation()) return;
                             initialYaw = movement.keyYaw(p, c.gameSettings) - 180; initialPitch = staticify.getValue() ? 80 : bestRotation()[1]; break;
                     }
                     break;
@@ -237,19 +276,24 @@ public final class NScaffold extends Module {
             }
         }
         float[] rotation = {initialYaw, initialPitch};
-        if (clutch.getValue() && air(new BlockPos(p.getPositionVector().subtract(0, 2, 0)))) {
+        boolean clutchAir = clutch.getValue() && air(new BlockPos(p.getPositionVector().subtract(0, 2, 0)));
+        if (!aimingCurrent(current, angleGeneration, aiming)) return;
+        if (clutchAir) {
             switch (clutchCriteria.getValue()) {
                 case "MouseOver":
                     MovingObjectPosition ray = DemiseScaffoldGeometry.rayTrace(p, rotation, 4.5, 1);
+                    if (!aimingCurrent(current, angleGeneration, aiming)) return;
                     if (ray.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK || !moving()
-                            || ray.getBlockPos() != null && ray.getBlockPos().distanceSq(data.blockPos) > 1) {
+                            || ray.getBlockPos() != null && ray.getBlockPos().distanceSq(aiming.blockPos) > 1) {
                         if (!setClutchRot(rotateCheck)) return;
                         clutching = true;
                     } else clutching = false;
                     break;
                 case "Prediction":
                     boolean nextAir = air(p.getPosition().offset(EnumFacing.fromAngle(initialYaw), 1).down());
-                    boolean leaning = air(data.blockPos.offset(data.facing));
+                    if (!aimingCurrent(current, angleGeneration, aiming)) return;
+                    boolean leaning = air(aiming.blockPos.offset(aiming.facing));
+                    if (!aimingCurrent(current, angleGeneration, aiming)) return;
                     if (leaning && nextAir || !moving()) startClutch = true;
                     else if (startClutch) { clutchTime = millis.getAsLong(); startClutch = false; }
                     clutching = startClutch || millis.getAsLong() - clutchTime <= 200;
@@ -257,17 +301,216 @@ public final class NScaffold extends Module {
                     break;
             }
         } else clutching = false;
-        if (!scopeCurrent(current)) return;
+        if (generation != angleGeneration || !isToggled() || !scopeCurrent(current) || data != aiming) return;
         if (!is(mode, "Telly") || p.offGroundTicks >= tellyTicks) {
-            rotationEngine.setRotation(new float[]{clutching ? yaw : initialYaw, clutching ? pitch : initialPitch}, rotationSettings.snapshot());
+            DemiseRotationSettings.Snapshot settings = rotationSettings.snapshot();
+            float[] requested = placementRotationTarget(current, angleGeneration, aiming,
+                    new float[]{clutching ? yaw : initialYaw, clutching ? pitch : initialPitch}, settings);
+            if (requested == null || !aimingCurrent(current, angleGeneration, aiming)) return;
+            rotationEngine.setRotation(requested, settings);
             status = clutching ? Status.CLUTCHING : Status.ALIGNING;
         } else status = Status.TELLY_WAIT;
         publishActivity();
     }
+    /** A real target can lie inside Demise's integer deadband while the current ray still misses. */
+    private float[] placementRotationTarget(Scope current, long expected, PlaceData target, float[] requested,
+                                             DemiseRotationSettings.Snapshot settings) {
+        final NScaffoldRaycast.Plan plan = rayPlan;
+        DemiseRotationEngine.Aim aim = rotationEngine.currentAim();
+        // Fixed bridge-style angles keep their original meaning; only geometric aims use this correction.
+        if (plan == null || aim == null || !clutching && (is(mode, "Breezily")
+                || !is(rotations, "Normal") && !is(rotations, "Center"))) return requested;
+        float f = client().gameSettings.mouseSensitivity * .6F + .2F;
+        float deadband = f * f * f * 8.0F * (settings.smoothMode == DemiseRotationEngine.Smoothing.Relative ? 4 : 1);
+        boolean stalledAcceleration = settings.accel && rotationEngine.wasLastFrameStationary();
+        float yawDeadband = deadband * (stalledAcceleration ? survivingCounts(settings.yawAccelFactor) : 1);
+        float pitchDeadband = deadband * (stalledAcceleration ? survivingCounts(settings.pitchAccelFactor) : 1);
+        float dx = MathHelper.wrapAngleTo180_float(requested[0] - aim.yaw);
+        float dy = MathHelper.wrapAngleTo180_float(requested[1] - aim.pitch);
+        if (!Float.isFinite(deadband) || deadband <= 0 || Math.abs(dx) >= yawDeadband || Math.abs(dy) >= pitchDeadband
+                || Math.max(Math.abs(dx), Math.abs(dy)) < 1.0e-4F) return requested;
+        final EntityPlayerSP p = current.player;
+        final net.minecraft.client.multiplayer.PlayerControllerMP controller = current.client.playerController;
+        final double x = p.posX, y = p.posY, z = p.posZ;
+        final AxisAlignedBB body = p.getEntityBoundingBox();
+        final float eyeHeight = p.getEyeHeight();
+        final Vec3 plannedEyes = planningEyes;
+        BooleanSupplier valid = () -> {
+            if (rayPlan != plan || !aimingCurrent(current, expected, target) || p.getEyeHeight() != eyeHeight) return false;
+            DemiseRotationEngine.Aim now = rotationEngine.currentAim();
+            return now != null && now.yaw == aim.yaw && now.pitch == aim.pitch
+                    && p.posX == x && p.posY == y && p.posZ == z && p.getEntityBoundingBox() == body
+                    && current.client.playerController == controller && currentGeneration(current, expected)
+                    && rayPlan == plan && data == target && planningEyes == plannedEyes;
+        };
+        // This is an aiming correction, so use the same bounded forecast as the geometric plan.
+        // Only place() can authorize a click, using the actual accepted walking pose.
+        Vec3 eyes = plannedEyes == null ? new Vec3(x, y + eyeHeight, z) : plannedEyes;
+        double reach = controller.getBlockReachDistance();
+        MovingObjectPosition hit = NScaffoldRaycast.trace(current.world, eyes, aim.yaw, aim.pitch, reach, plan, valid);
+        if (!valid.getAsBoolean()) return null;
+        if (hit != null && (!strictRayTrace.getValue() || NScaffoldRaycast.interiorHit(plan, hit, .01))) return requested;
+        // Even a predictive aim must point at a real visible face in the current world.
+        hit = NScaffoldRaycast.trace(current.world, eyes, requested[0], requested[1], reach, plan, valid);
+        if (!valid.getAsBoolean()) return null;
+        if (hit == null || strictRayTrace.getValue() && !NScaffoldRaycast.interiorHit(plan, hit, .01)) return requested;
+        int axis = Math.abs(dx) >= Math.abs(dy) ? 0 : 1;
+        float present = axis == 0 ? aim.yaw : aim.pitch, delta = axis == 0 ? dx : dy;
+        // Request a count that survives the observed rounding stall. The unchanged engine still owns
+        // speed limits, frame timing, smoothing, acceleration, short stops and actual pitch clamping.
+        float threshold = axis == 0 ? yawDeadband : pitchDeadband;
+        requested[axis] = present + Math.copySign(threshold + Math.max(1.0e-4F, Math.ulp(present) * 2), delta);
+        return requested;
+    }
+
+    private static int survivingCounts(float factor) {
+        // Use Demise's float multiplication/cast: .8F needs six counts, not the idealized five.
+        for (int counts = 1; counts <= 16; counts++)
+            if ((int) (counts * (1 - factor)) >= 1) return counts;
+        return 1;
+    }
+
+    /** Aim ahead of the next walking packet; only the later real ray can authorize a click. */
+    private void prepareRayPlan(Scope current, BlockPos feet, double feetY) {
+        EntityPlayerSP p = current.player;
+        final long planGeneration = generation;
+        final double originX = p.posX, originY = p.posY, originZ = p.posZ;
+        final AxisAlignedBB body = p.getEntityBoundingBox();
+        BooleanSupplier valid = () -> isToggled() && generation == planGeneration && scopeCurrent(current)
+                && p.posX == originX && p.posY == originY && p.posZ == originZ && p.getEntityBoundingBox() == body
+                && currentGeneration(current, planGeneration);
+        Vec3 eyes = p.getPositionEyes(1);
+        Vec3 motion = predictedMotion(p);
+        if (!valid.getAsBoolean()) return;
+        if (guardGround(p) && !physicalJump() && !p.movementInput.jump) {
+            NScaffoldEdgeGuard.Result limit = NScaffoldEdgeGuard.limit(current.world, p, motion.xCoord, 0, motion.zCoord, valid);
+            if (limit.active) motion = new Vec3(limit.x, 0, limit.z);
+        }
+        if (!valid.getAsBoolean()) return;
+        float[] preferred = rotationEngine.shouldRotate() ? rotationEngine.rotation()
+                : new float[]{p.rotationYaw, p.rotationPitch};
+        net.minecraft.client.settings.GameSettings keys = current.client.gameSettings;
+        if (!is(mode, "Breezily") && is(rotations, "Normal")
+                && (keys.keyBindForward.isKeyDown() != keys.keyBindBack.isKeyDown()
+                || keys.keyBindLeft.isKeyDown() != keys.keyBindRight.isKeyDown())) {
+            // Align the preferred ray with the intended path instead of retaining the first
+            // oblique acquisition angle and feeding its sideways drift back into discrete MoveFix.
+            preferred[0] = movement.keyYaw(p, keys) - 180;
+        }
+        double reach = client().playerController.getBlockReachDistance();
+        double margin = strictRayTrace.getValue() ? .01 : 0;
+        if (!current.world.isBlockLoaded(feet) || !valid.getAsBoolean()) return;
+        boolean underfootEmpty = current.world.getBlockState(feet).getBlock().getMaterial().isReplaceable();
+        if (!valid.getAsBoolean()) return;
+        BlockPos wanted = feet;
+        double length = Math.hypot(motion.xCoord, motion.zCoord);
+        if (!underfootEmpty) {
+            if (length < 1.0E-5) return;
+            // Begin turning before the centre crosses the current support's edge.
+            wanted = new BlockPos(p.posX + motion.xCoord + motion.xCoord / length * .32,
+                    feetY - 1, p.posZ + motion.zCoord + motion.zCoord / length * .32);
+            if (wanted.equals(feet)) return;
+        }
+        double preview = 0;
+        if (length > 1.0E-5) {
+            double directionX = motion.xCoord / length, directionZ = motion.zCoord / length;
+            double crossing = Double.NEGATIVE_INFINITY;
+            if (directionX > 1.0e-5) crossing = Math.max(crossing, (wanted.getX() - p.posX) / directionX);
+            else if (directionX < -1.0e-5) crossing = Math.max(crossing, (wanted.getX() + 1 - p.posX) / directionX);
+            if (directionZ > 1.0e-5) crossing = Math.max(crossing, (wanted.getZ() - p.posZ) / directionZ);
+            else if (directionZ < -1.0e-5) crossing = Math.max(crossing, (wanted.getZ() + 1 - p.posZ) / directionZ);
+            preview = Math.max(0, Math.min(1.5, crossing + .2));
+        }
+        // Keep the early aim through the plane crossing instead of pitching nearly vertical
+        // for one frame and then undoing that turn at the supported overhang.
+        double advance = Math.max(length, preview);
+        planningEyes = length > 1.0E-5
+                ? eyes.addVector(motion.xCoord / length * advance, 0, motion.zCoord / length * advance) : eyes;
+        NScaffoldRaycast.Plan plan = NScaffoldRaycast.find(p, planningEyes, wanted, previousBlock,
+                preferred[0], preferred[1], reach, valid, margin);
+        if (!underfootEmpty && plan != null && !wanted.equals(plan.destination)) plan = null;
+        if (plan == null && underfootEmpty) {
+            planningEyes = eyes;
+            plan = NScaffoldRaycast.find(p, eyes, wanted, previousBlock, preferred[0], preferred[1], reach, valid, margin);
+        } else if (plan == null && length > 1.0E-5 && preview + 1.0e-5 < advance) {
+            // A forward side is occluded until the eye passes its plane. This is only an aiming preview.
+            planningEyes = eyes.addVector(motion.xCoord / length * preview, 0, motion.zCoord / length * preview);
+            plan = NScaffoldRaycast.find(p, planningEyes, wanted, previousBlock,
+                    preferred[0], preferred[1], reach, valid, margin);
+            if (plan != null && !wanted.equals(plan.destination)) plan = null;
+        }
+        if (!valid.getAsBoolean()) return;
+        rayPlan = plan;
+        data = plan == null ? null : plan.data;
+        if (plan != null) targetBlock = plan.destination;
+    }
+
+    /** Bounded vanilla horizontal prediction; it never writes input, velocity or player position. */
+    private Vec3 predictedMotion(EntityPlayerSP p) {
+        net.minecraft.client.settings.GameSettings keys = client().gameSettings;
+        float forward = (keys.keyBindForward.isKeyDown() ? 1 : 0) - (keys.keyBindBack.isKeyDown() ? 1 : 0);
+        float strafe = (keys.keyBindLeft.isKeyDown() ? 1 : 0) - (keys.keyBindRight.isKeyDown() ? 1 : 0);
+        float inputYaw = p.rotationYaw;
+        DemiseRotationEngine.Aim aim = rotationEngine.currentAim();
+        if (aim != null && rotationEngine.correction() != DemiseRotationEngine.Correction.None) {
+            if (rotationEngine.correction() == DemiseRotationEngine.Correction.Silent) {
+                DemiseMoveFix.Input input = DemiseMoveFix.correct(strafe, forward, aim.yaw, p.rotationYaw);
+                strafe = input.strafe; forward = input.forward;
+            }
+            inputYaw = aim.yaw;
+        }
+        return predictedMotion(p, forward, strafe, inputYaw, keys.keyBindSneak.isKeyDown());
+    }
+    private Vec3 predictedMotion(EntityPlayerSP p, float forward, float strafe, float inputYaw, boolean sneaking) {
+        if (forward == 0 && strafe == 0) return boundedMotion(p.motionX, p.motionZ);
+        float scale = .98F * (sneaking ? .3F : 1F) * (p.isUsingItem() ? .2F : 1F);
+        forward *= scale; strafe *= scale;
+        double strength = Math.max(1, Math.hypot(strafe, forward));
+        double acceleration = p.onGround ? p.getAIMoveSpeed() : p.jumpMovementFactor;
+        if (p.onGround) {
+            Scope current = scope;
+            BlockPos below = new BlockPos(p.posX, p.getEntityBoundingBox().minY - 1, p.posZ);
+            if (current == null || !current.world.isBlockLoaded(below) || !scopeCurrent(current)) return new Vec3(0, 0, 0);
+            float friction = current.world.getBlockState(below).getBlock().slipperiness * .91F;
+            acceleration *= .16277136F / (friction * friction * friction);
+        }
+        double angle = Math.toRadians(inputYaw), sine = Math.sin(angle), cosine = Math.cos(angle);
+        double dx = p.motionX + (strafe * cosine - forward * sine) / strength * acceleration;
+        double dz = p.motionZ + (forward * cosine + strafe * sine) / strength * acceleration;
+        return boundedMotion(dx, dz);
+    }
+    private static Vec3 boundedMotion(double dx, double dz) {
+        if (!Double.isFinite(dx) || !Double.isFinite(dz)) return new Vec3(0, 0, 0);
+        double length = Math.hypot(dx, dz);
+        return length <= .8 ? new Vec3(dx, 0, dz) : new Vec3(dx / length * .8, 0, dz / length * .8);
+    }
+
+    private float[] centerRotation() {
+        if (rayPlan == null || planningEyes == null)
+            return DemiseScaffoldGeometry.rotations(scope.player, DemiseScaffoldGeometry.faceCenter(data.blockPos, data.facing));
+        AxisAlignedBB box = rayPlan.actualBounds;
+        Vec3 center = new Vec3((box.minX + box.maxX) * .5, (box.minY + box.maxY) * .5, (box.minZ + box.maxZ) * .5);
+        switch (data.facing) {
+            case EAST: center = new Vec3(box.maxX, center.yCoord, center.zCoord); break;
+            case WEST: center = new Vec3(box.minX, center.yCoord, center.zCoord); break;
+            case UP: center = new Vec3(center.xCoord, box.maxY, center.zCoord); break;
+            case DOWN: center = new Vec3(center.xCoord, box.minY, center.zCoord); break;
+            case NORTH: center = new Vec3(center.xCoord, center.yCoord, box.minZ); break;
+            case SOUTH: center = new Vec3(center.xCoord, center.yCoord, box.maxZ); break;
+        }
+        Vec3 offset = center.subtract(planningEyes);
+        return new float[]{(float) Math.toDegrees(Math.atan2(offset.zCoord, offset.xCoord)) - 90,
+                (float) -Math.toDegrees(Math.atan2(offset.yCoord, Math.hypot(offset.xCoord, offset.zCoord)))};
+    }
     private void setSprintKey(boolean pressed) { KeyBinding.setKeyBindState(client().gameSettings.keyBindSprint.getKeyCode(), pressed); }
     private boolean moving() { return scope != null && DemiseScaffoldMovement.moving(scope.player); }
     public float demiseMovementYaw() { return movement.keyYaw(client().thePlayer, client().gameSettings); }
-    private boolean air(BlockPos pos) { return scope.world.getBlockState(pos).getBlock() instanceof BlockAir; }
+    private boolean air(BlockPos pos) {
+        Scope current = scope;
+        long expected = generation;
+        return current != null && current.world.getBlockState(pos).getBlock() instanceof BlockAir
+                && generation == expected && scopeCurrent(current) && currentGeneration(current, expected);
+    }
     /** Fresh scenes wait for factual C03 angles where the original search requires them. */
     private boolean waitingForServerRotation() {
         if (rotationEngine.hasServerRotation()) return false;
@@ -276,59 +519,124 @@ public final class NScaffold extends Module {
         publishActivity();
         return true;
     }
-    private float[] bestRotation() { return DemiseScaffoldGeometry.bestRotation(scope.player, data, rotationEngine.serverRotation()); }
+    private float[] bestRotation() {
+        return rayPlan == null ? DemiseScaffoldGeometry.bestRotation(scope.player, data, rotationEngine.serverRotation())
+                : new float[]{rayPlan.yaw, rayPlan.pitch};
+    }
     private boolean setClutchRot(boolean rotateCheck) {
-        if (rotateCheck && is(clutchRotMode, "Normal") && waitingForServerRotation()) return false;
-        Vec3 hitVec = DemiseScaffoldGeometry.faceCenter(data.blockPos, data.facing);
+        final Scope current = scope;
+        final long expected = generation;
+        final PlaceData aiming = data;
+        if (rotateCheck && rayPlan == null && is(clutchRotMode, "Normal") && waitingForServerRotation()) return false;
         if (rotateCheck) {
-            if (is(clutchRotMode, "Normal")) { yaw = bestRotation()[0]; pitch = bestRotation()[1]; }
-            else { yaw = DemiseScaffoldGeometry.rotations(scope.player, hitVec)[0]; pitch = DemiseScaffoldGeometry.rotations(scope.player, hitVec)[1]; }
+            float[] aim = is(clutchRotMode, "Normal") ? bestRotation() : centerRotation();
+            if (!aimingCurrent(current, expected, aiming)) return false;
+            yaw = aim[0]; pitch = aim[1];
         }
-        boolean leaning = air(data.blockPos.offset(data.facing));
-        boolean nextAir = air(scope.player.getPosition().offset(EnumFacing.fromAngle(initialYaw), 1).down());
+        boolean leaning = air(aiming.blockPos.offset(aiming.facing));
+        if (!aimingCurrent(current, expected, aiming)) return false;
+        boolean nextAir = air(current.player.getPosition().offset(EnumFacing.fromAngle(initialYaw), 1).down());
+        if (!aimingCurrent(current, expected, aiming)) return false;
         boolean instant = instantPredict.getValue() && leaning && nextAir;
         if (instantAlways.getValue()) instant = true;
         MovingObjectPosition mouse = client().objectMouseOver;
         if (instantMiss.getValue() && (mouse == null || mouse.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK
-                || !data.blockPos.equals(mouse.getBlockPos()))) instant = true;
+                || !aiming.blockPos.equals(mouse.getBlockPos()))) instant = true;
         if (instant) rotationEngine.forceSpeeds(180, 180);
         return true;
     }
+    private boolean aimingCurrent(Scope current, long expected, PlaceData target) {
+        return currentGeneration(current, expected) && data == target && scopeCurrent(current)
+                && currentGeneration(current, expected) && data == target;
+    }
 
-    /** UpdateEvent is at the very start of EntityPlayerSP.onLivingUpdate, before new input. */
+    /** Prepare before fresh input; the click belongs to the accepted walking packet's POST. */
     public void onDemiseUpdate() {
         if (!activeScene()) return;
         info = mode.getValue();
         rotationEngine.updateSpeeds(rotationSettings.snapshot());
-        if (data == null) { status = Status.SEARCHING; publishActivity(); return; }
-        if (is(mode, "Telly") && scope.player.offGroundTicks < tellyTicks) { status = Status.TELLY_WAIT; publishActivity(); return; }
-        if (placing || !AutomatedActionAdmission.mayAttempt(ModuleAction.PLACEMENT)) return;
-        placing = true;
-        try { place(); } finally { placing = false; publishActivity(); }
+        onDemiseAngle();
     }
-    private void place() {
+    private BridgePlacementCadence.Settings cadenceSettings() {
+        return new BridgePlacementCadence.Settings(minCps.getValue(), maxCps.getValue(),
+                BridgePlacementCadence.Profile.BASIC, BridgePlacementCadence.Interpolation.STABLE, 1);
+    }
+    private void place(RotationManager manager, long sequence) {
         final Scope current = scope;
         final PlaceData target = data;
+        if (current == null || target == null) return;
+        final NScaffoldRaycast.Plan plan = rayPlan;
         final Minecraft c = client();
         final EntityPlayerSP p = current.player;
         final ItemStack held = p.getHeldItem();
         final net.minecraft.client.multiplayer.PlayerControllerMP controller = c.playerController;
         final int slot = p.inventory.currentItem;
         final long attemptGeneration = generation;
-        BooleanSupplier valid = () -> isToggled() && generation == attemptGeneration && data == target
+        final boolean traced = usesRayTrace(), legit = is(placementMode, "Legit");
+        final float acceptedYaw = manager.getEffectiveYaw(), acceptedPitch = manager.getEffectivePitch();
+        final Vec3 reported = p.getLastReportedPosition();
+        final float eyeHeight = p.getEyeHeight();
+        final Vec3 wireEyes = reported.addVector(0, eyeHeight, 0);
+        final double posX = p.posX, posY = p.posY, posZ = p.posZ;
+        final double reach = controller.getBlockReachDistance();
+        if (held == null || held.stackSize <= 0 || !DemiseScaffoldInventory.isValidBlock(held)
+                || lastAttemptPlayer == p && (lastAttemptTick == p.ticksExisted || lastAttemptSequence == sequence)
+                || legit && lastAttemptPlayer == p && p.ticksExisted - lastAttemptTick < 4
+                || legit && (c.rightClickDelayTimer > 0 || p.isUsingItem() || controller.func_181040_m())) return;
+        BooleanSupplier valid = () -> isToggled() && generation == attemptGeneration && data == target && rayPlan == plan
                 && scopeCurrent(current) && controller != null && c.playerController == controller && p.inventory.currentItem == slot
-                && p.getHeldItem() == held && AutomatedActionAdmission.mayAttempt(ModuleAction.PLACEMENT);
+                && p.getHeldItem() == held && held.stackSize > 0 && DemiseScaffoldInventory.isValidBlock(held)
+                && p.posX == posX && p.posY == posY && p.posZ == posZ
+                && AutomatedActionAdmission.mayAttempt(ModuleAction.PLACEMENT)
+                && RuntimeServices.rotation() == manager && manager.getMotionSequence() == sequence
+                && ROTATION_SOURCE.equals(manager.getConfirmedOwner(p, current.world, current.packets))
+                && manager.canUseRotation(ROTATION_SOURCE, false) && manager.getRotationRelease() == null
+                && manager.getEffectiveYaw() == acceptedYaw && manager.getEffectivePitch() == acceptedPitch
+                && p.getLastReportedPosition().squareDistanceTo(reported) == 0
+                && p.getEyeHeight() == eyeHeight
+                && currentGeneration(current, attemptGeneration) && data == target && rayPlan == plan
+                && c.playerController == controller && c.thePlayer == p && c.theWorld == current.world
+                && p.inventory.currentItem == slot && p.inventory.mainInventory[slot] == held && held.stackSize > 0
+                && p.posX == posX && p.posY == posY && p.posZ == posZ
+                && RuntimeServices.rotation() == manager && manager.getMotionSequence() == sequence
+                && current.packets.getContextVersion() == current.epoch;
         if (!valid.getAsBoolean()) return;
-        if (!rayTrace.getValue()) {
-            if (controller.onPlayerRightClick(p, current.world, held, target.blockPos, target.facing,
-                    DemiseScaffoldGeometry.faceCenter(target.blockPos, target.facing), valid)) placed(current, attemptGeneration);
-            if (scopeCurrent(current) && data == target) previousBlock = target.blockPos.offset(target.facing);
-        } else {
-            MovingObjectPosition ray = DemiseScaffoldGeometry.rayTrace(p, rotationEngine.rotation(), 4.5, 1);
-            if (target.blockPos.equals(ray.getBlockPos()) && (!strictRayTrace.getValue() || ray.sideHit == target.facing))
-                if (controller.onPlayerRightClick(p, current.world, held, ray.getBlockPos(), ray.sideHit, ray.hitVec, valid)) placed(current, attemptGeneration);
-            if (scopeCurrent(current) && data == target) previousBlock = ray.getBlockPos().offset(ray.sideHit);
+        MovingObjectPosition ray = traced
+                ? NScaffoldRaycast.trace(current.world, wireEyes, acceptedYaw, acceptedPitch, reach, plan, valid) : null;
+        if (traced && (ray == null || strictRayTrace.getValue() && !NScaffoldRaycast.interiorHit(plan, ray, .01))) return;
+        final BlockPos destination = target.blockPos.offset(target.facing);
+        BooleanSupplier geometry = () -> {
+            if (!valid.getAsBoolean()) return false;
+            if (traced) {
+                MovingObjectPosition fresh = NScaffoldRaycast.trace(current.world, wireEyes, acceptedYaw, acceptedPitch, reach, plan, valid);
+                return fresh != null && (!strictRayTrace.getValue() || NScaffoldRaycast.interiorHit(plan, fresh, .01))
+                        && valid.getAsBoolean();
+            }
+            return current.world.isBlockLoaded(destination) && current.world.getWorldBorder().contains(destination)
+                    && current.world.getBlockState(destination).getBlock().getMaterial().isReplaceable()
+                    && !current.world.getBlockState(target.blockPos).getBlock().getMaterial().isReplaceable()
+                    && valid.getAsBoolean();
+        };
+        if (!geometry.getAsBoolean()) return;
+        BridgePlacementCadence.Settings settings = cadenceSettings();
+        long now = placementClock.getAsLong();
+        if (!valid.getAsBoolean()) return;
+        if (cadenceScope == null) {
+            cadenceScope = new BridgePlacementCadence.Scope(this, current.world, p, current.packets, current.epoch, attemptGeneration);
+            if (!cadence.start(cadenceScope, settings, now)) { cadenceScope = null; return; }
         }
+        if (cadence.tryConsume(cadenceScope, settings, sequence, now, true, true) == null) return;
+        // Consume before C09/C08 callbacks, including controller rejection or re-entrance.
+        lastAttemptPlayer = p; lastAttemptTick = p.ticksExisted; lastAttemptSequence = sequence;
+        if (legit) c.rightClickDelayTimer = 4;
+        Vec3 hit = ray == null ? DemiseScaffoldGeometry.faceCenter(target.blockPos, target.facing) : ray.hitVec;
+        boolean success = controller.onPlayerRightClick(p, current.world, held, target.blockPos, target.facing, hit, geometry);
+        if (!success || !isToggled() || generation != attemptGeneration || !scopeCurrent(current) || data != target) return;
+        if (p.inventory.currentItem == slot && p.getHeldItem() == held && held.stackSize == 0)
+            p.inventory.mainInventory[slot] = null;
+        placed(current, attemptGeneration);
+        if (isToggled() && generation == attemptGeneration && scopeCurrent(current) && data == target)
+            previousBlock = destination;
     }
     private void placed(Scope current, long attemptGeneration) {
         if (!isToggled() || generation != attemptGeneration || !scopeCurrent(current)) return;
@@ -375,10 +683,32 @@ public final class NScaffold extends Module {
             if (millis.getAsLong() - sneakTime <= 100) event.setSneak(true);
         }
         if (sneak.getValue()) {
-            if (!p.onGround && onlySneakOnGround.getValue()) return;
-            if (blocksPlacedSneak > blocksToSneak.getValue().floatValue()) blocksPlacedSneak = 0;
-            if (blocksPlacedSneak == blocksToSneak.getValue().floatValue()) event.setSneak(true);
+            if (p.onGround || !onlySneakOnGround.getValue()) {
+                if (blocksPlacedSneak > blocksToSneak.getValue().floatValue()) blocksPlacedSneak = 0;
+                if (blocksPlacedSneak == blocksToSneak.getValue().floatValue()) event.setSneak(true);
+            }
         }
+        if (is(edgeSafety, "Sneak") && guardGround(p) && !event.isJump() && !physicalJump()) {
+            final Scope current = scope;
+            final long inputGeneration = generation;
+            PlayerMoveUpdateEvent prediction = new PlayerMoveUpdateEvent(event.getStrafe(), event.getForward(),
+                    1, p.rotationYaw, p.rotationPitch);
+            // Use the actual consumer: own Demise axes have already been corrected; foreign owners may still correct them.
+            RotationCorrections.movement(prediction);
+            Vec3 next = predictedMotion(p, prediction.getForward(), prediction.getStrafe(), prediction.getYaw(), event.isSneak());
+            NScaffoldEdgeGuard.Result guard = NScaffoldEdgeGuard.limit(current.world, p, next.xCoord, 0, next.zCoord,
+                    () -> currentGeneration(current, inputGeneration) && scopeCurrent(current)
+                            && currentGeneration(current, inputGeneration));
+            if (guard.active && guard.limited) { event.setSneak(true); status = Status.EDGE_GUARD; }
+        }
+    }
+    private boolean guardGround(EntityPlayerSP p) {
+        final Scope current = scope;
+        final long expected = generation;
+        return !is(edgeSafety, "Off") && p.onGround && !p.noClip && !p.isRiding()
+                && !p.isInWater() && !p.isInLava() && (p.capabilities == null || !p.capabilities.isFlying)
+                && generation == expected && current != null && p == current.player && scopeCurrent(current)
+                && currentGeneration(current, expected);
     }
     public void onDemiseMove(EventMove event) {
         if (!activeScene()) return;
@@ -386,9 +716,38 @@ public final class NScaffold extends Module {
         if (tower.isVisible() && is(tower, "Vanilla") && !p.isPotionActive(Potion.jump) && towering()) event.setY(p.motionY = .42);
         if (towerMove.isVisible() && is(towerMove, "Vanilla") && moving() && DemiseScaffoldMovement.speed(p) > .1
                 && !p.isPotionActive(Potion.jump) && towerMoving()) p.motionY = .42f;
+        if (guardGround(p) && event.getY() <= 0 && !physicalJump() && !p.movementInput.jump) {
+            final Scope current = scope;
+            final long moveGeneration = generation;
+            NScaffoldEdgeGuard.Result guard = NScaffoldEdgeGuard.limit(current.world, p, event.getX(), event.getY(), event.getZ(),
+                    () -> currentGeneration(current, moveGeneration) && scopeCurrent(current)
+                            && currentGeneration(current, moveGeneration));
+            if (guard.active && guard.limited) {
+                event.setX(guard.x); event.setZ(guard.z);
+                status = Status.EDGE_GUARD;
+            }
+        }
     }
     private void onDemiseMotion(EventMotion event) {
-        if (!event.isPre() || !activeScene()) return;
+        if (!activeScene()) return;
+        if (event.isPost()) {
+            final Scope current = scope;
+            final long expected = generation;
+            RotationManager manager = RuntimeServices.rotation();
+            if (!event.isAccepted() || manager == null || !manager.canUseRotation(ROTATION_SOURCE, false)
+                    || manager.getRotationRelease() != null) return;
+            long sequence = manager.getMotionSequence();
+            if (lastPostManager == manager && lastPostSequence == sequence) return;
+            lastPostManager = manager; lastPostSequence = sequence;
+            final PlaceData target = data;
+            if (target == null || placing || auraTarget() || !AutomatedActionAdmission.mayAttempt(ModuleAction.PLACEMENT)
+                    || !aimingCurrent(current, expected, target)) return;
+            if (is(mode, "Telly") && current.player.offGroundTicks < tellyTicks) { status = Status.TELLY_WAIT; publishActivity(); return; }
+            placing = true;
+            try { place(manager, sequence); } finally { placing = false; publishActivity(); }
+            return;
+        }
+        if (!event.isPre()) return;
         EntityPlayerSP p = scope.player;
         switch (speedMode.getValue()) {
             case "Tick":
@@ -428,8 +787,10 @@ public final class NScaffold extends Module {
     public static boolean safeWalk(Entity entity) {
         if (!(entity instanceof EntityPlayerSP)) return false;
         NScaffold module = instance();
+        EntityPlayerSP p = (EntityPlayerSP) entity;
         return module != null && module.isToggled() && module.scopeCurrent(module.scope) && entity == module.scope.player
-                && (module.safewalk.getValue() && entity.onGround || module.safewalkNoData.getValue() && module.data == null);
+                && p.onGround && p.motionY <= 0 && !module.physicalJump() && (p.movementInput == null || !p.movementInput.jump)
+                && (module.safewalk.getValue() || module.safewalkNoData.getValue() && module.data == null);
     }
     public static boolean silentSprint(EntityPlayerSP player) {
         NScaffold module = instance();
@@ -532,13 +893,24 @@ public final class NScaffold extends Module {
     }
     private boolean scopeCurrent(Scope current) {
         Minecraft c = client();
+        final long expected = generation;
         if (current == null || scope != current || instance() != this || !basic(c)
                 || c != current.client || c.thePlayer != current.player || c.theWorld != current.world
                 || RuntimeServices.observation() != current.observation || !current.packets.isActive()
                 || current.packets.getContextVersion() != current.epoch
                 || current.player.sendQueue.getNetworkManager().getClientPackets() != current.packets) return false;
         SceneContext fresh = current.observation.captureScene();
-        return fresh.isValid() && !fresh.isSuspended() && current.scene.sameSceneAs(fresh);
+        return fresh.isValid() && !fresh.isSuspended() && current.scene.sameSceneAs(fresh)
+                && generation == expected && scope == current && instance() == this && client() == c
+                && c.thePlayer == current.player && c.theWorld == current.world
+                && RuntimeServices.observation() == current.observation
+                && current.packets.isActive() && current.packets.getContextVersion() == current.epoch
+                && current.player.sendQueue != null && current.player.sendQueue.getNetworkManager() != null
+                && current.player.sendQueue.getNetworkManager().getClientPackets() == current.packets;
+    }
+    /** Pure final barrier after callbacks; ordinary disable still keeps the separate rotation tail. */
+    private boolean currentGeneration(Scope current, long expected) {
+        return isToggled() && generation == expected && scope == current && instance() == this;
     }
     private void clearScene() {
         Minecraft c = client();
@@ -546,7 +918,9 @@ public final class NScaffold extends Module {
             scope.player.inventory.currentItem = oldSlot;
         generation++;
         scope = null;
-        data = null;
+        resetPlacementPlan();
+        lastAttemptPlayer = null; lastPostManager = null;
+        lastAttemptTick = Integer.MIN_VALUE; lastAttemptSequence = lastPostSequence = -1;
         targetBlock = previousBlock = null;
         spoofing = clutching = startClutch = false;
         activityView = null;
@@ -592,10 +966,11 @@ public final class NScaffold extends Module {
         ActivityInventoryContext inventory = ActivityInventoryContext.capture(current.client, 36 + slot);
         if (inventory == null || !scopeCurrent(current)) return;
         ScaffoldActivitySnapshot.Status visible = status == Status.BUILDING ? ScaffoldActivitySnapshot.Status.PLACING
+                : status == Status.EDGE_GUARD ? ScaffoldActivitySnapshot.Status.EDGE_GUARD
                 : status == Status.SEARCHING ? ScaffoldActivitySnapshot.Status.SEARCHING
                 : status == Status.ALIGNING || status == Status.CLUTCHING ? ScaffoldActivitySnapshot.Status.ALIGNING
                 : status == Status.PAUSED_AURA ? ScaffoldActivitySnapshot.Status.PAUSED : ScaffoldActivitySnapshot.Status.WAITING;
-        String profile = mode.getValue() + " / " + rotations.getValue();
+        String profile = mode.getValue() + " / " + rotations.getValue() + " / " + placementMode.getValue();
         if (activityView == null || activityView.snapshot.getPlacementCount() != activityPlacements
                 || !activityView.snapshot.hasSameFacts(id, metadata, count, "NScaffold", profile, visible)) activitySequence++;
         activityView = new ActivityView(new ScaffoldActivitySnapshot(activitySequence, activityClock.getAsLong(),

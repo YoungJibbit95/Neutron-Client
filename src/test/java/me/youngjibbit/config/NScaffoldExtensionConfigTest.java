@@ -77,7 +77,8 @@ public class NScaffoldExtensionConfigTest {
                 {"pitch_rotation_speed_(max)", 180D}, {"movement_correction", "Silent"},
                 {"short_stop", false}, {"duration", 50D}, {"rotation_diff_buildup_to_stop", 180D},
                 {"max_threshold_attempts_to_stop", 1D}, {"sprint_mode", "Normal"}, {"speed_mode", "None"},
-                {"swing", true}, {"raytrace", true}, {"keepy", false}, {"speed_keepy", false},
+                {"swing", true}, {"raytrace", true}, {"placement_mode", "Default"},
+                {"min_cps", 20D}, {"max_cps", 20D}, {"edge_safety", "Stop"}, {"keepy", false}, {"speed_keepy", false},
                 {"jump", false}, {"safewalk", false}, {"safewalk_when_no_data", false},
                 {"hover", false}, {"sneak", false}, {"target_block_esp", false}, {"strict_raytrace", false},
                 {"blocks_to_jump", 6D}, {"only_straight", true}, {"blocks_to_sneak", 7D},
@@ -93,7 +94,7 @@ public class NScaffoldExtensionConfigTest {
         assertEquals(originalDefaults(), values(module));
         List<String> ids = new ArrayList<>();
         for (Value<?> value : module.getValues()) ids.add(value.getId());
-        assertEquals(49, ids.size());
+        assertEquals(53, ids.size());
         assertEquals(ids.size(), new HashSet<>(ids).size());
         assertArrayEquals(new String[]{"Normal", "Breezily", "Telly"}, module.getModeSetting("Mode").getOptions());
         assertArrayEquals(new String[]{"Normal", "Center", "GodBridge", "Reverse"}, module.getModeSetting("Rotations").getOptions());
@@ -103,6 +104,8 @@ public class NScaffoldExtensionConfigTest {
         assertArrayEquals(new String[]{"Silent", "Strict", "None"}, module.getModeSetting("Movement correction").getOptions());
         assertArrayEquals(new String[]{"Normal", "Silent", "Ground", "Air", "None"}, module.getModeSetting("Sprint mode").getOptions());
         assertArrayEquals(new String[]{"Tick", "Exempt", "Diagonal", "None"}, module.getModeSetting("Speed mode").getOptions());
+        assertArrayEquals(new String[]{"Default", "Legit"}, module.getModeSetting("Placement mode").getOptions());
+        assertArrayEquals(new String[]{"Off", "Stop", "Sneak"}, module.getModeSetting("Edge safety").getOptions());
         for (String tower : Arrays.asList("Tower", "Tower move"))
             assertArrayEquals(new String[]{"Jump", "Vanilla", "PullDown", "NCP"}, module.getModeSetting(tower).getOptions());
         for (String obsolete : Arrays.asList("Advanced Rotations", "Turn Speed", "Visible Rotation", "Build Mode",
@@ -273,7 +276,7 @@ public class NScaffoldExtensionConfigTest {
         assertTrue(config.getLastError(), config.saveDefaultConfig());
         JsonObject saved = new JsonParser().parse(read(directory, ".last-state")).getAsJsonObject();
         JsonObject settings = saved.getAsJsonObject("modules").getAsJsonObject("nscaffold").getAsJsonObject("settings");
-        assertEquals(50, settings.size()); assertEquals(17, settings.get("future_option").getAsInt());
+        assertEquals(54, settings.size()); assertEquals(17, settings.get("future_option").getAsInt());
         assertEquals("Reverse", settings.get("rotations").getAsString()); assertEquals("Telly", settings.get("mode").getAsString());
         for (String old : Arrays.asList("Visible Rotation", "build_mode", "turn_speed", "advanced_rotations", "smart_disable_on_world_change"))
             assertFalse(old, settings.has(old));
