@@ -343,7 +343,8 @@ public class BedBreakerDemiseHookChecks {
                             float yaw=r.rotation.getPreparedMovement().yaw;
                             assertEquals(pose[0],yaw,0);
                             r.rotation.beforeMovementPhysics();
-                            DemiseMoveFix.Input expected=DemiseMoveFix.correct(0,1,yaw,r.f.player.rotationYaw);
+                            // A real menu suppresses held keys before the input hook; a rotation tail cannot reopen them.
+                            DemiseMoveFix.Input expected=DemiseMoveFix.correct(0,gui?0:1,yaw,r.f.player.rotationYaw);
                             r.f.player.movementInput.updatePlayerMoveState();
                             assertEquals(expected.strafe,MovementInput.moveStrafe,0);
                             assertEquals(expected.forward,MovementInput.moveForward,0);
