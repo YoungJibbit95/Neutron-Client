@@ -25,13 +25,13 @@ import static org.junit.Assert.*;
 
 /** Actual input hook, silent arbitration, native world ray and native controller transport. */
 public class BedBreakerFlowTest {
-    @Test public void silentTurnAndInputUseTheSelectedBedAndItsOwnFirstHitFace() throws Exception { run("silentTurnAndInputUseTheSelectedBedAndItsOwnFirstHitFace"); }
+    @Test public void nonLegitUsesSelectedBedAndOriginalMouseOverFace() throws Exception { run("nonLegitUsesSelectedBedAndOriginalMouseOverFace"); }
     @Test public void searchesAreThrottledAcrossRotationAndInputConsumers() throws Exception { run("searchesAreThrottledAcrossRotationAndInputConsumers"); }
     @Test public void sameTickDuplicatesAndToggleCyclesCannotMineTwice() throws Exception { run("sameTickDuplicatesAndToggleCyclesCannotMineTwice"); }
     @Test public void heldManualAttackTakesOverProgressAndDisableLeavesItAlone() throws Exception { run("heldManualAttackTakesOverProgressAndDisableLeavesItAlone"); }
     @Test public void releasedMissAndEntityClicksStillOwnTheirPlayerTick() throws Exception { run("releasedMissAndEntityClicksStillOwnTheirPlayerTick"); }
     @Test public void guiUseItemAndCompetingModulesWinBeforeRotationOrMining() throws Exception { run("guiUseItemAndCompetingModulesWinBeforeRotationOrMining"); }
-    @Test public void ordinaryReachAndBedOnlyRestrictionsApplyAtTheNativeInputHook() throws Exception { run("ordinaryReachAndBedOnlyRestrictionsApplyAtTheNativeInputHook"); }
+    @Test public void originalDirectBedReachStaysFourAndAHalfInCreative() throws Exception { run("originalDirectBedReachStaysFourAndAHalfInCreative"); }
     @Test public void lateWallAndServerPoseChangesVetoStartAtTheTransportBoundary() throws Exception { run("lateWallAndServerPoseChangesVetoStartAtTheTransportBoundary"); }
     @Test public void lateDisableAndReenableCannotReviveTheOldAttempt() throws Exception { run("lateDisableAndReenableCannotReviveTheOldAttempt"); }
     @Test public void startPostDisableAbortsOnlyItsAcceptedMiningState() throws Exception { run("startPostDisableAbortsOnlyItsAcceptedMiningState"); }
@@ -41,8 +41,8 @@ public class BedBreakerFlowTest {
     @Test public void abortCallbacksCannotRecursivelyCreateAutomaticMining() throws Exception { run("abortCallbacksCannotRecursivelyCreateAutomaticMining"); }
     @Test public void instantBreakAndDestructionCallbacksDoNotLeakOrClearReplacementMining() throws Exception { run("instantBreakAndDestructionCallbacksDoNotLeakOrClearReplacementMining"); }
     @Test public void smartDisableOptionsRemainOptInAndUseNormalCleanup() throws Exception { run("smartDisableOptionsRemainOptInAndUseNormalCleanup"); }
-    @Test public void effectCallbackManualTakeoverPreventsTheOldAutomaticSwing() throws Exception { run("effectCallbackManualTakeoverPreventsTheOldAutomaticSwing"); }
-    @Test public void cameraEntityMissAndMissingPickDoNotOverrideTheConfirmedServerRay() throws Exception { run("cameraEntityMissAndMissingPickDoNotOverrideTheConfirmedServerRay"); }
+    @Test public void animationCallbackManualTakeoverPreventsTheOldAutomaticSwing() throws Exception { run("animationCallbackManualTakeoverPreventsTheOldAutomaticSwing"); }
+    @Test public void missingPicksWaitAndNonLegitRetainsTheMouseFace() throws Exception { run("missingPicksWaitAndNonLegitRetainsTheMouseFace"); }
     @Test public void toolChangeBetweenTicksAbortsOwnedWorkAndCanResumeNormally() throws Exception { run("toolChangeBetweenTicksAbortsOwnedWorkAndCanResumeNormally"); }
     @Test public void unloadDuringAbortClearsLocalProgressWithoutReenteringTheOldWorld() throws Exception { run("unloadDuringAbortClearsLocalProgressWithoutReenteringTheOldWorld"); }
     @Test public void failedActionCleanupKeepsItsOwnLifetimeThroughAbortCallbacks() throws Exception { run("failedActionCleanupKeepsItsOwnLifetimeThroughAbortCallbacks"); }
@@ -94,25 +94,29 @@ public class BedBreakerFlowTest {
                 assertEquals(2, f.controller.automaticCalls); assertTrue(f.controller.isMiningBlock(f.pos));
             }
         }
-        @Test public void cameraEntityMissAndMissingPickDoNotOverrideTheConfirmedServerRay() throws Exception {
+        @Test public void missingPicksWaitAndNonLegitRetainsTheMouseFace() throws Exception {
             try (BedBreakerTestSupport.Fixture f = new BedBreakerTestSupport.Fixture()) {
+                f.module.legit.setValue(false);
                 f.aim();
                 for (int kind = 0; kind < 3; kind++) {
                     f.f.mc.objectMouseOver = kind == 0 ? null : kind == 1
                             ? new MovingObjectPosition((Entity) f.f.player, f.f.player.getPositionVector())
                             : new MovingObjectPosition(MovingObjectPosition.MovingObjectType.MISS, new Vec3(0, 0, 0), EnumFacing.UP, BlockPos.ORIGIN);
-                    f.input(false); f.next(); assertEquals(kind + 1, f.controller.automaticCalls);
-                    assertTrue(f.controller.isMiningBlock(f.pos));
+                    f.input(false); assertEquals(kind == 2 ? 1 : 0, f.controller.automaticCalls);
+                    assertEquals(kind == 2, f.controller.isMiningBlock(f.pos));
+                    f.next();
                 }
                 assertEquals(1, count(f.digs(), C07PacketPlayerDigging.Action.START_DESTROY_BLOCK));
             }
         }
-        @Test public void effectCallbackManualTakeoverPreventsTheOldAutomaticSwing() throws Exception {
+        @Test public void animationCallbackManualTakeoverPreventsTheOldAutomaticSwing() throws Exception {
             try (BedBreakerTestSupport.Fixture f = new BedBreakerTestSupport.Fixture()) {
-                f.module.getBooleanSetting("Swing").setValue(true); f.aim();
-                BedBreakerTestSupport.Effects effects = RotationBehaviorHookTest.bare(BedBreakerTestSupport.Effects.class);
-                effects.callback = () -> f.controller.onPlayerDamageBlock(f.pos, EnumFacing.NORTH);
-                f.f.mc.effectRenderer = effects; f.input(false); assertTrue(f.progress() > 0);
+                f.aim();
+                f.observer.action = event -> {
+                    if (event.isOutbound() && event.isPre() && event.getPacket() instanceof net.minecraft.network.play.client.C0APacketAnimation)
+                        f.controller.onPlayerDamageBlock(f.pos, EnumFacing.NORTH);
+                };
+                f.input(false); assertTrue(f.progress() > 0);
                 Object packet; int starts = 0;
                 while ((packet = f.f.channel.readOutbound()) != null) {
                     assertFalse("old attempt cannot swing after manual takeover", packet instanceof net.minecraft.network.play.client.C0APacketAnimation);
@@ -122,25 +126,25 @@ public class BedBreakerFlowTest {
                 assertTrue(f.controller.isMiningBlock(f.pos)); assertEquals(progress, f.progress(), 0); assertTrue(f.digs().isEmpty());
             }
         }
-        @Test public void silentTurnAndInputUseTheSelectedBedAndItsOwnFirstHitFace() throws Exception {
+        @Test public void nonLegitUsesSelectedBedAndOriginalMouseOverFace() throws Exception {
             try (BedBreakerTestSupport.Fixture f = new BedBreakerTestSupport.Fixture()) {
-                f.rotation(); assertEquals(0, f.f.player.rotationPitch, 0);
+                f.module.legit.setValue(false); f.aim();
                 assertTrue(f.f.runtime.getRotationManager().getEffectivePitch() > 0); assertEquals(0, f.controller.automaticCalls);
                 f.f.mc.objectMouseOver = new MovingObjectPosition(new Vec3(.5, 64, 2.5), EnumFacing.DOWN, f.pos);
                 f.input(false); assertEquals(1, f.controller.automaticCalls);
                 List<C07PacketPlayerDigging> packets = f.digs(); assertEquals(1, packets.size());
                 assertEquals(C07PacketPlayerDigging.Action.START_DESTROY_BLOCK, packets.get(0).getStatus());
-                assertEquals(f.pos, packets.get(0).getPosition()); assertNotEquals(EnumFacing.DOWN, packets.get(0).getFacing());
+                assertEquals(f.pos, packets.get(0).getPosition()); assertEquals(EnumFacing.DOWN, packets.get(0).getFacing());
                 assertTrue(f.controller.isMiningBlock(f.pos)); assertEquals(BedBreaker.Status.MINING, f.module.getStatus());
                 assertFalse(f.f.mc.gameSettings.keyBindAttack.isKeyDown()); assertFalse(f.f.mc.gameSettings.keyBindUseItem.isKeyDown());
             }
         }
         @Test public void searchesAreThrottledAcrossRotationAndInputConsumers() throws Exception {
             try (BedBreakerTestSupport.Fixture f = new BedBreakerTestSupport.Fixture()) {
-                f.world.blocks.clear(); f.rotation(); int first = f.world.loadedQueries; assertTrue(first > 0);
+                f.world.blocks.clear(); f.update(); int first = f.world.loadedQueries; assertTrue(first > 0);
                 f.input(false); f.input(false); assertEquals(first, f.world.loadedQueries);
                 f.next(); f.rotation(); f.input(false); assertEquals(first, f.world.loadedQueries);
-                f.next(); f.rotation(); assertEquals(first * 2, f.world.loadedQueries); assertEquals(0, f.controller.automaticCalls);
+                f.next(); f.update(); assertEquals(first * 2, f.world.loadedQueries); assertEquals(0, f.controller.automaticCalls);
             }
         }
         @Test public void sameTickDuplicatesAndToggleCyclesCannotMineTwice() throws Exception {
@@ -148,7 +152,9 @@ public class BedBreakerFlowTest {
                 f.aim(); f.input(false); f.input(false); assertEquals(1, f.controller.automaticCalls);
                 assertEquals(0, f.progress(), 0); f.module.setToggled(false); f.module.setToggled(true);
                 f.input(false); assertEquals(1, f.controller.automaticCalls);
-                f.next(); f.next(); f.rotation(); f.input(false); assertEquals(2, f.controller.automaticCalls);
+                // The next even Update can reuse the still-valid accepted bed pose.
+                f.next(); f.update(); assertEquals(2, f.controller.automaticCalls);
+                f.input(false); assertEquals(2, f.controller.automaticCalls);
                 assertEquals(2, count(f.digs(), C07PacketPlayerDigging.Action.START_DESTROY_BLOCK));
             }
         }
@@ -166,7 +172,8 @@ public class BedBreakerFlowTest {
                         : new MovingObjectPosition(MovingObjectPosition.MovingObjectType.MISS, new Vec3(0, 0, 0), EnumFacing.UP, BlockPos.ORIGIN);
                 f.f.mc.clickMouse(); f.input(false); assertEquals(0, f.controller.automaticCalls); assertTrue(f.digs().isEmpty());
                 assertEquals(entity ? 1 : 0, f.controller.manualAttacks);
-                f.next(); f.next(); f.aim(); f.input(false); assertEquals(1, f.controller.automaticCalls);
+                f.next(); f.update(); assertEquals(1, f.controller.automaticCalls);
+                f.input(false); assertEquals(1, f.controller.automaticCalls);
             }
         }
         @Test public void guiUseItemAndCompetingModulesWinBeforeRotationOrMining() throws Exception {
@@ -185,13 +192,15 @@ public class BedBreakerFlowTest {
                 assertEquals(0, f.f.player.rotationYaw, 0); assertEquals(0, f.f.player.rotationPitch, 0); assertTrue(f.digs().isEmpty());
             }
         }
-        @Test public void ordinaryReachAndBedOnlyRestrictionsApplyAtTheNativeInputHook() throws Exception {
+        @Test public void originalDirectBedReachStaysFourAndAHalfInCreative() throws Exception {
             try (BedBreakerTestSupport.Fixture f = new BedBreakerTestSupport.Fixture()) {
+                f.module.legit.setValue(false);
                 f.world.blocks.put(f.pos, Blocks.stone.getDefaultState()); f.input(false); assertEquals(0, f.controller.automaticCalls);
                 f.world.blocks.clear(); BlockPos far = new BlockPos(5, 65, 0); f.world.blocks.put(far, f.bed.getDefaultState());
                 f.f.player.posY = 63.68; f.next(); f.next(); f.input(false); assertEquals(0, f.controller.automaticCalls);
-                f.controller.setGameType(WorldSettings.GameType.CREATIVE); f.next(); f.next(); f.rotation(); f.input(false);
-                assertEquals(1, f.controller.automaticCalls); assertEquals(1, f.world.removals); assertFalse(f.controller.func_181040_m());
+                f.controller.setGameType(WorldSettings.GameType.CREATIVE); f.next(); f.next(); f.aim(); f.input(false);
+                assertEquals(0, f.controller.automaticCalls); assertEquals(0, f.world.removals); assertFalse(f.controller.func_181040_m());
+                assertTrue(f.world.blocks.containsKey(far));
             }
         }
         @Test public void lateWallAndServerPoseChangesVetoStartAtTheTransportBoundary() throws Exception {
@@ -235,9 +244,12 @@ public class BedBreakerFlowTest {
         @Test public void sameIdentityUnloadDiscardsAndBlocksUntilLoad() throws Exception {
             try (BedBreakerTestSupport.Fixture f = new BedBreakerTestSupport.Fixture()) {
                 f.aim(); f.world.afterRay = () -> Pulsar.BUS.post(new WorldEvent.Unload(f.world));
-                f.input(false); assertSame(f.world, f.f.mc.theWorld); assertEquals(0, f.controller.automaticCalls);
-                f.next(); f.next(); f.input(false); assertEquals(0, f.controller.automaticCalls);
-                Pulsar.BUS.post(new WorldEvent.Load(f.world)); f.rotation(); f.input(false); assertEquals(1, f.controller.automaticCalls);
+                // The current mouse-over is already known. Unload occurs in the native
+                // controller's validating ray, before its START may reach transport.
+                f.input(false); assertSame(f.world, f.f.mc.theWorld); assertEquals(1, f.controller.automaticCalls);
+                assertFalse(f.controller.func_181040_m()); assertTrue(f.digs().isEmpty());
+                f.next(); f.next(); f.input(false); assertEquals(1, f.controller.automaticCalls);
+                Pulsar.BUS.post(new WorldEvent.Load(f.world)); f.aim(); f.input(false); assertEquals(2, f.controller.automaticCalls);
                 f.digs(); Pulsar.BUS.post(new WorldEvent.Unload(f.world));
                 assertFalse(f.controller.func_181040_m()); assertTrue("unload does not replay old mining packets", f.digs().isEmpty());
             }

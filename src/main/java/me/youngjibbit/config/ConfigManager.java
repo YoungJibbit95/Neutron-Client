@@ -274,6 +274,7 @@ public class ConfigManager {
                 + (plan.migratedDefaults==0?"":"; new optional rotation features defaulted off for legacy profiles")
                 + (plan.legacyScaffold==0?"":"; historical Scaffold uses the shared Godbridge plan; face raycasts remain mandatory")
                 + (plan.migratedNScaffold==0?"":"; NScaffold settings migrated to Demise; obsolete planner controls removed")
+                + (plan.migratedBedBreaker==0?"":"; BedBreaker uses Demise defaults where omitted; Turn Speed has no frame-speed equivalent; animation packets follow Demise; no local swing setting")
                 + (plan.legacyNetwork==0?"":"; historical network options migrated to bounded FIFO windows/earned-step budgets; ping, velocity and corrections remain immediate")
                 + (plan.migratedNetworkPolicies==0?"":"; network policies normalized: prior Combat target selection retained, Min Range uses Min Server Distance, Delay uses Release Cooldown MS after successful release (no additional enable wait)")
                 + (plan.clampedLegacyDelays==0?"":"; legacy delay requests above the shared 500 ms bound were capped explicitly")
@@ -423,10 +424,11 @@ public class ConfigManager {
             if (data.has("settings")) {
                 JsonObject settings = new JsonObject();
                 for (Map.Entry<String, JsonElement> setting : data.getAsJsonObject("settings").entrySet()) {
-                    // Aliases and retired fields have already been decoded into
-                    // the active values; keep only their current representation.
+                    // Migration has resolved the current values; aliases and
+                    // retired fields must not survive automatic saves.
                     if ("nscaffold".equals(module.getId()) && (nScaffoldAlias(setting.getKey()) != null
                             || retiredNScaffoldSetting(setting.getKey()))) continue;
+                    if ("bedbreaker".equals(module.getId()) && retiredBedBreakerSetting(setting.getKey())) continue;
                     Value<?> value = module.getValueByName(setting.getKey());
                     settings.add(value == null ? setting.getKey() : value.getId(), setting.getValue());
                 }
@@ -520,6 +522,14 @@ public class ConfigManager {
                 for (Value<?> value : module.getValues())
                     if (!change.values.containsKey(value)) change.values.put(value, value.getDefaultValue());
                 if (change.migratedNScaffold) plan.migratedNScaffold++;
+            }
+            // BedBreaker now has the complete Demise rotation profile. Its old
+            // combined per-tick speed cannot represent the per-frame axis ranges.
+            // Explicit current values and host smart-disable choices are retained.
+            if ("bedbreaker".equals(module.getId())) {
+                for (Value<?> value : module.getValues())
+                    if (!change.values.containsKey(value)) change.values.put(value, value.getDefaultValue());
+                if (change.migratedBedBreaker) plan.migratedBedBreaker++;
             }
             // Old geometric effects occupied the palette selector. An explicit new
             // UI mode wins regardless of JSON key order; Lines has no UI counterpart.
@@ -623,6 +633,18 @@ public class ConfigManager {
         double max = "turnspeed".equals(id) ? 180 : "godbridgepitch".equals(id) ? 89 : "lookahead".equals(id) ? 1 : 500;
         if (value < min || value > max) throw new IllegalArgumentException("Number out of range: " + label);
     }
+    private static boolean retiredBedBreakerSetting(String name) {
+        return Arrays.asList("turnspeed", "swing").contains(normalizedName(name));
+    }
+    private static void validateRetiredBedBreakerSetting(String name, JsonElement json) {
+        String label = "bedbreaker." + name;
+        if ("swing".equals(normalizedName(name))) {
+            bool(json, label);
+            return;
+        }
+        double value = number(json, label);
+        if (value < 1 || value > 180) throw new IllegalArgumentException("Number out of range: " + label);
+    }
     private static void defaultSetting(Change change,String name,Object value) {Value<?> setting=change.module.getValueByName(name);if(setting!=null && !change.values.containsKey(setting))change.values.put(setting,value);}
     private static void migrateNetworkOptions(Plan plan,Change change) {
         String id=change.module.getId();
@@ -686,6 +708,14 @@ public class ConfigManager {
     }
 
     private void parseSetting(Plan plan, Change change, String id, JsonElement json) {
+        if ("bedbreaker".equals(change.module.getId()) && retiredBedBreakerSetting(id)) {
+            JsonElement raw = json != null && json.isJsonObject() ? json.getAsJsonObject().get("value") : json;
+            validateRetiredBedBreakerSetting(id, raw);
+            if (!change.retiredBedBreaker.add(normalizedName(id)))
+                throw new IllegalArgumentException("Duplicate setting: " + id);
+            change.migratedBedBreaker = true;
+            return;
+        }
         boolean nScaffoldAlias = false;
         if ("nscaffold".equals(change.module.getId())) {
             JsonElement raw = json != null && json.isJsonObject() ? json.getAsJsonObject().get("value") : json;
@@ -911,15 +941,16 @@ public class ConfigManager {
     private static final class Plan {
         final JsonObject root;
         final List<Change> changes = new ArrayList<>();
-        int unknown, migratedRotations, migratedOctaves, migratedTiming, migratedModes, migratedTargetHudModes, legacyAssist, migratedDefaults, legacyScaffold, migratedNScaffold, legacyNetwork, clampedLegacyDelays, migratedNetworkPolicies;
+        int unknown, migratedRotations, migratedOctaves, migratedTiming, migratedModes, migratedTargetHudModes, legacyAssist, migratedDefaults, legacyScaffold, migratedNScaffold, migratedBedBreaker, legacyNetwork, clampedLegacyDelays, migratedNetworkPolicies;
         Plan(JsonObject root) { this.root = root; }
     }
     private static final class Change {
         final Module module;
         final Map<Value<?>, Object> values = new LinkedHashMap<>();
         final Map<Value<?>, Object> nScaffoldAliases = new LinkedHashMap<>();
+        final Set<String> retiredBedBreaker = new HashSet<>();
         Boolean enabled;
-        boolean legacyRotation,legacyScaffold,legacyBacktrack,legacyLag,legacyTickbase,currentNetwork,migratedNScaffold;
+        boolean legacyRotation,legacyScaffold,legacyBacktrack,legacyLag,legacyTickbase,currentNetwork,migratedNScaffold,migratedBedBreaker;
         String legacyUiGlowMode;
         Integer key;
         boolean desired;

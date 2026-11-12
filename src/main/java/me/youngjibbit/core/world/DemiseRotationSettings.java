@@ -6,9 +6,9 @@ import me.youngjibbit.value.impl.ComboValue;
 import me.youngjibbit.value.impl.SliderValue;
 import me.youngjibbit.value.impl.DemiseSliderValue;
 
-/** Scaffold settings from DemisePrivate e219a97, RotationManager.java (AGPL-3.0).
- * The requested NScaffold default is Silent movement correction; Demise defaults to None.
- * KillAura-only distance controls are not Scaffold settings.
+/** Common Scaffold/BedBreaker settings from DemisePrivate e219a97, RotationManager.java (AGPL-3.0).
+ * The requested host default is Silent movement correction; Demise defaults to None.
+ * KillAura-only distance controls do not apply to these owners.
  */
 public final class DemiseRotationSettings {
     public final CheckBoxValue silent, accel, imperfectCorrelation, shortStop;
