@@ -366,10 +366,31 @@ public class PlayerControllerMP
                                       java.util.function.BooleanSupplier validMining,
                                       java.util.function.BooleanSupplier validLifecycle,
                                       java.util.function.Supplier<Vec3> miningLook) {
+        return damageBlockGuarded(pos,face,expected,validMining,validLifecycle,miningLook,false);
+    }
+
+    /**
+     * Demise BedBreaker's non-Legit mode tests the bed's own collision shape at 4.5 blocks.
+     * Its packet face comes from mouse-over, which can be an intervening block's face.
+     * This bed-only adapter retains ordinary mining, reach, tool and scene checks;
+     * the normal manual and guarded world-ray overloads keep their first-hit requirement.
+     */
+    public boolean onPlayerDamageBed(BlockPos pos,EnumFacing face,IBlockState expected,
+                                    java.util.function.BooleanSupplier validMining,
+                                    java.util.function.BooleanSupplier validLifecycle,
+                                    java.util.function.Supplier<Vec3> miningLook) {
+        if(expected==null || !(expected.getBlock() instanceof net.minecraft.block.BlockBed) || miningLook==null)return false;
+        return damageBlockGuarded(pos,face,expected,validMining,validLifecycle,miningLook,true);
+    }
+
+    private boolean damageBlockGuarded(BlockPos pos,EnumFacing face,IBlockState expected,
+                                       java.util.function.BooleanSupplier validMining,
+                                       java.util.function.BooleanSupplier validLifecycle,
+                                       java.util.function.Supplier<Vec3> miningLook,boolean bedRayOnly) {
         if(validMining==null || validLifecycle==null)return false;
         if(guardedMiningInProgress || guardedMiningResetInProgress || pos==null || face==null || expected==null)return false;
         guardedMiningInProgress=true;
-        MiningContext context=new MiningContext(pos,face,expected,validMining,validLifecycle,++miningRevision,miningLook);
+        MiningContext context=new MiningContext(pos,face,expected,validMining,validLifecycle,++miningRevision,miningLook,bedRayOnly);
         boolean success=false;
         try {
             if(!context.target() || !syncCurrentPlayItemChecked(context::target) || !context.target())return false;
@@ -556,15 +577,17 @@ public class PlayerControllerMP
         final BlockPos pos;final EnumFacing face;final IBlockState expected;
         final java.util.function.BooleanSupplier valid,lifecycle;
         final java.util.function.Supplier<Vec3> miningLook;
+        final boolean bedRayOnly;
         long revision;boolean touched,toolMutation,toolConsumed;
         MiningContext(BlockPos pos,EnumFacing face,IBlockState expected,java.util.function.BooleanSupplier valid,
                       java.util.function.BooleanSupplier lifecycle,long revision) {
-            this(pos,face,expected,valid,lifecycle,revision,null);
+            this(pos,face,expected,valid,lifecycle,revision,null,false);
         }
         MiningContext(BlockPos pos,EnumFacing face,IBlockState expected,java.util.function.BooleanSupplier valid,
-                      java.util.function.BooleanSupplier lifecycle,long revision,java.util.function.Supplier<Vec3> miningLook) {
+                      java.util.function.BooleanSupplier lifecycle,long revision,java.util.function.Supplier<Vec3> miningLook,
+                      boolean bedRayOnly) {
             this.pos=pos;this.face=face;this.expected=expected;this.valid=valid;this.lifecycle=lifecycle;this.revision=revision;
-            this.miningLook=miningLook;
+            this.miningLook=miningLook;this.bedRayOnly=bedRayOnly;
         }
         boolean objects() {
             return mc.playerController==PlayerControllerMP.this && player!=null && world!=null && mc.thePlayer==player
@@ -594,18 +617,20 @@ public class PlayerControllerMP
             IBlockState actual=world.getBlockState(pos);
             if(!current() || !java.util.Objects.equals(actual,expected))return false;
             Vec3 eyes=player.getPositionEyes(1),look=miningLook==null?player.getLook(1):miningLook.get();
-            float reach=getBlockReachDistance();
-            if(!current() || !me.youngjibbit.core.world.BedBreakerPlanner.finite(eyes)
-                    || !me.youngjibbit.core.world.BedBreakerPlanner.finite(look)
+            float reach=bedRayOnly?Math.min(4.5F,getBlockReachDistance()):getBlockReachDistance();
+            if(!current() || !me.youngjibbit.core.world.DemiseBedBreakerGeometry.finite(eyes)
+                    || !me.youngjibbit.core.world.DemiseBedBreakerGeometry.finite(look)
                     || !Float.isFinite(reach) || reach<=0 || reach>5)return false;
             if(miningLook!=null) {
                 double lengthSquared=look.xCoord*look.xCoord+look.yCoord*look.yCoord+look.zCoord*look.zCoord;
                 if(!Double.isFinite(lengthSquared) || lengthSquared<1e-10)return false;
                 look=look.normalize();
             }
-            MovingObjectPosition hit=world.rayTraceBlocks(eyes,
-                    eyes.addVector(look.xCoord*reach,look.yCoord*reach,look.zCoord*reach),false,false,false);
-            if(!current() || !me.youngjibbit.core.world.BedBreakerPlanner.matches(hit,pos,eyes,reach) || hit.sideHit!=face)return false;
+            Vec3 end=eyes.addVector(look.xCoord*reach,look.yCoord*reach,look.zCoord*reach);
+            MovingObjectPosition hit=bedRayOnly?expected.getBlock().collisionRayTrace(world,pos,eyes,end)
+                    :world.rayTraceBlocks(eyes,end,false,false,false);
+            if(!current() || !me.youngjibbit.core.world.DemiseBedBreakerGeometry.matches(hit,pos,eyes,reach)
+                    || !bedRayOnly && hit.sideHit!=face)return false;
             actual=world.getBlockState(pos);
             return current() && java.util.Objects.equals(actual,expected);
         }

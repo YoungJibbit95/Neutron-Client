@@ -43,12 +43,14 @@ public final class SettingSubcategories {
             if (is(id,"pick_profile","randomness")) return "Selection";
             if ("drop_order".equals(id)) return "Cleanup";
         }
-        if ("nscaffold".equals(module)) {
-            if (is(id,"mode","keepy","speed_keepy","straight_telly_ticks","diagonal_telly_ticks")) return "Bridge";
-            if (has(id,"clutch") || id.startsWith("instant_rot_") || "ground_ticks_to_sneak".equals(id)) return "Clutch";
+        if (is(module,"nscaffold","bedbreaker")) {
             if (has(id,"rotation_speed")) return "Rotation Speed";
             if (is(id,"smooth_mode","extra_smoothing_factor","accelerate","yaw_accel_factor","pitch_accel_factor","imperfect_correlation")) return "Rotation Shape";
             if ("duration".equals(id) || has(id,"short_stop","buildup_to_stop","threshold_attempts_to_stop")) return "Rotation Pauses";
+        }
+        if ("nscaffold".equals(module)) {
+            if (is(id,"mode","keepy","speed_keepy","straight_telly_ticks","diagonal_telly_ticks")) return "Bridge";
+            if (has(id,"clutch") || id.startsWith("instant_rot_") || "ground_ticks_to_sneak".equals(id)) return "Clutch";
             if (is(id,"movement_correction","sprint_mode","speed_mode","jump","blocks_to_jump","only_straight",
                     "safewalk","safewalk_when_no_data","hover","sneak","blocks_to_sneak","only_sneak_on_ground",
                     "tower","tower_move","pulldown_motion")) return "Movement";
@@ -57,9 +59,9 @@ public final class SettingSubcategories {
             return "Aiming";
         }
         if ("bedbreaker".equals(module)) {
-            if (has(id,"aim","rotat","turn")) return "Aiming";
-            if ("swing".equals(id)) return "Interaction";
-            return "Targets";
+            if ("legit".equals(id)) return "Targets";
+            if ("movement_correction".equals(id)) return "Movement";
+            return "Aiming";
         }
         if ("targetesp".equals(module)) {
             if ("target_halo".equals(id) || id.startsWith("halo_")) return "Halo";
@@ -102,13 +104,16 @@ public final class SettingSubcategories {
         return "General";
     }
     private static String description(String module, String name) {
-        if ("nscaffold".equals(module)) {
-            if ("Clutch".equals(name)) return "Clutch detection, instant rotations and grounded sneak";
+        if (is(module,"nscaffold","bedbreaker")) {
             if ("Rotation Speed".equals(name)) return "Yaw and pitch speed ranges sampled each update";
             if ("Rotation Shape".equals(name)) return "Frame-based smoothing and acceleration";
             if ("Rotation Pauses".equals(name)) return "Rotation buildup, stop duration and threshold attempts";
+        }
+        if ("nscaffold".equals(module)) {
+            if ("Clutch".equals(name)) return "Clutch detection, instant rotations and grounded sneak";
             if ("Placement".equals(name)) return "Swing and placement ray tracing";
         }
+        if ("bedbreaker".equals(module) && "Targets".equals(name)) return "Bed access and target selection";
         switch (name) {
             case "Targets": return "Selection, reach and filters";
             case "Bridge": return "Bridge behavior and inventory";
