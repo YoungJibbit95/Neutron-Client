@@ -8,7 +8,6 @@ import me.youngjibbit.utils.font.TTFFontRenderer;
 import me.youngjibbit.utils.render.*;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ScaledResolution;
-import net.minecraft.client.renderer.GlStateManager;
 import java.util.*;
 import java.util.function.Predicate;
 import static org.lwjgl.opengl.GL11.*;
@@ -23,11 +22,23 @@ public final class NotificationManager {
     private static boolean islandRoute;
     private NotificationManager(){}
     public static void show(Notification notification){
+        enqueue(notification,false);
+    }
+    /** Refresh a visible/pending live card during a producer's cooldown; never start or prolong one. */
+    public static void updateIfPresent(Notification notification){
+        if(notification!=null&&notification.replaces())enqueue(notification,true);
+    }
+    private static void enqueue(Notification notification,boolean updateOnly){
         if(notification==null)return;
         synchronized(inbox){
-            for(Message message:inbox)if(message.notification.key().equals(notification.key())){message.count=Math.min(999,message.count+1);return;}
-            if(inbox.size()==64)inbox.removeFirst();
-            inbox.addLast(new Message(notification));
+            for(Message message:inbox)if(message.notification.key().equals(notification.key())){
+                message.count=Math.min(999,message.count+1);
+                if(notification.replaces())message.notification=notification;
+                message.updateOnly&=updateOnly;
+                return;
+            }
+            if(inbox.size()==64){if(updateOnly)return;inbox.removeFirst();}
+            inbox.addLast(new Message(notification,updateOnly));
         }
     }
     public static void success(String title,String message){show(new Notification(NotificationType.SUCCESS,title,message,0));}
@@ -90,7 +101,8 @@ public final class NotificationManager {
                 Runnable content=()->{
                     String presentation=c==null?"Follow Global":c.notificationTheme.getValue();
                     if(!presentation.equals("Follow Global"))decorate(presentation,fx,fy,width,layout.height,opacity);
-                    icon(entry.notification.type,fx+15,fy+16,opacity);
+                    icon(entry.notification.type,fx+15,fy+16,opacity,
+                            iconReveal(timeline.now,entry.started,UiEffects.motion()));
                     heading.drawString(layout.title,fx+29,fy+8,UiEffects.alpha(0xfff0f3fa,opacity));
                     for(int line=0;line<layout.lines.size();line++)body.drawString(layout.lines.get(line),fx+12,fy+29+line*layout.lineHeight,UiEffects.alpha(0xffd0d8e5,opacity));
                     float remaining=Math.max(0,Math.min(1,(entry.expires-timeline.now)/(float)Math.max(1,entry.expires-entry.started)));
@@ -144,9 +156,13 @@ public final class NotificationManager {
         public boolean isFresh(long now){return now>=startedAtNanos&&now<expiresAtNanos;}
     }
 
-    static final class Message {final Notification notification;int count=1;Message(Notification n){notification=n;}}
+    static final class Message {
+        Notification notification;int count=1;boolean updateOnly;
+        Message(Notification n){this(n,false);}
+        Message(Notification n,boolean updateOnly){notification=n;this.updateOnly=updateOnly;}
+    }
     static final class Entry {
-        final Notification notification;int count;long started,expires;float alpha,y=Float.NaN;Layout layout;float layoutWidth,layoutHeight;int layoutCount;
+        Notification notification;int count;long started,expires;float alpha,y=Float.NaN;Layout layout;float layoutWidth,layoutHeight;int layoutCount;
         long id,parkedRemaining=-1;
         Entry(Message m){notification=m.notification;count=m.count;}
     }
@@ -186,8 +202,16 @@ public final class NotificationManager {
                 if(!allowed.test(message.notification.type))continue;
                 Entry match=null;for(Entry e:visible)if(e.notification.key().equals(message.notification.key()))match=e;
                 if(match==null)for(Entry e:pending)if(e.notification.key().equals(message.notification.key()))match=e;
-                if(match!=null){match.count=Math.min(999,match.count+message.count);if(visible.contains(match))match.expires=Math.min(match.started+30000000000L,at+seconds(match,duration));}
-                else{if(pending.size()>=maxPending)pending.removeFirst();Entry entry=new Entry(message);entry.id=++nextId;pending.addLast(entry);}
+                if(match!=null){
+                    match.count=Math.min(999,match.count+message.count);
+                    if(message.notification.replaces()){
+                        match.notification=message.notification;
+                        match.layout=null;
+                    }
+                    if(!message.updateOnly&&visible.contains(match))
+                        match.expires=Math.min(match.started+30000000000L,at+seconds(match,duration));
+                }
+                else if(!message.updateOnly){if(pending.size()>=maxPending)pending.removeFirst();Entry entry=new Entry(message);entry.id=++nextId;pending.addLast(entry);}
             }
             pending.removeIf(e->!allowed.test(e.notification.type));while(pending.size()>maxPending)pending.removeFirst();
             if(paused){visible.removeIf(e->!allowed.test(e.notification.type));return;}
@@ -224,14 +248,17 @@ public final class NotificationManager {
         ClientSettings settings=ClientSettings.current();
         return UiEffects.semanticColor(role,Theme.getDefaultTheme().getAccentColor().getRGB(),settings==null||settings.semanticColorPriority.getValue());
     }
-    private static void icon(NotificationType type,float x,float y,float alpha){
+    static float iconReveal(long now,long started,boolean motion){
+        if(!motion)return 1;
+        float t=Math.max(0,Math.min(1,(now-started)/280_000_000f));
+        return t*t*(3-2*t);
+    }
+    private static void icon(NotificationType type,float x,float y,float alpha,float reveal){
         try(RenderState state=new RenderState()){
-            GlStateManager.disableTexture2D();glDisable(GL_TEXTURE_2D);GlStateManager.enableBlend();glEnable(GL_BLEND);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glLineWidth(1.5f);
-            int color=iconColor(type);
-            glColor4f((color>>16&255)/255f,(color>>8&255)/255f,(color&255)/255f,alpha);glTranslatef(x,y,0);
-            if(type==NotificationType.WARNING){glBegin(GL_LINE_LOOP);glVertex2f(0,-7);glVertex2f(7,6);glVertex2f(-7,6);glEnd();glBegin(GL_LINES);glVertex2f(0,-2);glVertex2f(0,1);glVertex2f(0,3);glVertex2f(0,4);glEnd();}
-            else{glBegin(GL_LINE_LOOP);for(int i=0;i<32;i++){double a=i*Math.PI/16;glVertex2f((float)Math.cos(a)*7,(float)Math.sin(a)*7);}glEnd();glBegin(GL_LINES);
-                if(type==NotificationType.ERROR){glVertex2f(-3,-3);glVertex2f(3,3);glVertex2f(3,-3);glVertex2f(-3,3);}else if(type==NotificationType.SUCCESS||type==NotificationType.ENABLED){glVertex2f(-3,0);glVertex2f(-.5f,3);glVertex2f(-.5f,3);glVertex2f(4,-3);}else{glVertex2f(0,-4);glVertex2f(0,-3);glVertex2f(0,-1);glVertex2f(0,4);}glEnd();}
+            glTranslatef(x,y,0);glScalef(.68f,.68f,1);
+            int kind=type==NotificationType.WARNING?2:type==NotificationType.ERROR?4
+                    :type==NotificationType.SUCCESS||type==NotificationType.ENABLED?1:type==NotificationType.DISABLED?0:3;
+            me.youngjibbit.module.impl.client.island.IslandGlyphRenderer.notice(0,0,kind,iconColor(type),alpha,reveal);
         }
     }
 }

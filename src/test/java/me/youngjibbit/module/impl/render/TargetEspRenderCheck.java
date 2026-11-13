@@ -52,6 +52,7 @@ public final class TargetEspRenderCheck {
             try {
                 appearanceAndMotion();
                 exactMarkerAndControls();
+                interpolatedMarkerKeepsTheObservationExact();
                 depthAndClipping();
                 stateRestoration();
                 fallbackAndEmptyFrames();
@@ -173,6 +174,24 @@ public final class TargetEspRenderCheck {
         begin(false);glEnable(GL_SCISSOR_TEST);glScissor(0,0,WIDTH/2,HEIGHT);renderer.render(frame,style);
         require(changed(capture())==0,"TargetESP ignores inherited scissor clipping");glDisable(GL_SCISSOR_TEST);
         System.out.println("PASS: scene depth option and inherited scissor clipping");
+    }
+
+    private static void interpolatedMarkerKeepsTheObservationExact() throws Exception {
+        TargetEspRenderer.Frame frame=marker();TargetEspRenderer.Style style=new TargetEspRenderer.Style();
+        style.markerSize=.16f;
+        frame.markerInterpolated=true;frame.displayMarkerX=frame.markerX-.4;
+        frame.displayMarkerY=frame.markerY;frame.displayMarkerZ=frame.markerZ;
+        double observedX=frame.markerX;
+        begin(false);renderer.render(frame,style);BufferedImage presented=capture();
+        int[] smooth=brightest(presented);
+        frame.markerInterpolated=false;begin(false);renderer.render(frame,style);int[] raw=brightest(capture());
+        require(Math.abs(raw[0]-smooth[0]-64)<=1&&raw[1]==smooth[1],"Renderer did not use the separate interpolated presentation point");
+        require(frame.markerX==observedX,"Cosmetic interpolation changed the observed hitpoint");
+        save(presented,"hitpoint-interpolated.png");
+        frame.markerInterpolated=true;frame.displayMarkerX=Double.NaN;
+        begin(false);renderer.render(frame,style);require(changed(capture())==0,"Invalid presentation coordinates left stale geometry");
+        frame.clear();require(!frame.markerInterpolated,"Cleared frame retained the presentation flag");
+        System.out.println("PASS: interpolated presentation is independent of the exact read-only observation and clears safely");
     }
     private static void stateRestoration() {
         begin(false);

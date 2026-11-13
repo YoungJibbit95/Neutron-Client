@@ -110,8 +110,14 @@ public final class OpenAuthBrowserAuth {
         try {
             URI uri = URI.create(response);
             if (!"https".equals(uri.getScheme()) || !"login.live.com".equals(uri.getHost())
-                    || uri.getPort() != -1 || uri.getUserInfo() != null || uri.getRawQuery() != null
+                    || uri.getPort() != -1 || uri.getUserInfo() != null
                     || !"/oauth20_desktop.srf".equals(uri.getPath())) throw new IllegalArgumentException();
+            // Microsoft's desktop redirect may add a numeric locale, for example
+            // ?lc=1033#access_token=... (documented in its OneDrive REST sample).
+            // OpenAuth passes that complete URL through. Permit only this metadata;
+            // credentials/state still belong exclusively to the validated fragment.
+            if (uri.getRawQuery() != null && !uri.getRawQuery().matches("lc=[0-9]{1,10}"))
+                throw new IllegalArgumentException();
             Map<String, String> values = MicrosoftBrowserAuth.query(uri.getRawFragment());
             if (!MessageDigest.isEqual(state.getBytes(StandardCharsets.UTF_8),
                     values.getOrDefault("state", "").getBytes(StandardCharsets.UTF_8))

@@ -32,6 +32,7 @@ public class HUD extends Module {
             if(m instanceof TargetHUD)((TargetHUD)m).resetPosition();
             if(m instanceof SessionInfo)((SessionInfo)m).resetPosition();
             if(m instanceof Diagnostics)((Diagnostics)m).resetPositions();
+            if(m instanceof CustomScoreboard)((CustomScoreboard)m).resetPosition();
         }
     }
     @Subscribe private final Listener<Event2D> guides=new Listener<>(e->{

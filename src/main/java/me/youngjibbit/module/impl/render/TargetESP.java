@@ -28,17 +28,17 @@ import java.awt.Color;
 import java.util.List;
 
 /** Displays the active selection and locally accepted rotation, without producing actions or rotations. */
-@ModuleInfo(name="TargetESP", description="Smooth target halo and an exact, read-only Aura/Scaffold/NScaffold aim marker.", category=Category.Render)
+@ModuleInfo(name="TargetESP", description="Smooth target halo and a read-only aim marker with optional visual smoothing.", category=Category.Render)
 public final class TargetESP extends Module {
     private final CheckBoxValue halo = new CheckBoxValue("Target Halo",this,true);
     private final SliderValue haloRadius = new SliderValue("Halo Radius Padding",this,.14,0,.6);
-    private final SliderValue haloWidth = new SliderValue("Halo Width",this,.13,.035,.4);
+    private final SliderValue haloWidth = new SliderValue("Halo Width",this,.16,.035,.4);
     private final SliderValue haloSpeed = new SliderValue("Halo Speed",this,.7,.1,2);
     private final SliderValue haloTrail = new SliderValue("Halo Trail",this,.65,0,1);
     private final SliderValue haloMotion = new SliderValue("Halo Motion",this,.55,0,1);
     private final CheckBoxValue hitpoint = new CheckBoxValue("Hitpoint",this,true);
     private final ComboValue hitpointSource = new ComboValue("Hitpoint Source",this,new String[]{"Active","Aura","Scaffold","NScaffold"},0);
-    private final SliderValue hitpointSize = new SliderValue("Hitpoint Size",this,.075,.015,.3);
+    private final SliderValue hitpointSize = new SliderValue("Hitpoint Size",this,.10,.015,.3);
     private final SliderValue rayLength = new SliderValue("Hitpoint Ray Length",this,6D,1,16);
     private final CheckBoxValue misses = new CheckBoxValue("Show Ray Misses",this,true);
     private final SliderValue opacity = new SliderValue("Opacity",this,.9,.1,1);
@@ -46,8 +46,12 @@ public final class TargetESP extends Module {
     private final CheckBoxValue throughWalls = new CheckBoxValue("Through Walls",this,false);
     private final ComboValue colorSource = new ComboValue("Color Source",this,new String[]{"Theme","Custom"},0);
     private final ColorValue color = new ColorValue("Custom Color",this,new Color(154,124,255));
+    // Append to preserve legacy setting indices.
+    private final SliderValue hitpointSmoothing = new SliderValue("Hitpoint Smoothing",this,.6,0,1);
 
     private final TargetEspMotion motion = new TargetEspMotion();
+    private final TargetEspPositionMotion haloPosition = new TargetEspPositionMotion();
+    private final TargetEspPositionMotion markerPosition = new TargetEspPositionMotion();
     private final TargetEspObservation observation = new TargetEspObservation();
     private final TargetEspRenderer renderer = new TargetEspRenderer();
     private final TargetEspRenderer.Frame frame = new TargetEspRenderer.Frame();
@@ -56,6 +60,7 @@ public final class TargetESP extends Module {
     private long pipelineEpoch = Long.MIN_VALUE;
     private long lifecycleGeneration;
     private boolean renderInProgress;
+    private boolean previousMarkerHit;
 
     private static final class RenderScene {
         final Minecraft client;
@@ -75,7 +80,7 @@ public final class TargetESP extends Module {
     public TargetESP() {
         for(me.youngjibbit.value.Value<?> value:new me.youngjibbit.value.Value<?>[]{haloRadius,haloWidth,haloSpeed,haloTrail,haloMotion})
             value.setVisibility(module->halo.getValue());
-        for(me.youngjibbit.value.Value<?> value:new me.youngjibbit.value.Value<?>[]{hitpointSource,hitpointSize,rayLength,misses})
+        for(me.youngjibbit.value.Value<?> value:new me.youngjibbit.value.Value<?>[]{hitpointSource,hitpointSize,rayLength,misses,hitpointSmoothing})
             value.setVisibility(module->hitpoint.getValue());
         color.setVisibility(module->"Custom".equals(colorSource.getValue()));
         halo.setOnChange(value->motion.reset());
@@ -94,7 +99,7 @@ public final class TargetESP extends Module {
 
     private void reset() {
         lifecycleGeneration++;
-        frame.clear();motion.reset();observation.reset();
+        frame.clear();motion.reset();haloPosition.reset();markerPosition.reset();observation.reset();
         worldContext=playerContext=pipelineContext=null;pipelineEpoch=Long.MIN_VALUE;
     }
     private void renderWorld(float partial) {
@@ -118,7 +123,7 @@ public final class TargetESP extends Module {
         EntityLivingBase target=aura==null?null:aura.getActiveTarget();
         // The target getter performs world/LOS reads which can synchronously change the scene.
         if(!current(scene))return;
-        long now=System.nanoTime();float time=UiEffects.time();
+        long now=System.nanoTime(),renderFrame=client.getRenderFrameSequence();float time=UiEffects.time();
         boolean animate=UiEffects.motion()&&UiEffects.options().ambient;
         partial=Float.isFinite(partial)?Math.max(0,Math.min(1,partial)):0;
         boolean liveTarget=target!=null&&target!=scene.player&&target.worldObj==scene.world
@@ -131,14 +136,15 @@ public final class TargetESP extends Module {
             double y=target.lastTickPosY+(target.posY-target.lastTickPosY)*partial;
             double z=target.lastTickPosZ+(target.posZ-target.lastTickPosZ)*partial;
             motion.sample(scene.world,target,now,time,x,z,animate,haloMotion.getValue().floatValue());
-            frame.halo=true;frame.x=x;frame.y=y+bounds.minY-target.posY;frame.z=z;
+            frame.halo=haloPosition.sample(scene.world,target,now,renderFrame,x,y,z,animate,haloMotion.getValue().floatValue()*.35f);
+            frame.x=haloPosition.x();frame.y=haloPosition.y()+bounds.minY-target.posY;frame.z=haloPosition.z();
             frame.radiusX=Math.max(.12,(bounds.maxX-bounds.minX)/2)+haloRadius.getValue();
             frame.radiusZ=Math.max(.12,(bounds.maxZ-bounds.minZ)/2)+haloRadius.getValue();
             frame.height=Math.max(.1,bounds.maxY-bounds.minY);
             frame.lift=TargetEspMotion.lift(time,haloSpeed.getValue().floatValue(),animate);
             frame.direction=TargetEspMotion.direction(time,haloSpeed.getValue().floatValue(),animate);
             frame.leanX=motion.leanX();frame.leanZ=motion.leanZ();
-        }else motion.reset();
+        }else {motion.reset();haloPosition.reset();}
         if(hitpoint.getValue()) {
             RotationManager.DiagnosticSnapshot observed=scene.rotation
                     .diagnosticSnapshot(scene.player,scene.world,packets);
@@ -151,7 +157,17 @@ public final class TargetESP extends Module {
                     ||"Scaffold".equals(chosen)&&"scaffold".equals(observed.owner)
                     ||"NScaffold".equals(chosen)&&NScaffold.ROTATION_SOURCE.equals(observed.owner)))
                 marker(scene,observed.wireYaw,observed.wirePitch,"aura".equals(observed.owner));
+            if(frame.marker) {
+                Object subject="aura".equals(observed.owner)?target:
+                        "scaffold".equals(observed.owner)?scaffold:nscaffold;
+                if(frame.markerHit!=previousMarkerHit)markerPosition.reset();
+                previousMarkerHit=frame.markerHit;
+                frame.markerInterpolated=markerPosition.sample(scene.world,subject,now,renderFrame,
+                        frame.markerX,frame.markerY,frame.markerZ,animate,hitpointSmoothing.getValue().floatValue());
+                frame.displayMarkerX=markerPosition.x();frame.displayMarkerY=markerPosition.y();frame.displayMarkerZ=markerPosition.z();
+            }
         }else observation.reset();
+        if(!frame.marker)markerPosition.reset();
         if(!current(scene))return;
         if(!frame.halo&&!frame.marker)return;
         RenderManager view=client.getRenderManager();if(view==null)return;

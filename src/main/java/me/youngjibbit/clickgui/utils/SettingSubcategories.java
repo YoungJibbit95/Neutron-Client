@@ -148,7 +148,7 @@ public final class SettingSubcategories {
             case "Hotbar": return "Nine slots, priorities and fallback items";
             case "Cleanup": return "Protected items, duplicates and trash";
             case "Halo": return "Active target, trail and motion";
-            case "Hitpoint": return "Accepted rotation and exact ray position";
+            case "Hitpoint": return "Observed ray point and visual smoothing";
             case "Safety": return "Lifecycle, recovery and safeguards";
             case "Timing": return "Delays and timing windows";
             case "Indicator": return "Remaining bed-access work and draggable glass HUD";

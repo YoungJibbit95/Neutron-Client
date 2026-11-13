@@ -32,6 +32,10 @@ public class ConfigManager {
     public static boolean loadVisuals;
     public final File defaultConfig;
     private static final int CONFIG_VERSION = 2;
+    // These designs were unconditional in older builds. Introducing their
+    // toggles must preserve that presentation without enabling other modules.
+    private static final Set<String> LEGACY_ENABLED_DESIGNS = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList("custom_scoreboard", "custom_hotbar")));
     private final Path directory;
     private final Collection<Module> modules;
     private final BooleanSupplier ready;
@@ -198,8 +202,9 @@ public class ConfigManager {
                     messages.accept("Unknown legacy entries retained; automatic saving paused to preserve the original file.");
                 }
                 messages.accept(loadMessage("Last state", plan));
-            } catch (IOException | RuntimeException e) {
+            } catch (IOException | RuntimeException | NoClassDefFoundError | ExceptionInInitializerError | UnsatisfiedLinkError e) {
                 automaticReadOnly = true;
+                pendingActivation.clear();
                 fail("Last state was not restored; automatic saving is disabled to preserve its file", e);
                 messages.accept(lastError);
             }
@@ -221,7 +226,7 @@ public class ConfigManager {
             messages.accept(loadMessage("Config " + name, plan));
             NotificationManager.success("Config loaded",pendingActivation.isEmpty()?"The configuration was applied successfully.":"Values applied. Module activation waits for a world and player.");
             return true;
-        } catch (IOException | RuntimeException e) {
+        } catch (IOException | RuntimeException | NoClassDefFoundError | ExceptionInInitializerError | UnsatisfiedLinkError e) {
             fail("Config load failed", e);
             messages.accept(lastError);
             return false;
@@ -298,12 +303,17 @@ public class ConfigManager {
                 ModuleToggleJournal.beginConfigApplication();
                 for (Map.Entry<Module, Boolean> entry : new ArrayList<>(pendingActivation.entrySet())) {
                     Module module = entry.getKey();
-                    if (module.isToggled()) module.setToggled(false);
-                    module.setToggled(entry.getValue());
+                    try {
+                        if (module.isToggled()) module.setToggled(false);
+                        module.setToggled(entry.getValue());
+                    } catch (RuntimeException | NoClassDefFoundError | ExceptionInInitializerError | UnsatisfiedLinkError failure) {
+                        stopFailedModule(module, failure);
+                        throw failure;
+                    }
                     pendingActivation.remove(module);
                 }
                 markDirty();
-            } catch (RuntimeException e) {
+            } catch (RuntimeException | NoClassDefFoundError | ExceptionInInitializerError | UnsatisfiedLinkError e) {
                 automaticReadOnly = true;
                 fail("Module activation failed; automatic saving paused", e);
                 messages.accept(lastError);
@@ -488,6 +498,11 @@ public class ConfigManager {
             }
             if (v2) {
                 if (json.has("settings")) parseSettings(plan, change, object(json.get("settings"), "settings"));
+            } else if (json.has("settings") && json.get("settings").isJsonObject()) {
+                // Older profiles may store settings as an object rather than a
+                // list. Read its entries instead of silently skipping the whole
+                // profile as one unknown setting named "settings".
+                parseSettings(plan, change, json.getAsJsonObject("settings"));
             } else if (json.has("settings") && json.get("settings").isJsonArray()) {
                 for (JsonElement element : json.getAsJsonArray("settings")) {
                     JsonObject setting = object(element, "legacy setting");
@@ -577,6 +592,13 @@ public class ConfigManager {
             prioritizeScaffoldSettings(change);
             migrateNetworkOptions(plan,change);
             plan.changes.add(change);
+        }
+        for (Module module : modules) {
+            if (LEGACY_ENABLED_DESIGNS.contains(module.getId()) && !seen.contains(module)) {
+                Change change = new Change(module);
+                change.enabled = true;
+                plan.changes.add(change);
+            }
         }
         return plan;
     }
@@ -708,6 +730,11 @@ public class ConfigManager {
     }
 
     private void parseSetting(Plan plan, Change change, String id, JsonElement json) {
+        // Value wrappers also occur inside nested legacy settings. Unwrap before
+        // validation so numbers/booleans follow the same path as choices, while
+        // structured color objects without a value member remain intact.
+        if (json != null && json.isJsonObject() && json.getAsJsonObject().has("value"))
+            json = json.getAsJsonObject().get("value");
         if ("bedbreaker".equals(change.module.getId()) && retiredBedBreakerSetting(id)) {
             JsonElement raw = json != null && json.isJsonObject() ? json.getAsJsonObject().get("value") : json;
             validateRetiredBedBreakerSetting(id, raw);
@@ -863,11 +890,15 @@ public class ConfigManager {
     private void apply(Plan plan, boolean settingsOnly) {
         if (applying) throw new IllegalStateException("Recursive config load is not allowed.");
         applying = true;
+        Set<Module> touched = new LinkedHashSet<>();
+        Set<Module> unfinished = new LinkedHashSet<>();
         try {
             ModuleToggleJournal.beginConfigApplication();
             boolean canActivate = ready.getAsBoolean();
             for (Change change : plan.changes) {
                 change.desired = change.enabled != null ? change.enabled : pendingActivation.getOrDefault(change.module, change.module.isToggled());
+                touched.add(change.module);
+                unfinished.add(change.module);
                 if (canActivate && change.module.isToggled()) change.module.setToggled(false);
                 if (settingsOnly) change.module.beginSettingsUpdate();
                 else change.module.beginConfigUpdate();
@@ -880,22 +911,48 @@ public class ConfigManager {
                 }
             }
             // All modules' data is in place before callbacks or activation hooks.
-            for (Change change : plan.changes) change.module.endConfigUpdate();
+            for (Change change : plan.changes) {
+                change.module.endConfigUpdate();
+                unfinished.remove(change.module);
+            }
             for (Change change : plan.changes) {
                 if (canActivate) {
                     pendingActivation.remove(change.module);
+                    unfinished.add(change.module);
                     change.module.setToggled(change.desired);
+                    unfinished.remove(change.module);
                 } else pendingActivation.put(change.module, change.desired);
             }
-        } catch (RuntimeException e) {
+        } catch (RuntimeException | NoClassDefFoundError | ExceptionInInitializerError | UnsatisfiedLinkError e) {
             automaticReadOnly = true;
-            throw new IllegalStateException("Application failed; state may be partially applied. Automatic saving paused: " + e.getMessage(), e);
+            pendingActivation.keySet().removeAll(touched);
+            // Stop only incomplete callbacks or the failed activation. Untouched
+            // modules and those already applied successfully retain their state.
+            // Stale activation decisions for changed values must not retry later.
+            for (Module module : unfinished) stopFailedModule(module, e);
+            throw new IllegalStateException("Application failed; state may be partially applied. Automatic saving paused: " + describeFailure(e), e);
         } finally {
             try {
-                for (Change change : plan.changes) change.module.cancelConfigUpdate();
+                for (Module module : touched) module.cancelConfigUpdate();
                 applying = false;
             } finally {
                 ModuleToggleJournal.endConfigApplication();
+            }
+        }
+    }
+
+    private static void stopFailedModule(Module module, Throwable failure) {
+        try {
+            if (module.isToggled()) module.setToggled(false);
+        } catch (RuntimeException | NoClassDefFoundError | ExceptionInInitializerError | UnsatisfiedLinkError cleanupFailure) {
+            if (cleanupFailure != failure) failure.addSuppressed(cleanupFailure);
+        } finally {
+            // setToggled(false) writes its bit before onDisable. A failing hook
+            // may therefore skip super.onDisable while leaving listeners active.
+            try {
+                Pulsar.BUS.unsubscribe(module);
+            } catch (RuntimeException | NoClassDefFoundError | ExceptionInInitializerError | UnsatisfiedLinkError unsubscribeFailure) {
+                if (unsubscribeFailure != failure) failure.addSuppressed(unsubscribeFailure);
             }
         }
     }
@@ -928,10 +985,15 @@ public class ConfigManager {
         try { return new BigDecimal(element.getAsString()).intValueExact(); }
         catch (ArithmeticException e) { throw new IllegalArgumentException("Expected 32-bit integer: " + label); }
     }
-    private boolean fail(String message, Exception e) {
-        lastError = message + ": " + e.getMessage();
+    private boolean fail(String message, Throwable e) {
+        lastError = message + ": " + describeFailure(e);
         NotificationManager.error("Configuration failed","The action did not complete. See the existing config diagnostics.");
         return false;
+    }
+    private static String describeFailure(Throwable failure) {
+        String detail = failure.getMessage();
+        return failure.getClass().getSimpleName()
+                + (detail == null || detail.trim().isEmpty() ? "" : ": " + detail);
     }
     private static void report(String message) {
         Minecraft mc = Minecraft.getMinecraft();

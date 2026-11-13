@@ -64,6 +64,48 @@ public class OpenAuthBrowserAuthTest {
                 MicrosoftBrowserAuth.query(uri.get().getRawQuery()).get("client_id"));
     }
 
+    @Test public void documentedDesktopLocaleCallbackReachesMinecraftExchange() throws Exception {
+        for (String locale : new String[]{"1033", "1031"}) {
+            Window window = new Window(); AtomicInteger exchanges = new AtomicInteger();
+            OpenAuthBrowserAuth auth = new OpenAuthBrowserAuth(() -> {}, authorization -> {
+                window.response.complete(response(authorization).replace(".srf#", ".srf?lc=" + locale + "#"));
+                return window;
+            }, (tokens, active) -> {
+                exchanges.incrementAndGet();
+                assertEquals("synthetic-token", tokens.getAccessToken());
+                assertEquals("", tokens.getRefreshToken());
+                return session();
+            }, 2000);
+            assertEquals("WebPlayer", auth.login(() -> true).getUsername());
+            drain(); assertEquals(1, exchanges.get()); assertEquals(1, window.closed.get());
+        }
+    }
+
+    @Test public void localeMetadataDoesNotPermitQueryCredentialsOrRelaxFragmentValidation() throws Exception {
+        URI authorization = OpenAuthBrowserAuth.authorization("synthetic-state");
+        String valid = response(authorization);
+        for (String query : new String[]{"", "lc=", "lc=de-DE", "lc=-1033", "lc=1033&lc=1031",
+                "lc=1033&access_token=other", "access_token=other", "lc=1033&state=synthetic-state",
+                "lc=1033&token_type=Bearer", "lc=1033&redirect_uri=https%3A%2F%2Fother.invalid"}) {
+            assertInvalidCallback(valid.replace(".srf#", ".srf?" + query + "#"));
+        }
+        String localized = valid.replace(".srf#", ".srf?lc=1033#");
+        assertInvalidCallback(localized.replace("login.live.com", "other.invalid"));
+        assertInvalidCallback(localized.replace("https:", "http:"));
+        assertInvalidCallback(localized.replace("state=", "state=wrong"));
+        assertInvalidCallback(localized.replace("token_type=Bearer", "token_type=Other"));
+        assertInvalidCallback(localized + "&access_token=duplicate");
+        assertInvalidCallback(localized + "&state=synthetic-state");
+        assertInvalidCallback(localized + "&token_type=Bearer");
+    }
+
+    private static void assertInvalidCallback(String response) throws Exception {
+        try { OpenAuthBrowserAuth.tokens(response, "synthetic-state"); fail("Callback must be rejected"); }
+        catch (LoginCoordinator.LoginUnavailableException expected) {
+            assertFalse(expected.getUserMessage().contains("synthetic-token"));
+        }
+    }
+
     @Test public void embeddedLoginConsumesMinecraftTokenEntitlementAndProfileWithoutLegacyUsername() throws Exception {
         try (MicrosoftBrowserAuthTest.Services services=new MicrosoftBrowserAuthTest.Services()) {
             services.expectedTicket="synthetic-token";

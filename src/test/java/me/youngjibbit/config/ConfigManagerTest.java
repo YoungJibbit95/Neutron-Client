@@ -53,10 +53,33 @@ public class ConfigManagerTest {
         final Value<String> text = new Value<>("Text", this, "initial");
         final Value<Integer> count = new Value<>("Count", this, 1);
         int enables, disables, callbacks;
-        Runnable enabledCheck;
+        Runnable enabledCheck, disabledCheck;
         @Override public void onEnable() { enables++; if (enabledCheck != null) enabledCheck.run(); }
-        @Override public void onDisable() { disables++; }
+        @Override public void onDisable() { disables++; if (disabledCheck != null) disabledCheck.run(); }
         @Override public void onValueChange() { callbacks++; }
+    }
+
+    @ModuleInfo(id = "custom_scoreboard", name = "Synthetic Scoreboard", category = Category.Client)
+    public static class ScoreboardDesign extends Module {
+        @Override public void onEnable() { }
+        @Override public void onDisable() { }
+    }
+
+    @ModuleInfo(id = "custom_hotbar", name = "Synthetic Hotbar", category = Category.Client)
+    public static class HotbarDesign extends Module {
+        @Override public void onEnable() { }
+        @Override public void onDisable() { }
+    }
+
+    public static final class CleanupProbe extends me.youngjibbit.event.Event { }
+
+    @ModuleInfo(id = "faulty_subscriber", name = "Faulty Subscriber", category = Category.Client)
+    public static class FaultySubscriber extends Module {
+        int observations;
+        @me.zero.alpine.listener.Subscribe
+        private final me.zero.alpine.listener.Listener<CleanupProbe> probe =
+                new me.zero.alpine.listener.Listener<>(event -> observations++);
+        @Override public void onDisable() { throw new IllegalStateException("synthetic failure before super.onDisable"); }
     }
 
     private ConfigManager manager(Path directory, Sample sample) {
@@ -177,6 +200,70 @@ public class ConfigManagerTest {
         assertTrue(configs.loadConfig("Flat")); assertEquals(3.25, sample.decimal.getValue(), 0);
         assertTrue(sample.flag.getValue()); assertFalse(sample.isToggled()); assertEquals(34, sample.getKey());
         assertTrue(sample.color.isRainbow()); assertEquals(20, sample.color.getRainbow().getSpeed());
+    }
+
+    @Test public void legacySettingsObjectsMigrateTypedWrappersWithoutChangingSource() throws Exception {
+        Path dir = directory(); Sample sample = new Sample(); ConfigManager configs = manager(dir, sample);
+        String legacy = "{\"version\":1,\"Synthetic Module\":{\"toggled\":false,\"key\":0,\"settings\":{"
+                + "\"Decimal\":{\"value\":4.5},\"Whole\":{\"value\":6},\"Flag\":{\"value\":true},"
+                + "\"Choice\":{\"value\":\"second\"},\"Text\":{\"value\":\"legacy text\"},\"Count\":{\"value\":7},"
+                + "\"Color\":{\"value\":{\"rgb\":1122867,\"rainbow\":false}}}}}";
+        Path file = dir.resolve("Alpha.json"); write(file, legacy);
+        assertTrue(configs.getLastError(), configs.loadConfig("Alpha"));
+        assertEquals(4.5, sample.decimal.getValue(), 0);
+        assertEquals(6, sample.whole.getValue(), 0);
+        assertTrue(sample.flag.getValue());
+        assertEquals("Second", sample.choice.getValue());
+        assertEquals("legacy text", sample.text.getValue());
+        assertEquals(Integer.valueOf(7), sample.count.getValue());
+        assertEquals(1122867, sample.color.getValue().getRGB());
+        assertFalse(sample.isToggled());
+        assertEquals(legacy, read(file));
+        assertTrue(configs.saveConfig("Migrated"));
+        String migrated = configs.serialize();
+        sample.decimal.setValue(1.0);
+        assertTrue(configs.loadConfig("Migrated"));
+        assertEquals(migrated, configs.serialize());
+    }
+
+    @Test public void versionedWrappersStillValidateBeforeChangingAnyValues() throws Exception {
+        Path dir = directory(); Sample sample = new Sample(); ConfigManager configs = manager(dir, sample);
+        String baseline = configs.serialize();
+        JsonObject root = json(configs);
+        settings(root).add("decimal", JsonParser.parseString("{\"value\":3.5}"));
+        settings(root).add("flag", JsonParser.parseString("{\"value\":\"not a boolean\"}"));
+        write(dir.resolve("Wrapped.json"), root.toString());
+        assertFalse(configs.loadConfig("Wrapped"));
+        assertEquals(baseline, configs.serialize());
+        settings(root).add("flag", JsonParser.parseString("{\"value\":true}"));
+        write(dir.resolve("Wrapped.json"), root.toString());
+        assertTrue(configs.getLastError(), configs.loadConfig("Wrapped"));
+        assertEquals(3.5, sample.decimal.getValue(), 0);
+        assertTrue(sample.flag.getValue());
+    }
+
+    @Test public void legacyDesignMigrationEnablesOnlyTheFormerlyUnconditionalDesigns() throws Exception {
+        ready.set(false);
+        Path dir = directory(); Sample sample = new Sample();
+        ScoreboardDesign scoreboard = new ScoreboardDesign(); HotbarDesign hotbar = new HotbarDesign();
+        ConfigManager configs = new ConfigManager(dir, Arrays.asList(sample, scoreboard, hotbar), ready::get, messages::add, clock::get);
+        write(configs.defaultConfig.toPath(), "{\"version\":2,\"modules\":{}}");
+        configs.initialize(Collections.singletonList("synthetic"));
+        assertFalse(scoreboard.isToggled()); assertFalse(hotbar.isToggled());
+        ready.set(true); configs.tick();
+        assertTrue(scoreboard.isToggled()); assertTrue(hotbar.isToggled());
+        assertFalse("A legacy migration must not enable unrelated defaults", sample.isToggled());
+
+        String disabled = "{\"version\":2,\"modules\":{\"custom_scoreboard\":{\"enabled\":false},\"custom_hotbar\":{\"enabled\":false}}}";
+        write(dir.resolve("Vanilla.json"), disabled);
+        assertTrue(configs.loadConfig("Vanilla"));
+        assertFalse(scoreboard.isToggled()); assertFalse(hotbar.isToggled());
+        configs.shutdown();
+        ConfigManager restored = new ConfigManager(dir, Arrays.asList(new Sample(), new ScoreboardDesign(), new HotbarDesign()), ready::get, messages::add);
+        restored.initialize(Collections.emptyList());
+        JsonObject saved = JsonParser.parseString(restored.serialize()).getAsJsonObject().getAsJsonObject("modules");
+        assertFalse(saved.getAsJsonObject("custom_scoreboard").get("enabled").getAsBoolean());
+        assertFalse(saved.getAsJsonObject("custom_hotbar").get("enabled").getAsBoolean());
     }
 
     @Test public void invalidKnownEntriesRejectEntireLoadBeforeAnyMutation() throws Exception {
@@ -310,6 +397,122 @@ public class ConfigManagerTest {
         assertTrue(configs.getLastError().contains("partially applied"));
         assertTrue(configs.getLastError().contains("synthetic callback failure"));
         assertFalse(messages.stream().anyMatch(m -> m.startsWith("Config Throw loaded")));
+    }
+
+    @Test public void missingRuntimeClassInAutomaticCallbackDoesNotEscapeStartupOrOverwriteConfig() throws Exception {
+        Path dir = directory(); Sample sample = new Sample(); ConfigManager configs = manager(dir, sample);
+        JsonObject root = json(configs); settings(root).addProperty("decimal", 2.5);
+        root.getAsJsonObject("modules").getAsJsonObject("synthetic").addProperty("enabled", true);
+        String source = root.toString(); write(configs.defaultConfig.toPath(), source);
+        sample.decimal.setOnChange(value -> { throw new NoClassDefFoundError("synthetic/missing/OptionalRenderer"); });
+        configs.initialize(Collections.singletonList("synthetic"));
+        assertTrue(configs.getLastError(), configs.getLastError().contains("NoClassDefFoundError"));
+        assertFalse(sample.isToggled()); assertEquals(0, sample.enables);
+        sample.decimal.setOnChange(null);
+        clock.addAndGet(5_000_000_000L); configs.tick(); configs.shutdown();
+        assertFalse(sample.isToggled()); assertFalse(configs.saveDefaultConfig());
+        assertEquals(source, read(configs.defaultConfig.toPath()));
+    }
+
+    @Test public void failedDeferredEnableIsStoppedAndNotRetriedEveryTick() throws Exception {
+        ready.set(false);
+        Path dir = directory(); Sample sample = new Sample(); ConfigManager configs = manager(dir, sample);
+        JsonObject root = json(configs);
+        root.getAsJsonObject("modules").getAsJsonObject("synthetic").addProperty("enabled", true);
+        String source = root.toString(); write(configs.defaultConfig.toPath(), source);
+        sample.enabledCheck = () -> { throw new UnsatisfiedLinkError("synthetic optional native"); };
+        configs.initialize(Collections.emptyList()); ready.set(true); configs.tick();
+        assertFalse(sample.isToggled()); assertEquals(1, sample.enables); assertEquals(1, sample.disables);
+        assertTrue(configs.getLastError(), configs.getLastError().contains("UnsatisfiedLinkError"));
+        configs.tick(); configs.shutdown();
+        assertEquals(1, sample.enables); assertFalse(configs.saveDefaultConfig());
+        assertEquals(source, read(configs.defaultConfig.toPath()));
+    }
+
+    @Test public void failedApplicationCancelsActivationFromAnEarlierProfile() throws Exception {
+        ready.set(false);
+        Path dir = directory(); Sample sample = new Sample(); ConfigManager configs = manager(dir, sample);
+        configs.initialize(Collections.singletonList("synthetic"));
+        JsonObject root = json(configs); settings(root).addProperty("decimal", 2.5);
+        write(dir.resolve("BrokenHook.json"), root.toString());
+        sample.decimal.setOnChange(value -> { throw new ExceptionInInitializerError("synthetic optional renderer"); });
+        assertFalse(configs.loadConfig("BrokenHook"));
+        assertTrue(configs.getLastError(), configs.getLastError().contains("ExceptionInInitializerError"));
+        sample.decimal.setOnChange(null); ready.set(true); configs.tick();
+        assertFalse(sample.isToggled()); assertEquals(0, sample.enables);
+    }
+
+    @Test public void preparationFailureDoesNotDisableUntouchedModulesOrOverwriteLastState() throws Exception {
+        Path dir = directory(); Sample broken = new Sample(); ScoreboardDesign untouched = new ScoreboardDesign();
+        broken.setToggled(true); untouched.setToggled(true);
+        ConfigManager configs = new ConfigManager(dir, Arrays.asList(broken, untouched), ready::get, messages::add, clock::get);
+        configs.initialize(Collections.emptyList()); configs.shutdown();
+        byte[] saved = Files.readAllBytes(configs.defaultConfig.toPath());
+        write(dir.resolve("BrokenDisable.json"), configs.serialize());
+        broken.disabledCheck = () -> { throw new IllegalStateException("synthetic disable failure"); };
+        assertFalse(configs.loadConfig("BrokenDisable"));
+        assertFalse(broken.isToggled());
+        assertTrue("An unvisited module must retain its existing state", untouched.isToggled());
+        assertFalse(configs.saveDefaultConfig()); configs.shutdown();
+        assertArrayEquals(saved, Files.readAllBytes(configs.defaultConfig.toPath()));
+    }
+
+    @Test public void lateEnableFailureKeepsModulesWhichWereAlreadyAppliedSuccessfully() throws Exception {
+        Path dir = directory(); ScoreboardDesign completed = new ScoreboardDesign(); Sample broken = new Sample();
+        ConfigManager configs = new ConfigManager(dir, Arrays.asList(completed, broken), ready::get, messages::add, clock::get);
+        configs.initialize(Collections.emptyList()); configs.shutdown();
+        byte[] saved = Files.readAllBytes(configs.defaultConfig.toPath());
+        JsonObject root = json(configs);
+        for (String id : Arrays.asList("custom_scoreboard", "synthetic"))
+            root.getAsJsonObject("modules").getAsJsonObject(id).addProperty("enabled", true);
+        write(dir.resolve("BrokenEnable.json"), root.toString());
+        broken.enabledCheck = () -> { throw new NoClassDefFoundError("synthetic/missing/Renderer"); };
+        assertFalse(configs.loadConfig("BrokenEnable"));
+        assertTrue("Completed activation must survive another module's failure", completed.isToggled());
+        assertFalse(broken.isToggled()); assertEquals(1, broken.disables);
+        configs.tick(); configs.shutdown();
+        assertTrue(completed.isToggled()); assertEquals(1, broken.enables);
+        assertArrayEquals(saved, Files.readAllBytes(configs.defaultConfig.toPath()));
+    }
+
+    @Test public void menuCallbackFailureOnlyStopsUnfinishedChanges() throws Exception {
+        ready.set(false);
+        Path dir = directory(); ScoreboardDesign completed = new ScoreboardDesign(); Sample broken = new Sample();
+        completed.setToggled(true); broken.setToggled(true);
+        ConfigManager configs = new ConfigManager(dir, Arrays.asList(completed, broken), ready::get, messages::add, clock::get);
+        JsonObject root = json(configs); settings(root).addProperty("decimal", 2.5);
+        write(dir.resolve("BrokenCallback.json"), root.toString());
+        broken.decimal.setOnChange(value -> { throw new IllegalStateException("synthetic callback failure"); });
+        assertFalse(configs.loadConfig("BrokenCallback"));
+        assertTrue("A completed callback batch must remain active", completed.isToggled());
+        assertFalse(broken.isToggled());
+    }
+
+    @Test public void failedDisableCannotLeaveAnInactiveModuleSubscribed() throws Exception {
+        Path dir = directory(); FaultySubscriber module = new FaultySubscriber();
+        ConfigManager configs = new ConfigManager(dir, Collections.singletonList(module), ready::get, messages::add);
+        try {
+            module.setToggled(true);
+            me.youngjibbit.Pulsar.BUS.post(new CleanupProbe());
+            assertEquals(1, module.observations);
+            JsonObject root = json(configs);
+            root.getAsJsonObject("modules").getAsJsonObject("faulty_subscriber").addProperty("enabled", false);
+            write(dir.resolve("BrokenSubscription.json"), root.toString());
+            assertFalse(configs.loadConfig("BrokenSubscription"));
+            assertFalse(module.isToggled());
+            me.youngjibbit.Pulsar.BUS.post(new CleanupProbe());
+            assertEquals("Failed disable must still remove the event listener", 1, module.observations);
+        } finally { me.youngjibbit.Pulsar.BUS.unsubscribe(module); }
+    }
+
+    @Test public void fatalVmFailuresAreNotReportedAsRecoverableConfigErrors() throws Exception {
+        Path dir = directory(); Sample sample = new Sample(); ConfigManager configs = manager(dir, sample);
+        JsonObject root = json(configs); settings(root).addProperty("decimal", 2.5);
+        write(dir.resolve("Fatal.json"), root.toString());
+        InternalError fatal = new InternalError("synthetic VM failure");
+        sample.decimal.setOnChange(value -> { throw fatal; });
+        try { configs.loadConfig("Fatal"); fail("VM failures must reach the caller"); }
+        catch (InternalError actual) { assertSame(fatal, actual); }
     }
 
     @Test public void colorEditorPathsKeepBaseValueAlphaAndNotifyOnce() {

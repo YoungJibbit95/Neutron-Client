@@ -76,7 +76,7 @@ public final class IngameHudRenderCheck {
             for(EntityLivingBase entity:Arrays.asList(cow,zombie,player)){entity.ignoreFrustumCheck=true;entity.setPosition(0,0,0);world.loadedEntityList.add(entity);}
             modules=new ModuleManager();SessionInfoRenderCheck.set(Pulsar.INSTANCE,"mm",modules);
             target=(TargetHUD)modules.getModule(TargetHUD.class);array=(ArrayListHUDModule)modules.getModule(ArrayListHUDModule.class);armor=(ArmorHUD)modules.getModule(ArmorHUD.class);session=(SessionInfo)modules.getModule(SessionInfo.class);glow=(GlowESP)modules.getModule(GlowESP.class);
-            for(me.youngjibbit.module.Module module:Arrays.asList(target,array,armor,session,glow,modules.getModule(WatermarkHUDModule.class)))module.setToggled(true);
+            for(me.youngjibbit.module.Module module:Arrays.asList(target,array,armor,session,glow,modules.getModule(WatermarkHUDModule.class),modules.getModule(CustomHotbar.class)))module.setToggled(true);
             array.getBooleanSetting("Show Render").setValue(true);glow.getBooleanSetting("Chests").setValue(false);
             session.getModeSetting("Mode").setValue("Tenacity");SessionInfoRenderCheck.set(session,"x",350f);SessionInfoRenderCheck.set(session,"y",25f);
             SessionInfoRenderCheck.set(armor,"x",370f);SessionInfoRenderCheck.set(armor,"y",200f);
@@ -84,7 +84,7 @@ public final class IngameHudRenderCheck {
             overlay=new GuiIngame(mc);mc.ingameGUI=overlay;mc.currentScreen=null;
             if(Boolean.getBoolean("pulsar.neutron20.hud.check")){Neutron20HudRenderCheck.run();return;}
             if(baseline){for(int i=0;i<4;i++)frame(cow);save("before-cow.png");return;}
-            checkExtraTextureUnits();checkModelState();RotationHudRenderCheck.run();checkTargets();checkCompactHudModes();checkArmor();checkDragging();checkIconsAndMasks();
+            CustomHudRenderCheck.run();checkExtraTextureUnits();checkModelState();LivingLayersRenderCheck.run();RotationHudRenderCheck.run();checkTargets();checkCompactHudModes();checkArmor();checkDragging();checkIconsAndMasks();
             armor.getBooleanSetting("Empty Slots").setValue(true);armor.getBooleanSetting("Held Item").setValue(true);armor.getModeSetting("Layout").setValue("Vertical");
             for(int i=0;i<5;i++)frame(cow);save("after-cow.png");
             mc.thePlayer.inventory.armorInventory[0]=new ItemStack(Items.diamond_boots);mc.thePlayer.inventory.armorInventory[0].setItemDamage(300);

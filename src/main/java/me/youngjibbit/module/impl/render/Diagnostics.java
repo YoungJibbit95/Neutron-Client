@@ -80,7 +80,7 @@ public final class Diagnostics extends Module {
     private List<Panel> cachedPanels;
     private int ping=-1;
     private int captureFailures;
-    private long sampledAt, loggedAt, notifiedAt, lastPaint,runId;
+    private long sampledAt, historyAt, loggedAt, notifiedAt, lastPaint,runId;
     private boolean notified, previousButton;
     private WeakReference<Object> world=new WeakReference<>(null), player=new WeakReference<>(null), connection=new WeakReference<>(null);
 
@@ -101,7 +101,7 @@ public final class Diagnostics extends Module {
         cachedPanels=null;
         if(widgets!=null)for(Widget widget:widgets)widget.syncPosition();
         if(active==this)updateProfiling();
-        if(flagDetector!=null&&!flagDetector.getValue()){corrections.clear();localWarning=null;localWarningRun=warningRuns.incrementAndGet();runId++;}
+        if(flagDetector!=null&&!flagDetector.getValue()){corrections.clear();localWarning=null;localWarningRun=warningRuns.incrementAndGet();notified=false;runId++;}
     }
     private void updateProfiling() {
         boolean requested=performanceWidget.getValue()||consolePerformance.getValue();
@@ -154,7 +154,7 @@ public final class Diagnostics extends Module {
         cachedPanels=null;
         pingHistory.clear();
         for(Widget w:widgets){w.graphSpring.reset();w.graphTail=Float.NaN;}
-        ping=-1;sampledAt=loggedAt=notifiedAt=lastPaint=0;notified=false;
+        ping=-1;sampledAt=historyAt=loggedAt=notifiedAt=lastPaint=0;notified=false;
         world.clear();player.clear();connection.clear();cancelDrag();
     }
     private PacketPipeline pipeline() {return mc.getNetHandler()==null?null:mc.getNetHandler().getNetworkManager().getClientPackets();}
@@ -180,20 +180,24 @@ public final class Diagnostics extends Module {
     });
     public static boolean editing(GuiScreen screen) {return screen instanceof GuiChat||screen instanceof DiagnosticsEditor;}
     private void sample(long now) {
-        if(sampledAt!=0&&now-sampledAt<500_000_000L)return;sampledAt=now;cachedPanels=null;
-        if(RenderTimings.INSTANCE.isEnabled())renderSnapshot=RenderTimings.INSTANCE.sample();
+        if(sampledAt!=0&&now-sampledAt>=0&&now-sampledAt<100_000_000L)return;sampledAt=now;cachedPanels=null;
+        boolean historyDue=historyAt==0||now-historyAt<0||now-historyAt>=500_000_000L;
+        if(historyDue&&RenderTimings.INSTANCE.isEnabled())renderSnapshot=RenderTimings.INSTANCE.sample();
         PacketPipeline pipe=pipeline();
         rotation=mc.thePlayer==null?null:RuntimeServices.rotation().diagnosticSnapshot(mc.thePlayer,mc.theWorld,pipe);
         queue=pipe==null?null:pipe.delays().diagnosticSnapshot();
         NetworkPlayerInfo info=mc.thePlayer==null||mc.getNetHandler()==null?null:mc.getNetHandler().getPlayerInfo(mc.thePlayer.getUniqueID());
         ping=info==null?-1:Math.max(0,info.getResponseTime());
-        // Both displays use this same half-second observation. Preserve missing samples as gaps.
-        if (pingHistory.size() == 60) pingHistory.removeFirst();
-        pingHistory.addLast(ping);
+        // Live labels refresh independently; the 30-second graph keeps its half-second samples.
+        if(historyDue){
+            historyAt=now;
+            if (pingHistory.size() == 60) pingHistory.removeFirst();
+            pingHistory.addLast(ping);
+        }
         List<String> states=new ArrayList<>(), settings=new ArrayList<>();
         if(Pulsar.INSTANCE.getMm()!=null)for(Module module:Pulsar.INSTANCE.getMm().getAllModules())
             if(module.isToggled()&&module.getCategory()==Category.Exploit) {
-                states.add(module.getName()+": "+status(module));
+                states.add(module.getName()+": "+me.youngjibbit.gui.ModulePrefixes.detail(module));
                 if(networkValues.getValue()||consoleValues.getValue())settings.addAll(activeValues(module));
             }
         network=Collections.unmodifiableList(states);values=Collections.unmodifiableList(settings);
@@ -283,10 +287,17 @@ public final class Diagnostics extends Module {
             log("correction",now,"event="+entry.id+" review="+entry.advice);
             if(d.consoleValues.getValue())log("correction-values",now,"event="+entry.id+" "+entry.values);
         }
-        if(entry.possibleSetback&&d.notifications.getValue()&&(!d.notified||now-d.notifiedAt>=d.notificationCooldown.getValue()*1_000_000L)) {
-            d.notified=true;d.notifiedAt=now;
-            NotificationManager.show(new Notification(NotificationType.WARNING,"Possible setback",fmt(distance)+" blocks / "+fmt(angle)+" deg. Cause unconfirmed; see Diagnostics.",4));
+        if(entry.possibleSetback&&d.notifications.getValue()) {
+            Notification notice=Notification.latest("diagnostics.correction."+d.localWarningRun,
+                    NotificationType.WARNING,"Server correction",correctionMessage(distance,angle),4);
+            if(!d.notified||now-d.notifiedAt>=d.notificationCooldown.getValue()*1_000_000L){
+                d.notified=true;d.notifiedAt=now;
+                NotificationManager.show(notice);
+            }else NotificationManager.updateIfPresent(notice);
         }
+    }
+    static String correctionMessage(double distance,float angle){
+        return fmt(distance)+" blocks \u00b7 "+fmt(angle)+"\u00b0\nCause unknown";
     }
     private static double sq(double n){return n*n;}
     public static final class CorrectionProbe {
@@ -317,11 +328,11 @@ public final class Diagnostics extends Module {
             p.graph=renderSnapshot.frameMilliseconds.clone();p.footer="CPU submission; HUD overlaps. GPU unmeasured.";panels.add(p);
         }
         if(rotationWidget.getValue()) {
-            Panel p=new Panel(widgets[1],"Rotation Manager",rotation==null?"NO WORLD":rotation.collecting?"COLLECTING":rotation.accepted&&rotation.owner!=null?"ACTIVE":"IDLE");
+            Panel p=new Panel(widgets[1],"Rotation",rotation==null?"NO WORLD":rotation.collecting?"UPDATING":rotation.accepted&&rotation.owner!=null?"ACTIVE":"IDLE");
             if(rotationUser.getValue()) {
-                p.line("Local owner",rotation==null||!rotation.accepted||rotation.owner==null?"Vanilla / none":rotation.owner);
-                p.line("Camera yaw / pitch",mc.thePlayer==null?"--":fmt(mc.thePlayer.rotationYaw)+" / "+fmt(mc.thePlayer.rotationPitch));
-                p.line("Last wire yaw / pitch",rotation==null||!rotation.hasEffective?"Unknown":fmt(rotation.wireYaw)+" / "+fmt(rotation.wirePitch));
+                p.line("Controlled by",rotation==null||!rotation.accepted||rotation.owner==null?"Camera":rotation.owner);
+                p.line("Camera angles",mc.thePlayer==null?"--":fmt(mc.thePlayer.rotationYaw)+" / "+fmt(mc.thePlayer.rotationPitch));
+                p.line("Last sent angles",rotation==null||!rotation.hasEffective?"No sample":fmt(rotation.wireYaw)+" / "+fmt(rotation.wirePitch));
             }
             if(rotationDeveloper.getValue()&&rotation!=null) {
                 p.line("Sequence / candidates",rotation.sequence+" / "+rotation.contenders);
@@ -330,33 +341,32 @@ public final class Diagnostics extends Module {
                 p.line("Local acceptance / return lease",rotation.accepted+" / "+rotation.returning);
             }
             if(p.lines.isEmpty())p.line("Details hidden in settings","");
-            p.footer="Local transport evidence; server acceptance unknown.";panels.add(p);
+            p.footer="Local observation; server acceptance unknown.";panels.add(p);
         }
         if(networkWidget.getValue()) {
             Panel p=new Panel(widgets[2],"Network",ping<0?"NO PING":ping+" ms");
             p.line("Server-reported ping",ping<0?"Unknown":ping+" ms");
-            p.line("Queued inbound / outbound",queue==null?"--":queue.inbound+" / "+queue.outbound);
-            p.meter("Local hold remaining",queue==null?"--":queue.remainingMs+" ms",queue==null?0:queue.remainingMs/(double)PacketDelays.MAX_DELAY_MS);
-            p.line("Requested delay / oldest",queue==null?"--":queue.configuredMs+" / "+queue.oldestMs+" ms");
-            if(network.isEmpty())p.line("Exploit modules","None active");
+            p.line("Queued in / out",queue==null?"--":queue.inbound+" / "+queue.outbound);
+            p.meter("Hold remaining",queue==null?"--":queue.remainingMs+" ms",queue==null?0:queue.remainingMs/(double)PacketDelays.MAX_DELAY_MS);
+            p.line("Requested / oldest",queue==null?"--":queue.configuredMs+" / "+queue.oldestMs+" ms");
+            if(network.isEmpty())p.line("Modules","None active");
             for(String state:network)p.wrap(state);
             if(networkValues.getValue())for(String v:values)p.wrap(v);
             p.footer="Local hold is not RTT. Ping effect unknown.";panels.add(p);
         }
         if(flagWidget.getValue()) {
             CorrectionHistory.Entry last=corrections.latest();
-            Panel p=new Panel(widgets[3],"Flag Detector",!flagDetector.getValue()?"OFF":last==null?"LISTENING":last.possibleSetback?"CORRECTION":"SYNC");
+            Panel p=new Panel(widgets[3],"Corrections",!flagDetector.getValue()?"OFF":last==null?"LISTENING":last.possibleSetback?"CORRECTION":"SYNC");
             if(!flagDetector.getValue())p.line("Enable Flag Detector in settings","");
             else if(last==null){p.line("No corrections observed","");p.line("Server flags require server logs","");}
             else {
                 p.line(last.kind(),"#"+last.id);
-                p.line("Displacement / rotation",fmt(last.distance)+" blocks / "+fmt(last.angle)+" deg");
+                p.line("Moved / turned",fmt(last.distance)+" blocks / "+fmt(last.angle)+"\u00b0");
                 p.line("Observed",Math.max(0,(System.nanoTime()-last.nanos)/1_000_000_000L)+"s ago");
-                p.wrap("Context (unconfirmed): "+last.context);
-                if(flagDeveloper.getValue()){p.wrap(last.advice);p.wrap("Values at correction: "+last.values);p.line("Capture failures",Integer.toString(captureFailures));}
+                if(flagDeveloper.getValue()){p.wrap("Context (unconfirmed): "+last.context);p.wrap(last.advice);p.wrap("Values at correction: "+last.values);p.line("Capture failures",Integer.toString(captureFailures));}
                 if(flagDeveloper.getValue())for(CorrectionHistory.Entry entry:corrections.snapshot())if(entry!=last)p.line("#"+entry.id+" "+entry.kind(),fmt(entry.distance)+" blocks");
             }
-            p.footer="Observed S08; cause and server check unconfirmed.";panels.add(p);
+            p.footer="Server correction; cause unknown.";panels.add(p);
         }
         cachedPanels=panels;return panels;
     }
@@ -364,35 +374,32 @@ public final class Diagnostics extends Module {
         List<Panel> panels = new ArrayList<>(4);
         if (performanceWidget.getValue()) {
             double[] frames = renderSnapshot.frameMilliseconds;
-            double[] display=DiagnosticsPlots.easedTail(frames,widgets[0].graphTail);
             // Labels report the observed sample; only the trace is a presentation transition.
             String latest = frames.length == 0 || !graphSampleValid(frames[frames.length-1])
                     ? "No samples" : fmt(frames[frames.length-1]) + " ms";
             Panel p = new Panel(widgets[0], "Frame interval", latest);
-            p.plot = (theme, font, ink) -> DiagnosticsPlots.series(display, 16.7, theme, font, ink, "Frames");
+            p.plot = (theme, font, ink) -> DiagnosticsPlots.series(DiagnosticsPlots.easedTail(frames,widgets[0].graphTail), 16.7, theme, font, ink, "Frames");
             panels.add(p);
         }
         if (rotationWidget.getValue()) {
             boolean available = rotation != null && rotation.hasEffective;
             float yaw = available ? rotation.wireYaw : Float.NaN;
             float pitch = available ? rotation.wirePitch : Float.NaN;
-            Panel p = new Panel(widgets[1], "Wire rotation", available ? Math.round(yaw) + "\u00b0 / " + Math.round(pitch) + "\u00b0" : "No sample");
+            Panel p = new Panel(widgets[1], "Last sent rotation", available ? Math.round(yaw) + "\u00b0 / " + Math.round(pitch) + "\u00b0" : "No sample");
             p.plot = (theme, font, ink) -> DiagnosticsPlots.direction(yaw, pitch, theme, font, ink);
             panels.add(p);
         }
         if (networkWidget.getValue()) {
             double[] samples = pingHistory.stream().mapToDouble(Integer::doubleValue).toArray();
-            double[] display=DiagnosticsPlots.easedTail(samples,widgets[2].graphTail);
             Panel p = new Panel(widgets[2], "Reported ping", ping < 0 ? "No sample" : ping + " ms");
-            p.plot = (theme, font, ink) -> DiagnosticsPlots.series(display, 50, theme, font, ink, "Samples");
+            p.plot = (theme, font, ink) -> DiagnosticsPlots.series(DiagnosticsPlots.easedTail(samples,widgets[2].graphTail), 50, theme, font, ink, "Samples");
             panels.add(p);
         }
         if (flagWidget.getValue()) {
             List<CorrectionHistory.Entry> entries = corrections.snapshot();
-            long now = System.nanoTime();
             boolean enabled = flagDetector.getValue();
             Panel p = new Panel(widgets[3], "Corrections", enabled ? "Last 30 s" : "Detector off");
-            p.plot = (theme, font, ink) -> DiagnosticsPlots.timeline(entries, now, theme, font, ink);
+            p.plot = (theme, font, ink) -> DiagnosticsPlots.timeline(entries, System.nanoTime(), theme, font, ink);
             panels.add(p);
         }
         return panels;

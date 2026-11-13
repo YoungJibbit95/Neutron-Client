@@ -54,20 +54,20 @@ public class Wave07CompactHudModeTest {
         ArrayListHUDModule hud=new ArrayListHUDModule();
         Dummy module=new Dummy();
         ComboValue mode=hud.getModeSetting("Mode");
-        Method getLabel=ArrayListHUDModule.class.getDeclaredMethod("getLabel",Module.class);
+        Method getLabel=ArrayListHUDModule.class.getDeclaredMethod("getLabel",Module.class,String.class);
         getLabel.setAccessible(true);
         Method pad=ArrayListHUDModule.class.getDeclaredMethod("pad",SliderValue.class);
         pad.setAccessible(true);
         SliderValue spacing=hud.getNumberSetting("Row Spacing");
         SliderValue left=hud.getNumberSetting("Container Padding Left");
-        assertEquals("| Visual Test",getLabel.invoke(hud,module));
+        assertEquals("| Visual Test",getLabel.invoke(hud,module,""));
         assertEquals(8f,(Float)pad.invoke(hud,spacing),0);
         ThemeMode.select(ThemeMode.APPROACH_TWO);
-        assertEquals("| Visual Test",getLabel.invoke(hud,module));
+        assertEquals("| Visual Test",getLabel.invoke(hud,module,""));
         assertEquals(8f,(Float)pad.invoke(hud,spacing),0);
         assertArrayEquals(new String[]{"Glass","Compact","BasicV2","Basic","Rounded","None","Modern","Creative"},mode.getOptions());
         mode.setValue("Modern");
-        assertEquals("Visual Test",getLabel.invoke(hud,module));
+        assertEquals("Visual Test",getLabel.invoke(hud,module,""));
         assertEquals(5f,(Float)pad.invoke(hud,spacing),0);
         assertEquals(10f,(Float)pad.invoke(hud,left),0);
         mode.setValue("Glass");
@@ -75,7 +75,7 @@ public class Wave07CompactHudModeTest {
         assertEquals(0,mode.getSelectedIndex());
         assertEquals(1d,hud.getNumberSetting("Scale").getValue(),0);
         ThemeMode.select(ThemeMode.LEGACY);
-        assertEquals("| Visual Test",getLabel.invoke(hud,module));
+        assertEquals("| Visual Test",getLabel.invoke(hud,module,""));
         assertEquals(8f,(Float)pad.invoke(hud,spacing),0);
     }
 

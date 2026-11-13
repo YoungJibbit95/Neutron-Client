@@ -149,7 +149,7 @@ public enum Pulsar implements Subscriber {
         }
 
         // Defaults apply only on first use; a saved disabled state must win on restart.
-        configManager.initialize(java.util.Arrays.asList("hud", "arraylist_hud", "watermark_hud", "fast_place", "fullbright", "sprint"));
+        configManager.initialize(java.util.Arrays.asList("hud", "arraylist_hud", "watermark_hud", "custom_scoreboard", "custom_hotbar", "fast_place", "fullbright", "sprint"));
     }
 
     public void updateCurrentTheme(Theme newTheme) {

@@ -14,6 +14,8 @@ import me.youngjibbit.module.impl.combat.Aura;
 import me.youngjibbit.module.impl.render.TargetESP;
 import me.youngjibbit.module.impl.world.NScaffold;
 import me.youngjibbit.utils.render.TargetEspRenderer;
+import me.youngjibbit.utils.render.TargetEspPositionMotion;
+import me.youngjibbit.utils.render.UiEffects;
 import net.minecraft.client.entity.EntityOtherPlayerMP;
 import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.entity.Entity;
@@ -180,6 +182,31 @@ public class TargetEspLifecycleTest {
             r.accept("scaffold",90);before=r.snapshot();r.draw();
             assertTrue(r.frame.marker);assertEquals(-6,r.frame.markerX,.0002);assertEquals(0,r.frame.markerZ,.0002);
             assertEquals(2,r.scene.blockReads);sameSnapshot(before,r.snapshot());
+            assertNull(r.f.channel.readOutbound());
+        }
+    }
+
+    @Test public void presentationFollowsGameFramesWhileHiddenHudDecorationTimeStandsStill()throws Exception {
+        try(Run r=new Run()) {
+            float decorationTime=UiEffects.time();
+            r.prime("scaffold");r.accept("scaffold",0);
+            ScaffoldClientFlowTest.set(net.minecraft.client.Minecraft.class,r.f.mc,"renderFrameSequence",1L);
+            r.draw();assertTrue(r.frame.markerInterpolated);assertEquals(0,r.frame.displayMarkerX,.0002);
+            Object position=field(TargetESP.class,r.visual,"markerPosition");
+            r.accept("scaffold",10);
+            ScaffoldClientFlowTest.set(TargetEspPositionMotion.class,position,"previous",System.nanoTime()-16_000_000L);
+            ScaffoldClientFlowTest.set(net.minecraft.client.Minecraft.class,r.f.mc,"renderFrameSequence",2L);
+            r.draw();
+            double first=r.frame.displayMarkerX;
+            assertTrue("a new game frame must move presentation while the HUD clock is frozen",first<0&&first>r.frame.markerX);
+            assertEquals(decorationTime,UiEffects.time(),0);
+            // A second eye sees the same presentation even if a newer observation is available.
+            r.accept("scaffold",20);RotationManager.DiagnosticSnapshot before=r.snapshot();r.draw();
+            assertEquals(first,r.frame.displayMarkerX,0);sameSnapshot(before,r.snapshot());
+            ScaffoldClientFlowTest.set(TargetEspPositionMotion.class,position,"previous",System.nanoTime()-16_000_000L);
+            ScaffoldClientFlowTest.set(net.minecraft.client.Minecraft.class,r.f.mc,"renderFrameSequence",3L);
+            r.draw();assertTrue(r.frame.displayMarkerX<first&&r.frame.displayMarkerX>r.frame.markerX);
+            assertEquals(decorationTime,UiEffects.time(),0);sameSnapshot(before,r.snapshot());
             assertNull(r.f.channel.readOutbound());
         }
     }
