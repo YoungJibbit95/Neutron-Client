@@ -22,11 +22,14 @@ public final class JavaFxRuntimeProbe {
             platform.getMethod("setImplicitExit", boolean.class).invoke(null, false);
             for (int i = 0; i < 3; i++) {
                 AtomicReference<Object> engine = new AtomicReference<>();
+                CompletableFuture<String> redirects = new CompletableFuture<>();
                 CountDownLatch created = new CountDownLatch(1);
                 runLater(() -> {
                     try {
                         Object view = Class.forName("javafx.scene.web.WebView").newInstance();
                         Object web = view.getClass().getMethod("getEngine").invoke(view); engine.set(web);
+                        Object location = web.getClass().getMethod("locationProperty").invoke(web);
+                        OpenAuthBrowserAuth.watchDesktopRedirects(location, redirects);
                         web.getClass().getMethod("loadContent", String.class).invoke(web, "<html><body>Neutron local probe</body></html>");
                     } catch (Throwable error) { failure.set(error); }
                     finally { created.countDown(); }
@@ -43,6 +46,7 @@ public final class JavaFxRuntimeProbe {
                             Object answer = web.getClass().getMethod("executeScript", String.class).invoke(web, "6*7");
                             Object body = web.getClass().getMethod("executeScript", String.class).invoke(web, "document.body.textContent");
                             if (!"42".equals(answer.toString()) || !"Neutron local probe".equals(body)) throw new AssertionError("WebKit result");
+                            if (redirects.isDone()) throw new AssertionError("Local HTML completed a Microsoft callback");
                             web.getClass().getMethod("load", String.class).invoke(web, new Object[]{null});
                             check.complete(true);
                         } catch (Throwable error) { check.completeExceptionally(error); }
@@ -52,8 +56,25 @@ public final class JavaFxRuntimeProbe {
                 }
                 if (!success) throw new AssertionError("Local HTML did not load");
             }
+            CompletableFuture<Boolean> callbackProbe = new CompletableFuture<>();
+            runLater(() -> {
+                try {
+                    Class<?> propertyType = Class.forName("javafx.beans.property.SimpleStringProperty");
+                    Object location = propertyType.newInstance();
+                    CompletableFuture<String> callback = new CompletableFuture<>();
+                    OpenAuthBrowserAuth.watchDesktopRedirects(location, callback);
+                    propertyType.getMethod("set", String.class).invoke(location, "https://login.live.com/oauth20_authorize.srf");
+                    if (callback.isDone()) throw new AssertionError("Intermediate login location completed the callback");
+                    String denial = "https://login.live.com/oauth20_desktop.srf?lc=1033#state=synthetic&error=access_denied";
+                    propertyType.getMethod("set", String.class).invoke(location, denial);
+                    if (!callback.isDone() || !denial.equals(callback.getNow(null)))
+                        throw new AssertionError("JavaFX denial location did not complete the callback");
+                    callbackProbe.complete(true);
+                } catch (Throwable error) { callbackProbe.completeExceptionally(error); }
+            });
+            callbackProbe.get(5, TimeUnit.SECONDS);
             JavaFxRuntime.load(); // Reusing the loaded SDK must remain safe.
-            System.out.println("JAVAFX8_WEBVIEW_OK: three local HTML/JS loads; no visible windows, no account/network access");
+            System.out.println("JAVAFX8_WEBVIEW_OK: three local HTML/JS loads and real JavaFX redirect-listener probe; no visible windows, no account/network access");
             platform.getMethod("exit").invoke(null);
             System.exit(0);
         } catch (Throwable error) { error.printStackTrace(); System.exit(1); }

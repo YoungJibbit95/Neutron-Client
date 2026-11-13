@@ -135,7 +135,7 @@ public final class TargetESP extends Module {
             double x=target.lastTickPosX+(target.posX-target.lastTickPosX)*partial;
             double y=target.lastTickPosY+(target.posY-target.lastTickPosY)*partial;
             double z=target.lastTickPosZ+(target.posZ-target.lastTickPosZ)*partial;
-            motion.sample(scene.world,target,now,time,x,z,animate,haloMotion.getValue().floatValue());
+            motion.sample(scene.world,target,now,renderFrame,x,z,animate,haloMotion.getValue().floatValue());
             frame.halo=haloPosition.sample(scene.world,target,now,renderFrame,x,y,z,animate,haloMotion.getValue().floatValue()*.35f);
             frame.x=haloPosition.x();frame.y=haloPosition.y()+bounds.minY-target.posY;frame.z=haloPosition.z();
             frame.radiusX=Math.max(.12,(bounds.maxX-bounds.minX)/2)+haloRadius.getValue();

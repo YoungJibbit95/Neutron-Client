@@ -22,23 +22,31 @@ public final class NotificationManager {
     private static boolean islandRoute;
     private NotificationManager(){}
     public static void show(Notification notification){
-        enqueue(notification,false);
+        enqueue(notification,false,1);
     }
     /** Refresh a visible/pending live card during a producer's cooldown; never start or prolong one. */
     public static void updateIfPresent(Notification notification){
-        if(notification!=null&&notification.replaces())enqueue(notification,true);
+        if(notification!=null&&notification.replaces())enqueue(notification,true,1);
     }
-    private static void enqueue(Notification notification,boolean updateOnly){
+    /** A current state is one card, not a count of its observations or transitions. */
+    public static void showState(Notification notification){
+        if(notification!=null&&notification.replaces())enqueue(notification,false,0);
+    }
+    /** Refresh current state without a new occurrence, card or display-time extension. */
+    public static void refreshStateIfPresent(Notification notification){
+        if(notification!=null&&notification.replaces())enqueue(notification,true,0);
+    }
+    private static void enqueue(Notification notification,boolean updateOnly,int occurrences){
         if(notification==null)return;
         synchronized(inbox){
             for(Message message:inbox)if(message.notification.key().equals(notification.key())){
-                message.count=Math.min(999,message.count+1);
+                message.count=Math.min(999,message.count+occurrences);
                 if(notification.replaces())message.notification=notification;
                 message.updateOnly&=updateOnly;
                 return;
             }
             if(inbox.size()==64){if(updateOnly)return;inbox.removeFirst();}
-            inbox.addLast(new Message(notification,updateOnly));
+            inbox.addLast(new Message(notification,updateOnly,occurrences));
         }
     }
     public static void success(String title,String message){show(new Notification(NotificationType.SUCCESS,title,message,0));}
@@ -157,14 +165,15 @@ public final class NotificationManager {
     }
 
     static final class Message {
-        Notification notification;int count=1;boolean updateOnly;
+        Notification notification;int count;boolean updateOnly;
         Message(Notification n){this(n,false);}
-        Message(Notification n,boolean updateOnly){notification=n;this.updateOnly=updateOnly;}
+        Message(Notification n,boolean updateOnly){this(n,updateOnly,1);}
+        Message(Notification n,boolean updateOnly,int count){notification=n;this.updateOnly=updateOnly;this.count=count;}
     }
     static final class Entry {
         Notification notification;int count;long started,expires;float alpha,y=Float.NaN;Layout layout;float layoutWidth,layoutHeight;int layoutCount;
         long id,parkedRemaining=-1;
-        Entry(Message m){notification=m.notification;count=m.count;}
+        Entry(Message m){notification=m.notification;count=Math.max(1,m.count);}
     }
     /** Pure monotonic-time lifecycle, independently testable without Minecraft or OpenGL. */
     static final class Timeline {

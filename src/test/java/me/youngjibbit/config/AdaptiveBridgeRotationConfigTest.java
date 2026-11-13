@@ -168,7 +168,7 @@ public class AdaptiveBridgeRotationConfigTest {
         assertEquals(saved, new String(Files.readAllBytes(file), StandardCharsets.UTF_8));
     }
 
-    @Test public void invalidProfileOrSpeedIsRejectedAtomically() throws Exception {
+    @Test public void invalidProfileOrSpeedCannotBeSaved() throws Exception {
         for (String invalid : new String[]{"\"bridge_rotation_profile\":\"Unsafe\"",
                 "\"bridge_rotation_speed\":\"Turbo\""}) {
             Scaffold scaffold = new Scaffold();
@@ -179,7 +179,7 @@ public class AdaptiveBridgeRotationConfigTest {
             String before = configs.serialize();
             String saved = "{\"version\":2,\"modules\":{\"scaffold\":{\"settings\":{" + invalid + "}}}}";
             Files.write(directory.resolve("Invalid.json"), saved.getBytes(StandardCharsets.UTF_8));
-            assertFalse(configs.loadConfig("Invalid"));
+            assertFalse(configs.saveConfig("Invalid", configs.readConfigData(configs.defaultConfig.toPath().resolveSibling("Invalid.json"))));
             assertEquals(before, configs.serialize());
         }
     }

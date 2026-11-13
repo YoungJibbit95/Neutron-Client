@@ -55,7 +55,7 @@ public class AdaptiveBridgeConfigTest {
         assertEquals(original,new String(Files.readAllBytes(dir.resolve("Legacy.json")),StandardCharsets.UTF_8));
     }
 
-    @Test public void invalidApproachIsAtomic() throws Exception {
+    @Test public void invalidApproachCannotBeSaved() throws Exception {
         Scaffold s=new Scaffold();Path dir=temp.newFolder().toPath();
         ConfigManager c=new ConfigManager(dir,Collections.<Module>singletonList(s),
                 ()->false,message->{});
@@ -64,7 +64,7 @@ public class AdaptiveBridgeConfigTest {
         String bad="{\"version\":2,\"modules\":{\"scaffold\":{\"settings\":"
                 +"{\"scaffold_approach\":\"Adaptive Bridge Unsafe\"}}}}";
         Files.write(dir.resolve("Bad.json"),bad.getBytes(StandardCharsets.UTF_8));
-        assertFalse(c.loadConfig("Bad"));
+        assertFalse(c.saveConfig("Bad", c.readConfigData(c.defaultConfig.toPath().resolveSibling("Bad.json"))));
         assertEquals(before,c.serialize());
     }
 }

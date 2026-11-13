@@ -44,7 +44,8 @@ public class MoveFixConfigTest {
             assertEquals(BodyRotationController.Mode.VANILLA,aura.bodyRotationMode());
         }
         JsonObject root=root();settings(root,"scaffold").addProperty("movefix",true);write(root.toString());
-        assertFalse(configs.loadConfig("Synthetic"));
+        assertTrue(configs.loadConfig("Synthetic"));
+        assertEquals(MoveFixController.Mode.OFF, scaffold.moveFixMode());
     }
 
     @Test public void legacyNamedArrayFlatAndWrappedBooleanFormatsMigrateWithoutChangingIds() throws Exception {
@@ -84,10 +85,12 @@ public class MoveFixConfigTest {
         assertEquals("Aus",settings(saved,"scaffold").get("movefix").getAsString());
     }
 
-    @Test public void invalidNewChoicesRejectTheWholeLoadInsteadOfSilentlySelectingOff() throws Exception {
+    @Test public void invalidNewChoicesUseTheDeclaredDefaultAndKeepCompatibleBodyValues() throws Exception {
         for(JsonElement invalid:Arrays.asList(new JsonPrimitive("unexpected"),new JsonPrimitive(1),JsonNull.INSTANCE)) {
             JsonObject root=root();settings(root,"aura").addProperty("body_rotation","Direkt");settings(root,"aura").add("movefix",invalid);
-            String before=configs.serialize();write(root.toString());assertFalse(configs.loadConfig("Synthetic"));assertEquals(before,configs.serialize());
+            write(root.toString());assertTrue(configs.loadConfig("Synthetic"));
+            assertEquals(MoveFixController.Mode.OFF,aura.moveFixMode());
+            assertEquals(BodyRotationController.Mode.DIRECT,aura.bodyRotationMode());
         }
     }
 

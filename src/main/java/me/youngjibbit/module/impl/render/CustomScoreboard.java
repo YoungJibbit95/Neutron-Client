@@ -203,7 +203,7 @@ public final class CustomScoreboard extends Module {
         if (dragging) {
             HudPlacement.Point point = HudPlacement.clamp(HUD.snap(mouseX - grabX), HUD.snap(mouseY - grabY),
                     screenWidth, screenHeight, frame.screenWidth(), frame.screenHeight(),
-                    HUD.bounded() || mc.currentScreen instanceof DiagnosticsEditor);
+                    HUD.bounded() || editing);
             frame.x = point.x;
             frame.y = point.y;
             positionX.setValue((double) frame.x);

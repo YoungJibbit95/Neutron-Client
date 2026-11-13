@@ -38,6 +38,13 @@ Die beobachtete Punktposition bleibt exakt. Davon getrennt gleitet die **Darstel
 
 Nach dem Einschalten oder einem Kontextwechsel wartet die Anzeige auf frische Bewegungsdaten. Fehlt der gültige Besitzer oder schreitet dessen Bewegungssequenz länger als 250 ms nicht fort, wird kein alter Punkt weiter angezeigt. Menüs, Pause, Fokusverlust und ungültige Spieler-/Weltszenen können die Darstellung ebenfalls aussetzen.
 
+Die federnde Halo-Neigung verwendet ebenfalls die Minecraft-Rendersequenz. Sie folgt
+dem Ziel auch bei mit F1 ausgeblendetem HUD, während zwei Augen desselben Frames
+denselben Bewegungswert erhalten. Bei niedriger Framerate wird die vollständige
+verstrichene Zeit bis zur Pausengrenze in begrenzten Federschritten verarbeitet;
+die Bewegung wird dadurch nicht künstlich langsamer. Die gemeinsame dekorative
+Animationszeit bleibt für die Gestaltung zuständig.
+
 ### Appearance
 
 | Einstellung | Wirkung |

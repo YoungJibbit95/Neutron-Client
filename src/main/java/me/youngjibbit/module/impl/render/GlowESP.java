@@ -28,7 +28,6 @@ import me.youngjibbit.value.impl.SliderValue;
 import me.zero.alpine.listener.Listener;
 import me.zero.alpine.listener.Subscribe;
 import net.minecraft.client.gui.ScaledResolution;
-import net.minecraft.client.network.NetworkPlayerInfo;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.ActiveRenderInfo;
 import net.minecraft.client.shader.Framebuffer;
@@ -38,8 +37,6 @@ import net.minecraft.entity.monster.EntityMob;
 import net.minecraft.entity.passive.EntityAnimal;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.tileentity.TileEntityChest;
-import net.minecraft.util.ResourceLocation;
-import org.apache.commons.lang3.tuple.Pair;
 import org.lwjgl.BufferUtils;
 import org.lwjgl.opengl.GL11;
 import org.lwjgl.opengl.GL13;
@@ -105,7 +102,6 @@ public class GlowESP extends Module
     private float cachedGaussianRadius = Float.NaN;
 
     Theme currentTheme = applyTheme();
-    int[] outlineColors = getStaticOutlineGradientColors(currentTheme);
 
     public Theme applyTheme() {
         return Theme.resolve(Pulsar.INSTANCE.getDefaultTheme());
@@ -220,7 +216,6 @@ public class GlowESP extends Module
             me.youngjibbit.utils.render.RenderState state=new me.youngjibbit.utils.render.RenderState()){
 
         currentTheme = Theme.resolve(Theme.getDefaultTheme());
-        outlineColors = getStaticOutlineGradientColors(currentTheme);
         createFrameBuffers();
         collectEntities();
 
@@ -492,8 +487,6 @@ public class GlowESP extends Module
     private Color getColor(Object entity) {
         Color color = Color.WHITE;
         Theme resolvedTheme = Theme.resolve(currentTheme);
-        Color themeColor1 = resolvedTheme.getPrimaryGradientColor();
-        Color themeColor2 = resolvedTheme.getSecondaryGradientColor();
         switch (colorMode.getValue()) {
             case "Custom":
                 if (entity instanceof EntityPlayer) {
@@ -565,12 +558,6 @@ public class GlowESP extends Module
                 entities.add(entity);
             }
         }
-    }
-
-    private int[] getStaticOutlineGradientColors(Theme theme)
-    {
-        Theme resolvedTheme = Theme.resolve(theme);
-        return new int[]{resolvedTheme.getPrimaryGradientRGB(), resolvedTheme.getSecondaryGradientRGB()};
     }
 
 }

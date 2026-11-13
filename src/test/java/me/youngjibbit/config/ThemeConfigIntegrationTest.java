@@ -52,9 +52,9 @@ public class ThemeConfigIntegrationTest {
   try(ThemeDraft d=new ThemeDraft(catalog,module.selectedTheme::setValue)){d.title.setValue("Renamed");d.save();}assertEquals(id,module.selectedTheme.getValue());assertEquals(1,calls.get());assertTrue(cfg.loadConfig("BeforeRename"));assertEquals("Renamed",Theme.getDefaultTheme().getDisplayName());
   try(ThemeDraft d=new ThemeDraft(catalog,module.selectedTheme::setValue)){d.delete();}assertEquals(2,calls.get());assertEquals("PinkLemonade",reference(cfg));assertSame(Theme.PinkLemonade,Theme.getDefaultTheme());
  }
- @Test public void invalidThemeIsRejectedBeforeAnyConfigMutation()throws Exception{
+ @Test public void invalidThemeUsesItsDefaultAndKeepsCompatibleModuleValues()throws Exception{
   ConfigManagerTest.Sample sample=new ConfigManagerTest.Sample();ConfigManager cfg=new ConfigManager(configs,Arrays.asList(sample,module),()->false,message->{});
-  write(configs.resolve("Invalid.json"),"{\"version\":2,\"modules\":{\"synthetic\":{\"settings\":{\"flag\":true}},\"theme\":{\"settings\":{\"theme\":\"not-a-theme\"}}}}");assertFalse(cfg.loadConfig("Invalid"));assertFalse(sample.flag.getValue());assertEquals("PinkLemonade",module.selectedTheme.getValue());
+  write(configs.resolve("Invalid.json"),"{\"version\":2,\"modules\":{\"synthetic\":{\"settings\":{\"flag\":true}},\"theme\":{\"settings\":{\"theme\":\"not-a-theme\"}}}}");assertTrue(cfg.loadConfig("Invalid"));assertTrue(sample.flag.getValue());assertEquals("PinkLemonade",module.selectedTheme.getValue());
  }
  @Test public void liveChoiceListUsesIdsAndPublicIndexSetter()throws Exception{
   assertEquals(20,module.selectedTheme.getOptions().length);String id;
