@@ -112,6 +112,8 @@ public final class NScaffold extends Module {
     private PlaceData data;
     private NScaffoldRaycast.Plan rayPlan;
     private Vec3 planningEyes;
+    private float[] rotationTarget;
+    private NScaffoldRaycast.Plan rotationSupport;
     private boolean isOnRightSide, clutching, startClutch, spoofing, shaderCalled;
     private float yaw, pitch, initialYaw, initialPitch;
     private final DemiseScaffoldMovement movement = new DemiseScaffoldMovement();
@@ -201,6 +203,7 @@ public final class NScaffold extends Module {
     private boolean usesRayTrace() { return rayTrace.getValue() || is(placementMode, "Legit"); }
     private void resetPlacementPlan() {
         data = null; rayPlan = null; planningEyes = null;
+        rotationTarget = null; rotationSupport = null;
         cadenceScope = null;
         if (cadence != null) cadence.reset();
         if (rotationEngine != null) rotationEngine.resetFrameObservation();
@@ -217,7 +220,7 @@ public final class NScaffold extends Module {
         if (!currentGeneration(current, angleGeneration) || !scopeCurrent(current)) return;
         p.inventory.currentItem = selectedSlot;
         spoofing = true;
-        data = null; rayPlan = null;
+        data = null; rayPlan = null; planningEyes = null;
         if (p.onGround) onGroundY = p.getEntityBoundingBox().minY;
         double posY = p.getEntityBoundingBox().minY;
         if (keepY.getValue() || speedKeepY.getValue() && speedEnabled() && !c.gameSettings.keyBindJump.isKeyDown()) posY = onGroundY;
@@ -240,7 +243,11 @@ public final class NScaffold extends Module {
         }
         if (tower.isVisible() && (!is(tower, "Jump") && towering() || !is(towerMove, "Jump") && towerMoving()))
             blocksPlacedJump = blocksPlacedSneak = 0;
-        if (data == null) { status = Status.SEARCHING; publishActivity(); return; }
+        if (data == null) {
+            retainRotation(current, angleGeneration);
+            if (!currentGeneration(current, angleGeneration) || !scopeCurrent(current)) return;
+            status = Status.SEARCHING; publishActivity(); return;
+        }
         final PlaceData aiming = data;
         if (c.entityRenderer != null) c.entityRenderer.getMouseOver(1);
         if (generation != angleGeneration || !isToggled() || !scopeCurrent(current) || data != aiming) return;
@@ -308,9 +315,39 @@ public final class NScaffold extends Module {
                     new float[]{clutching ? yaw : initialYaw, clutching ? pitch : initialPitch}, settings);
             if (requested == null || !aimingCurrent(current, angleGeneration, aiming)) return;
             rotationEngine.setRotation(requested, settings);
+            rotationTarget = requested.clone();
+            rotationSupport = rayPlan;
             status = clutching ? Status.CLUTCHING : Status.ALIGNING;
         } else status = Status.TELLY_WAIT;
         publishActivity();
+    }
+
+    /** Demise refreshes its last target even while the destination is already occupied. */
+    private void retainRotation(Scope current, long expected) {
+        final float[] retained = rotationTarget;
+        final NScaffoldRaycast.Plan support = rotationSupport;
+        if (!usesRayTrace() || retained == null
+                || is(mode, "Telly") && current.player.offGroundTicks < tellyTicks) return;
+        final EntityPlayerSP p = current.player;
+        final BlockPos feet = targetBlock;
+        final net.minecraft.client.multiplayer.PlayerControllerMP controller = current.client.playerController;
+        final double x = p.posX, y = p.posY, z = p.posZ;
+        final AxisAlignedBB body = p.getEntityBoundingBox();
+        final float eyeHeight = p.getEyeHeight();
+        BooleanSupplier valid = () -> currentGeneration(current, expected) && scopeCurrent(current)
+                && currentGeneration(current, expected) && rotationTarget == retained && rotationSupport == support
+                && data == null && rayPlan == null && targetBlock == feet
+                && current.client.playerController == controller && p.posX == x && p.posY == y && p.posZ == z
+                && p.getEntityBoundingBox() == body && p.getEyeHeight() == eyeHeight
+                && !auraTarget() && (!is(mode, "Telly") || p.offGroundTicks >= tellyTicks)
+                && currentGeneration(current, expected) && rotationTarget == retained && data == null && rayPlan == null;
+        if (!valid.getAsBoolean()) return;
+        if (NScaffoldRaycast.hasRotationSupport(current.world, new Vec3(x, y + eyeHeight, z), feet,
+                support, controller.getBlockReachDistance(), valid) && valid.getAsBoolean()) {
+            // Keep the requested endpoint, not the interpolated current pose: smoothing must continue.
+            // This refresh grants no placement plan, packet or click permission.
+            rotationEngine.setRotation(retained.clone(), rotationSettings.snapshot());
+        }
     }
     /** A real target can lie inside Demise's integer deadband while the current ray still misses. */
     private float[] placementRotationTarget(Scope current, long expected, PlaceData target, float[] requested,
@@ -380,27 +417,33 @@ public final class NScaffold extends Module {
                 && p.posX == originX && p.posY == originY && p.posZ == originZ && p.getEntityBoundingBox() == body
                 && currentGeneration(current, planGeneration);
         Vec3 eyes = p.getPositionEyes(1);
+        // Forecast the intended step even when the physical edge guard currently holds it.
+        // Clamping this vector to the already supported path would starve the next target.
         Vec3 motion = predictedMotion(p);
-        if (!valid.getAsBoolean()) return;
-        if (guardGround(p) && !physicalJump() && !p.movementInput.jump) {
-            NScaffoldEdgeGuard.Result limit = NScaffoldEdgeGuard.limit(current.world, p, motion.xCoord, 0, motion.zCoord, valid);
-            if (limit.active) motion = new Vec3(limit.x, 0, limit.z);
-        }
         if (!valid.getAsBoolean()) return;
         float[] preferred = rotationEngine.shouldRotate() ? rotationEngine.rotation()
                 : new float[]{p.rotationYaw, p.rotationPitch};
         net.minecraft.client.settings.GameSettings keys = current.client.gameSettings;
-        if (!is(mode, "Breezily") && is(rotations, "Normal")
-                && (keys.keyBindForward.isKeyDown() != keys.keyBindBack.isKeyDown()
-                || keys.keyBindLeft.isKeyDown() != keys.keyBindRight.isKeyDown())) {
+        boolean walking = keys.keyBindForward.isKeyDown() != keys.keyBindBack.isKeyDown()
+                || keys.keyBindLeft.isKeyDown() != keys.keyBindRight.isKeyDown();
+        if (!is(mode, "Breezily") && is(rotations, "Normal") && walking) {
             // Align the preferred ray with the intended path instead of retaining the first
             // oblique acquisition angle and feeding its sideways drift back into discrete MoveFix.
             preferred[0] = movement.keyYaw(p, keys) - 180;
+            // Do not lower the endpoint to the still-interpolating pitch while yaw is
+            // catching up. That turns a good interior aim into a grazing top-edge hit.
+            if (rotationTarget != null) preferred[1] = MathHelper.clamp_float(rotationTarget[1], -90, 90);
         }
         double reach = client().playerController.getBlockReachDistance();
         double margin = strictRayTrace.getValue() ? .01 : 0;
         if (!current.world.isBlockLoaded(feet) || !valid.getAsBoolean()) return;
         boolean underfootEmpty = current.world.getBlockState(feet).getBlock().getMaterial().isReplaceable();
+        if (!valid.getAsBoolean()) return;
+        Vec3 supportedMotion = motion;
+        if (underfootEmpty && guardGround(p) && !physicalJump() && !p.movementInput.jump) {
+            NScaffoldEdgeGuard.Result limit = NScaffoldEdgeGuard.limit(current.world, p, motion.xCoord, 0, motion.zCoord, valid);
+            if (limit.active) supportedMotion = new Vec3(limit.x, 0, limit.z);
+        }
         if (!valid.getAsBoolean()) return;
         BlockPos wanted = feet;
         double length = Math.hypot(motion.xCoord, motion.zCoord);
@@ -424,20 +467,40 @@ public final class NScaffold extends Module {
         // Keep the early aim through the plane crossing instead of pitching nearly vertical
         // for one frame and then undoing that turn at the supported overhang.
         double advance = Math.max(length, preview);
-        planningEyes = length > 1.0E-5
-                ? eyes.addVector(motion.xCoord / length * advance, 0, motion.zCoord / length * advance) : eyes;
-        NScaffoldRaycast.Plan plan = NScaffoldRaycast.find(p, planningEyes, wanted, previousBlock,
-                preferred[0], preferred[1], reach, valid, margin);
-        if (!underfootEmpty && plan != null && !wanted.equals(plan.destination)) plan = null;
+        // Once the foot cell is empty, aim from the next physically reachable walking pose.
+        // A stopped player cannot reach an unguarded forecast; tiny local motion may also
+        // leave vanilla's reported position unchanged. Reuse its actual reporting decision.
+        planningEyes = underfootEmpty
+                ? p.getPlannedMovementPosition(originX + supportedMotion.xCoord, body.minY,
+                        originZ + supportedMotion.zCoord).addVector(0, p.getEyeHeight(), 0)
+                : length > 1.0E-5
+                        ? eyes.addVector(motion.xCoord / length * advance, 0, motion.zCoord / length * advance) : eyes;
+        if (!underfootEmpty && length > 1.0E-5 && guardGround(p) && !physicalJump() && !p.movementInput.jump) {
+            // Aim early from the reachable end of the current support, not from a point
+            // barely across its plane that forces a near-vertical turn at every diagonal step.
+            double probe = Math.min(1.5, advance + .6);
+            NScaffoldEdgeGuard.Result edge = NScaffoldEdgeGuard.limit(current.world, p,
+                    motion.xCoord / length * probe, 0, motion.zCoord / length * probe, valid);
+            if (edge.active && edge.limited)
+                planningEyes = eyes.addVector(edge.x, 0, edge.z);
+        }
+        if (!valid.getAsBoolean()) return;
+        NScaffoldRaycast.Plan plan = underfootEmpty
+                ? walking
+                        ? NScaffoldRaycast.findMoving(p, planningEyes, wanted, previousBlock, preferred[0], preferred[1], reach, valid, margin)
+                        : NScaffoldRaycast.find(p, planningEyes, wanted, previousBlock, preferred[0], preferred[1], reach, valid, margin)
+                : NScaffoldRaycast.findAhead(p, planningEyes, feet, wanted, previousBlock,
+                        preferred[0], preferred[1], reach, valid, margin);
         if (plan == null && underfootEmpty) {
-            planningEyes = eyes;
-            plan = NScaffoldRaycast.find(p, eyes, wanted, previousBlock, preferred[0], preferred[1], reach, valid, margin);
+            planningEyes = p.getPlannedMovementPosition(originX, body.minY, originZ).addVector(0, p.getEyeHeight(), 0);
+            plan = walking
+                    ? NScaffoldRaycast.findMoving(p, planningEyes, wanted, previousBlock, preferred[0], preferred[1], reach, valid, margin)
+                    : NScaffoldRaycast.find(p, planningEyes, wanted, previousBlock, preferred[0], preferred[1], reach, valid, margin);
         } else if (plan == null && length > 1.0E-5 && preview + 1.0e-5 < advance) {
             // A forward side is occluded until the eye passes its plane. This is only an aiming preview.
             planningEyes = eyes.addVector(motion.xCoord / length * preview, 0, motion.zCoord / length * preview);
-            plan = NScaffoldRaycast.find(p, planningEyes, wanted, previousBlock,
+            plan = NScaffoldRaycast.findAhead(p, planningEyes, feet, wanted, previousBlock,
                     preferred[0], preferred[1], reach, valid, margin);
-            if (plan != null && !wanted.equals(plan.destination)) plan = null;
         }
         if (!valid.getAsBoolean()) return;
         rayPlan = plan;

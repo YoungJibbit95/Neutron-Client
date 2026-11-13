@@ -56,12 +56,43 @@ public final class NScaffoldRaycast {
     public static Plan find(EntityPlayerSP player, Vec3 planningEyes, BlockPos destination,
                             BlockPos previousSuccessfulBlock, float preferredYaw, float preferredPitch,
                             double reach, BooleanSupplier current, double margin) {
+        return find(player, planningEyes, destination, previousSuccessfulBlock,
+                preferredYaw, preferredPitch, reach, current, margin, null, false);
+    }
+
+    /** Continue an intended walking path through an already empty foot cell. */
+    public static Plan findMoving(EntityPlayerSP player, Vec3 planningEyes, BlockPos destination,
+                                  BlockPos previousSuccessfulBlock, float preferredYaw, float preferredPitch,
+                                  double reach, BooleanSupplier current, double margin) {
+        return find(player, planningEyes, destination, previousSuccessfulBlock,
+                preferredYaw, preferredPitch, reach, current, margin, null, true);
+    }
+
+    /** A diagonal step needs an orthogonal support first; stay inside this intended floor path. */
+    public static Plan findAhead(EntityPlayerSP player, Vec3 planningEyes, BlockPos from, BlockPos destination,
+                                 BlockPos previousSuccessfulBlock, float preferredYaw, float preferredPitch,
+                                 double reach, BooleanSupplier current, double margin) {
+        if (from == null || destination == null || from.getY() != destination.getY()) return null;
+        return find(player, planningEyes, destination, previousSuccessfulBlock,
+                preferredYaw, preferredPitch, reach, current, margin, copy(from), true);
+    }
+
+    private static Plan find(EntityPlayerSP player, Vec3 planningEyes, BlockPos destination,
+                             BlockPos previousSuccessfulBlock, float preferredYaw, float preferredPitch,
+                             double reach, BooleanSupplier current, double margin, BlockPos from, boolean walking) {
         if (player == null || player.worldObj == null || destination == null || !finite(planningEyes)
                 || !angles(preferredYaw, preferredPitch) || !Double.isFinite(reach) || reach <= 0 || current == null
                 || !Double.isFinite(margin) || margin < 0) return null;
         final World world = player.worldObj;
         final Vec3 eyes = new Vec3(planningEyes.xCoord, planningEyes.yCoord, planningEyes.zCoord);
-        final BlockPos requested = copy(destination), playerPos = player.getPosition();
+        final BlockPos requested = copy(destination);
+        final Vec3 playerPos = player.getPositionVector();
+        final BlockPos originalPlayerPos = player.getPosition();
+        // Preserve Demise's stationary recovery order. Only an intended walking path chooses
+        // between equivalent steps using the unrounded physical position.
+        final java.util.function.ToDoubleFunction<BlockPos> distanceToPlayer = !walking
+                ? p -> p.distanceSq(originalPlayerPos)
+                : p -> p.distanceSqToCenter(playerPos.xCoord, playerPos.yCoord, playerPos.zCoord);
         final BooleanSupplier live = () -> current.getAsBoolean() && player.worldObj == world;
         // An occupied requested foot cell must not cause unsolicited building beside it.
         if (!replaceable(world, requested, live)) return null;
@@ -70,10 +101,22 @@ public final class NScaffoldRaycast {
         if (!live.getAsBoolean()) return null;
         List<BlockPos> level = new ArrayList<>(); level.add(requested);
         Set<BlockPos> visited = new HashSet<>(); visited.add(requested);
-        for (int depth = 0; depth <= MAX_DEPTH && !level.isEmpty(); depth++) {
-            level.sort(Comparator.comparingDouble(p -> p.distanceSq(playerPos)));
+        int depthLimit = from == null ? MAX_DEPTH : (int) Math.min(MAX_DEPTH, Math.max(0L,
+                Math.abs((long) requested.getX() - from.getX()) + Math.abs((long) requested.getZ() - from.getZ()) - 1));
+        for (int depth = 0; depth <= depthLimit && !level.isEmpty(); depth++) {
+            // Equal-distance diagonal steps are alternatives, not a reason to turn away
+            // from an already useful ray just because WEST precedes NORTH in the BFS.
+            level.sort(Comparator.comparingDouble(distanceToPlayer)
+                    .thenComparingInt(p -> walking && blockHit(preferred)
+                            && preferred.getBlockPos().offset(preferred.sideHit).equals(p) ? 0 : 1));
+            Plan best = null;
+            double bestDistance = Double.POSITIVE_INFINITY, bestTurn = Double.POSITIVE_INFINITY;
             for (BlockPos cell : level) {
-                if (!live.getAsBoolean() || budget.exhausted()) return null;
+                if (!live.getAsBoolean()) return null;
+                double distance = distanceToPlayer.applyAsDouble(cell);
+                if (budget.exhausted() || best != null && distance > bestDistance)
+                    return currentPlan(world, best, live);
+                if (from != null && !onForwardPath(from, requested, cell)) continue;
                 if (!replaceable(world, cell, live)) continue;
                 // A useful current ray wins without searching another angle or a fixed hit pixel.
                 if (blockHit(preferred) && preferred.getBlockPos().offset(preferred.sideHit).equals(cell)) {
@@ -98,14 +141,23 @@ public final class NScaffoldRaycast {
                             && point.squareDistanceTo(center) < 1.0e-12 ? 0 : 1)
                             .thenComparingDouble(point -> difference(rotation(eyes, point), preferredYaw, preferredPitch)));
                     for (Vec3 point : points) {
-                        if (budget.exhausted() || !live.getAsBoolean()) return null;
+                        if (!live.getAsBoolean()) return null;
+                        if (budget.exhausted()) return currentPlan(world, best, live);
                         float[] aim = rotation(eyes, point);
                         MovingObjectPosition hit = budget.ray(aim[0], aim[1], surface);
                         Plan plan = makePlan(world, cell, surface, aim[0], aim[1], hit, eyes, reach, live, margin);
-                        if (plan != null) return plan;
+                        if (plan != null) {
+                            if (!walking) return plan;
+                            double turn = difference(aim, preferredYaw, preferredPitch);
+                            if (best == null || turn < bestTurn) {
+                                best = plan; bestDistance = distance; bestTurn = turn;
+                            }
+                            break;
+                        }
                     }
                 }
             }
+            if (best != null) return currentPlan(world, best, live);
             List<BlockPos> next = new ArrayList<>();
             for (BlockPos cell : level) for (EnumFacing side : NEIGHBORS) {
                 BlockPos neighbor = cell.offset(side);
@@ -114,6 +166,32 @@ public final class NScaffoldRaycast {
             level = next;
         }
         return null;
+    }
+
+    private static Plan currentPlan(World world, Plan plan, BooleanSupplier current) {
+        return plan != null && valid(world, plan, current) ? plan : null;
+    }
+
+    private static boolean onForwardPath(BlockPos from, BlockPos destination, BlockPos cell) {
+        return cell.getY() == destination.getY() && !cell.equals(from)
+                && cell.getX() >= Math.min(from.getX(), destination.getX())
+                && cell.getX() <= Math.max(from.getX(), destination.getX())
+                && cell.getZ() >= Math.min(from.getZ(), destination.getZ())
+                && cell.getZ() <= Math.max(from.getZ(), destination.getZ());
+    }
+
+    /** Rotation-only continuity: occupied terrain is useful even though it cannot authorize a click. */
+    public static boolean hasRotationSupport(World world, Vec3 eyes, BlockPos feet, Plan previous,
+                                              double reach, BooleanSupplier current) {
+        if (world == null || feet == null || !finite(eyes) || !Double.isFinite(reach) || reach <= 0
+                || current == null || !current.getAsBoolean() || previous != null && previous.world != world) return false;
+        Surface underfoot = surface(world, feet, EnumFacing.UP, current);
+        if (underfoot != null && distanceToFaceSq(eyes, underfoot) <= reach * reach && current.getAsBoolean()) return true;
+        if (previous == null || !current.getAsBoolean()) return false;
+        Surface support = surface(world, previous.data.blockPos, previous.data.facing, current);
+        return support != null && Objects.equals(support.state, previous.supportState)
+                && sameBounds(support.bounds, previous.actualBounds) && distanceToFaceSq(eyes, support) <= reach * reach
+                && current.getAsBoolean();
     }
 
     /** Actual accepted pose only: BLOCK, support, face, destination, state, bounds, reach and visibility. */
