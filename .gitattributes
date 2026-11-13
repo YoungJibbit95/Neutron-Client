@@ -6,3 +6,4 @@
 
 # Preserve pinned upstream Git-blob bytes for the Demise reference resources.
 /src/test/resources/demise-reference/*.java.txt text eol=lf
+/src/test/resources/demise-reference/fakelag/*.java.txt text eol=lf
