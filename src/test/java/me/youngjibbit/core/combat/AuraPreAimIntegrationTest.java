@@ -274,6 +274,10 @@ public class AuraPreAimIntegrationTest {
                     // Use the same deterministic full-gain setting as checkPrediction.
                     if ("Demise".equals(engine))
                         h.fixture.aura.getNumberSetting("Demise Extra Smoothing").setValue(1D);
+                    // This case verifies pre-aim reach rather than precision at
+                    // the upper hitbox boundary. A torso point has actual margin
+                    // for the independent Demise mouse-grid quantization.
+                    h.fixture.aura.getModeSetting("Adaptive Aim Point").setValue("Torso");
                     h.range(6);
                     h.prediction(3);
                     h.moveTarget(2.5, .2);
