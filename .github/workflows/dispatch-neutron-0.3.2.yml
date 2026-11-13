@@ -1,0 +1,50 @@
+# One-shot, reviewable bridge to the existing protected workflow_dispatch.
+# This file is intentionally triggered only when its own path is introduced on main.
+# Never publishes a release: release-bundle.yml builds, verifies, and creates a draft.
+name: Dispatch Neutron 0.3.2 release draft
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/dispatch-neutron-0.3.2.yml'
+
+permissions: {}
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      actions: write # needed only to call workflow_dispatch
+      contents: read # validate current main, source parent, release and tag
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      REVIEWED_MAIN: '52493c60bf01d1bd47f3de05c3d3d4af4ed60f7a'
+    steps:
+      - name: Verify exact approved main and unused version
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$GITHUB_REF" == 'refs/heads/main' ]] || { echo 'Only main is accepted' >&2; exit 1; }
+          current=$(gh api "repos/$GH_REPO/branches/main" --jq '.commit.sha')
+          [[ "$current" == "$GITHUB_SHA" ]] || { echo 'Main advanced before dispatch' >&2; exit 1; }
+          parent=$(gh api "repos/$GH_REPO/commits/$GITHUB_SHA" --jq '.parents[0].sha')
+          [[ "$parent" == "$REVIEWED_MAIN" ]] || { echo 'Unexpected source ancestry' >&2; exit 1; }
+          if gh release view 'v0.3.2' --repo "$GH_REPO" >/dev/null 2>&1; then
+            echo 'Release already exists; do not overwrite' >&2
+            exit 1
+          fi
+          tag=$(gh api "repos/$GH_REPO/git/matching-refs/tags/v0.3.2" --jq '.[] | select(.ref == "refs/tags/v0.3.2") | .ref')
+          [[ -z "$tag" ]] || { echo 'Version tag already exists' >&2; exit 1; }
+
+      - name: Request full verified release bundle and GitHub draft
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh api --method POST "repos/$GH_REPO/actions/workflows/release-bundle.yml/dispatches" \
+            -f ref=main \
+            -f 'inputs[version]=v0.3.2' \
+            -f 'inputs[prepare_release]=true'
+          printf 'Requested v0.3.2 bundle and draft from main commit %s. No publication requested.\n' "$GITHUB_SHA" >> "$GITHUB_STEP_SUMMARY"
