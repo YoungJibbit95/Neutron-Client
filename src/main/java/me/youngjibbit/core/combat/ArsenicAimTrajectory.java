@@ -51,7 +51,8 @@ final class ArsenicAimTrajectory {
             hitpoint = null;
         }
         lastSequence=sequence;lastNanos=nanos;
-        core.tun.predictionTicks=bound(profile.predictionTicks,0,3);
+        core.tun.predictionTicks=bound(profile.preAiming
+                ? profile.preAimPredictionTicks : profile.predictionTicks,0,3);
         core.tun.pitchSpeedCap=bound(profile.pitchSpeed,0,8);
         core.tun.maxPitchStep=core.tun.pitchSpeedCap;
         // Discontinuous entity positions must not project the aim point across the world.
@@ -60,9 +61,25 @@ final class ArsenicAimTrajectory {
         in.maxSpeed=bound(profile.yawSpeed,0,180);
         in.budgetTicks=2;
         core.updateDrift(in);core.observe(in);
+        // The dedicated pre-aim slider replaces the ordinary Arsenic horizon.
+        // Both the base destination and an optional noise point receive it once.
+        double[] lead = profile.preAiming && core.tun.predictionTicks > 0
+                ? core.predictOffset(in, core.tun.predictionTicks) : new double[]{0, 0};
+        if (in.hitpointWeight > 0) {
+            in.hitX += lead[0]; in.hitZ += lead[1];
+        }
         float[] next;
         if (mode == RotationProfile.ArsenicMode.HEURISTICS) {
-            next = core.heuristicStep(in);
+            // Heuristics has no native prediction branch. Translate its local
+            // geometry so the full lead survives every hitpoint blend weight.
+            // This input is detached from the entity's real bounding box.
+            double minX = in.minX, maxX = in.maxX, minZ = in.minZ, maxZ = in.maxZ;
+            in.minX += lead[0]; in.maxX += lead[0];
+            in.minZ += lead[1]; in.maxZ += lead[1];
+            try { next = core.heuristicStep(in); }
+            finally {
+                in.minX = minX; in.maxX = maxX; in.minZ = minZ; in.maxZ = maxZ;
+            }
         } else {
             float[] desired = core.aimRotations(in);
             if (in.hitpointWeight > 0) {

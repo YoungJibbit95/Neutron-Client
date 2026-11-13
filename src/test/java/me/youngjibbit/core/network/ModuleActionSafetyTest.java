@@ -47,7 +47,7 @@ public class ModuleActionSafetyTest {
     @Test public void reactivationReceivesANewOrdinalAndCannotReclaimOldPriority()throws Exception { run("reactivationReceivesANewOrdinalAndCannotReclaimOldPriority"); }
     @Test public void exclusivityDoesNotCrossClientsAndWorkerCallsCannotAct()throws Exception { run("exclusivityDoesNotCrossClientsAndWorkerCallsCannotAct"); }
     @Test public void nestedCleanupEventsCannotRepeatTheStopOrExecuteWork()throws Exception { run("nestedCleanupEventsCannotRepeatTheStopOrExecuteWork"); }
-    @Test public void actualConsumerPreflightsDisableOnDamageAndDiscardActivity()throws Exception { run("actualConsumerPreflightsDisableOnDamageAndDiscardActivity"); }
+    @Test public void actualConsumerPreflightsAbortOnDamageAndDiscardActivity()throws Exception { run("actualConsumerPreflightsAbortOnDamageAndDiscardActivity"); }
     @Test public void partialConfigResetRestoresBothOptInDefaults()throws Exception { run("partialConfigResetRestoresBothOptInDefaults"); }
 
     private static void run(String method)throws Exception { Wave2IsolatedCase.run(Checks.class,method); }
@@ -265,7 +265,7 @@ public class ModuleActionSafetyTest {
             }
         }
 
-        @Test public void actualConsumerPreflightsDisableOnDamageAndDiscardActivity()throws Exception {
+        @Test public void actualConsumerPreflightsAbortOnDamageAndDiscardActivity()throws Exception {
             try(ExploitHookFixture f=new ExploitHookFixture()) {
                 for(Module module:Arrays.asList(new Backtrack(()->0L,f.client),new LagRange(()->0L,null),new Tickbase(()->0L,f.client))) {
                     health(f,20);f.player.hurtTime=0;damage(module).setValue(true);module.setToggled(true);
@@ -273,10 +273,10 @@ public class ModuleActionSafetyTest {
                         f.player.hurtTime=1;
                         String name=module instanceof Backtrack?"prepareContext":module instanceof LagRange?"context":"usable";
                         Method method=module.getClass().getDeclaredMethod(name);method.setAccessible(true);
-                        assertEquals(Boolean.FALSE,method.invoke(module));assertFalse(module.getName(),module.isToggled());
+                        assertEquals(Boolean.FALSE,method.invoke(module));assertTrue(module.getName(),module.isToggled());
                         Method snapshot=module.getClass().getMethod("getActivitySnapshot");
                         assertNull("stopped consumer must not retain activity",snapshot.invoke(module));
-                        assertFalse("ordinary shutdown cannot retain timing ownership",f.pipe().combatTiming().observesOwner(module));
+                        assertFalse("aborted operation cannot retain timing ownership",f.pipe().combatTiming().observesOwner(module));
                     } finally {module.setToggled(false);f.player.hurtTime=0;}
                 }
             }

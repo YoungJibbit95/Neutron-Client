@@ -51,6 +51,7 @@ public class AdaptiveAuraActionsTest {
             r.remoteTarget(); r.input.forward = 0;
             Aura aura = r.f.run.fixture.aura;
             aura.getModeSetting("Rot Mode").setValue("Adaptive");
+            aura.getModeSetting("Adaptive Rotation Engine").setValue("Neutron");
             aura.getModeSetting("Attack Mode").setValue(attack);
             r.f.run.fixture.mc.objectMouseOver = new MovingObjectPosition(r.f.run.scene.getEntityByID(19));
             r.player.inventory.mainInventory[0] = new ItemStack(Items.iron_sword);

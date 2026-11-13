@@ -21,6 +21,7 @@ public class AdaptiveAimControlsConfigTest {
     @Test public void adaptiveSnapshotIgnoresHiddenLegacySettingsAndNormalizesTheRange()throws Exception {
         Aura aura=new Aura();RotationSettings s=settings(aura);
         aura.getModeSetting("Rot Mode").setValue("Adaptive");
+        aura.getModeSetting("Adaptive Rotation Engine").setValue("Neutron");
         aura.getBooleanSetting("Smart Aim").setValue(true);aura.getBooleanSetting("Heuristics").setValue(true);
         aura.getBooleanSetting("Stop on Target").setValue(true);
         aura.getBooleanSetting("Adaptive Keep Valid Aim").setValue(false);
@@ -57,6 +58,7 @@ public class AdaptiveAimControlsConfigTest {
         Aura aura=new Aura();Path dir=temp.newFolder().toPath();
         ConfigManager manager=new ConfigManager(dir,Collections.<Module>singletonList(aura),()->false,m->{});
         aura.getModeSetting("Rot Mode").setValue("Adaptive");
+        aura.getModeSetting("Adaptive Rotation Engine").setValue("Neutron");
         aura.getNumberSetting("adaptive_min_aim_speed").setValue(260D);
         aura.getNumberSetting("adaptive_max_aim_speed").setValue(1100D);
         aura.getNumberSetting("Adaptive Pitch Scale").setValue(.7);

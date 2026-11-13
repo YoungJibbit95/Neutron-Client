@@ -25,7 +25,7 @@ public final class AdaptivePresetMotion {
         }
     }
 
-    public enum AimPoint { STRAIGHT, NEAREST, LEGACY, HEAD, TORSO, LEGS }
+    public enum AimPoint { STRAIGHT, NEAREST, LEGACY, HEAD, TORSO, LEGS, NEUTRON_NOISE }
     public enum Noise {
         OFF(0, 1), SOFT(.55, .65), ORGANIC(1, 1.15);
         final double amount, tempo;
@@ -67,7 +67,7 @@ public final class AdaptivePresetMotion {
      */
     public static double[] aimPoint(AimPoint style,double eyeX,double eyeY,double eyeZ,
             double minX,double minY,double minZ,double maxX,double maxY,double maxZ) {
-        if(style==null || style==AimPoint.LEGACY || !Double.isFinite(eyeX) || !Double.isFinite(eyeY)
+        if(style==null || style==AimPoint.LEGACY || style==AimPoint.NEUTRON_NOISE || !Double.isFinite(eyeX) || !Double.isFinite(eyeY)
                 || !Double.isFinite(eyeZ) || !finiteBox(minX,maxX) || !finiteBox(minY,maxY)
                 || !finiteBox(minZ,maxZ))return null;
         double ix=(maxX-minX)*.001,iy=(maxY-minY)*.001,iz=(maxZ-minZ)*.001;
@@ -176,17 +176,19 @@ public final class AdaptivePresetMotion {
         /** Stable rotation style can still use an independently selected initial or Legacy point. */
         public boolean changesHitpoint() {
             if (tuning == null) return hitpoint != Hitpoint.STABLE;
-            return tuning.initialRadius > 0 || (aimPoint == AimPoint.LEGACY
+            return tuning.initialRadius > 0 || (legacyPoint()
                     ? tuning.legacyHitpoint.radius > 0 : hitpoint != Hitpoint.STABLE && tuning.hitpointAmount > 0);
         }
 
         private AdaptiveHitpointMotion.Configuration pointConfiguration() {
-            if (aimPoint == AimPoint.LEGACY) return tuning.legacyHitpoint;
+            if (legacyPoint()) return tuning.legacyHitpoint;
             return new AdaptiveHitpointMotion.Configuration(AdaptiveHitpointMotion.Profile.CUSTOM,
                     AdaptiveHitpointMotion.Algorithm.OPEN_SIMPLEX_2S, hitpoint.extent * 2 * tuning.hitpointAmount,
                     hitpoint == Hitpoint.STABLE ? 1 : hitpoint.cyclesPerSecond * tuning.hitpointTempo,
                     hitpoint == Hitpoint.DYNAMIC ? .3 : .15);
         }
+
+        private boolean legacyPoint() { return aimPoint == AimPoint.LEGACY || aimPoint == AimPoint.NEUTRON_NOISE; }
 
         public AdaptiveMotionController.Limits limits() {
             if (explicitControls) {

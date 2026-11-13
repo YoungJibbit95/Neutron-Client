@@ -151,6 +151,7 @@ public final class DemiseRotationHooks {
     }
 
     public static void mousePre() {
+        RuntimeServices.rotation().adaptiveDemiseFramePre();
         NScaffold module = current();
         if (module != null) module.rotationEngine.mousePre();
         BedBreaker bed = currentBed();
@@ -158,6 +159,7 @@ public final class DemiseRotationHooks {
     }
 
     public static void mouseUpdate() {
+        RuntimeServices.rotation().adaptiveDemiseFrameUpdate();
         NScaffold module = current();
         BedBreaker bed = currentBed();
         if (module == null && bed == null) return;
@@ -177,6 +179,7 @@ public final class DemiseRotationHooks {
 
     /** The inactive render branch has no physical mouse integration; only Bed's existing tail advances. */
     public static void mouseInactive() {
+        RuntimeServices.rotation().adaptiveDemiseFrameInactive();
         BedBreaker bed = currentBed();
         Minecraft mc = Minecraft.getMinecraft();
         if (bed == null || mc.gameSettings == null) return;

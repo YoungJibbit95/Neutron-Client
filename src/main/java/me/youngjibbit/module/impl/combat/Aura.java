@@ -54,6 +54,7 @@ public class Aura extends Module {
     private EntityLivingBase target;
     private PendingBlock blockAfterHit;
     private boolean previousAdaptiveApproach,previousAiApproach;
+    private boolean preAimConfigImport, preAimRangeImported;
 
     /** An accepted hit may request one later use action, never new movement authority. */
     private final class PendingBlock {
@@ -99,7 +100,16 @@ public class Aura extends Module {
     private final ClickTimingSettings clickTiming = new ClickTimingSettings(this, minCps, maxCps, true);
     private ClickRandomizer.Sample clickSample;
     private final SliderValue reach = new SliderValue("Reach", this, 3.0, 1.0, 6.0, false);
-    private final SliderValue aimRangeMargin = new SliderValue("Aim Range Margin", this, 0.0, 0.0, 3.0, false);
+    // Retain the legacy value and registration index for old profiles and callers.
+    private final SliderValue aimRangeMargin = new SliderValue("Aim Range Margin", this, 0.0, 0.0, 3.0, false) {
+        @Override public void setValue(Double value) {
+            super.setValue(value);
+            if (!preAimConfigImport) syncLegacyPreAimRange();
+        }
+    };
+    // Registered at the end of the constructor, after all historical Aura settings.
+    private final SliderValue preAimRange;
+    private final SliderValue preAimPrediction;
     private final SliderValue multiTargets = new SliderValue("Multi Targets", this, 3.0, 2.0, 6.0, true);
     private final SliderValue maxYawStep = new SliderValue("Yaw Speed", this, 28.0, 1.0, 90.0, true);
     private final SliderValue maxPitchStep = new SliderValue("Pitch Speed", this, 28.0, 1.0, 90.0, true);
@@ -130,7 +140,8 @@ public class Aura extends Module {
     public Aura() {
         this.setKey(Keyboard.KEY_R);
         bestHitVec.setVisibility(m->!rotationSettings.arsenic() && (!rotationSettings.adaptive()
-                || "Legacy".equals(rotationSettings.adaptiveAimPoint.getValue())));
+                || "Legacy".equals(rotationSettings.adaptiveAimPoint.getValue())
+                || "Neutron Noise".equals(rotationSettings.adaptiveAimPoint.getValue())));
         raycast.setVisibility(m -> !rotationSettings.adaptive());
         attackMode.setVisibility(m -> rotationSettings.adaptive());
         failSwing.setVisibility(m -> rotationSettings.adaptive());
@@ -140,14 +151,36 @@ public class Aura extends Module {
         blockRange.setVisibility(m -> adaptiveBlockEnabled() && autoblock.getValue());
         reblockDelay.setVisibility(m -> adaptiveBlockEnabled() && autoblock.getValue()
                 && !"Force".equals(autoblockMode.getValue()) && !"Fake".equals(autoblockMode.getValue()));
-        aimRangeMargin.setVisibility(m -> rotations.getValue());
+        aimRangeMargin.setVisibility(m -> false);
         customBlockFrequency.setVisibility(m -> !adaptiveBlockEnabled() && autoblock.getValue() && !"Fake".equals(autoblockMode.getValue())
                 && !"Intave".equals(autoblockMode.getValue()));
         blockFrequency.setVisibility(m -> customBlockFrequency.isVisible() && customBlockFrequency.getValue());
         enableSmartDisable();
         rotationSettings.appendAdaptiveTuning(this);
+        preAimRange = new SliderValue("Pre Aim Range", this, 3D, 1, 9, false) {
+            @Override public String getName() { return "Pre Aim Range (blocks)"; }
+            @Override public void setValue(Double value) {
+                super.setValue(value);
+                if (preAimConfigImport) preAimRangeImported = true;
+            }
+        };
+        preAimPrediction = new SliderValue("Pre Aim Prediction", this, 0D, 0, 3, false) {
+            @Override public String getName() { return "Pre Aim Prediction (ticks)"; }
+        };
+        preAimRange.setVisibility(m -> rotations.getValue());
+        preAimPrediction.setVisibility(m -> rotations.getValue() && !rotationSettings.aiLearned()
+                && preAimRange.getValue() > reach.getValue());
     }
-    @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String name) { return super.getValueByName(name!=null && name.equalsIgnoreCase("Range")?"reach":RotationSettings.canonicalName(name)); }
+
+    private void syncLegacyPreAimRange() {
+        if (preAimRange != null) preAimRange.setValue(reach.getValue() + aimRangeMargin.getValue());
+    }
+    @Override public <T> me.youngjibbit.value.Value<T> getValueByName(String name) {
+        if ("Range".equalsIgnoreCase(name)) name = "reach";
+        if ("Pre Aim Range".equalsIgnoreCase(name)) name = "pre_aim_range";
+        if ("Pre Aim Prediction".equalsIgnoreCase(name)) name = "pre_aim_prediction";
+        return super.getValueByName(RotationSettings.canonicalName(name));
+    }
 
     @Override
     public void onEnable() {
@@ -159,6 +192,11 @@ public class Aura extends Module {
 
     @Override public void beginConfigUpdate() {
         super.beginConfigUpdate();
+        preAimConfigImport = false;
+        preAimRange.reset();
+        preAimPrediction.reset();
+        preAimRangeImported = false;
+        preAimConfigImport = true;
         clickTiming.legacyDefaults();
         clickWhileAiming.setValue(false);
         customBlockFrequency.setValue(false);
@@ -186,7 +224,15 @@ public class Aura extends Module {
 
     @Override public void endConfigUpdate() {
         rotationSettings.endAdaptiveConfigUpdate();
+        // Migrate after all incoming values: JSON member order must not change the result.
+        if (preAimConfigImport && !preAimRangeImported) syncLegacyPreAimRange();
         super.endConfigUpdate();
+    }
+
+    @Override public void cancelConfigUpdate() {
+        preAimConfigImport = false;
+        preAimRangeImported = false;
+        super.cancelConfigUpdate();
     }
 
     @Override public void onValueChange() {
@@ -264,7 +310,7 @@ public class Aura extends Module {
     }
 
     private double acquisitionRange() {
-        return reach.getValue() + (rotations.getValue() ? aimRangeMargin.getValue() : 0);
+        return rotations.getValue() ? Math.max(reach.getValue(), preAimRange.getValue()) : reach.getValue();
     }
 
     private TargetingService.Options acquisitionOptions() {
@@ -382,6 +428,9 @@ public class Aura extends Module {
             if (target != null && rotations.getValue()) {
                 RotationManager rotationManager = RuntimeServices.rotation();
                 RotationProfile profile=rotationSettings.snapshot();profile.reach=(float)acquisitionRange();profile.throughWalls=throughWalls.getValue();
+                // Preparation may lead the aim outside Reach; attack checks always use the live target and Reach.
+                profile.preAiming = !profile.aiLearned && !RuntimeServices.targeting().isValidTarget(target, options());
+                profile.preAimPredictionTicks = profile.preAiming ? preAimPrediction.getValue().floatValue() : 0;
                 float[] nextRotations = rotationManager.calculateRotations(
                         ROTATION_SOURCE,
                         event.getYaw(),

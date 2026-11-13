@@ -68,6 +68,7 @@ public class AdaptiveAuraCoexistenceTest {
             body.player.inventory.mainInventory[3] = new ItemStack(Blocks.stone, 64);
             body.player.inventory.currentItem = 0;
             aura.getModeSetting("Rot Mode").setValue("Adaptive");
+            aura.getModeSetting("Adaptive Rotation Engine").setValue("Neutron");
             aura.getNumberSetting("Aim Range Margin").setValue(2D);
             aura.getBooleanSetting("Smooth Rotation Stop").setValue(false);
             ScaffoldOwnerContinuityTest.field(Minecraft.class, "mcThread")

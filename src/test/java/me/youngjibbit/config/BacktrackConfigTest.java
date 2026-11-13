@@ -49,7 +49,9 @@ public class BacktrackConfigTest {
         assertEquals("Combat / Nearest", back.getModeSetting("target_source").getValue()); assertEquals(500, back.getNumberSetting("target_hold_ms").getValue(), 0);
         assertNull(back.getDiagnostics());
         assertSame(back.getValueByName("release_on_velocity"), back.getValueByName("Release On Velocity"));
-        assertEquals("Release on local knockback", back.getBooleanSetting("release_on_velocity").getName());
+        assertSame(back.getValueByName("release_on_velocity"), back.getValueByName("Release on local knockback"));
+        assertSame(back.getValueByName("release_on_velocity"), back.getValueByName("Abort on Knockback"));
+        assertEquals("Abort on Knockback", back.getBooleanSetting("release_on_velocity").getName());
         assertEquals("While target hurt", back.getBooleanSetting("Active On Hit").getName());
         assertEquals("While target unhurt", back.getBooleanSetting("Active On No Hit").getName());
     }

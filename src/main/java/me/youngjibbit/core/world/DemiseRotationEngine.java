@@ -94,6 +94,11 @@ public final class DemiseRotationEngine {
     public void forceSpeeds(float yaw, float pitch) { randYawSpeed = yaw; randPitchSpeed = pitch; }
 
     public void setRotation(float[] target, DemiseRotationSettings.Snapshot settings) {
+        setRotation(target, settings, 0);
+    }
+
+    /** Aura's source-only distance decrement follows stop/correlation, before the original clamp. */
+    public void setRotation(float[] target, DemiseRotationSettings.Snapshot settings, float speedReduction) {
         if (target == null || target.length < 2 || !Float.isFinite(target[0]) || !Float.isFinite(target[1])) return;
         if (continuous && !shouldRotate()) {
             if (serverRotation != null) currentRotation = serverRotation.clone();
@@ -107,6 +112,10 @@ public final class DemiseRotationEngine {
         if (settings.imperfectCorrelation) {
             horizontal *= random.sample(.9f, 1.1f);
             vertical *= random.sample(.9f, 1.1f);
+        }
+        if (Float.isFinite(speedReduction) && speedReduction > 0) {
+            horizontal -= speedReduction;
+            vertical -= speedReduction;
         }
         horizontal = MathHelper.clamp_float(horizontal, 0, 180);
         vertical = MathHelper.clamp_float(vertical, 0, 180);
@@ -356,6 +365,13 @@ public final class DemiseRotationEngine {
     /** Original PlayerSP aliases currentRotation while active (it does not clone this array). */
     public void observeMotion(float yaw, float pitch) {
         previousRotation = shouldRotate() ? currentRotation : new float[]{yaw, pitch};
+    }
+
+    /** A valid-ray hold consumes frame time without banking acceleration or an old point. */
+    public void hold(float yaw, float pitch) {
+        currentRotation = new float[]{yaw, pitch};
+        previousDeltaYaw = previousDeltaPitch = interpolatedAccelDeltaYaw = interpolatedAccelDeltaPitch = 0;
+        accelTime = millis.getAsLong();
     }
     public boolean shouldRotate() { return currentRotation != null && targetRotation != null; }
     public boolean enabled() { return enabled; }

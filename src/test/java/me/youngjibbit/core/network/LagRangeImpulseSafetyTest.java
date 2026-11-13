@@ -1,6 +1,7 @@
 package me.youngjibbit.core.network;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.core.world.Wave2IsolatedCase;
 import me.youngjibbit.event.motion.KnockbackEvent;
 import me.youngjibbit.event.packet.TickEvent;
 import me.youngjibbit.event.player.MovementInputEvent;
@@ -21,6 +22,20 @@ import static org.junit.Assert.*;
 
 /** Actual inbound S12 application and earned-step scheduler; no server or input window. */
 public class LagRangeImpulseSafetyTest {
+    // ExploitHookFixture rewrites static-final Module.mc through Unsafe. Keep
+    // unrelated cases out of a previously compiled client binding, with normal JIT.
+    @Test public void appliedVelocityBeforeHurtStatusMustRunOrdinaryPhysics() throws Exception { run("appliedVelocityBeforeHurtStatusMustRunOrdinaryPhysics"); }
+    @Test public void appliedVelocityReleasesOutgoingWindow() throws Exception { run("appliedVelocityReleasesOutgoingWindow"); }
+    @Test public void appliedExplosionPausesButCancelledOrZeroImpulseDoesNot() throws Exception { run("appliedExplosionPausesButCancelledOrZeroImpulseDoesNot"); }
+    @Test public void impulseKeepsUnpublishedLookBarrierUntilMovementIsSent() throws Exception { run("impulseKeepsUnpublishedLookBarrierUntilMovementIsSent"); }
+    @Test public void contextChangeDuringWindowReleaseDoesNotCarryOldImpulsePause() throws Exception { run("contextChangeDuringWindowReleaseDoesNotCarryOldImpulsePause"); }
+    @Test public void rejectedAndForeignVelocityDoNotInventAPause() throws Exception { run("rejectedAndForeignVelocityDoNotInventAPause"); }
+    @Test public void impulseDiscardsEarnedCreditBeforeRecovery() throws Exception { run("impulseDiscardsEarnedCreditBeforeRecovery"); }
+    @Test public void containerAndFocusChangeInsideExtraStepSuppressDodge() throws Exception { run("containerAndFocusChangeInsideExtraStepSuppressDodge"); }
+
+    private static void run(String method) throws Exception { Wave2IsolatedCase.run(Checks.class, method); }
+
+    public static class Checks {
     private void velocity(ExploitHookFixture f) {
         f.receive(new S12PacketEntityVelocity(f.player.getEntityId(),.3,.2,-.1));
     }
@@ -59,6 +74,7 @@ public class LagRangeImpulseSafetyTest {
                 assertNull(f.connection.channel.readOutbound());assertTrue(lag.getInfo().endsWith("Q1"));
                 velocity(f);
                 assertSame("pre-impulse movement is released in order",before,f.connection.channel.readOutbound());
+                assertTrue("knockback ends the operation without changing activation",lag.isToggled());
                 assertEquals(0,f.pipe().delays().size());
                 C03PacketPlayer after=new C03PacketPlayer(true);f.connection.network.sendPacket(after);
                 assertSame("new movement is not held during impulse recovery",after,f.connection.channel.readOutbound());
@@ -178,5 +194,6 @@ public class LagRangeImpulseSafetyTest {
                 assertEquals("only focused gameplay may continue extra steps",scenario==3?2:1,extras.get());
             } finally {lag.setToggled(false);}
         }
+    }
     }
 }
