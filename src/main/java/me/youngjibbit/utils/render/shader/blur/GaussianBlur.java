@@ -61,6 +61,11 @@ public final class GaussianBlur {
         return divisor==1||!originalSceneSources()?1:divisor;
     }
 
+    /** Full-resolution reference entry point retained for the existing native comparison. */
+    private static void kawasePass(Framebuffer output,int input,float offset){
+        kawasePass(output,input,offset,offset);
+    }
+
     private static void kawasePass(Framebuffer output,int input,float offsetX,float offsetY){
         output.bindFramebuffer(true);GlStateManager.disableBlend();glDisable(GL_BLEND);GlStateManager.disableCull();glDisable(GL_CULL_FACE);GlStateManager.colorMask(true,true,true,true);glColorMask(true,true,true,true);
         GlStateManager.setActiveTexture(GL13.GL_TEXTURE0);GL13.glActiveTexture(GL13.GL_TEXTURE0);GlStateManager.enableTexture2D();glEnable(GL_TEXTURE_2D);GlStateManager.bindTexture(input);glBindTexture(GL_TEXTURE_2D,input);

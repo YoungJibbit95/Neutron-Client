@@ -99,7 +99,7 @@ stellt alle 36 Paare korrekt dar. Die Korrektur gilt immer, wird mit einem
 unabhängigen `boolean[6][6]`-Orakel geprüft und ist kein Timinggewinn.
 
 CPU-Tests prüfen alle Paare/Flächenmasken, 140 deterministische Zufallsszenen,
-255/256-Grenze und mehrere Worker. Echte Renderer-Updates prüfen finale mutierte
+255/256-Grenze und mehrere Worker. Buffer- und Renderer-Tests prüfen finale mutierte
 Entity-IDs, Kollisionen/Duplikate, Reihenfolge, Alphawechsel, Spawns, Reentranz,
 Ausnahmefreigabe und die bisherige Budget-Eviction.
 
