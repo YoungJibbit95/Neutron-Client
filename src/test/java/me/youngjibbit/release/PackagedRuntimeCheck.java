@@ -46,19 +46,27 @@ public class PackagedRuntimeCheck {
         }
     }
 
-    @Test public void javaFxSdkAndVendorNoticesSurvivePackaging() throws Exception {
+    @Test public void microsoftBrowserSignInLinksWithoutAnEmbeddedRuntime() throws Exception {
+        String[] names = {"me.youngjibbit.account.AccountAuthenticator", "me.youngjibbit.account.MicrosoftBrowserAuth",
+                "me.youngjibbit.account.MicrosoftAuthConfig"};
+        for (String name : names) {
+            assertEquals(name, 1, Collections.list(getClass().getClassLoader().getResources(name.replace('.', '/') + ".class")).size());
+            Class<?> type = Class.forName(name, false, getClass().getClassLoader());
+            // Resolve signatures without opening a browser, starting a listener or reading account data.
+            type.getDeclaredConstructors();
+            type.getDeclaredMethods();
+            type.getDeclaredFields();
+        }
         try (JarFile jar = new JarFile(jar().toFile())) {
-            JarEntry sdk = jar.getJarEntry("neutron/runtime/javafx8-win-x64.zip");
-            assertNotNull("Bundled JavaFX SDK missing", sdk);
-            Set<String> entries = new HashSet<>();
-            try (java.util.zip.ZipInputStream zip = new java.util.zip.ZipInputStream(jar.getInputStream(sdk))) {
-                java.util.zip.ZipEntry entry;
-                while ((entry = zip.getNextEntry()) != null) entries.add(entry.getName());
+            for (JarEntry entry : Collections.list(jar.entries())) {
+                String name = entry.getName();
+                assertFalse("Obsolete embedded-login artifact: " + name,
+                        name.startsWith("neutron/runtime/javafx8") || name.startsWith("javafx/")
+                        || name.startsWith("com/sun/javafx/") || name.startsWith("com/sun/glass/")
+                        || name.startsWith("com/sun/webkit/") || name.startsWith("fr/litarvan/openauth/")
+                        || name.startsWith("me/youngjibbit/account/JavaFxRuntime")
+                        || name.startsWith("me/youngjibbit/account/OpenAuthBrowserAuth"));
             }
-            String root = "zulu8.96.0.205-ca-fx-jre8.0.504-win_x64/";
-            for (String path : Arrays.asList("lib/ext/jfxrt.jar", "bin/glass.dll", "bin/jfxwebkit.dll", "OPENJFX_LICENSE", "OPENJFX_THIRD_PARTY_README"))
-                assertTrue("Missing SDK entry: " + path, entries.contains(root + path));
-            assertFalse("Do not bundle another JVM", entries.contains(root + "bin/server/jvm.dll"));
         }
     }
 

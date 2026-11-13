@@ -35,25 +35,6 @@
         </resources>
         <plugins>
 
-            <!-- JavaFX 8 is distributed with platform natives, not as the Java 11+
-                 org.openjfx modules. Keep the verified runtime intact for every JAR. -->
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-antrun-plugin</artifactId>
-                <version>3.2.0</version>
-                <executions>
-                    <execution>
-                        <id>javafx8-runtime</id><phase>generate-resources</phase><goals><goal>run</goal></goals>
-                        <configuration><target>
-                            <ant antfile="${project.basedir}/src/build/javafx8.xml" target="bundle">
-                                <property name="fx.cache" value="${settings.localRepository}/me/neutron/javafx8"/>
-                                <property name="fx.target" value="${project.build.directory}"/>
-                            </ant>
-                        </target></configuration>
-                    </execution>
-                </executions>
-            </plugin>
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-surefire-plugin</artifactId>
@@ -161,10 +142,6 @@
             <id>impactdevelopment-repo</id>
             <url>https://impactdevelopment.github.io/maven</url>
         </repository>
-        <repository>
-            <id>litarvan</id>
-            <url>https://litarvan.github.io/maven</url>
-        </repository>
     </repositories>
 
     <dependencies>
@@ -174,14 +151,6 @@
             <artifactId>junit</artifactId>
             <version>4.13.2</version>
             <scope>test</scope>
-        </dependency>
-
-        <!-- ImGui for LWJGL -->
-
-        <dependency>
-            <groupId>fr.litarvan</groupId>
-            <artifactId>openauth</artifactId>
-            <version>1.1.6</version>
         </dependency>
 
         <dependency>

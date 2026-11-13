@@ -229,7 +229,7 @@ public class LoginCoordinatorTest {
     @Test public void realBackendOfflineAndUnavailableProviderPathsNeverNeedNetwork() throws Exception {
         String unused="http://127.0.0.1:1";
         AccountAuthenticator backend = new AccountAuthenticator(new MicrosoftBrowserAuth("",
-                new MicrosoftBrowserAuth.Endpoints(unused,unused,unused,unused,unused,unused,unused),
+                new MicrosoftBrowserAuth.Endpoints(unused,unused,unused,unused,unused,unused),
                 uri -> { throw new AssertionError("Unconfigured login must not open a browser"); },1));
         Session offline = backend.authenticate(request("Offline"));
         assertEquals("Offline", offline.getUsername()); assertNotNull(offline.getSessionType());

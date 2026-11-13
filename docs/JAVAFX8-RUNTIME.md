@@ -1,63 +1,54 @@
-# JavaFX 8 for Microsoft sign-in
+# JavaFX 8 sign-in migration
 
-The client keeps Temurin 8u482. JavaFX 8 is an additional Windows x64 runtime,
-prepared by Maven's `generate-resources` phase using `src/build/javafx8.xml`.
-The modern `org.openjfx` Java 11+ modules are not used on this Java 8 project.
+Microsoft sign-in now uses the operating system's default browser. The former
+OpenAuth window and the additional JavaFX 8 runtime have been removed. Temurin
+8u482 remains the client runtime; no JavaFX installation is required for login.
 
-## Reproducible dependency
+The browser can use its existing Microsoft sessions and password manager. Neutron
+receives an authorization code through a temporary loopback callback and exchanges
+it using PKCE. It does not read browser cookies or browser password stores.
 
-The source is Azul's `zulu8.96.0.205-ca-fx-jre8.0.504-win_x64.zip` (85,231,200 bytes),
-SHA-256 `a8710b6033d1d05cfaa637304be3ecf7945994a7a6eb0a8fdb8f8be98aabfcf7`.
-The public [vendor metadata](https://api.azul.com/metadata/v1/zulu/packages/57856cfa-7552-4d0d-9c7a-218d39e541a8)
-identifies the exact artifact and checksum. The build does not resolve a moving
-`latest` version. The archive is cached once under the configured Maven repository's
-`me/neutron/javafx8` directory and checked on every build. An already-cached valid
-archive also works with Maven offline; the first build needs the vendor download.
+See [Microsoft browser sign-in](../design/microsoft-browser-login.md) for the
+application registration, shared configuration, account behavior and acceptance
+requirements. A valid, owned application ID is required; an empty configuration
+opens Microsoft setup rather than an embedded login window. This repository does
+not supply an approved Neutron application ID.
 
-Only `jfxrt.jar`, the selected JavaFX/Visual C++ Windows libraries and the original
-license/third-party notices are copied into `/neutron/runtime/javafx8-win-x64.zip`.
-No second JVM or full client copy is shipped. The vendor folder layout is retained:
-JavaFX resolves its DLLs from `../../bin` relative to `lib/ext/jfxrt.jar`.
-The archive's `OPENJFX_LICENSE`, `OPENJFX_THIRD_PARTY_README`, `LICENSE`,
-`THIRD_PARTY_README`, `ASSEMBLY_EXCEPTION` and `DISCLAIMER` travel with the SDK.
-For source and notices, consult the vendor metadata/distribution and
-[OpenJFX](https://openjfx.io/); keep the bundled notices when redistributing.
+## Build and package migration
 
-## Runtime and distribution contract
+Maven no longer downloads or bundles a JavaFX SDK. The `javafx8-runtime` Antrun
+execution, `src/build/javafx8.xml`, OpenAuth dependency and JavaFX runtime loader
+have been removed. All packaging profiles use the same browser authentication
+implementation. No JavaFX-specific JVM arguments or native library paths are
+needed.
 
-`JavaFxRuntime.load()` extracts the bundled SDK under
-`${user.home}/.neutron/runtime/javafx8/`. It validates cache contents against the
-packaged entries, repairs changed files and appends the intact `jfxrt.jar` to the
-Java 8 application class loader before creating OpenAuth's window. It does not
-change `java.home`, `java.library.path`, `org.lwjgl.librarypath` or JVM installation
-files. Unsupported platforms receive a fixed login error; this bundle supports
-Windows x64 only. An explicitly configured own app retains system-browser PKCE.
+Run a clean build when moving from an older checkout:
 
-The runtime is an ordinary generated resource, so development classes, Assembly,
-the `release-bundle` fat JAR and the `launcher-dist` thin client JAR carry the same
-SDK. No separate per-launcher JavaFX JVM arguments are needed. IntelliJ must run
-Maven `process-classes` (or the normal Maven build) once before its `Start` entry;
-the generated resource is not checked into source control. The official Minecraft
-Launcher keeps its existing version JSON and Java 8 entrypoint.
+```text
+mvn -B -ntp -Prelease-bundle clean package
+```
 
-The separately maintained, currently untracked Neutron Launcher has an old,
-hash-guarded POM adapter. It must accept the reviewed new POM and preserve the
-JavaFX build phase before building this source revision. An unapplied adapter
-patch is supplied as handoff evidence; the launcher tree itself is not owned by
-this change. Testing the thin JAR is not evidence that the installed launcher's
-adapter has been upgraded or that a release has been deployed.
+A clean build removes the old generated SDK ZIP and removed classes from
+`target/classes`; an incremental package can otherwise carry stale files. The
+existing `PackagedRuntimeCheck` release gate now resolves the browser
+implementation and verifies that no OpenAuth classes, removed login classes or
+JavaFX runtime payload remain in the packaged JAR. It does not open a browser or
+read personal account data. Other release checks remain in place.
 
-## Verification boundaries
+Previously created caches under `${user.home}/.neutron/runtime/javafx8/` and the
+Maven repository's `me/neutron/javafx8/` are no longer used. This migration does
+not automatically delete existing user files or caches. The new build does not
+create them.
 
-`JavaFxRuntimeTest` launches a separate Temurin 8 process in a different working
-directory and isolated user home. The probe initializes the real JFXPanel, Glass,
-Prism and WebKit, loads local HTML and evaluates JavaScript three times without
-showing a JFrame/Stage or accessing account, game or world files. Cache repair,
-invalid archives, OAuth return validation, cancellation, late results and retries
-have separate regression tests. The same probe can be run against a packaged JAR
-using only the test classes and that JAR on its classpath.
+A separately maintained launcher that validates a POM hash must accept this
+reviewed dependency/build change through its normal update procedure. This source
+change does not establish that a separately installed launcher was updated or that
+a release was deployed.
 
-These checks do not log into Microsoft, consent, test a real visible login window,
-prove OpenAuth's app remains accepted, verify ownership/family restrictions or join
-a server. Those are manual release gates. No account secrets are needed for the
-automated checks.
+## Acceptance boundary
+
+Packaging and local OAuth fixture tests cannot prove Microsoft or Minecraft API
+acceptance of an application ID. Before release, the owner must configure the
+registered application and complete a real browser sign-in, verify the resulting
+Minecraft Java profile and test the intended online session. A missing application
+registration or unperformed live check remains an open acceptance requirement.

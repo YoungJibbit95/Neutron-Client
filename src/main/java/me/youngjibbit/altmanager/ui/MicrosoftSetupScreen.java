@@ -59,7 +59,7 @@ public class MicrosoftSetupScreen extends GuiScreen {
                 y = paragraph("This build has no usable Microsoft application ID. Your current Minecraft session stays active.", y, TEXT) + 10;
                 y = paragraph("The Neutron project owner must register a desktop app for personal Microsoft accounts and arrange Minecraft Services access. Players can ask for a configured build.", y, MUTED) + 10;
                 y = paragraph("Already registered? Paste its public Application (client) ID below. Desktop redirect: http://localhost/callback", y, MUTED) + 10;
-                y = paragraph("Saved once for this Windows user, shared by IntelliJ, Minecraft Launcher and Neutron Launcher. No password or client secret is needed.", y, MUTED);
+                y = paragraph("Saved once for this computer user, shared by IntelliJ, Minecraft Launcher and Neutron Launcher. No password or client secret is needed.", y, MUTED);
                 contentHeight = y - body.y + scroll;
             }
             if (contentHeight > body.height) {

@@ -59,7 +59,8 @@ public class MicrosoftAuthConfigTest {
         for (String start : Arrays.asList("intellij-test_run", "minecraft-game", "neutron-launcher-game")) {
             Path cwd = temporary.newFolder(start).toPath(), log = cwd.resolve("probe.log");
             String classpath = absoluteClasspath();
-            ProcessBuilder builder = new ProcessBuilder(Paths.get(System.getProperty("java.home"), "bin", "java.exe").toString(),
+            String executable = System.getProperty("os.name", "").startsWith("Windows") ? "java.exe" : "java";
+            ProcessBuilder builder = new ProcessBuilder(Paths.get(System.getProperty("java.home"), "bin", executable).toString(),
                     "-Duser.home=" + home, "-cp", classpath, Probe.class.getName());
             builder.environment().remove("NEUTRON_MICROSOFT_CLIENT_ID");
             builder.environment().remove("PULSAR_MICROSOFT_CLIENT_ID");
