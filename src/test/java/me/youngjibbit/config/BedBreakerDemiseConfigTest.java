@@ -187,7 +187,7 @@ public class BedBreakerDemiseConfigTest {
         assertEquals(.875D, module.getNumberSetting("Indicator Scale").getValue(), 0);
     }
 
-    @Test public void invalidCurrentAndRetiredSettingsRejectTheWholeImportAndPreserveFiles() throws Exception {
+    @Test public void invalidCurrentAndRetiredSettingsRecoverWithoutDiscardingCompatibleValues() throws Exception {
         BedBreaker module = new BedBreaker(); Path directory = temporary.newFolder().toPath();
         ConfigManager config = manager(module, directory); warmEverySetting(module);
         String before = config.serialize(); assertTrue(config.getLastError(), config.saveConfig("Preserve"));
@@ -203,10 +203,13 @@ public class BedBreakerDemiseConfigTest {
                 "\"break_indicator\":\"true\"", "\"indicator_x\":100.1", "\"indicator_y\":-0.1", "\"indicator_scale\":0.64"
         };
         for (String settings : invalidSettings) {
+            warmEverySetting(module);
             String invalid = v2("\"imperfect_correlation\":false," + settings); write(directory, "Invalid", invalid);
-            assertFalse(settings, config.loadConfig("Invalid")); assertEquals(before, config.serialize());
-            assertEquals(invalid, read(directory, "Invalid"));
             assertFalse(config.saveConfig("Preserve", invalid)); assertEquals(before, read(directory, "Preserve"));
+            assertEquals(before, config.serialize());
+            assertTrue(settings, config.loadConfig("Invalid"));
+            assertFalse(module.getBooleanSetting("Imperfect Correlation").getValue());
+            assertEquals(invalid, read(directory, "Invalid"));
         }
     }
 

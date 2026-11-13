@@ -4,7 +4,6 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.Iterables;
 import com.google.common.collect.Lists;
 
-import java.awt.*;
 import java.util.Collection;
 import java.util.List;
 import java.util.Random;
@@ -12,11 +11,11 @@ import java.util.Random;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.event.render.Event2D;
 import me.youngjibbit.event.render.RenderEvent;
+import me.youngjibbit.module.impl.render.CustomHotbar;
+import me.youngjibbit.module.impl.render.CustomScoreboard;
 import me.youngjibbit.utils.*;
-import me.youngjibbit.utils.RenderUtil;
 import me.youngjibbit.utils.render.*;
 import me.youngjibbit.utils.render.GuiShaderBloom;
-import me.youngjibbit.utils.render.shader.KawaseBloom;
 import net.minecraft.block.material.Material;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.GlStateManager;
@@ -28,7 +27,6 @@ import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.texture.TextureMap;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
 import net.minecraft.client.resources.I18n;
-import net.minecraft.client.shader.Framebuffer;
 import net.minecraft.entity.Entity;
 import net.minecraft.entity.EntityLivingBase;
 import net.minecraft.entity.SharedMonsterAttributes;
@@ -55,15 +53,14 @@ import net.minecraft.util.ResourceLocation;
 import net.minecraft.util.StringUtils;
 import net.minecraft.world.border.WorldBorder;
 import net.optifine.CustomColors;
-import org.lwjgl.opengl.GL11;
 
 public class GuiIngame extends Gui
 {
     private static final ResourceLocation vignetteTexPath = new ResourceLocation("textures/misc/vignette.png");
     private static final ResourceLocation widgetsTexPath = new ResourceLocation("textures/gui/widgets.png");
     private static final ResourceLocation pumpkinBlurTexPath = new ResourceLocation("textures/misc/pumpkinblur.png");
-    private final ArrayListSurface hotbarSurface=new ArrayListSurface(),scoreboardSurface=new ArrayListSurface(),hudScene=new ArrayListSurface();
-    private boolean hotbarSceneReady;
+    private final ArrayListSurface hudScene = new ArrayListSurface();
+    private CustomHotbar paintedHotbar;
     private final Random rand = new Random();
     private final Minecraft mc;
     private final RenderItem itemRenderer;
@@ -343,6 +340,11 @@ public class GuiIngame extends Gui
         {
             this.renderScoreboard(scoreobjective1, scaledresolution);
         }
+        else
+        {
+            CustomScoreboard customScoreboard = CustomScoreboard.current();
+            if (customScoreboard != null) customScoreboard.render(null, scaledresolution);
+        }
 
         GlStateManager.enableBlend();
         GlStateManager.tryBlendFuncSeparate(770, 771, 1, 0);
@@ -371,24 +373,6 @@ public class GuiIngame extends Gui
         GlStateManager.disableLighting();
         GlStateManager.enableAlpha();
     }
-    Theme currentTheme = applyTheme();
-    int[] outlineColors = getStaticOutlineGradientColors(currentTheme);
-
-    private int[] getStaticOutlineGradientColors(Theme currentTheme)
-    {
-        Theme resolvedTheme = Theme.resolve(currentTheme);
-        int color1 = resolvedTheme.getPrimaryGradientRGB();
-        int color2 = resolvedTheme.getSecondaryGradientRGB();
-
-        return new int[]
-                {
-                        color1,
-                        color2,
-                        color1,
-                        color2
-                };
-    }
-
     /** The native Event2D owner is also exercised by the combined offscreen HUD regression. */
     private void renderClientHud(float partialTicks,ScaledResolution resolution) {
         me.youngjibbit.module.impl.world.NScaffold.renderTargetShaders();
@@ -396,7 +380,7 @@ public class GuiIngame extends Gui
         final Event2D event=new Event2D(partialTicks,resolution);
         try(me.youngjibbit.utils.render.RenderState state=new me.youngjibbit.utils.render.RenderState()){
             Runnable overlays=()->{GuiShaderBloom.beginBatch();try{Pulsar.BUS.post(event);}finally{GuiShaderBloom.flushBatch(2,3);}};
-            boolean inherited=hotbarSceneReady&&hotbarSurface.withCapturedScene(overlays);hotbarSceneReady=false;
+            boolean inherited=paintedHotbar!=null&&paintedHotbar.withCapturedScene(overlays);paintedHotbar=null;
             if(!inherited)hudScene.withScene(Theme.getDefaultTheme(),overlays);
         }
     }
@@ -407,43 +391,18 @@ public class GuiIngame extends Gui
 
     protected void renderTooltip(ScaledResolution sr, float partialTicks)
     {
-        currentTheme = Theme.resolve(Theme.getDefaultTheme());
-        outlineColors = getStaticOutlineGradientColors(currentTheme);
-        ScaledResolution s = new ScaledResolution(Wrapper.mc);
-
-        int hotbarX = s.getScaledWidth() / 2 - 92;
-        int hotbarY = s.getScaledHeight() - 26;
-        int hotbarWidth = 184;
-        int hotbarHeight = 24;
-        int selectedSlotX = hotbarX + me.youngjibbit.module.impl.world.NScaffold.displayedSlot(Wrapper.mc.thePlayer) * 20;
-
-        hotbarSurface.panel(hotbarX,hotbarY,hotbarWidth,hotbarHeight,5,currentTheme,true,true,true,8,90/255f,.65f,()->{});hotbarSceneReady=true;
-        int selectedColor = me.youngjibbit.utils.render.UiEffects.gradientColor(currentTheme,
-                me.youngjibbit.utils.render.UiEffects.Channel.GLOW, selectedSlotX, hotbarY);
-        GuiShaderBloom.renderRect(selectedSlotX, hotbarY, 24, 24, 5, selectedColor, 1, 1);
-        UIUtils.drawDecorationRound(selectedSlotX, hotbarY, 24, 24, 5, new Color(0,0,0,122));
-
-        EntityPlayer var3 = (EntityPlayer) this.mc.thePlayer;
-        RenderHelper.enableGUIStandardItemLighting();
-
-        for (int var6 = 0; var6 < 9; ++var6) {
-            int var7 = sr.getScaledWidth() / 2 - 90 + var6 * 20 + 2;
-            int var8 = sr.getScaledHeight() - 16 - 3;
-            this.renderHotbarItem(var6, var7, var8, partialTicks, var3);
-        }
-
-        RenderHelper.disableStandardItemLighting();
-        GlStateManager.disableRescaleNormal();
-        GlStateManager.disableBlend();
-    }
-
-    /*protected void renderTooltip(ScaledResolution sr, float partialTicks)
-    {
+        paintedHotbar = null;
         if (this.mc.getRenderViewEntity() instanceof EntityPlayer)
         {
+            EntityPlayer entityplayer = (EntityPlayer)this.mc.getRenderViewEntity();
+            CustomHotbar custom = CustomHotbar.current();
+            if (custom != null && custom.render(sr, partialTicks, entityplayer))
+            {
+                paintedHotbar = custom;
+                return;
+            }
             GlStateManager.color(1.0F, 1.0F, 1.0F, 1.0F);
             this.mc.getTextureManager().bindTexture(widgetsTexPath);
-            EntityPlayer entityplayer = (EntityPlayer)this.mc.getRenderViewEntity();
             int i = sr.getScaledWidth() / 2;
             float f = this.zLevel;
             this.zLevel = -90.0F;
@@ -466,7 +425,7 @@ public class GuiIngame extends Gui
             GlStateManager.disableRescaleNormal();
             GlStateManager.disableBlend();
         }
-    }*/
+    }
 
     public void renderHorseJumpBar(ScaledResolution p_175186_1_, int p_175186_2_)
     {
@@ -631,6 +590,14 @@ public class GuiIngame extends Gui
 
     private void renderScoreboard(ScoreObjective p_180475_1_, ScaledResolution p_180475_2_)
     {
+        CustomScoreboard custom = CustomScoreboard.current();
+        if (custom != null && custom.render(p_180475_1_, p_180475_2_)) return;
+        renderVanillaScoreboard(p_180475_1_, p_180475_2_);
+    }
+
+    /** Keep the native sidebar available when the custom design module is disabled. */
+    private void renderVanillaScoreboard(ScoreObjective p_180475_1_, ScaledResolution p_180475_2_)
+    {
         Scoreboard scoreboard = p_180475_1_.getScoreboard();
         Collection<Score> collection = scoreboard.getSortedScores(p_180475_1_);
         List<Score> list = Lists.newArrayList(Iterables.filter(collection, new Predicate<Score>()
@@ -643,7 +610,7 @@ public class GuiIngame extends Gui
 
         if (list.size() > 15)
         {
-            collection = Lists.newArrayList(Iterables.skip(list, collection.size() - 15));
+            collection = Lists.newArrayList(Iterables.skip(list, list.size() - 15));
         }
         else
         {
@@ -664,13 +631,6 @@ public class GuiIngame extends Gui
         int k1 = 3;
         int l1 = p_180475_2_.getScaledWidth() - i - k1;
         int j = 0;
-        int scoreboardX = l1 - 2;
-        int scoreboardY = j1 - i1 - this.getFontRenderer().FONT_HEIGHT - 8;
-        int scoreboardWidth = i + k1 + 6;
-        int scoreboardHeight = i1 + this.getFontRenderer().FONT_HEIGHT + 12;
-
-        scoreboardSurface.panel(scoreboardX,scoreboardY,scoreboardWidth,scoreboardHeight,10,currentTheme,true,true,true,8,150/255f,.65f,()->{});
-
         for (Score score1 : collection)
         {
             ++j;
@@ -679,13 +639,17 @@ public class GuiIngame extends Gui
             String s2 = EnumChatFormatting.RED + "" + score1.getScorePoints();
             int k = j1 - j * this.getFontRenderer().FONT_HEIGHT;
             int l = p_180475_2_.getScaledWidth() - k1 + 2;
-            Pulsar.INSTANCE.fontManager.getFont("Poppins-Regular 20").drawStringWithShadow(s1, l1, k, Color.yellow.getRGB());
-            this.getFontRenderer().drawString(s2, l - this.getFontRenderer().getStringWidth(s2), k, Color.yellow.getRGB());
+            drawRect(l1 - 2, k, l, k + this.getFontRenderer().FONT_HEIGHT, 1342177280);
+            this.getFontRenderer().drawString(s1, l1, k, 553648127);
+            this.getFontRenderer().drawString(s2, l - this.getFontRenderer().getStringWidth(s2), k, 553648127);
 
             if (j == collection.size())
             {
                 String s3 = p_180475_1_.getDisplayName();
-                Pulsar.INSTANCE.fontManager.getFont("Poppins-Regular 20").drawStringWithShadow(s3, l1 + i / 2 - this.getFontRenderer().getStringWidth(s3) / 2, k - this.getFontRenderer().FONT_HEIGHT - 4, Color.cyan.getRGB());
+                drawRect(l1 - 2, k - this.getFontRenderer().FONT_HEIGHT - 1, l, k - 1, 1610612736);
+                drawRect(l1 - 2, k - 1, l, k, 1342177280);
+                this.getFontRenderer().drawString(s3, l1 + i / 2 - this.getFontRenderer().getStringWidth(s3) / 2,
+                        k - this.getFontRenderer().FONT_HEIGHT, 553648127);
             }
         }
     }

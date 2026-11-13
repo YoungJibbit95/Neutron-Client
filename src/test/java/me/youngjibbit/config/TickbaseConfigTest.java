@@ -46,7 +46,7 @@ public class TickbaseConfigTest {
         }
         String before = config.serialize();
         Files.write(dir.resolve("Synthetic.json"), "{\"Tickbase\":{\"Release On\":\"invalid\",\"Charge Range\":4.0}}".getBytes(StandardCharsets.UTF_8));
-        assertFalse(config.loadConfig("Synthetic")); assertEquals(before, config.serialize());
+        assertFalse(config.saveConfig("Synthetic", config.readConfigData(config.defaultConfig.toPath().resolveSibling("Synthetic.json")))); assertEquals(before, config.serialize());
     }
 
     @Test public void legacyWarmImportClearsPreviouslySelectedPacketModeAndWindow() throws Exception {
@@ -98,14 +98,14 @@ public class TickbaseConfigTest {
         assertEquals(90, tick.getNumberSetting("Pulse Gap MS").getValue(), 0);
     }
 
-    @Test public void invalidPacketModeImportDoesNotPartiallyResetWarmState() throws Exception {
+    @Test public void invalidPacketModeSaveDoesNotResetWarmState() throws Exception {
         Tickbase tick = new Tickbase(); Path dir = temporary.newFolder().toPath();
         ConfigManager config = new ConfigManager(dir, Collections.<Module>singletonList(tick), () -> false, message -> { });
         tick.getModeSetting("Mode").setValue("Demise Pulse");
         tick.getNumberSetting("Packet Hold MS").setValue(150D);
         String before = config.serialize();
         Files.write(dir.resolve("Invalid.json"), "{\"Tickbase\":{\"Mode\":\"missing\",\"Pulse Gap MS\":90}}".getBytes(StandardCharsets.UTF_8));
-        assertFalse(config.loadConfig("Invalid"));
+        assertFalse(config.saveConfig("Invalid", config.readConfigData(config.defaultConfig.toPath().resolveSibling("Invalid.json"))));
         assertEquals(before, config.serialize());
     }
 }

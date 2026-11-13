@@ -14,6 +14,9 @@ import me.youngjibbit.module.impl.combat.Aura;
 import me.youngjibbit.module.impl.render.TargetESP;
 import me.youngjibbit.module.impl.world.NScaffold;
 import me.youngjibbit.utils.render.TargetEspRenderer;
+import me.youngjibbit.utils.render.TargetEspPositionMotion;
+import me.youngjibbit.utils.render.TargetEspMotion;
+import me.youngjibbit.utils.render.UiEffects;
 import net.minecraft.client.entity.EntityOtherPlayerMP;
 import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.entity.Entity;
@@ -184,12 +187,65 @@ public class TargetEspLifecycleTest {
         }
     }
 
+    @Test public void presentationFollowsGameFramesWhileHiddenHudDecorationTimeStandsStill()throws Exception {
+        try(Run r=new Run()) {
+            float decorationTime=UiEffects.time();
+            r.prime("scaffold");r.accept("scaffold",0);
+            ScaffoldClientFlowTest.set(net.minecraft.client.Minecraft.class,r.f.mc,"renderFrameSequence",1L);
+            r.draw();assertTrue(r.frame.markerInterpolated);assertEquals(0,r.frame.displayMarkerX,.0002);
+            Object position=field(TargetESP.class,r.visual,"markerPosition");
+            r.accept("scaffold",10);
+            ScaffoldClientFlowTest.set(TargetEspPositionMotion.class,position,"previous",System.nanoTime()-16_000_000L);
+            ScaffoldClientFlowTest.set(net.minecraft.client.Minecraft.class,r.f.mc,"renderFrameSequence",2L);
+            r.draw();
+            double first=r.frame.displayMarkerX;
+            assertTrue("a new game frame must move presentation while the HUD clock is frozen",first<0&&first>r.frame.markerX);
+            assertEquals(decorationTime,UiEffects.time(),0);
+            // A second eye sees the same presentation even if a newer observation is available.
+            r.accept("scaffold",20);RotationManager.DiagnosticSnapshot before=r.snapshot();r.draw();
+            assertEquals(first,r.frame.displayMarkerX,0);sameSnapshot(before,r.snapshot());
+            ScaffoldClientFlowTest.set(TargetEspPositionMotion.class,position,"previous",System.nanoTime()-16_000_000L);
+            ScaffoldClientFlowTest.set(net.minecraft.client.Minecraft.class,r.f.mc,"renderFrameSequence",3L);
+            r.draw();assertTrue(r.frame.displayMarkerX<first&&r.frame.displayMarkerX>r.frame.markerX);
+            assertEquals(decorationTime,UiEffects.time(),0);sameSnapshot(before,r.snapshot());
+            assertNull(r.f.channel.readOutbound());
+        }
+    }
+
     @Test public void disablingBothVisualSwitchesSkipsSelectionAndWorldWork()throws Exception {
         try(Run r=new Run()) {
             r.visual.getBooleanSetting("Hitpoint").setValue(false);r.accept("scaffold",0);
             RotationManager.DiagnosticSnapshot before=r.snapshot();r.draw();r.draw();
             assertEquals(0,r.aura.reads);assertEquals(0,r.scene.blockReads);assertEquals(0,r.scene.entityQueries);
             r.assertDiscarded();sameSnapshot(before,r.snapshot());
+        }
+    }
+
+    @Test public void haloInertiaUsesGameFramesWhileHiddenHudDecorationTimeStandsStill()throws Exception {
+        try(Run r=new Run()) {
+            r.visual.getBooleanSetting("Hitpoint").setValue(false);
+            r.visual.getBooleanSetting("Target Halo").setValue(true);
+            Candidate target=r.candidate();
+            float decorationTime=UiEffects.time();
+            ScaffoldClientFlowTest.set(net.minecraft.client.Minecraft.class,r.f.mc,"renderFrameSequence",1L);
+            r.draw();assertTrue(r.frame.halo);assertEquals(0,r.frame.leanX,0);
+            Object motion=field(TargetESP.class,r.visual,"motion");
+            target.lastTickPosX=target.posX=.15;
+            ScaffoldClientFlowTest.set(TargetEspMotion.class,motion,"previous",System.nanoTime()-16_000_000L);
+            ScaffoldClientFlowTest.set(net.minecraft.client.Minecraft.class,r.f.mc,"renderFrameSequence",2L);
+            r.draw();
+            float first=r.frame.leanX;
+            assertTrue("halo inertia must follow a new game frame with the HUD clock frozen",first<0);
+            assertEquals(decorationTime,UiEffects.time(),0);
+            // Both eyes must retain the same inertia even if the source moves.
+            target.lastTickPosX=target.posX=.30;
+            r.draw();assertEquals(first,r.frame.leanX,0);
+            ScaffoldClientFlowTest.set(TargetEspMotion.class,motion,"previous",System.nanoTime()-16_000_000L);
+            ScaffoldClientFlowTest.set(net.minecraft.client.Minecraft.class,r.f.mc,"renderFrameSequence",3L);
+            r.draw();assertTrue(r.frame.leanX<first);
+            assertEquals(decorationTime,UiEffects.time(),0);
+            assertEquals(0,r.scene.blockReads);assertEquals(0,r.scene.entityQueries);
+            assertNull(r.f.channel.readOutbound());
         }
     }
 

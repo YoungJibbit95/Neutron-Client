@@ -16,17 +16,27 @@ import me.youngjibbit.core.observation.RuntimeObservation;
  */
 public final class RuntimeServices {
 
-    private static final TargetingService FALLBACK_TARGETING = new TargetingService();
-    private static final RotationManager FALLBACK_ROTATION = new RotationManager();
-    private static final RaycastService FALLBACK_RAYCAST = new RaycastService();
-    private static final AttackScheduler FALLBACK_ATTACK = new AttackScheduler();
-    private static final ScaffoldPlacementService FALLBACK_SCAFFOLD = new ScaffoldPlacementService();
+    /** Canonical-runtime callers do not need a second, permanently retained service graph. */
+    private static final class Fallbacks {
+        static final TargetingService TARGETING = new TargetingService();
+        static final RotationManager ROTATION = new RotationManager();
+        static final RaycastService RAYCAST = new RaycastService();
+        static final AttackScheduler ATTACK = new AttackScheduler();
+        static final ScaffoldPlacementService SCAFFOLD = new ScaffoldPlacementService();
+
+        static void initialize() {
+            // The first prebootstrap accessor initializes this entire group on
+            // its caller, retaining the original owner-thread/clock capture order.
+        }
+    }
 
     private RuntimeServices() {
     }
 
     public static ClientRuntime runtime() {
-        return Pulsar.INSTANCE.getRuntime();
+        ClientRuntime runtime = Pulsar.INSTANCE.getRuntime();
+        if (runtime == null) Fallbacks.initialize();
+        return runtime;
     }
 
     /** Observation starts with the canonical runtime; there is no parallel fallback observer. */
@@ -37,7 +47,7 @@ public final class RuntimeServices {
 
     public static TargetingService targeting() {
         ClientRuntime runtime = runtime();
-        return runtime != null ? runtime.getTargetingService() : FALLBACK_TARGETING;
+        return runtime != null ? runtime.getTargetingService() : Fallbacks.TARGETING;
     }
 
     /** Explicit-only personal AI loader; no implicit activation or model I/O. */
@@ -48,21 +58,21 @@ public final class RuntimeServices {
 
     public static RotationManager rotation() {
         ClientRuntime runtime = runtime();
-        return runtime != null ? runtime.getRotationManager() : FALLBACK_ROTATION;
+        return runtime != null ? runtime.getRotationManager() : Fallbacks.ROTATION;
     }
 
     public static RaycastService raycast() {
         ClientRuntime runtime = runtime();
-        return runtime != null ? runtime.getRaycastService() : FALLBACK_RAYCAST;
+        return runtime != null ? runtime.getRaycastService() : Fallbacks.RAYCAST;
     }
 
     public static AttackScheduler attackScheduler() {
         ClientRuntime runtime = runtime();
-        return runtime != null ? runtime.getAttackScheduler() : FALLBACK_ATTACK;
+        return runtime != null ? runtime.getAttackScheduler() : Fallbacks.ATTACK;
     }
 
     public static ScaffoldPlacementService scaffoldPlacement() {
         ClientRuntime runtime = runtime();
-        return runtime != null ? runtime.getScaffoldPlacementService() : FALLBACK_SCAFFOLD;
+        return runtime != null ? runtime.getScaffoldPlacementService() : Fallbacks.SCAFFOLD;
     }
 }

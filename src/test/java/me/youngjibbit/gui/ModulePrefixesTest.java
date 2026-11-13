@@ -53,13 +53,13 @@ public class ModulePrefixesTest {
     }
 
     @Test public void backtrackUsesActualOwnerAgeAndDoesNotInventConfiguredDelay() {
-        assertEquals("Idle (Pulse)", ModulePrefixes.backtrack("Pulse", null));
+        assertEquals("Idle \u00b7 Pulse", ModulePrefixes.backtrack("Pulse", null));
         ExploitActivitySnapshot first = ExploitActivitySnapshot.holding(
                 ExploitActivitySnapshot.Producer.BACKTRACK, 100, 2, 4, 34);
         ExploitActivitySnapshot second = ExploitActivitySnapshot.holding(
                 ExploitActivitySnapshot.Producer.BACKTRACK, 200, 2, 6, 81);
-        assertEquals("34 ms (Pulse)", ModulePrefixes.backtrack("Pulse", first));
-        assertEquals("81 ms (Pulse)", ModulePrefixes.backtrack("Pulse", second));
+        assertEquals("Hold 34 ms \u00b7 Pulse", ModulePrefixes.backtrack("Pulse", first));
+        assertEquals("Hold 81 ms \u00b7 Pulse", ModulePrefixes.backtrack("Pulse", second));
         assertEquals(34, first.ageMillis);
         assertEquals(4, first.heldPackets);
         assertEquals("Idle", ModulePrefixes.backtrack("", null));
@@ -119,5 +119,34 @@ public class ModulePrefixesTest {
         clock.set(1);assertEquals("Read 4", sampler.detail(backtrack));
         GenericFixture generic=new GenericFixture();
         assertEquals("Read 5",sampler.detail(generic));assertEquals("Read 6",sampler.detail(generic));
+    }
+
+    @Test public void allLiveSuffixesRefreshIndependentlyWithoutPerFrameQueueReads() {
+        java.util.concurrent.atomic.AtomicLong clock=new java.util.concurrent.atomic.AtomicLong();
+        java.util.concurrent.atomic.AtomicInteger reads=new java.util.concurrent.atomic.AtomicInteger();
+        ModulePrefixes.Sampler sampler=new ModulePrefixes.Sampler(clock::get,module->"Read "+reads.incrementAndGet());
+        Module[] modules={new me.youngjibbit.module.impl.exploit.Backtrack(),
+                new me.youngjibbit.module.impl.exploit.LagRange(),new me.youngjibbit.module.impl.exploit.Tickbase()};
+        for(int i=0;i<modules.length;i++)assertEquals("Read "+(i+1),sampler.detail(modules[i]));
+        clock.set(49_000_000L);
+        for(int frame=0;frame<20;frame++)for(int i=0;i<modules.length;i++)
+            assertEquals("Read "+(i+1),sampler.detail(modules[i]));
+        assertEquals(3,reads.get());
+        clock.set(50_000_000L);
+        for(int i=0;i<modules.length;i++)assertEquals("Read "+(i+4),sampler.detail(modules[i]));
+        sampler.clear();
+        for(Module module:modules)sampler.detail(module);
+        assertEquals(9,reads.get());
+    }
+
+    @Test public void markersAndShortLabelsDescribeOnlyObservedActivity() {
+        assertEquals(ModulePrefixes.Marker.IDLE,ModulePrefixes.activity("MS",null).marker);
+        ExploitActivitySnapshot charged=ExploitActivitySnapshot.steps(ExploitActivitySnapshot.Producer.TICKBASE,10,1,3,0,false);
+        ModulePrefixes.Detail ready=ModulePrefixes.activity("",charged);
+        assertEquals("Ready 3 ticks",ready.text);assertEquals(ModulePrefixes.Marker.READY,ready.marker);
+        ExploitActivitySnapshot step=ExploitActivitySnapshot.steps(ExploitActivitySnapshot.Producer.LAGRANGE,20,1,0,2,true);
+        ModulePrefixes.Detail releasing=ModulePrefixes.activity("Ticks",step);
+        assertEquals("Step +2 \u00b7 Ticks",releasing.text);assertEquals(ModulePrefixes.Marker.RELEASING,releasing.marker);
+        assertEquals(3,charged.credit);assertEquals(2,step.extraSteps);
     }
 }

@@ -2,7 +2,10 @@
 
 Scope: original release items **1, 4 and 6**. Starting main:
 `bf3ccf495eaea3612dd0641fbd60fde9c1b20936`, including #193. Parallel PR #194
-handles the other release changes.
+was merged during validation as `722af9c3021c21f07475af6b552b65225aa89c11` and
+integrated before this PR's final checks. Its diagnostic notices, tolerant config
+imports and other release changes are preserved; this PR's diff against that
+current main remains limited to items 1, 4 and 6.
 
 ## 1. Keep activation separate from operation state
 

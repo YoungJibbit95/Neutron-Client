@@ -109,7 +109,7 @@ public class SettingSubcategoryTest {
         assertEquals(original.size(),groups.size());
         for(String id:Arrays.asList("target_halo","halo_radius_padding","halo_width","halo_speed","halo_trail","halo_motion"))
             assertEquals(id,"Halo",groups.get(id));
-        for(String id:Arrays.asList("hitpoint","hitpoint_source","hitpoint_size","hitpoint_ray_length","show_ray_misses"))
+        for(String id:Arrays.asList("hitpoint","hitpoint_source","hitpoint_size","hitpoint_ray_length","show_ray_misses","hitpoint_smoothing"))
             assertEquals(id,"Hitpoint",groups.get(id));
         for(String id:Arrays.asList("opacity","glow_strength","through_walls","color_source","custom_color"))
             assertEquals(id,"Appearance",groups.get(id));
@@ -120,7 +120,7 @@ public class SettingSubcategoryTest {
         TargetESP target=new TargetESP();
         List<SubcategoryValue> sections=SettingSubcategories.create(target,target.getValues());
         assertEquals(6,sections.get(0).visibleCount());
-        assertEquals(5,sections.get(1).visibleCount());
+        assertEquals(6,sections.get(1).visibleCount());
         assertEquals(4,sections.get(2).visibleCount());
         target.getBooleanSetting("Target Halo").setValue(false);
         target.getBooleanSetting("Hitpoint").setValue(false);

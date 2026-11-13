@@ -100,7 +100,7 @@ public class AdaptivePresetConfigTest {
         assertEquals(original,new String(Files.readAllBytes(saved),StandardCharsets.UTF_8));
     }
 
-    @Test public void invalidPresetSelectionDoesNotPartiallyApplyChanges() throws Exception {
+    @Test public void invalidPresetSelectionCannotBeSavedOrApplyChanges() throws Exception {
         Aura a=new Aura();
         Path dir=temp.newFolder().toPath();
         ConfigManager config=new ConfigManager(dir,Collections.<Module>singletonList(a),
@@ -112,7 +112,7 @@ public class AdaptivePresetConfigTest {
         String invalid="{\"version\":2,\"modules\":{\"aura\":{\"rotationVersion\":2,"
                 +"\"settings\":{\"rot_mode\":\"Adaptive\",\"adaptive_speed\":\"WarpSpeed\"}}}}";
         Files.write(dir.resolve("Invalid.json"),invalid.getBytes(StandardCharsets.UTF_8));
-        assertFalse(config.loadConfig("Invalid"));
+        assertFalse(config.saveConfig("Invalid", config.readConfigData(config.defaultConfig.toPath().resolveSibling("Invalid.json"))));
         assertEquals(before,config.serialize());
     }
 }

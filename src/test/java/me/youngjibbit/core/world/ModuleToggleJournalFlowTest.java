@@ -263,7 +263,7 @@ public class ModuleToggleJournalFlowTest {
 
         @Test public void configDuringCallbackInvalidatesOuterEvidenceAndFailureReleasesSuppression() throws Exception {
             try (RotationBehaviorHookTest.Fixture f = fixture()) {
-                ProbeModule outer = new ProbeModule(); SecondModule configured = new SecondModule();
+                SecondModule outer = new SecondModule(); ProbeModule configured = new ProbeModule();
                 try {
                     Path directory = temporary.newFolder().toPath();
                     ConfigManager manager = config(directory, configured, new AtomicBoolean(true));
@@ -273,14 +273,32 @@ public class ModuleToggleJournalFlowTest {
                     outer.setToggled(true);
                     assertTrue(outer.isToggled()); assertTrue(configured.isToggled());
                     assertNull(ModuleToggleJournal.getSnapshot()); assertEquals(before, ModuleToggleJournal.currentSequence());
+                    Pulsar.BUS.post(new ProbeEvent()); assertEquals(1, configured.busEvents);
 
                     configured.enableHook = () -> { throw new IllegalStateException("config activation"); };
                     assertFalse(manager.loadConfig("On"));
-                    assertTrue(configured.isToggled()); assertNull(ModuleToggleJournal.getSnapshot());
+                    assertFalse(configured.isToggled()); assertTrue(outer.isToggled());
+                    assertNull(ModuleToggleJournal.getSnapshot());
                     assertEquals(before, ModuleToggleJournal.currentSequence());
-                    configured.enableHook = null; configured.setToggled(false);
-                    assertNotNull(ModuleToggleJournal.getSnapshot()); assertFalse(ModuleToggleJournal.getSnapshot().isEnabled());
+                    Pulsar.BUS.post(new ProbeEvent()); assertEquals(1, configured.busEvents);
+
+                    configured.enableHook = null; configured.setToggled(true);
+                    assertTrue(configured.isToggled());
+                    ModuleToggleSnapshot enabled = ModuleToggleJournal.getSnapshot();
+                    assertNotNull(enabled); assertTrue(enabled.isEnabled());
+                    assertEquals(configured.getId(), enabled.getModuleId());
+                    assertEquals(before + 1, enabled.getSequence());
                     assertEquals(before + 1, ModuleToggleJournal.currentSequence());
+                    Pulsar.BUS.post(new ProbeEvent()); assertEquals(2, configured.busEvents);
+
+                    configured.setToggled(false);
+                    assertFalse(configured.isToggled()); assertTrue(outer.isToggled());
+                    ModuleToggleSnapshot disabled = ModuleToggleJournal.getSnapshot();
+                    assertNotNull(disabled); assertFalse(disabled.isEnabled());
+                    assertEquals(configured.getId(), disabled.getModuleId());
+                    assertEquals(before + 2, disabled.getSequence());
+                    assertEquals(before + 2, ModuleToggleJournal.currentSequence());
+                    Pulsar.BUS.post(new ProbeEvent()); assertEquals(2, configured.busEvents);
                     assertNull(f.channel.readOutbound());
                 } finally { cleanup(outer); cleanup(configured); }
             }

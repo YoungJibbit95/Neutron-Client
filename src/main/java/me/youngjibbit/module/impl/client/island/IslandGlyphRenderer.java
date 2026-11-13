@@ -94,6 +94,28 @@ public final class IslandGlyphRenderer {
         }
     }
 
+    /** Compact read-only status: idle, holding, ready, releasing. Phase is decorative UI time. */
+    public static void activity(float x,float y,int kind,int rgb,float alpha,float phase){
+        if(alpha<=0)return;
+        try(GlyphScope ignored=new GlyphScope()){
+            prepare();glTranslatef(x,y,0);glBegin(GL_TRIANGLES);
+            arc(0,0,3.7f,0,TAU,.65f,rgb,alpha*(kind==0?.55f:.22f));
+            if(kind!=0)arc(0,0,3.7f,phase*2.4f,1.6f,.85f,rgb,alpha*.8f);
+            if(kind==1){
+                stroke(-1.2f,-1.6f,-1.2f,1.6f,.85f,rgb,alpha);
+                stroke(1.2f,-1.6f,1.2f,1.6f,.85f,rgb,alpha);
+            }else if(kind==2){
+                stroke(-2,0,-.5f,1.5f,1,rgb,alpha);
+                stroke(-.5f,1.5f,2,-1.6f,1,rgb,alpha);
+            }else if(kind==3){
+                stroke(-2,0,2,0,1,rgb,alpha);
+                stroke(.1f,-1.7f,2,0,1,rgb,alpha);
+                stroke(2,0,.1f,1.7f,1,rgb,alpha);
+            }
+            glEnd();
+        }
+    }
+
     private static void prepare(){
         GL20.glUseProgram(0);
         glDisable(GL_TEXTURE_2D);glDisable(GL_DEPTH_TEST);glDisable(GL_ALPHA_TEST);

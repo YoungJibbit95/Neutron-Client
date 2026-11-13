@@ -176,12 +176,12 @@ public class AdaptiveAimTuningConfigTest {
         assertEquals(RotationProfile.HitpointNoise.DYNAMIC,legacy.hitpointNoise);
     }
 
-    @Test public void invalidAlgorithmImportIsAtomicAndRetainsTheOriginalFile()throws Exception {
+    @Test public void invalidAlgorithmSaveRetainsTheOriginalFile()throws Exception {
         Aura aura=new Aura();Path dir=temp.newFolder().toPath();ConfigManager config=manager(aura,dir);
         String before=config.serialize();
         String invalid=json("\"adaptive_initial_hitpoint_radius\":80,\"adaptive_legacy_hitpoint_algorithm\":\"Unknown\"");
         Files.write(dir.resolve("Invalid.json"),invalid.getBytes(StandardCharsets.UTF_8));
-        assertFalse(config.loadConfig("Invalid"));assertEquals(before,config.serialize());
+        assertFalse(config.saveConfig("Invalid", config.readConfigData(config.defaultConfig.toPath().resolveSibling("Invalid.json"))));assertEquals(before,config.serialize());
         assertEquals(invalid,new String(Files.readAllBytes(dir.resolve("Invalid.json")),StandardCharsets.UTF_8));
     }
 }

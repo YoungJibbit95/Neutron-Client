@@ -6,17 +6,18 @@ import org.lwjgl.opengl.GL20;
 import java.nio.FloatBuffer;
 import static org.lwjgl.opengl.GL11.*;
 
-/** One cached program, bounded ribbon geometry and one exact-position billboard. No FBOs. */
+/** One cached program, bounded ribbon geometry and one presentation-position billboard. No FBOs. */
 public final class TargetEspRenderer implements AutoCloseable {
     public static final class Frame {
-        public boolean halo, marker, markerHit;
+        public boolean halo, marker, markerHit, markerInterpolated;
         public double x, y, z, radiusX, radiusZ, height;
         public double markerX, markerY, markerZ, cameraX, cameraY, cameraZ;
+        public double displayMarkerX, displayMarkerY, displayMarkerZ;
         public float time, lift = .5f, direction, leanX, leanZ;
-        public void clear() { halo = marker = markerHit = false; }
+        public void clear() { halo = marker = markerHit = markerInterpolated = false; }
     }
     public static final class Style {
-        public float opacity = .9f, width = .13f, trail = .65f, markerSize = .075f, glow = 1;
+        public float opacity = .9f, width = .16f, trail = .65f, markerSize = .10f, glow = 1;
         public boolean throughWalls, customColor;
         public int color = 0xff9a7cff;
     }
@@ -32,7 +33,8 @@ public final class TargetEspRenderer implements AutoCloseable {
                 && Float.isFinite(frame.lift) && Float.isFinite(frame.direction)
                 && Float.isFinite(frame.leanX) && Float.isFinite(frame.leanZ)
                 && frame.radiusX > 0 && frame.radiusZ > 0 && frame.height > 0;
-        boolean marker = frame.marker && finite(frame.markerX,frame.markerY,frame.markerZ);
+        boolean marker = frame.marker && finite(frame.markerX,frame.markerY,frame.markerZ)
+                && finite(markerX(frame),markerY(frame),markerZ(frame));
         if (!halo && !marker) return;
         try (RenderState state = WorldVisuals.begin()) {
             glDisable(GL_FOG); glDepthMask(false); glDepthFunc(GL_LEQUAL);
@@ -102,20 +104,20 @@ public final class TargetEspRenderer implements AutoCloseable {
     }
     private void corner(Frame f,Style s,double x,double y,double size,float u,float v) {
         color(s,(u+v)*.5f,clamp(s.opacity,0,1));glTexCoord2f(u,v);
-        vertex(f,f.markerX+(model.get(0)*x+model.get(1)*y)*size,
-                f.markerY+(model.get(4)*x+model.get(5)*y)*size,
-                f.markerZ+(model.get(8)*x+model.get(9)*y)*size);
+        vertex(f,markerX(f)+(model.get(0)*x+model.get(1)*y)*size,
+                markerY(f)+(model.get(4)*x+model.get(5)*y)*size,
+                markerZ(f)+(model.get(8)*x+model.get(9)*y)*size);
     }
     private void fallbackPoint(Frame f,Style s) {
         model.clear();glGetFloat(GL_MODELVIEW_MATRIX,model);
         double size=clamp(s.markerSize,.015f,.3f)*.3;
         glBegin(GL_TRIANGLE_FAN);
-        color(s,.5f,clamp(s.opacity,0,1));vertex(f,f.markerX,f.markerY,f.markerZ);
+        color(s,.5f,clamp(s.opacity,0,1));vertex(f,markerX(f),markerY(f),markerZ(f));
         for(int i=0;i<=WorldVisuals.SEGMENTS;i++) {
             double x=WorldVisuals.COS[i],y=WorldVisuals.SIN[i];color(s,i/(float)WorldVisuals.SEGMENTS,0);
-            vertex(f,f.markerX+(model.get(0)*x+model.get(1)*y)*size,
-                    f.markerY+(model.get(4)*x+model.get(5)*y)*size,
-                    f.markerZ+(model.get(8)*x+model.get(9)*y)*size);
+            vertex(f,markerX(f)+(model.get(0)*x+model.get(1)*y)*size,
+                    markerY(f)+(model.get(4)*x+model.get(5)*y)*size,
+                    markerZ(f)+(model.get(8)*x+model.get(9)*y)*size);
         }
         glEnd();
     }
@@ -124,6 +126,9 @@ public final class TargetEspRenderer implements AutoCloseable {
         else {int c=style.color;glColor4f((c>>16&255)/255f,(c>>8&255)/255f,(c&255)/255f,alpha*(c>>>24)/255f);}
     }
     private static void vertex(Frame f,double x,double y,double z){glVertex3d(x-f.cameraX,y-f.cameraY,z-f.cameraZ);}
+    private static double markerX(Frame f){return f.markerInterpolated?f.displayMarkerX:f.markerX;}
+    private static double markerY(Frame f){return f.markerInterpolated?f.displayMarkerY:f.markerY;}
+    private static double markerZ(Frame f){return f.markerInterpolated?f.displayMarkerZ:f.markerZ;}
     private static boolean finite(double x,double y,double z){return Double.isFinite(x)&&Double.isFinite(y)&&Double.isFinite(z);}
     private static boolean validCamera(Frame f){return finite(f.cameraX,f.cameraY,f.cameraZ);}
     private static float clamp(float value,float min,float max){return Float.isFinite(value)?Math.max(min,Math.min(max,value)):min;}

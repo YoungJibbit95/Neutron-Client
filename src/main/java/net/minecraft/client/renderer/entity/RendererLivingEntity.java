@@ -19,7 +19,6 @@ import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.renderer.OpenGlHelper;
 import net.minecraft.client.renderer.Tessellator;
 import net.minecraft.client.renderer.WorldRenderer;
-import net.minecraft.client.renderer.entity.layers.LayerHeldItem;
 import net.minecraft.client.renderer.entity.layers.LayerRenderer;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.client.renderer.vertex.DefaultVertexFormats;
@@ -253,9 +252,9 @@ public abstract class RendererLivingEntity<T extends EntityLivingBase> extends R
                 GlStateManager.depthMask(true);
 
                 if (!(entity instanceof EntityPlayer) || !((EntityPlayer) entity).isSpectator()) {
-                    /*if (TargetHUDMod.renderLayers) {
-                        this.renderLayers(entity, f6, f5, partialTicks, f8, f2, f7, 0.0625F);
-                    }*/
+                    // A RenderModelEvent consumer may copy these layers into an
+                    // offscreen mask. The scene still needs its own normal pass.
+                    this.renderLayers(entity, f6, f5, partialTicks, f8, f2, f7, 0.0625F);
                 }
             }
 

@@ -26,10 +26,10 @@ public class LegacyModuleConfigTest {
         String modern="{\"version\":2,\"modules\":{\"backtrack\":{\"settings\":{\"min_ms\":5,\"max_ms\":10}},\"lagrange\":{\"settings\":{\"min_ms\":30}},\"tickbase\":{\"settings\":{\"require_target\":false}}}}";
         Files.write(dir.resolve("PriorIntegrated.json"),modern.getBytes(StandardCharsets.UTF_8));assertTrue(configs.loadConfig("PriorIntegrated"));assertEquals("Range",back.getModeSetting("Delay Mode").getValue());assertEquals("Combat / Nearest",back.getModeSetting("Target Source").getValue());assertEquals("MS",lag.getModeSetting("Delay Mode").getValue());assertEquals(0,lag.getNumberSetting("Preactivation").getValue(),0);assertFalse(lag.getBooleanSetting("Only Swinging").getValue());assertTrue(lag.getBooleanSetting("Animals").getValue());assertEquals(0,tick.getNumberSetting("Delay").getValue(),0);
     }
-    @Test public void modernInvalidDelayIsRejectedRatherThanSilentlyClamped() throws Exception {
+    @Test public void modernInvalidDelayCannotBeSavedAsAValidCurrentValue() throws Exception {
         Backtrack back=new Backtrack();Path dir=folder.newFolder().toPath();ConfigManager configs=new ConfigManager(dir,Collections.<Module>singletonList(back),()->false,message->{});
         String before=configs.serialize(),invalid="{\"version\":2,\"modules\":{\"backtrack\":{\"settings\":{\"delay_mode\":\"Fixed\",\"delay\":2000}}}}";
-        Files.write(dir.resolve("Invalid.json"),invalid.getBytes(StandardCharsets.UTF_8));assertFalse(configs.loadConfig("Invalid"));assertEquals(before,configs.serialize());assertEquals(invalid,new String(Files.readAllBytes(dir.resolve("Invalid.json")),StandardCharsets.UTF_8));
+        Files.write(dir.resolve("Invalid.json"),invalid.getBytes(StandardCharsets.UTF_8));assertFalse(configs.saveConfig("Invalid", configs.readConfigData(configs.defaultConfig.toPath().resolveSibling("Invalid.json"))));assertEquals(before,configs.serialize());assertEquals(invalid,new String(Files.readAllBytes(dir.resolve("Invalid.json")),StandardCharsets.UTF_8));
     }
     @Test public void oldGodbridgeOptionsUseTheSharedPlanAndCannotDisableTheFinalRaycast() throws Exception {
         Scaffold scaffold=new Scaffold();Path dir=folder.newFolder().toPath();List<String> messages=new ArrayList<>();
