@@ -28,6 +28,17 @@ final class PerformanceCaptureMetadata {
 
     static JsonObject configuration(Minecraft mc) {
         JsonObject result = new JsonObject();
+        // One read keeps flags, upload limits and revision from the same publication.
+        PerformanceOptions.Snapshot performance = PerformanceOptions.current();
+        JsonObject effectivePerformance = new JsonObject();
+        effectivePerformance.addProperty("revision", performance.revision);
+        effectivePerformance.addProperty("fastParticleCleanup", performance.fastParticleCleanup);
+        effectivePerformance.addProperty("fastVisibilityGraph", performance.fastVisibilityGraph);
+        effectivePerformance.addProperty("fastGaussian", performance.fastGaussian);
+        effectivePerformance.addProperty("sceneBlurDivisor", performance.sceneBlurDivisor);
+        effectivePerformance.addProperty("uploadBudgetNanos", performance.uploadLimits.nanoseconds);
+        effectivePerformance.addProperty("uploadBudgetBytes", performance.uploadLimits.bytes);
+        result.add("effectivePerformance", effectivePerformance);
         if (mc == null || mc.gameSettings == null) { result.addProperty("status", "UNAVAILABLE"); return result; }
         GameSettings settings = mc.gameSettings;
         result.addProperty("width", mc.displayWidth); result.addProperty("height", mc.displayHeight);
@@ -49,8 +60,8 @@ final class PerformanceCaptureMetadata {
             if (mc.getResourcePackRepository().getResourcePackInstance() != null)
                 result.addProperty("serverResourcePack", mc.getResourcePackRepository().getResourcePackInstance().getPackName());
         }
-        result.addProperty("uploadBudgetNanos", ChunkFrameBudget.current().nanoseconds);
-        result.addProperty("uploadBudgetBytes", ChunkFrameBudget.current().bytes);
+        result.addProperty("uploadBudgetNanos", performance.uploadLimits.nanoseconds);
+        result.addProperty("uploadBudgetBytes", performance.uploadLimits.bytes);
         if (OpenGlHelper.shadersSupported) {
             result.addProperty("shaderPack", Shaders.getShaderPackName());
             result.addProperty("shaderResourceGeneration", Shaders.getRenderResourceGeneration());

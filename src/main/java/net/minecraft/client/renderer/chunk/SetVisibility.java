@@ -19,6 +19,17 @@ public class SetVisibility
         }
     }
 
+    /** Same face-pair closure without temporary EnumSets and their iterators. */
+    void setManyVisibleMask(int faceMask)
+    {
+        int faces = faceMask & ((1 << COUNT_FACES) - 1);
+        for (int remaining = faces; remaining != 0; remaining &= remaining - 1)
+        {
+            int face = Integer.numberOfTrailingZeros(remaining);
+            this.bits |= (long)faces << (face * COUNT_FACES);
+        }
+    }
+
     public void setVisible(EnumFacing facing, EnumFacing facing2, boolean p_178619_3_)
     {
         this.setBit(facing.ordinal() + facing2.ordinal() * COUNT_FACES, p_178619_3_);
@@ -79,7 +90,7 @@ public class SetVisibility
 
     private boolean getBit(int p_getBit_1_)
     {
-        return (this.bits & (long)(1 << p_getBit_1_)) != 0L;
+        return (this.bits & (1L << p_getBit_1_)) != 0L;
     }
 
     private void setBit(int p_setBit_1_, boolean p_setBit_2_)
@@ -96,11 +107,11 @@ public class SetVisibility
 
     private void setBit(int p_setBit_1_)
     {
-        this.bits |= (long)(1 << p_setBit_1_);
+        this.bits |= 1L << p_setBit_1_;
     }
 
     private void clearBit(int p_clearBit_1_)
     {
-        this.bits &= (long)(~(1 << p_clearBit_1_));
+        this.bits &= ~(1L << p_clearBit_1_);
     }
 }

@@ -67,7 +67,7 @@ test_classpath="$repo_root/target/test-classes:$repo_root/target/classes:$depend
 collect_screenshots() (
   local name="$1" preview image destination
   shopt -s nullglob
-  for preview in gui-preview dropdown-preview arraylist-preview session-preview theme-preview settings-preview neutron-ui-preview shader-preview hud-preview armor-preview chat-preview trash-preview target-esp-preview inventory-assist-preview diagnostics-preview neutron20-preview shader-world-overlay-preview demise-scaffold-overlay-preview; do
+  for preview in gui-preview dropdown-preview arraylist-preview session-preview theme-preview settings-preview neutron-ui-preview shader-preview hud-preview armor-preview chat-preview trash-preview target-esp-preview inventory-assist-preview diagnostics-preview neutron20-preview shader-world-overlay-preview demise-scaffold-overlay-preview scene-blur-preview; do
     for image in "$fixtures/$name/$preview/"*.png; do
       destination="$screenshots/$name/$preview"
       mkdir -p "$destination" && cp -- "$image" "$destination/" || return "$?"
@@ -89,6 +89,10 @@ collect_screenshots() (
   if [[ "$name" == inventory_assist && -f "$fixtures/$name/inventory-assist-preview/inventory-assist-report.json" ]]; then
     destination="$screenshots/$name/inventory-assist-preview"
     mkdir -p "$destination" && cp -- "$fixtures/$name/inventory-assist-preview/inventory-assist-report.json" "$destination/" || return "$?"
+  fi
+  if [[ "$name" == scene_blur && -f "$fixtures/$name/scene-blur-preview/scene-blur-report.json" ]]; then
+    destination="$screenshots/$name/scene-blur-preview"
+    mkdir -p "$destination" && cp -- "$fixtures/$name/scene-blur-preview/scene-blur-report.json" "$destination/" || return "$?"
   fi
 )
 
@@ -256,10 +260,23 @@ suite_performance_capture() {
   run_check performance_capture me.youngjibbit.core.diagnostics.PerformanceCaptureNativeCheck \
     'PASS: real GL capture orchestration, frame/CPU/GPU CSV join'
 }
+suite_scene_blur() {
+  run_check scene_blur me.youngjibbit.module.impl.render.SceneBlurOptimizationNativeCheck \
+    'PASS: scene blur optimization pixel/state/resource contracts' &&
+  require_images scene_blur scene-blur-preview &&
+  python3 -B - "$screenshots/scene_blur/scene-blur-preview/scene-blur-report.json" "$script_dir" <<'PY'
+import json, sys
+sys.path.insert(0, sys.argv[2])
+from check_scene_blur_performance import validate_verify_report
+with open(sys.argv[1], encoding='utf-8') as source:
+    report = json.load(source)
+validate_verify_report(report)
+PY
+}
 
 failed_suites=()
 suite_results=()
-for suite in panel dropdown arraylist session shader_modes target_esp trash inventory_assist chat diagnostics neutron20 shader_bridge world_bridge demise_scaffold gpu_queries performance_capture; do
+for suite in panel dropdown arraylist session shader_modes target_esp trash inventory_assist chat diagnostics neutron20 shader_bridge world_bridge demise_scaffold gpu_queries performance_capture scene_blur; do
   suite_result=0
   "suite_$suite" 2>&1 | tee "$logs/$suite-suite.log" || suite_result=$?
   suite_results+=("$suite: exit $suite_result")
@@ -277,14 +294,14 @@ printf '%s\n' '::group::Native UI visual review copies'
 printf '%s\n' '::endgroup::'
 
 if (( ${#failed_suites[@]} != 0 )); then
-  printf 'FAIL: Native UI suites failed: %s. All sixteen suites were attempted; see each suite log.\n' \
+  printf 'FAIL: Native UI suites failed: %s. All seventeen suites were attempted; see each suite log.\n' \
     "${failed_suites[*]}" | tee "$logs/summary.log"
   exit 1
 fi
 
 printf '%s\n' \
-  'PASS: Sixteen separate native JVMs completed with production shaders, FBO/readback and fixture diagnostics enabled.' \
+  'PASS: Seventeen separate native JVMs completed with production shaders, FBO/readback and fixture diagnostics enabled.' \
   'Coverage: panel/subcategories, dropdown/library/config actions, Arraylist, compact TargetHUD/SessionInfo/ArmorHUD, Island header/docking/original-logo gradients, animated chat/input/links/resize, Theme editor, Client settings, Library transitions, searchable Trash menu, visible inventory assistance, TargetESP production halo/hitpoint, Flame/Neon/Lines ESP/UI contours, diagnostics graphs and independent Nametags/Keystrokes data/motion/lifecycle.' \
-  'Additional coverage: shaderpack program/uniform/MRT boundaries, deferred world camera/private depth/final-color blend, original Demise Scaffold target cube/masks and blur/glow composition, asynchronous GPU query lifecycle, capture CSV/JSON/frame joins and settings/context abort.' \
+  'Additional coverage: shaderpack program/uniform/MRT boundaries, deferred world camera/private depth/final-color blend, original Demise Scaffold target cube/masks and blur/glow composition, asynchronous GPU query lifecycle, capture CSV/JSON/frame joins and settings/context abort, optional paired Gaussian and scene-blur resolution pixel/state/resource contracts.' \
   'Not covered: actual external shaderpacks, game-world rendering, native Display/fullscreen/VSync, multiplayer or full client bootstrap.' \
   | tee "$logs/summary.log"

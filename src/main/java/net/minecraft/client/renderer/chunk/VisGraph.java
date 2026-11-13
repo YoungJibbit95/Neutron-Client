@@ -5,6 +5,7 @@ import java.util.BitSet;
 import java.util.EnumSet;
 import java.util.Queue;
 import java.util.Set;
+import me.youngjibbit.core.diagnostics.PerformanceOptions;
 import net.minecraft.util.BlockPos;
 import net.minecraft.util.EnumFacing;
 import net.minecraft.util.IntegerCache;
@@ -17,6 +18,16 @@ public class VisGraph
     private final BitSet field_178612_d = new BitSet(4096);
     private static final int[] field_178613_e = new int[1352];
     private int field_178611_f = 4096;
+    private static final ThreadLocal<int[]> FAST_QUEUE = new ThreadLocal<int[]>()
+    {
+        @Override protected int[] initialValue() { return new int[4096]; }
+    };
+    private static final int FACE_DOWN = 1 << EnumFacing.DOWN.ordinal();
+    private static final int FACE_UP = 1 << EnumFacing.UP.ordinal();
+    private static final int FACE_NORTH = 1 << EnumFacing.NORTH.ordinal();
+    private static final int FACE_SOUTH = 1 << EnumFacing.SOUTH.ordinal();
+    private static final int FACE_WEST = 1 << EnumFacing.WEST.ordinal();
+    private static final int FACE_EAST = 1 << EnumFacing.EAST.ordinal();
 
     public void func_178606_a(BlockPos pos)
     {
@@ -36,6 +47,11 @@ public class VisGraph
 
     public SetVisibility computeVisibility()
     {
+        return this.computeVisibility(PerformanceOptions.isFastVisibilityGraphEnabled());
+    }
+
+    SetVisibility computeVisibility(boolean fast)
+    {
         SetVisibility setvisibility = new SetVisibility();
 
         if (4096 - this.field_178611_f < 256)
@@ -52,7 +68,8 @@ public class VisGraph
             {
                 if (!this.field_178612_d.get(i))
                 {
-                    setvisibility.setManyVisible(this.func_178604_a(i));
+                    if (fast) setvisibility.setManyVisibleMask(this.collectVisibleFaceMask(i));
+                    else setvisibility.setManyVisible(this.func_178604_a(i));
                 }
             }
         }
@@ -62,7 +79,75 @@ public class VisGraph
 
     public Set<EnumFacing> func_178609_b(BlockPos pos)
     {
+        if (PerformanceOptions.isFastVisibilityGraphEnabled())
+        {
+            int faces = this.collectVisibleFaceMask(getIndex(pos));
+            Set<EnumFacing> result = EnumSet.noneOf(EnumFacing.class);
+            for (EnumFacing face : EnumFacing.VALUES)
+                if ((faces & 1 << face.ordinal()) != 0) result.add(face);
+            return result;
+        }
         return this.func_178604_a(getIndex(pos));
+    }
+
+    /**
+     * Each cell is marked before enqueue, so this owner-thread queue cannot
+     * exceed the section's 4096 cells. No callbacks or nested traversal occur.
+     */
+    private int collectVisibleFaceMask(int start)
+    {
+        int[] queue = FAST_QUEUE.get();
+        int head = 0;
+        int tail = 1;
+        int faces = 0;
+        queue[0] = start;
+        this.field_178612_d.set(start);
+
+        while (head < tail)
+        {
+            int index = queue[head++];
+            int x = index & 15;
+            int y = index >>> 8 & 15;
+            int z = index >>> 4 & 15;
+
+            if (y == 0) faces |= FACE_DOWN;
+            else if (!this.field_178612_d.get(index - 256))
+            {
+                this.field_178612_d.set(index - 256);
+                queue[tail++] = index - 256;
+            }
+            if (y == 15) faces |= FACE_UP;
+            else if (!this.field_178612_d.get(index + 256))
+            {
+                this.field_178612_d.set(index + 256);
+                queue[tail++] = index + 256;
+            }
+            if (z == 0) faces |= FACE_NORTH;
+            else if (!this.field_178612_d.get(index - 16))
+            {
+                this.field_178612_d.set(index - 16);
+                queue[tail++] = index - 16;
+            }
+            if (z == 15) faces |= FACE_SOUTH;
+            else if (!this.field_178612_d.get(index + 16))
+            {
+                this.field_178612_d.set(index + 16);
+                queue[tail++] = index + 16;
+            }
+            if (x == 0) faces |= FACE_WEST;
+            else if (!this.field_178612_d.get(index - 1))
+            {
+                this.field_178612_d.set(index - 1);
+                queue[tail++] = index - 1;
+            }
+            if (x == 15) faces |= FACE_EAST;
+            else if (!this.field_178612_d.get(index + 1))
+            {
+                this.field_178612_d.set(index + 1);
+                queue[tail++] = index + 1;
+            }
+        }
+        return faces;
     }
 
     private Set<EnumFacing> func_178604_a(int p_178604_1_)
