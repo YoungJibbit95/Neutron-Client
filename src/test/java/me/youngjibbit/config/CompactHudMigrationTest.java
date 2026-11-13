@@ -48,15 +48,17 @@ public class CompactHudMigrationTest {
             assertTrue(manager.loadConfig("old"));assertEquals("Modern",hud.getModeSetting("Mode").getValue());
         }
     }
-    @Test public void unknownAndNumericChoicesNeverSilentlySelectAnotherDesign()throws Exception{
+    @Test public void unknownAndNumericChoicesUseTheDeclaredDesignAndKeepCompatiblePositions()throws Exception{
         // The historic parser/serializer stores choice names. Numeric indices have no unambiguous version.
         for(String value:new String[]{"\"Missing design\"","7","{\"value\":7}"}){
             Path dir=temporary.newFolder().toPath();TargetHUD hud=new TargetHUD();
             hud.getModeSetting("Mode").setValue("Tenacity");hud.getNumberSetting("Position X").setValue(61d);
-            ConfigManager manager=new ConfigManager(dir,Collections.singletonList(hud),()->false,message->{});
+            java.util.List<String> messages=new java.util.ArrayList<>();
+            ConfigManager manager=new ConfigManager(dir,Collections.singletonList(hud),()->false,messages::add);
             Files.write(dir.resolve("invalid.json"),("{\"version\":2,\"modules\":{\"targethud\":{\"settings\":{\"position_x\":99,\"mode\":"+value+"}}}}").getBytes(StandardCharsets.UTF_8));
-            assertFalse(manager.loadConfig("invalid"));assertEquals("Tenacity",hud.getModeSetting("Mode").getValue());
-            assertEquals(61,hud.getNumberSetting("Position X").getValue(),0);
+            assertTrue(manager.loadConfig("invalid"));assertEquals(hud.getModeSetting("Mode").getDefaultValue(),hud.getModeSetting("Mode").getValue());
+            assertEquals(99,hud.getNumberSetting("Position X").getValue(),0);
+            assertTrue(messages.toString().contains("targethud.mode"));assertTrue(messages.toString().contains("declared default"));
         }
     }
 }

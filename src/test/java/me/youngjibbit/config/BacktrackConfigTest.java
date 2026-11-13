@@ -27,14 +27,14 @@ public class BacktrackConfigTest {
         }
         assertEquals(70,back.getNumberSetting("Delay").getValue(),0);
     }
-    @Test public void invalidConfigDoesNotResetCurrentModeOrOtherValues() throws Exception {
+    @Test public void invalidSaveDoesNotResetCurrentModeOrOtherValues() throws Exception {
         Backtrack back=new Backtrack();Path dir=temporary.newFolder().toPath();
         ConfigManager config=new ConfigManager(dir,Collections.<Module>singletonList(back),()->false,message->{});
         back.getModeSetting("Backtrack Mode").setValue("Pulse");back.getNumberSetting("Delay").setValue(80D);
         String before=config.serialize();
         for(String settings:new String[]{"\"delay\":-1", "\"backtrack_mode\":\"Unknown\"", "\"backtrack_mode\":\"Timed\",\"delay\":\"invalid\""}) {
             Files.write(dir.resolve("Invalid.json"),("{\"version\":2,\"modules\":{\"backtrack\":{\"networkVersion\":1,\"settings\":{"+settings+"}}}}").getBytes(StandardCharsets.UTF_8));
-            assertFalse(config.loadConfig("Invalid"));assertEquals(before,config.serialize());
+            assertFalse(config.saveConfig("Invalid", config.readConfigData(config.defaultConfig.toPath().resolveSibling("Invalid.json"))));assertEquals(before,config.serialize());
         }
     }
     @Test public void currentIdsAndOlderPartialConfigsKeepTheirValuesAndNewDefaults() throws Exception {

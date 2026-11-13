@@ -82,7 +82,7 @@ public class AdaptiveAuraConfigTest {
         }
     }
 
-    @Test public void invalidModesRejectAtomicallyAndDoNotMigrateLegacyArsenic() throws Exception {
+    @Test public void invalidModesCannotBeSavedAndDoNotMigrateLegacyArsenic() throws Exception {
         Aura aura = new Aura();
         Path directory = temp.newFolder().toPath();
         ConfigManager config = new ConfigManager(directory, Arrays.<Module>asList(aura),
@@ -96,7 +96,7 @@ public class AdaptiveAuraConfigTest {
         String bad = "{\"version\":2,\"modules\":{\"aura\":{\"rotationVersion\":2,"
                 + "\"settings\":{\"rot_mode\":\"Adaptive-ish\"}}}}";
         Files.write(directory.resolve("Bad.json"), bad.getBytes(StandardCharsets.UTF_8));
-        assertFalse(config.loadConfig("Bad"));
+        assertFalse(config.saveConfig("Bad", config.readConfigData(config.defaultConfig.toPath().resolveSibling("Bad.json"))));
         assertEquals(before, config.serialize());
         assertEquals(bad, new String(Files.readAllBytes(directory.resolve("Bad.json")), StandardCharsets.UTF_8));
         assertEquals("Adaptive", aura.getModeSetting("Rot Mode").getValue());

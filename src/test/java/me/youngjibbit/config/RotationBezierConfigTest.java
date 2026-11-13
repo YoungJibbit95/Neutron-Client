@@ -40,7 +40,7 @@ public class RotationBezierConfigTest {
             }
         }
     }
-    @Test public void explicitIndependentProfilesRoundTripAndInvalidLoadRemainsAtomic() throws Exception {
+    @Test public void explicitIndependentProfilesRoundTripAndInvalidSaveRemainsAtomic() throws Exception {
         Aura aura=new Aura();AimAssist assist=new AimAssist();available(aura);available(assist);
         Path dir=temporary.newFolder().toPath();ConfigManager configs=new ConfigManager(dir,Arrays.<Module>asList(aura,assist),()->false,message->{});
         aura.getModeSetting("Speed Curve").setValue("Bezier");aura.getNumberSetting("Bezier Strength").setValue(.8);aura.getNumberSetting("Bezier Duration").setValue(1200D);
@@ -49,7 +49,7 @@ public class RotationBezierConfigTest {
         aura.getModeSetting("Speed Curve").setValue("Off");assist.getModeSetting("Speed Curve").setValue("Bezier");
         assertTrue(configs.getLastError(),configs.loadConfig("Both"));assertEquals(expected,configs.serialize());
         String invalid="{\"version\":2,\"modules\":{\"aura\":{\"rotationVersion\":2,\"settings\":{\"speed_curve\":\"imaginary\"}},\"aimassist\":{\"settings\":{}}}}";
-        Files.write(dir.resolve("Bad.json"),invalid.getBytes(StandardCharsets.UTF_8));assertFalse(configs.loadConfig("Bad"));assertEquals(expected,configs.serialize());
+        Files.write(dir.resolve("Bad.json"),invalid.getBytes(StandardCharsets.UTF_8));assertFalse(configs.saveConfig("Bad", configs.readConfigData(configs.defaultConfig.toPath().resolveSibling("Bad.json"))));assertEquals(expected,configs.serialize());
         assertEquals(invalid,new String(Files.readAllBytes(dir.resolve("Bad.json")),StandardCharsets.UTF_8));
     }
 }

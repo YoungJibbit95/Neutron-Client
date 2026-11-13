@@ -65,7 +65,7 @@ public class AiLearnedAuraConfigTest {
         assertEquals(json,new String(Files.readAllBytes(dir.resolve("Legacy.json")),StandardCharsets.UTF_8));
     }
 
-    @Test public void invalidModeRejectsAtomically() throws Exception {
+    @Test public void invalidModeCannotBeSaved() throws Exception {
         Aura a=new Aura();Path dir=temp.newFolder().toPath();
         ConfigManager config=new ConfigManager(dir,Collections.<Module>singletonList(a),
                 ()->false,message->{});
@@ -74,7 +74,7 @@ public class AiLearnedAuraConfigTest {
         String bad="{\"version\":2,\"modules\":{\"aura\":{\"rotationVersion\":2,"
                 +"\"settings\":{\"rot_mode\":\"AI Learned Untrusted\"}}}}";
         Files.write(dir.resolve("Bad.json"),bad.getBytes(StandardCharsets.UTF_8));
-        assertFalse(config.loadConfig("Bad"));
+        assertFalse(config.saveConfig("Bad", config.readConfigData(config.defaultConfig.toPath().resolveSibling("Bad.json"))));
         assertEquals(before,config.serialize());
     }
 }

@@ -64,6 +64,148 @@ public class OpenAuthBrowserAuthTest {
                 MicrosoftBrowserAuth.query(uri.get().getRawQuery()).get("client_id"));
     }
 
+    @Test public void documentedDesktopLocaleCallbackReachesMinecraftExchange() throws Exception {
+        for (String locale : new String[]{"1033", "1031"}) {
+            Window window = new Window(); AtomicInteger exchanges = new AtomicInteger();
+            OpenAuthBrowserAuth auth = new OpenAuthBrowserAuth(() -> {}, authorization -> {
+                window.response.complete(response(authorization).replace(".srf#", ".srf?lc=" + locale + "#"));
+                return window;
+            }, (tokens, active) -> {
+                exchanges.incrementAndGet();
+                assertEquals("synthetic-token", tokens.getAccessToken());
+                assertEquals("", tokens.getRefreshToken());
+                return session();
+            }, 2000);
+            assertEquals("WebPlayer", auth.login(() -> true).getUsername());
+            drain(); assertEquals(1, exchanges.get()); assertEquals(1, window.closed.get());
+        }
+    }
+
+    @Test public void embeddedCallbackBecomesARememberedSessionOnlyOnTheClientThread() throws Exception {
+        try (MicrosoftBrowserAuthTest.Services services = new MicrosoftBrowserAuthTest.Services()) {
+            services.expectedTicket = "synthetic-token";
+            Window window = new Window();
+            OpenAuthBrowserAuth embedded = new OpenAuthBrowserAuth(() -> {}, authorization -> {
+                window.response.complete(response(authorization).replace(".srf#", ".srf?lc=1031#"));
+                return window;
+            }, services.auth(), 2000);
+            MicrosoftAuthConfig configuration = new MicrosoftAuthConfig(new java.util.Properties(),
+                    java.util.Collections.emptyMap(), temporary.newFolder().toPath().resolve("microsoft.properties"));
+            AccountAuthenticator authenticator = new AccountAuthenticator(services.auth(), embedded, configuration);
+            AccountManager manager = new AccountManager(temporary.newFolder());
+            java.util.Queue<Runnable> client = new ConcurrentLinkedQueue<>();
+            Thread clientThread = Thread.currentThread();
+            Session previous = new Session("Previous", MicrosoftBrowserAuthTest.PROFILE, "previous-token", "mojang");
+            AtomicReference<Session> current = new AtomicReference<>(previous);
+            AtomicReference<Account> selected = new AtomicReference<>();
+            AtomicInteger successes = new AtomicInteger();
+            LoginCoordinator coordinator = new LoginCoordinator(manager, authenticator, client::add, (result, provider) -> {
+                assertSame(clientThread, Thread.currentThread());
+                assertEquals(Account.Provider.MICROSOFT, provider);
+                current.set(result);
+            }, account -> { assertSame(clientThread, Thread.currentThread()); selected.set(account); });
+            LoginCoordinator.Attempt attempt = coordinator.begin(LoginRequest.microsoftBrowser(), successes::incrementAndGet);
+            runAttempt(attempt);
+            assertSame(previous, current.get()); assertTrue(manager.getAccounts().isEmpty()); assertNull(selected.get());
+            drainClient(client);
+            assertEquals("BrowserPlayer", current.get().getUsername());
+            assertEquals("minecraft-secret", current.get().getToken());
+            assertEquals(MicrosoftBrowserAuthTest.PROFILE, current.get().getPlayerID());
+            assertEquals(1, manager.getAccounts().size()); assertSame(manager.getLastAlt(), selected.get());
+            assertEquals(MicrosoftBrowserAuthTest.PROFILE, selected.get().getMicrosoftProfileId());
+            assertNull(selected.get().getPassword()); assertNull(selected.get().getMicrosoftAccessToken());
+            assertEquals(1, successes.get()); assertTrue(attempt.getStatus().contains("successfully"));
+            assertTrue(manager.load()); assertEquals(1, manager.getAccounts().size());
+            drain(); assertEquals(1, window.closed.get());
+        }
+    }
+
+    @Test public void declinedEmbeddedCallbackRetainsTheSessionAndSameAuthenticatorCanRetry() throws Exception {
+        try (MicrosoftBrowserAuthTest.Services services = new MicrosoftBrowserAuthTest.Services()) {
+            services.expectedTicket = "synthetic-token";
+            AtomicInteger opened = new AtomicInteger(); java.util.List<Window> windows = new java.util.ArrayList<>();
+            OpenAuthBrowserAuth embedded = new OpenAuthBrowserAuth(() -> {}, authorization -> {
+                Window window = new Window(); windows.add(window);
+                if (opened.incrementAndGet() == 1) {
+                    String state = MicrosoftBrowserAuth.query(authorization.getRawQuery()).get("state");
+                    assertTrue(OpenAuthBrowserAuth.completeDesktopRedirect(window.response, "https://login.live.com/oauth20_desktop.srf?lc=1033#"
+                            + MicrosoftBrowserAuth.form(MicrosoftBrowserAuth.params("state", state,
+                            "error", "access_denied", "error_description", "private provider description"))));
+                } else window.response.complete(response(authorization));
+                return window;
+            }, services.auth(), 2000);
+            MicrosoftAuthConfig configuration = new MicrosoftAuthConfig(new java.util.Properties(),
+                    java.util.Collections.emptyMap(), temporary.newFolder().toPath().resolve("microsoft.properties"));
+            AccountAuthenticator authenticator = new AccountAuthenticator(services.auth(), embedded, configuration);
+            AccountManager manager = new AccountManager(temporary.newFolder());
+            java.util.Queue<Runnable> client = new ConcurrentLinkedQueue<>();
+            Session previous = new Session("Previous", MicrosoftBrowserAuthTest.PROFILE, "previous-token", "mojang");
+            AtomicReference<Session> current = new AtomicReference<>(previous);
+            LoginCoordinator coordinator = new LoginCoordinator(manager, authenticator, client::add,
+                    (result, provider) -> current.set(result), account -> {});
+            LoginCoordinator.Attempt first = coordinator.begin(LoginRequest.microsoftBrowser(), null);
+            runAttempt(first); drainClient(client); drain();
+            assertSame(previous, current.get()); assertTrue(manager.getAccounts().isEmpty());
+            assertTrue(services.calls.isEmpty()); assertTrue(first.getStatus().contains("cancelled or declined"));
+            assertFalse(first.getStatus().contains("private provider description"));
+            LoginCoordinator.Attempt retry = coordinator.begin(LoginRequest.microsoftBrowser(), null);
+            runAttempt(retry); drainClient(client); drain();
+            assertEquals("BrowserPlayer", current.get().getUsername()); assertEquals(1, manager.getAccounts().size());
+            assertEquals(2, opened.get()); assertEquals(1, windows.get(0).closed.get()); assertEquals(1, windows.get(1).closed.get());
+        }
+    }
+
+    @Test public void desktopRedirectRoutingWaitsForTheCallbackAndLeavesValidationToTheExchange() throws Exception {
+        CompletableFuture<String> result = new CompletableFuture<>();
+        for (String location : new String[]{null, "about:blank", "https://login.live.com/oauth20_authorize.srf?access_token=intermediate",
+                "https://login.live.com/oauth20_desktop.srf?lc=1033", "https://other.invalid/oauth20_desktop.srf#error=access_denied",
+                "http://login.live.com/oauth20_desktop.srf#error=access_denied", "https://login.live.com@other.invalid/oauth20_desktop.srf#error=access_denied"}) {
+            assertFalse(OpenAuthBrowserAuth.completeDesktopRedirect(result, location));
+            assertFalse(result.isDone());
+        }
+        String denial = "https://login.live.com/oauth20_desktop.srf?lc=1033#state=wrong&error=access_denied";
+        assertTrue(OpenAuthBrowserAuth.completeDesktopRedirect(result, denial));
+        assertEquals(denial, result.get());
+        assertInvalidCallback(result.get());
+        assertFalse(OpenAuthBrowserAuth.completeDesktopRedirect(result, "https://login.live.com/oauth20_desktop.srf#access_token=late"));
+    }
+
+    private static void runAttempt(LoginCoordinator.Attempt attempt) throws Exception {
+        AtomicReference<Throwable> failure = new AtomicReference<>();
+        Thread worker = new Thread(() -> { try { attempt.run(); } catch (Throwable error) { failure.set(error); } });
+        worker.start(); worker.join(5000); assertFalse(worker.isAlive());
+        if (failure.get() != null) throw new AssertionError(failure.get());
+    }
+
+    private static void drainClient(java.util.Queue<Runnable> client) {
+        Runnable next; while ((next = client.poll()) != null) next.run();
+    }
+
+    @Test public void localeMetadataDoesNotPermitQueryCredentialsOrRelaxFragmentValidation() throws Exception {
+        URI authorization = OpenAuthBrowserAuth.authorization("synthetic-state");
+        String valid = response(authorization);
+        for (String query : new String[]{"", "lc=", "lc=de-DE", "lc=-1033", "lc=1033&lc=1031",
+                "lc=1033&access_token=other", "access_token=other", "lc=1033&state=synthetic-state",
+                "lc=1033&token_type=Bearer", "lc=1033&redirect_uri=https%3A%2F%2Fother.invalid"}) {
+            assertInvalidCallback(valid.replace(".srf#", ".srf?" + query + "#"));
+        }
+        String localized = valid.replace(".srf#", ".srf?lc=1033#");
+        assertInvalidCallback(localized.replace("login.live.com", "other.invalid"));
+        assertInvalidCallback(localized.replace("https:", "http:"));
+        assertInvalidCallback(localized.replace("state=", "state=wrong"));
+        assertInvalidCallback(localized.replace("token_type=Bearer", "token_type=Other"));
+        assertInvalidCallback(localized + "&access_token=duplicate");
+        assertInvalidCallback(localized + "&state=synthetic-state");
+        assertInvalidCallback(localized + "&token_type=Bearer");
+    }
+
+    private static void assertInvalidCallback(String response) throws Exception {
+        try { OpenAuthBrowserAuth.tokens(response, "synthetic-state"); fail("Callback must be rejected"); }
+        catch (LoginCoordinator.LoginUnavailableException expected) {
+            assertFalse(expected.getUserMessage().contains("synthetic-token"));
+        }
+    }
+
     @Test public void embeddedLoginConsumesMinecraftTokenEntitlementAndProfileWithoutLegacyUsername() throws Exception {
         try (MicrosoftBrowserAuthTest.Services services=new MicrosoftBrowserAuthTest.Services()) {
             services.expectedTicket="synthetic-token";

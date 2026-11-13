@@ -32,6 +32,10 @@ public class ConfigManager {
     public static boolean loadVisuals;
     public final File defaultConfig;
     private static final int CONFIG_VERSION = 2;
+    // These designs were unconditional in older builds. Introducing their
+    // toggles must preserve that presentation without enabling other modules.
+    private static final Set<String> LEGACY_ENABLED_DESIGNS = Collections.unmodifiableSet(
+            new HashSet<>(Arrays.asList("custom_scoreboard", "custom_hotbar")));
     private final Path directory;
     private final Collection<Module> modules;
     private final BooleanSupplier ready;
@@ -190,17 +194,21 @@ public class ConfigManager {
         if (Files.exists(defaultConfig.toPath(), LinkOption.NOFOLLOW_LINKS)) {
             try {
                 if (Files.isSymbolicLink(defaultConfig.toPath())) throw new IOException("Automatic config is a link.");
-                Plan plan = parse(readConfigData(defaultConfig.toPath()));
+                Plan plan = parse(readConfigData(defaultConfig.toPath()), true);
+                reportCompatibility(plan);
                 apply(plan);
-                if (plan.root.has("modules")) automaticTemplate = canonicalTemplate(plan.root);
+                if (plan.recovered > 0) {
+                    automaticReadOnly = true;
+                    messages.accept("Incompatible last-state entries recovered; automatic saving paused to preserve the original file. Save a named config to keep the recovered settings.");
+                } else if (plan.root.has("modules")) automaticTemplate = canonicalTemplate(plan.root);
                 else if (plan.unknown > 0) {
                     automaticReadOnly = true;
                     messages.accept("Unknown legacy entries retained; automatic saving paused to preserve the original file.");
                 }
                 messages.accept(loadMessage("Last state", plan));
-            } catch (IOException | RuntimeException e) {
+            } catch (IOException | RuntimeException | NoClassDefFoundError | ExceptionInInitializerError | UnsatisfiedLinkError e) {
                 automaticReadOnly = true;
-                fail("Last state was not restored; automatic saving is disabled to preserve its file", e);
+                fail("Last-state restore incomplete; automatic saving is disabled to preserve its file", e);
                 messages.accept(lastError);
             }
         } else {
@@ -214,14 +222,17 @@ public class ConfigManager {
 
     public boolean loadConfig(String name) {
         try {
-            Plan plan = parse(readConfigData(namedPath(name)));
+            Plan plan = parse(readConfigData(namedPath(name)), true);
+            reportCompatibility(plan);
             apply(plan);
             if (initialized) markDirty();
             lastError = "";
             messages.accept(loadMessage("Config " + name, plan));
-            NotificationManager.success("Config loaded",pendingActivation.isEmpty()?"The configuration was applied successfully.":"Values applied. Module activation waits for a world and player.");
+            NotificationManager.success("Config loaded", plan.recovered > 0
+                    ? "Compatible settings applied; defaults used for incompatible entries. See config diagnostics."
+                    : pendingActivation.isEmpty()?"The configuration was applied successfully.":"Values applied. Module activation waits for a world and player.");
             return true;
-        } catch (IOException | RuntimeException e) {
+        } catch (IOException | RuntimeException | NoClassDefFoundError | ExceptionInInitializerError | UnsatisfiedLinkError e) {
             fail("Config load failed", e);
             messages.accept(lastError);
             return false;
@@ -265,6 +276,7 @@ public class ConfigManager {
 
     private String loadMessage(String label, Plan plan) {
         return label + " loaded" + (pendingActivation.isEmpty() ? "" : "; activation pending until world/player are ready")
+                + (plan.recovered==0?"":"; "+plan.recovered+" incompatible entries recovered with defaults or skipped")
                 + (plan.migratedRotations==0?"":"; "+plan.migratedRotations+" rotation profiles migrated to Benutzerdefiniert")
                 + (plan.migratedOctaves==0?"":"; legacy octave counts truncated with minimum 1")
                 + (plan.migratedTiming==0?"":"; legacy preset timing preserved (Min/Max/Interpolation = 30/40/5); disable Preset Timing to use stored settings")
@@ -279,6 +291,11 @@ public class ConfigManager {
                 + (plan.migratedNetworkPolicies==0?"":"; network policies normalized: prior Combat target selection retained, Min Range uses Min Server Distance, Delay uses Release Cooldown MS after successful release (no additional enable wait)")
                 + (plan.clampedLegacyDelays==0?"":"; legacy delay requests above the shared 500 ms bound were capped explicitly")
                 + (plan.unknown == 0 ? "." : "; " + plan.unknown + " unknown entries skipped (partial compatibility).");
+    }
+
+    private void reportCompatibility(Plan plan) {
+        if (!plan.diagnostics.isEmpty()) messages.accept("Config compatibility: " + String.join("; ", plan.diagnostics)
+                + (plan.diagnosticCount > plan.diagnostics.size() ? "; " + (plan.diagnosticCount - plan.diagnostics.size()) + " additional diagnostic entries omitted." : "."));
     }
 
     public String readConfigData(Path path) throws IOException {
@@ -296,18 +313,24 @@ public class ConfigManager {
             applying = true;
             try {
                 ModuleToggleJournal.beginConfigApplication();
+                Map<Module, Throwable> failures = new LinkedHashMap<>();
                 for (Map.Entry<Module, Boolean> entry : new ArrayList<>(pendingActivation.entrySet())) {
                     Module module = entry.getKey();
-                    if (module.isToggled()) module.setToggled(false);
-                    module.setToggled(entry.getValue());
+                    try {
+                        if (module.isToggled()) module.setToggled(false);
+                        module.setToggled(entry.getValue());
+                    } catch (RuntimeException | NoClassDefFoundError | ExceptionInInitializerError | UnsatisfiedLinkError failure) {
+                        stopFailedModule(module, failure);
+                        failures.put(module, failure);
+                    }
                     pendingActivation.remove(module);
                 }
                 markDirty();
-            } catch (RuntimeException e) {
+                if (!failures.isEmpty()) throw applicationFailure(failures);
+            } catch (RuntimeException | NoClassDefFoundError | ExceptionInInitializerError | UnsatisfiedLinkError e) {
                 automaticReadOnly = true;
                 fail("Module activation failed; automatic saving paused", e);
                 messages.accept(lastError);
-                pendingActivation.clear();
             } finally {
                 applying = false;
                 ModuleToggleJournal.endConfigApplication();
@@ -423,7 +446,18 @@ public class ConfigManager {
             JsonObject data = entry.getValue().getAsJsonObject();
             if (data.has("settings")) {
                 JsonObject settings = new JsonObject();
-                for (Map.Entry<String, JsonElement> setting : data.getAsJsonObject("settings").entrySet()) {
+                JsonElement stored = data.get("settings");
+                JsonObject source;
+                if (stored.isJsonArray()) {
+                    // A valid legacy name/value array can occur inside a versioned
+                    // module. Keep unknown settings while saving the current schema.
+                    source = new JsonObject();
+                    for (JsonElement item : stored.getAsJsonArray()) {
+                        JsonObject setting = item.getAsJsonObject();
+                        source.add(setting.get("name").getAsString(), setting.get("value"));
+                    }
+                } else source = stored.getAsJsonObject();
+                for (Map.Entry<String, JsonElement> setting : source.entrySet()) {
                     // Migration has resolved the current values; aliases and
                     // retired fields must not survive automatic saves.
                     if ("nscaffold".equals(module.getId()) && (nScaffoldAlias(setting.getKey()) != null
@@ -441,6 +475,11 @@ public class ConfigManager {
     }
 
     private Plan parse(String content) throws IOException {
+        return parse(content, false);
+    }
+
+    /** Imports recover individual obsolete values; authored saves still validate strictly. */
+    private Plan parse(String content, boolean recoverEntries) throws IOException {
         JsonElement parsed;
         try (JsonReader reader = new JsonReader(new StringReader(content))) {
             reader.setLenient(false);
@@ -455,13 +494,14 @@ public class ConfigManager {
             if (version == CONFIG_VERSION && !v2) throw new IllegalArgumentException("Missing modules object.");
         }
         JsonObject entries = v2 ? object(root.get("modules"), "modules") : root;
-        Plan plan = new Plan(root);
+        Plan plan = new Plan(root, recoverEntries);
         Set<Module> seen = new HashSet<>();
         for (Map.Entry<String, JsonElement> entry : entries.entrySet()) {
             if (!v2 && "version".equals(entry.getKey())) continue;
             Module module = findModule(entry.getKey());
-            if (module == null) { plan.unknown++; continue; }
-            if (!seen.add(module)) throw new IllegalArgumentException("Duplicate module entry: " + module.getId());
+            if (module == null) { plan.unknown++; plan.note("unknown module " + entry.getKey() + " skipped"); continue; }
+            if (!seen.add(module)) throw new AmbiguousConfigException("Duplicate module entry: " + module.getId());
+            try {
             JsonObject json = object(entry.getValue(), module.getId());
             Change change = new Change(module);
             Set<String> names=settingNames(json);
@@ -481,28 +521,23 @@ public class ConfigManager {
             JsonObject explicitSettings=json.has("settings") && json.get("settings").isJsonObject()?json.getAsJsonObject("settings"):json;
             change.legacyRotation=module.getId().equals("aimassist") && !explicitSettings.has("randomization_style") && !explicitSettings.has("Randomization Style");
             String enabled = json.has("enabled") ? "enabled" : "toggled";
-            if (json.has(enabled)) change.enabled = bool(json.get(enabled), module.getId() + ".enabled");
+            if (json.has(enabled)) {
+                try { change.enabled = bool(json.get(enabled), module.getId() + ".enabled"); }
+                catch (IllegalArgumentException invalid) {
+                    plan.recover(module.getId() + ".enabled: invalid toggle; disabled by default", invalid);
+                    change.enabled = false;
+                }
+            }
             if (json.has("key")) {
-                change.key = integer(json.get("key"), module.getId() + ".key");
-                if (change.key < 0 || change.key > 255) throw new IllegalArgumentException("Invalid keybind: " + module.getId());
-            }
-            if (v2) {
-                if (json.has("settings")) parseSettings(plan, change, object(json.get("settings"), "settings"));
-            } else if (json.has("settings") && json.get("settings").isJsonArray()) {
-                for (JsonElement element : json.getAsJsonArray("settings")) {
-                    JsonObject setting = object(element, "legacy setting");
-                    JsonElement name = setting.get("name");
-                    if (name == null || !name.isJsonPrimitive() || !name.getAsJsonPrimitive().isString()) throw new IllegalArgumentException("Missing legacy setting name.");
-                    parseSetting(plan, change, name.getAsString(), setting.get("value"));
-                }
-            } else {
-                for (Map.Entry<String, JsonElement> value : json.entrySet()) {
-                    if (Arrays.asList("key", "enabled", "toggled", "rotationVersion", "networkVersion").contains(value.getKey())) continue;
-                    JsonElement raw = value.getValue();
-                    if (raw.isJsonObject() && raw.getAsJsonObject().has("value")) raw = raw.getAsJsonObject().get("value");
-                    parseSetting(plan, change, value.getKey(), raw);
+                try {
+                    change.key = integer(json.get("key"), module.getId() + ".key");
+                    if (change.key < 0 || change.key > 255) throw new IllegalArgumentException("Invalid keybind: " + module.getId());
+                } catch (IllegalArgumentException invalid) {
+                    plan.recover(module.getId() + ".key: invalid keybind; reset to unbound", invalid);
+                    change.key = 0;
                 }
             }
+            parseModuleSettings(plan, change, json, v2);
             // Existing inventory files predate organized hotbar planning. New module
             // instances use Organized, but loading an old setup keeps its exact layout.
             if ("invmanager".equals(module.getId())) defaultSetting(change,"layout","Legacy");
@@ -577,7 +612,19 @@ public class ConfigManager {
             prioritizeScaffoldSettings(change);
             migrateNetworkOptions(plan,change);
             plan.changes.add(change);
+            } catch (IllegalArgumentException | ArithmeticException invalidModule) {
+                plan.recover(module.getId() + ": incompatible module entry skipped (" + invalidModule.getMessage() + ")", invalidModule);
+            }
         }
+        for (Module module : modules) {
+            if (LEGACY_ENABLED_DESIGNS.contains(module.getId()) && !seen.contains(module)) {
+                Change change = new Change(module);
+                change.enabled = true;
+                plan.changes.add(change);
+            }
+        }
+        if (plan.changes.isEmpty() && plan.recovered > 0)
+            throw new IllegalArgumentException("No compatible module entries: " + String.join("; ", plan.diagnostics));
         return plan;
     }
     /** Explicit modern controls win over a legacy preset regardless of JSON key order. */
@@ -704,15 +751,83 @@ public class ConfigManager {
     }
 
     private void parseSettings(Plan plan, Change change, JsonObject settings) {
-        for (Map.Entry<String, JsonElement> entry : settings.entrySet()) parseSetting(plan, change, entry.getKey(), entry.getValue());
+        for (Map.Entry<String, JsonElement> entry : settings.entrySet()) readSetting(plan, change, entry.getKey(), entry.getValue());
+    }
+
+    private void parseModuleSettings(Plan plan, Change change, JsonObject json, boolean versioned) {
+        if (json.has("settings")) {
+            JsonElement settings = json.get("settings");
+            if (settings.isJsonObject()) parseSettings(plan, change, settings.getAsJsonObject());
+            else if (settings.isJsonArray() && (!versioned || plan.recoverEntries)) {
+                int index = 0;
+                Set<String> unknownNames = new HashSet<>();
+                for (JsonElement element : settings.getAsJsonArray()) {
+                    try {
+                        JsonObject setting = object(element, "legacy setting");
+                        JsonElement name = setting.get("name");
+                        if (name == null || !name.isJsonPrimitive() || !name.getAsJsonPrimitive().isString())
+                            throw new IllegalArgumentException("Missing legacy setting name.");
+                        String id = name.getAsString();
+                        int unknownBefore = plan.unknown;
+                        readSetting(plan, change, id, setting.get("value"));
+                        if (plan.unknown > unknownBefore && !unknownNames.add(id)) {
+                            // Arrays can repeat opaque names. Converting that
+                            // source into an object would silently drop a value.
+                            plan.recover(change.module.getId() + "." + id
+                                            + ": duplicate unknown setting retained in the original file",
+                                    new IllegalArgumentException("Duplicate unknown setting: " + id));
+                        }
+                    } catch (IllegalArgumentException invalid) {
+                        plan.recover(change.module.getId() + ".settings[" + index + "]: malformed legacy entry skipped", invalid);
+                    }
+                    index++;
+                }
+            } else {
+                plan.recover(change.module.getId() + ".settings: invalid container; declared defaults used",
+                        new IllegalArgumentException("Expected settings object: " + change.module.getId()));
+                for (Value<?> value : change.module.getValues()) change.values.put(value, defaultConfigValue(value));
+            }
+        } else if (!versioned) {
+            for (Map.Entry<String, JsonElement> value : json.entrySet()) {
+                if (Arrays.asList("key", "enabled", "toggled", "rotationVersion", "networkVersion").contains(value.getKey())) continue;
+                readSetting(plan, change, value.getKey(), value.getValue());
+            }
+        }
+    }
+
+    private void readSetting(Plan plan, Change change, String id, JsonElement json) {
+        try { parseSetting(plan, change, id, json); }
+        catch (IllegalArgumentException | ArithmeticException invalid) {
+            if (!plan.recoverEntries || invalid instanceof AmbiguousConfigException) throw invalid;
+            String alias = "nscaffold".equals(change.module.getId()) ? nScaffoldAlias(id) : null;
+            Value<?> value = change.module.getValueByName(alias == null ? id : alias);
+            Map<Value<?>, Object> destination = alias == null ? change.values : change.nScaffoldAliases;
+            boolean kept = value != null && destination.containsKey(value);
+            if (value != null && !kept) destination.put(value, defaultConfigValue(value));
+            plan.recover(change.module.getId() + "." + id + ": " + invalid.getMessage()
+                    + (value == null ? "; skipped" : kept ? "; earlier valid entry retained" : "; declared default used"), invalid);
+        }
+    }
+
+    private static Object defaultConfigValue(Value<?> value) {
+        if (value instanceof ColorValue) {
+            ColorValue color = (ColorValue) value;
+            return (Runnable) () -> color.setConfigState(color.getDefaultValue(), false, 1, 15);
+        }
+        return value.getDefaultValue();
     }
 
     private void parseSetting(Plan plan, Change change, String id, JsonElement json) {
+        // Value wrappers also occur inside nested legacy settings. Unwrap before
+        // validation so numbers/booleans follow the same path as choices, while
+        // structured color objects without a value member remain intact.
+        if (json != null && json.isJsonObject() && json.getAsJsonObject().has("value"))
+            json = json.getAsJsonObject().get("value");
         if ("bedbreaker".equals(change.module.getId()) && retiredBedBreakerSetting(id)) {
             JsonElement raw = json != null && json.isJsonObject() ? json.getAsJsonObject().get("value") : json;
             validateRetiredBedBreakerSetting(id, raw);
             if (!change.retiredBedBreaker.add(normalizedName(id)))
-                throw new IllegalArgumentException("Duplicate setting: " + id);
+                throw new AmbiguousConfigException("Duplicate setting: " + id);
             change.migratedBedBreaker = true;
             return;
         }
@@ -757,9 +872,9 @@ public class ConfigManager {
             json=new JsonPrimitive(old.equalsIgnoreCase("Nearest")?"Combat / Nearest":"Combat / Cursor");
         }
         Value<?> value = change.module.getValueByName(id);
-        if (value == null) { plan.unknown++; return; }
+        if (value == null) { plan.unknown++; plan.note("unknown setting " + change.module.getId() + "." + id + " skipped"); return; }
         Map<Value<?>,Object> destination = nScaffoldAlias ? change.nScaffoldAliases : change.values;
-        if (destination.containsKey(value)) throw new IllegalArgumentException("Duplicate setting: " + id);
+        if (destination.containsKey(value)) throw new AmbiguousConfigException("Duplicate setting: " + id);
         String label = change.module.getId() + "." + value.getId();
         Object decoded;
         if (value instanceof ColorValue) {
@@ -863,39 +978,95 @@ public class ConfigManager {
     private void apply(Plan plan, boolean settingsOnly) {
         if (applying) throw new IllegalStateException("Recursive config load is not allowed.");
         applying = true;
+        Set<Module> touched = new LinkedHashSet<>();
+        Map<Module, Throwable> failures = new LinkedHashMap<>();
         try {
             ModuleToggleJournal.beginConfigApplication();
             boolean canActivate = ready.getAsBoolean();
             for (Change change : plan.changes) {
                 change.desired = change.enabled != null ? change.enabled : pendingActivation.getOrDefault(change.module, change.module.isToggled());
-                if (canActivate && change.module.isToggled()) change.module.setToggled(false);
-                if (settingsOnly) change.module.beginSettingsUpdate();
-                else change.module.beginConfigUpdate();
+                touched.add(change.module);
+                try {
+                    if (canActivate && change.module.isToggled()) change.module.setToggled(false);
+                    if (settingsOnly) change.module.beginSettingsUpdate();
+                    else change.module.beginConfigUpdate();
+                } catch (RuntimeException | NoClassDefFoundError | ExceptionInInitializerError | UnsatisfiedLinkError failure) {
+                    recordApplicationFailure(failures, change.module, failure);
+                }
             }
             for (Change change : plan.changes) {
-                if (change.key != null) change.module.setKey(change.key);
-                for (Map.Entry<Value<?>, Object> entry : change.values.entrySet()) {
-                    if (entry.getValue() instanceof Runnable) ((Runnable) entry.getValue()).run();
-                    else ((Value) entry.getKey()).setValue(entry.getValue());
+                if (failures.containsKey(change.module)) continue;
+                try {
+                    if (change.key != null) change.module.setKey(change.key);
+                    for (Map.Entry<Value<?>, Object> entry : change.values.entrySet()) {
+                        if (entry.getValue() instanceof Runnable) ((Runnable) entry.getValue()).run();
+                        else ((Value) entry.getKey()).setValue(entry.getValue());
+                    }
+                } catch (RuntimeException | NoClassDefFoundError | ExceptionInInitializerError | UnsatisfiedLinkError failure) {
+                    recordApplicationFailure(failures, change.module, failure);
                 }
             }
             // All modules' data is in place before callbacks or activation hooks.
-            for (Change change : plan.changes) change.module.endConfigUpdate();
             for (Change change : plan.changes) {
-                if (canActivate) {
-                    pendingActivation.remove(change.module);
-                    change.module.setToggled(change.desired);
-                } else pendingActivation.put(change.module, change.desired);
+                if (failures.containsKey(change.module)) continue;
+                try { change.module.endConfigUpdate(); }
+                catch (RuntimeException | NoClassDefFoundError | ExceptionInInitializerError | UnsatisfiedLinkError failure) {
+                    recordApplicationFailure(failures, change.module, failure);
+                }
             }
-        } catch (RuntimeException e) {
-            automaticReadOnly = true;
-            throw new IllegalStateException("Application failed; state may be partially applied. Automatic saving paused: " + e.getMessage(), e);
+            for (Change change : plan.changes) {
+                if (failures.containsKey(change.module)) continue;
+                try {
+                    if (canActivate) {
+                        pendingActivation.remove(change.module);
+                        change.module.setToggled(change.desired);
+                    } else pendingActivation.put(change.module, change.desired);
+                } catch (RuntimeException | NoClassDefFoundError | ExceptionInInitializerError | UnsatisfiedLinkError failure) {
+                    recordApplicationFailure(failures, change.module, failure);
+                }
+            }
+            if (!failures.isEmpty()) {
+                automaticReadOnly = true;
+                throw applicationFailure(failures);
+            }
         } finally {
             try {
-                for (Change change : plan.changes) change.module.cancelConfigUpdate();
+                for (Module module : touched) module.cancelConfigUpdate();
                 applying = false;
             } finally {
                 ModuleToggleJournal.endConfigApplication();
+            }
+        }
+    }
+
+    private void recordApplicationFailure(Map<Module, Throwable> failures, Module module, Throwable failure) {
+        failures.put(module, failure);
+        pendingActivation.remove(module);
+        module.cancelConfigUpdate();
+        stopFailedModule(module, failure);
+    }
+
+    private static IllegalStateException applicationFailure(Map<Module, Throwable> failures) {
+        List<String> details = new ArrayList<>();
+        for (Map.Entry<Module, Throwable> failure : failures.entrySet())
+            details.add(failure.getKey().getId() + ": " + describeFailure(failure.getValue()));
+        return new IllegalStateException("Application failed for " + String.join("; ", details)
+                + "; state may be partially applied. Compatible modules retained. Automatic saving paused.",
+                failures.values().iterator().next());
+    }
+
+    private static void stopFailedModule(Module module, Throwable failure) {
+        try {
+            if (module.isToggled()) module.setToggled(false);
+        } catch (RuntimeException | NoClassDefFoundError | ExceptionInInitializerError | UnsatisfiedLinkError cleanupFailure) {
+            if (cleanupFailure != failure) failure.addSuppressed(cleanupFailure);
+        } finally {
+            // setToggled(false) writes its bit before onDisable. A failing hook
+            // may therefore skip super.onDisable while leaving listeners active.
+            try {
+                Pulsar.BUS.unsubscribe(module);
+            } catch (RuntimeException | NoClassDefFoundError | ExceptionInInitializerError | UnsatisfiedLinkError unsubscribeFailure) {
+                if (unsubscribeFailure != failure) failure.addSuppressed(unsubscribeFailure);
             }
         }
     }
@@ -928,10 +1099,15 @@ public class ConfigManager {
         try { return new BigDecimal(element.getAsString()).intValueExact(); }
         catch (ArithmeticException e) { throw new IllegalArgumentException("Expected 32-bit integer: " + label); }
     }
-    private boolean fail(String message, Exception e) {
-        lastError = message + ": " + e.getMessage();
+    private boolean fail(String message, Throwable e) {
+        lastError = message + ": " + describeFailure(e);
         NotificationManager.error("Configuration failed","The action did not complete. See the existing config diagnostics.");
         return false;
+    }
+    private static String describeFailure(Throwable failure) {
+        String detail = failure.getMessage();
+        return failure.getClass().getSimpleName()
+                + (detail == null || detail.trim().isEmpty() ? "" : ": " + detail);
     }
     private static void report(String message) {
         Minecraft mc = Minecraft.getMinecraft();
@@ -940,9 +1116,26 @@ public class ConfigManager {
     }
     private static final class Plan {
         final JsonObject root;
+        final boolean recoverEntries;
         final List<Change> changes = new ArrayList<>();
+        final List<String> diagnostics = new ArrayList<>();
+        int recovered, diagnosticCount;
         int unknown, migratedRotations, migratedOctaves, migratedTiming, migratedModes, migratedTargetHudModes, legacyAssist, migratedDefaults, legacyScaffold, migratedNScaffold, migratedBedBreaker, legacyNetwork, clampedLegacyDelays, migratedNetworkPolicies;
-        Plan(JsonObject root) { this.root = root; }
+        Plan(JsonObject root) { this(root, false); }
+        Plan(JsonObject root, boolean recoverEntries) { this.root = root; this.recoverEntries = recoverEntries; }
+        void recover(String message, RuntimeException failure) {
+            if (!recoverEntries || failure instanceof AmbiguousConfigException) throw failure;
+            recovered++;
+            note(message);
+        }
+        void note(String message) {
+            diagnosticCount++;
+            if (diagnostics.size() < 16) diagnostics.add(message);
+        }
+    }
+    /** Conflicting identities are structural ambiguity, not one obsolete value. */
+    private static final class AmbiguousConfigException extends IllegalArgumentException {
+        AmbiguousConfigException(String message) { super(message); }
     }
     private static final class Change {
         final Module module;

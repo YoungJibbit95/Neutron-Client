@@ -15,7 +15,7 @@ Die Einstellungen liegen in den drei Dropdown-Unterkategorien **Halo**, **Hitpoi
 | Halo Width | Breite des leuchtenden Bandes. |
 | Halo Speed | Geschwindigkeit der Höhenbewegung und des umlaufenden Lichtkopfes. |
 | Halo Trail | Stärke der nachlaufenden, ausblendenden Bänder. |
-| Halo Motion | Stärke der federnden Neigung bei Target-Bewegung. |
+| Halo Motion | Stärke der federnden Neigung und der leichten Positionsglättung bei Target-Bewegung. |
 
 Der Halo übernimmt das aktive Target der Aura. Er sucht selbst keine Gegner. Ein Target-Wechsel oder eine ungültige Szene verwirft die vorherige Bewegung, damit kein Schweif an einem alten Target hängen bleibt.
 
@@ -28,14 +28,22 @@ Der Halo übernimmt das aktive Target der Aura. Er sucht selbst keine Gegner. Ei
 | Hitpoint Size | Größe des geschichteten Punktes und seines Glows. |
 | Hitpoint Ray Length | Länge des **Visualisierungsstrahls**, standardmäßig sechs Blöcke. Verändert keine Angriffs- oder Platzierungsreichweite. |
 | Show Ray Misses | Zeigt bei fehlendem Treffer einen schwächeren Punkt am Strahlende. Ausgeschaltet erscheinen nur tatsächliche lokale Schnittpunkte. |
+| Hitpoint Smoothing | Rein visuelle Glättung zwischen beobachteten Punktpositionen. `0` zeigt jeden neuen Schnittpunkt sofort; höhere Werte bewegen die Anzeige weicher. |
 
 Der Punkt beobachtet ausschließlich die **lokal akzeptierten effektiven Rotationswinkel**. Der Strahl beginnt an der zuletzt lokal gemeldeten Spielerposition zuzüglich Augenhöhe. Bei Aura wird der nächste Schnittpunkt mit einer kollidierbaren Entität oder einem Block angezeigt; bei Scaffold und NScaffold werden Blöcke berücksichtigt. Beide Builder bleiben eigenständige Besitzer; das Aktivieren eines Moduls bestätigt keine alte Rotation des anderen.
 
 Das ist **keine Serverbestätigung** eines Treffers, Angriffs oder platzierten Blocks. Der Punkt zeigt auch keinen gewünschten zukünftigen Aim-Punkt. Die Anzeige fordert keine Rotation an und löst keine Spielaktion aus.
 
-Die Punktposition erhält bewusst **keine Bewegungsglättung**: Eine geänderte angewendete Rotation soll sofort sichtbar werden. Glow und Schichtung verbessern die Lesbarkeit, ohne den Punkt hinter seiner tatsächlichen Position herziehen zu lassen.
+Die beobachtete Punktposition bleibt exakt. Davon getrennt gleitet die **Darstellung** mit einer kurzen, zeitbasierten Glättung zwischen diesen Positionen. `Hitpoint Smoothing = 0` zeigt den beobachteten Punkt unmittelbar. Die Glättung verändert weder Rotationen noch Raycasts, Entitätspositionen, Angriffe oder Netzwerkdaten. Ein Wechsel von Target oder Rotationsquelle, Treffer zu Fehlschlag, eine große Positionsänderung oder eine Pause verwirft den alten Verlauf. Zwei Renderdurchläufe desselben Frames verwenden dieselbe Darstellungsposition.
 
 Nach dem Einschalten oder einem Kontextwechsel wartet die Anzeige auf frische Bewegungsdaten. Fehlt der gültige Besitzer oder schreitet dessen Bewegungssequenz länger als 250 ms nicht fort, wird kein alter Punkt weiter angezeigt. Menüs, Pause, Fokusverlust und ungültige Spieler-/Weltszenen können die Darstellung ebenfalls aussetzen.
+
+Die federnde Halo-Neigung verwendet ebenfalls die Minecraft-Rendersequenz. Sie folgt
+dem Ziel auch bei mit F1 ausgeblendetem HUD, während zwei Augen desselben Frames
+denselben Bewegungswert erhalten. Bei niedriger Framerate wird die vollständige
+verstrichene Zeit bis zur Pausengrenze in begrenzten Federschritten verarbeitet;
+die Bewegung wird dadurch nicht künstlich langsamer. Die gemeinsame dekorative
+Animationszeit bleibt für die Gestaltung zuständig.
 
 ### Appearance
 
@@ -47,7 +55,7 @@ Nach dem Einschalten oder einem Kontextwechsel wartet die Anzeige auf frische Be
 | Color Source | `Theme` übernimmt die aktuellen Theme-/Gradient-Einstellungen; `Custom` verwendet die eigene Farbe. |
 | Custom Color | Eigene Farbe, sichtbar bei `Color Source = Custom`. |
 
-Die globalen Optionen **Animations**, **Reduced Motion** und **Ambient Motion** werden berücksichtigt. Bei reduzierter oder deaktivierter Bewegung entfallen dekoratives Umlaufen, Höhenbewegung und federnde Neigung. Die aktuelle Position des Targets und der genaue Rotationspunkt bleiben weiterhin beobachtete Spielwerte.
+Die globalen Optionen **Animations**, **Reduced Motion** und **Ambient Motion** werden berücksichtigt. Bei reduzierter oder deaktivierter Bewegung entfallen dekoratives Umlaufen, Höhenbewegung, federnde Neigung und Positionsglättung. Die aktuelle Position des Targets und der genaue Rotationspunkt erscheinen dann unmittelbar.
 
 ## Smart Disable
 

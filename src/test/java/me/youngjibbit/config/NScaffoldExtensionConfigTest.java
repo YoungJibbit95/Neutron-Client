@@ -210,22 +210,25 @@ public class NScaffoldExtensionConfigTest {
         assertTrue(config.getLastError(), config.loadConfig("Absent")); assertEquals(before, values(module));
     }
 
-    @Test public void invalidOriginalAndLegacyChoicesRejectWholeImportWithoutChangingFiles() throws Exception {
+    @Test public void invalidOriginalAndLegacyChoicesRecoverAlongsideCompatibleValues() throws Exception {
         NScaffold module = new NScaffold(); Path directory = temporary.newFolder().toPath();
         ConfigManager config = manager(module, directory); warmEverySetting(module);
         String before = config.serialize(); assertTrue(config.getLastError(), config.saveConfig("Preserve"));
         List<String> modes = new ArrayList<>(Arrays.asList("build_mode", "visible_rotation"));
         for (Value<?> value : module.getValues()) if (value instanceof ComboValue) modes.add(value.getId());
         for (String id : modes) {
+            warmEverySetting(module);
             String invalid = v2("\"ground_ticks_to_sneak\":0,\"" + id + "\":\"Unknown choice\"");
             write(directory, "Invalid", invalid);
-            assertFalse(id, config.loadConfig("Invalid")); assertEquals(before, config.serialize());
-            assertEquals(invalid, read(directory, "Invalid"));
             assertFalse(config.saveConfig("Preserve", invalid)); assertEquals(before, read(directory, "Preserve"));
+            assertEquals(before, config.serialize());
+            assertTrue(id, config.loadConfig("Invalid"));
+            assertEquals(0, module.getNumberSetting("Ground Ticks to Sneak").getValue(), 0);
+            assertEquals(invalid, read(directory, "Invalid"));
         }
     }
 
-    @Test public void retiredControlsAndAliasesStillRejectMalformedValuesAndDuplicates() throws Exception {
+    @Test public void retiredControlsAndAliasesCannotBeSavedWithMalformedValuesAndDuplicates() throws Exception {
         NScaffold module = new NScaffold(); Path directory = temporary.newFolder().toPath();
         ConfigManager config = manager(module, directory); warmEverySetting(module); String before = config.serialize();
         String[] invalidSettings = {"\"advanced_rotations\":\"false\"", "\"turn_speed\":0", "\"look_ahead\":1.1",
@@ -233,7 +236,7 @@ public class NScaffoldExtensionConfigTest {
                 "\"short_stop_duration_(ms)\":24", "\"build_mode\":\"Normal\",\"Build Mode\":\"Telly\"",
                 "\"rotations\":\"Normal\",\"Rotations\":\"Center\""};
         for (String settings : invalidSettings) {
-            write(directory, "Invalid", v2(settings)); assertFalse(settings, config.loadConfig("Invalid"));
+            write(directory, "Invalid", v2(settings)); assertFalse(settings, config.saveConfig("Invalid", v2(settings)));
             assertEquals(before, config.serialize());
         }
     }

@@ -153,7 +153,7 @@ public class AdaptiveBridgeCadenceConfigTest {
         assertEquals(saved, new String(Files.readAllBytes(file), StandardCharsets.UTF_8));
     }
 
-    @Test public void invalidCadenceModesAreAtomicAndCannotRetypeLegacyInterpolation() throws Exception {
+    @Test public void invalidCadenceModesCannotBeSavedOrRetypeLegacyInterpolation() throws Exception {
         for (String invalid : new String[]{"\"click_profile\":\"Gaussian\"",
                 "\"place_interpolation\":\"Unlimited\"", "\"interpolation\":\"Dynamic\""}) {
             Scaffold scaffold = new Scaffold();
@@ -162,7 +162,7 @@ public class AdaptiveBridgeCadenceConfigTest {
             String before = configs.serialize();
             String saved = "{\"version\":2,\"modules\":{\"scaffold\":{\"settings\":{" + invalid + "}}}}";
             Files.write(directory.resolve("Invalid.json"), saved.getBytes(StandardCharsets.UTF_8));
-            assertFalse(configs.loadConfig("Invalid"));
+            assertFalse(configs.saveConfig("Invalid", configs.readConfigData(configs.defaultConfig.toPath().resolveSibling("Invalid.json"))));
             assertEquals(before, configs.serialize());
         }
     }

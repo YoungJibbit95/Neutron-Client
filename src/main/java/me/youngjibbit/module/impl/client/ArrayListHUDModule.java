@@ -2,6 +2,7 @@ package me.youngjibbit.module.impl.client;
 
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.gui.HudSpring;
+import me.youngjibbit.gui.ModulePrefixes;
 import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.event.render.Event2D;
 import me.youngjibbit.module.Category;
@@ -218,7 +219,9 @@ public class ArrayListHUDModule extends Module {
             if (module.isToggled() || (modern
                     ? modernVisibility.containsKey(module.getId())
                     : visibilityAnimations.containsKey(module.getId()))) {
-                labels.add(new FrameLabel(module,metricsFor(module,getLabel(module),renderer,textScale)));
+                ModulePrefixes.Detail detail=showModuleInfo.getValue()&&module.isToggled()
+                        ?prefixDetails.sample(module):ModulePrefixes.Detail.EMPTY;
+                labels.add(new FrameLabel(module,metricsFor(module,getLabel(module,detail.text),renderer,textScale,detail.marker)));
             }
         }
         visibilityAnimations.keySet().removeIf(id -> !renderable.contains(id));
@@ -324,24 +327,33 @@ public class ArrayListHUDModule extends Module {
                 GL11.glTranslatef(row.textX, row.textY, 0);
                 GL11.glScalef(metrics.scale, metrics.scale, 1);
                 int color = UiEffects.alpha(me.youngjibbit.gui.LegacyUiStyle.PREFIX, row.progress);
-                if (metrics.renderer == null) Wrapper.mc.fontRendererObj.drawStringWithShadow(metrics.prefix, metrics.nameWidth, 0, color);
-                else metrics.renderer.drawString(metrics.prefix, metrics.nameWidth, 0, color);
+                if(metrics.marker!=ModulePrefixes.Marker.NONE) {
+                    int kind=metrics.marker==ModulePrefixes.Marker.HOLDING?1:metrics.marker==ModulePrefixes.Marker.READY?2
+                            :metrics.marker==ModulePrefixes.Marker.RELEASING?3:0;
+                    me.youngjibbit.module.impl.client.island.IslandGlyphRenderer.activity(
+                            metrics.nameWidth+6,metrics.height/metrics.scale/2,kind,
+                            me.youngjibbit.gui.LegacyUiStyle.PREFIX,row.progress,
+                            UiEffects.motion()?UiEffects.time():0);
+                }
+                float prefixX=metrics.nameWidth+metrics.iconWidth;
+                if (metrics.renderer == null) Wrapper.mc.fontRendererObj.drawStringWithShadow(metrics.prefix, prefixX, 0, color);
+                else metrics.renderer.drawString(metrics.prefix, prefixX, 0, color);
             } finally { GL11.glPopMatrix(); }
         }
     }
 
     /** The same glyph advances drive measurement, sorting, clipping and drawing. No width fudge factor. */
-    private Metrics metricsFor(Module module,String label,TTFFontRenderer renderer,float textScale) {
+    private Metrics metricsFor(Module module,String label,TTFFontRenderer renderer,float textScale,ModulePrefixes.Marker marker) {
         String id=module.getId();
         // Vanilla fonts may change on resource reload; obfuscated glyph widths vary each draw.
         if(renderer==null || label.contains("\u00a7k") || label.contains("\u00a7K")) {
             metricsCache.remove(id);
-            return new Metrics(label,renderer,textScale);
+            return new Metrics(label,renderer,textScale,marker);
         }
         Metrics cached=metricsCache.get(id);
         if(cached==null || !cached.label.equals(label) || cached.renderer!=renderer
-                || Float.compare(cached.scale,textScale)!=0) {
-            cached=new Metrics(label,renderer,textScale);
+                || Float.compare(cached.scale,textScale)!=0 || cached.marker!=marker) {
+            cached=new Metrics(label,renderer,textScale,marker);
             metricsCache.put(id,cached);
         }
         return cached;
@@ -349,16 +361,18 @@ public class ArrayListHUDModule extends Module {
 
     private static final class Metrics {
         final String label, name, prefix;
+        final ModulePrefixes.Marker marker;
         final TTFFontRenderer renderer;
-        final float scale,width,height,nameWidth;
-        Metrics(String label,TTFFontRenderer renderer,float scale) {
-            this.label=label;this.renderer=renderer;this.scale=scale;
+        final float scale,width,height,nameWidth,iconWidth;
+        Metrics(String label,TTFFontRenderer renderer,float scale,ModulePrefixes.Marker marker) {
+            this.label=label;this.renderer=renderer;this.scale=scale;this.marker=marker;
             int split=label.indexOf(" : ");
             name=split<0?label:label.substring(0,split);
-            prefix=split<0?"":label.substring(split);
+            iconWidth=split>=0&&marker!=ModulePrefixes.Marker.NONE?10:0;
+            prefix=split<0?"":iconWidth>0?" "+label.substring(split+3):label.substring(split);
             nameWidth=renderer==null?Wrapper.mc.fontRendererObj.getStringWidth(name):renderer.getWidth(name);
             float detailWidth=renderer==null?Wrapper.mc.fontRendererObj.getStringWidth(prefix):renderer.getWidth(prefix);
-            width=(nameWidth+detailWidth+(renderer==null?1:0))*scale;
+            width=(nameWidth+iconWidth+detailWidth+(renderer==null?1:0))*scale;
             height=(renderer==null?Wrapper.mc.fontRendererObj.FONT_HEIGHT:renderer.getHeight("Ay"))*scale;
         }
     }
@@ -367,10 +381,8 @@ public class ArrayListHUDModule extends Module {
         FrameLabel(Module module,Metrics metrics) { this.module=module; this.metrics=metrics; }
     }
 
-    private String getLabel(Module module) {
+    private String getLabel(Module module,String detail) {
         String label = modern()?module.getName():"| " + module.getName();
-        if (!showModuleInfo.getValue() || !module.isToggled()) return label;
-        String detail = prefixDetails.detail(module);
         return detail.isEmpty() ? label : label + " : " + detail;
     }
 

@@ -64,11 +64,11 @@ public class InventoryLayoutConfigTest {
             assertTrue(config.getLastError(),config.loadConfig("LegacyExplicit"));assertEquals(layout,inventory.layout.getValue());
         }
     }
-    @Test public void invalidLayoutRejectsTheWholeProfileWithoutPartialChanges()throws Exception {
+    @Test public void invalidLayoutCannotBeSavedOrMutateCurrentSettings()throws Exception {
         InventoryManager inventory=new InventoryManager();Path directory=temporary.newFolder().toPath();ConfigManager config=codec(directory,inventory);
         inventory.layout.setValue("Custom");inventory.maxBlocks.setValue(2D);
         write(directory,"Invalid",v2("Unknown Layout"));
-        assertFalse(config.loadConfig("Invalid"));
+        assertFalse(config.saveConfig("Invalid", config.readConfigData(config.defaultConfig.toPath().resolveSibling("Invalid.json"))));
         assertEquals("Custom",inventory.layout.getValue());assertEquals(2,inventory.maxBlocks.getValue(),0);
         assertFalse(config.saveConfig("InvalidSave",v2("Unknown Layout")));
         assertFalse(Files.exists(directory.resolve("InvalidSave.json")));

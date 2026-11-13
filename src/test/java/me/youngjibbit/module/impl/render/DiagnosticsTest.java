@@ -5,6 +5,7 @@ import me.youngjibbit.config.ConfigManager;
 import me.youngjibbit.core.combat.RotationBehaviorHookTest;
 import me.youngjibbit.core.combat.RotationManager;
 import me.youngjibbit.core.diagnostics.CorrectionHistory;
+import me.youngjibbit.core.world.Wave2IsolatedCase;
 import me.youngjibbit.event.packet.EventPacket;
 import me.youngjibbit.module.Category;
 import me.youngjibbit.module.ModuleManager;
@@ -25,6 +26,25 @@ public class DiagnosticsTest {
     @Rule public TemporaryFolder folder=new TemporaryFolder();
     private static Field field(Class<?> type,String name)throws Exception{Field f=type.getDeclaredField(name);f.setAccessible(true);return f;}
     private static CorrectionHistory history(Diagnostics d)throws Exception{return (CorrectionHistory)field(Diagnostics.class,"corrections").get(d);}
+    // As in DiagnosticsWarningSnapshotTest, the fixture rebinds static-final
+    // Module.mc with Unsafe. Fresh JVMs keep hot helpers from retaining a prior
+    // fake client, without disabling the ordinary Java 8 JIT or changing checks.
+    @Test public void liveSamplingDoesNotAccelerateOrFreezeHistory()throws Exception {
+        Wave2IsolatedCase.run(Checks.class,"liveSamplingDoesNotAccelerateOrFreezeHistory");
+    }
+    @Test public void correctionCopyIsCompactAndDoesNotClaimAnAntiCheatCause(){
+        assertEquals("2.5 blocks \u00b7 12.0\u00b0\nCause unknown",Diagnostics.correctionMessage(2.5,12));
+    }
+    @Test public void restartingCorrectionDetectorAllowsANewNotification()throws Exception {
+        Diagnostics d=new Diagnostics();
+        field(Diagnostics.class,"notified").setBoolean(d,true);
+        long previousRun=field(Diagnostics.class,"localWarningRun").getLong(d);
+        d.getBooleanSetting("Flag Detector").setValue(false);
+        assertFalse(field(Diagnostics.class,"notified").getBoolean(d));
+        assertNotEquals(previousRun,field(Diagnostics.class,"localWarningRun").getLong(d));
+        d.getBooleanSetting("Flag Detector").setValue(true);
+        assertFalse(field(Diagnostics.class,"notified").getBoolean(d));
+    }
     @Test public void renderCategoryAndEveryPositionPersistWithoutDuplicateSettingIds()throws Exception {
         Diagnostics a=new Diagnostics();assertEquals(Category.Render,a.getCategory());
         Set<String> ids=new HashSet<>();a.getValues().forEach(v->assertTrue("Duplicate "+v.getId(),ids.add(v.getId())));
@@ -52,6 +72,27 @@ public class DiagnosticsTest {
         manager.requestVisible("test",10,45,12,0,0,()->{throw new AssertionError("Diagnostics evaluated validity");});
         RotationManager.DiagnosticSnapshot s=manager.diagnosticSnapshot();assertEquals("test",s.requestedBy);assertEquals(45,s.requestedYaw,0);assertTrue(s.collecting);assertFalse(s.accepted);
         assertEquals(s.sequence,manager.getMotionSequence());assertFalse(manager.hasEffectiveRotation());
+    }
+    @Test public void editorReservesControlsAndRestoresOrdinaryPositionsWithoutDraggingThem()throws Exception {
+        Wave2IsolatedCase.run(Checks.class,"editorReservesControlsAndRestoresOrdinaryPositionsWithoutDraggingThem");
+    }
+    @Test public void realS08ApplicationRecordsRelativeCorrectionAfterAckAndIgnoresCancelledPackets()throws Exception {
+        Wave2IsolatedCase.run(Checks.class,"realS08ApplicationRecordsRelativeCorrectionAfterAckAndIgnoresCancelledPackets");
+    }
+    public static final class Checks {
+    @Test public void liveSamplingDoesNotAccelerateOrFreezeHistory()throws Exception {
+        try(RotationBehaviorHookTest.Fixture f=new RotationBehaviorHookTest.Fixture()) {
+            Diagnostics d=new Diagnostics();
+            d.getBooleanSetting("Performance Widget").setValue(false);
+            java.lang.reflect.Method sample=Diagnostics.class.getDeclaredMethod("sample",long.class);sample.setAccessible(true);
+            sample.invoke(d,1_000_000_000L);
+            Deque<?> history=(Deque<?>)field(Diagnostics.class,"pingHistory").get(d);
+            assertEquals(1,history.size());
+            sample.invoke(d,1_050_000_000L);assertEquals(1_000_000_000L,field(Diagnostics.class,"sampledAt").getLong(d));
+            sample.invoke(d,1_100_000_000L);assertEquals(1_100_000_000L,field(Diagnostics.class,"sampledAt").getLong(d));
+            assertEquals(1,history.size());
+            sample.invoke(d,1_500_000_000L);assertEquals(2,history.size());
+        }
     }
     @Test public void editorReservesControlsAndRestoresOrdinaryPositionsWithoutDraggingThem()throws Exception {
         try(RotationBehaviorHookTest.Fixture f=new RotationBehaviorHookTest.Fixture()) {
@@ -86,5 +127,6 @@ public class DiagnosticsTest {
             }finally{Pulsar.BUS.unsubscribe(cancel);d.setToggled(false);}
             }finally{configClient.set(null,oldConfigClient);}
         }
+    }
     }
 }

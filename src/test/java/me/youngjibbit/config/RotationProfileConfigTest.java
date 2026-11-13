@@ -85,13 +85,13 @@ public class RotationProfileConfigTest {
             assertTrue(configs.serialize().contains("\"aimassist\""));assertFalse(configs.serialize().contains(alias));
         }
     }
-    @Test public void conflictingHistoricalAliasesAndUnknownChoicesRejectTheWholeLoad() throws Exception {
+    @Test public void conflictingHistoricalAliasesAndUnknownChoicesCannotBeSaved() throws Exception {
         AimAssist assist=new AimAssist();Path dir=temporary.newFolder().toPath();
         ConfigManager configs=new ConfigManager(dir,Collections.<Module>singletonList(assist),()->false,message->{});
         String before=configs.serialize();
         for(String content:new String[]{"{\"AimAssist\":{},\"AimAssist2\":{}}","{\"AimAssist2\":{\"Noise Mode\":\"imaginary\"}}"}) {
             Files.write(dir.resolve("Invalid.json"),content.getBytes(StandardCharsets.UTF_8));
-            assertFalse(configs.loadConfig("Invalid"));assertEquals(before,configs.serialize());assertFalse(configs.getLastError().isEmpty());
+            assertFalse(configs.saveConfig("Invalid",content));assertEquals(before,configs.serialize());assertFalse(configs.getLastError().isEmpty());
         }
     }
     @Test public void evenMinimalOldFilesPreserveEachExplicitManualRotationParameter() throws Exception {
