@@ -120,7 +120,15 @@ public class LegacyNetworkModuleBindingChecks {
             assertEquals(0,budget.getCredit());assertEquals(8,simulation.get());assertEquals(before.xCoord,s.f.player.posX,0);assertEquals(before.yCoord,s.f.player.posY,0);assertEquals(before.zCoord,s.f.player.posZ,0);assertEquals(yaw,s.f.player.rotationYaw,0);assertEquals(1,s.f.mc.timer.timerSpeed,0);
             Tickbase.beginFrame(s.f.mc,false,1,50);Tickbase.runPlayerStep(s.f.player,()->{simulation.incrementAndGet();return true;});assertEquals(0,budget.getCredit());
             s.clock.set(550000000L);Tickbase.beginFrame(s.f.mc,false,1,50);Tickbase.runPlayerStep(s.f.player,()->{simulation.incrementAndGet();return true;});assertEquals(1,budget.getCredit());
-            Pulsar.BUS.post(new WorldEvent.Unload(s.f.mc.theWorld));Tickbase.runPlayerStep(s.f.player,()->{simulation.incrementAndGet();return true;});assertEquals(0,budget.getCredit());Tickbase.beginFrame(s.f.mc,false,1,50);Tickbase.runPlayerStep(s.f.player,()->true);assertEquals(1,budget.getCredit());
+            Pulsar.BUS.post(new WorldEvent.Unload(s.f.mc.theWorld));
+            assertTrue("world unload preserves the chosen activation state",tick.isToggled());
+            Tickbase.runPlayerStep(s.f.player,()->{simulation.incrementAndGet();return true;});assertEquals(0,budget.getCredit());
+            Tickbase.beginFrame(s.f.mc,false,1,50);Tickbase.runPlayerStep(s.f.player,()->true);
+            assertEquals("a fresh frame cannot rebind the old pointers while unloaded",0,budget.getCredit());
+            assertTrue(tick.isToggled());
+            Pulsar.BUS.post(new WorldEvent.Load(s.f.mc.theWorld));Pulsar.BUS.post(new TickEvent());
+            Tickbase.beginFrame(s.f.mc,false,1,50);Tickbase.runPlayerStep(s.f.player,()->true);
+            assertEquals("a loaded current scene and fresh frame can earn new credit",1,budget.getCredit());
         }
     }
     @Test public void restoredLivingTargetFiltersReachBacktrackAndLagRangeRatherThanOnlyTheirConfig() throws Exception {

@@ -2,6 +2,7 @@ package me.youngjibbit.core.network;
 
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.combat.CombatTargetTracker;
+import me.youngjibbit.core.world.Wave2IsolatedCase;
 import me.youngjibbit.event.packet.TickEvent;
 import me.youngjibbit.module.impl.exploit.LagRange;
 import net.minecraft.network.play.client.C03PacketPlayer;
@@ -10,6 +11,11 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class LagRangeLifecycleTest {
+    @Test public void deadLocalPlayerReleasesItsWindowAndCannotAcquireAnotherHold() throws Exception {
+        Wave2IsolatedCase.run(Checks.class, "deadLocalPlayerReleasesItsWindowAndCannotAcquireAnotherHold");
+    }
+
+    public static class Checks {
     @Test public void deadLocalPlayerReleasesItsWindowAndCannotAcquireAnotherHold() throws Exception {
         try (ExploitHookFixture f = new ExploitHookFixture()) {
             LagRange lag = new LagRange(() -> 0, (min, max) -> 500); lag.getBooleanSetting("Only Aura").setValue(false);
@@ -34,5 +40,6 @@ public class LagRangeLifecycleTest {
                 assertEquals(0, f.pipe().delays().snapshot(this).activeOwners);
             } finally { lag.setToggled(false); }
         }
+    }
     }
 }
