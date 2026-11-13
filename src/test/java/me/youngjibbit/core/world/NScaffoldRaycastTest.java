@@ -66,6 +66,63 @@ public class NScaffoldRaycastTest {
         Scene w=scene();w.put(DESTINATION,Blocks.stone);w.put(SUPPORT,Blocks.stone);EntityPlayerSP p=player(w,.5,64,.5);
         assertNull(NScaffoldRaycast.find(p,DESTINATION,SUPPORT,0,0,4.5,w.current::get));assertEquals(0,w.rays);
     }
+    @Test public void diagonalForecastFindsTheNeededOrthogonalStepInEveryQuadrant()throws Exception {
+        for(int sx:new int[]{-1,1})for(int sz:new int[]{-1,1}) {
+            Scene w=scene();BlockPos start=new BlockPos(0,63,0),goal=start.add(sx,0,sz);w.put(start,Blocks.stone);
+            EntityPlayerSP p=player(w,.5,64,.5);Vec3 eyes=p.getPositionEyes(1).addVector(sx*.8,0,sz*.8);
+            float[] preferred=aim(eyes,new Vec3(.5,63.5,.5));
+            NScaffoldRaycast.Plan plan=NScaffoldRaycast.findAhead(p,eyes,start,goal,start,
+                    preferred[0],preferred[1],4.5,w.current::get,0);
+            assertNotNull("a diagonal corner requires an orthogonal building step",plan);
+            assertTrue(plan.destination.equals(start.add(sx,0,0))||plan.destination.equals(start.add(0,0,sz)));
+            assertEquals(start,plan.data.blockPos);
+            assertNotNull(NScaffoldRaycast.trace(w,eyes,plan.yaw,plan.pitch,4.5,plan,w.current::get));
+            assertNull("an early forecast is no permission to click a hidden side from the current pose",
+                    NScaffoldRaycast.trace(w,p.getPositionEyes(1),plan.yaw,plan.pitch,4.5,plan,w.current::get));
+            assertTrue(w.rays<=NScaffoldRaycast.MAX_RAYS+2);
+        }
+    }
+    @Test public void forwardForecastDoesNotBuildBesideOrBelowItsIntendedFloorPath()throws Exception {
+        Scene w=scene();BlockPos start=new BlockPos(0,63,0),goal=new BlockPos(1,63,1);
+        w.put(start.down(),Blocks.stone);w.put(new BlockPos(-1,63,-1),Blocks.stone);
+        EntityPlayerSP p=player(w,.5,64,.5);Vec3 eyes=p.getPositionEyes(1).addVector(.8,0,.8);
+        assertNull(NScaffoldRaycast.findAhead(p,eyes,start,goal,null,135,80,4.5,w.current::get,0));
+        assertTrue("a forecast only searches the bounded steps between the current and wanted cell",w.reads<100);
+    }
+    @Test public void anAlreadyUsefulDiagonalRayWinsAcrossEquallyNearIntermediateCells()throws Exception {
+        for(int sx:new int[]{-1,1})for(int sz:new int[]{-1,1}) {
+            Scene w=scene();BlockPos start=new BlockPos(0,63,0);w.put(start,Blocks.stone);
+            EntityPlayerSP p=player(w,.5,64,.5);Vec3 eyes=p.getPositionEyes(1).addVector(sx*.8,0,sz*.6);
+            float yaw=aim(eyes,eyes.addVector(-sx,-1,-sz))[0],pitch=78;
+            Vec3 direction=net.minecraft.entity.Entity.getVectorForRotation(pitch,yaw);
+            MovingObjectPosition hit=w.rayTraceBlocks(eyes,eyes.addVector(direction.xCoord*4.5,
+                    direction.yCoord*4.5,direction.zCoord*4.5),false,false,false);
+            assertNotNull(hit);assertEquals(start,hit.getBlockPos());
+            assertEquals(EnumFacing.Axis.X,hit.sideHit.getAxis());
+            NScaffoldRaycast.Plan plan=NScaffoldRaycast.findAhead(p,eyes,start,start.add(sx,0,sz),start,
+                    yaw,pitch,4.5,w.current::get,0);
+            assertNotNull(plan);assertEquals(start.offset(hit.sideHit),plan.destination);
+            assertEquals(yaw,plan.yaw,0);assertEquals(pitch,plan.pitch,0);
+        }
+    }
+    @Test public void rotationContinuityRequiresFreshReachableSupportButNotAnEmptyDestination()throws Exception {
+        Scene w=scene();w.put(SUPPORT,Blocks.stone);EntityPlayerSP p=player(w,.5,64,.5);
+        NScaffoldRaycast.Plan plan=centerPlan(w,p,new Vec3(0,63.5,.5));assertNotNull(plan);
+        w.put(DESTINATION,Blocks.stone);
+        assertTrue(NScaffoldRaycast.hasRotationSupport(w,p.getPositionEyes(1),DESTINATION,plan,4.5,w.current::get));
+        assertNull("retention never reopens the occupied click destination",
+                NScaffoldRaycast.trace(w,p.getPositionEyes(1),plan.yaw,plan.pitch,4.5,plan,w.current::get));
+        w.cells.remove(DESTINATION);
+        assertTrue(NScaffoldRaycast.hasRotationSupport(w,p.getPositionEyes(1),DESTINATION,plan,4.5,w.current::get));
+        assertFalse(NScaffoldRaycast.hasRotationSupport(w,new Vec3(20,65.62,20),DESTINATION,plan,4.5,w.current::get));
+        w.unloaded.add(SUPPORT);
+        assertFalse(NScaffoldRaycast.hasRotationSupport(w,p.getPositionEyes(1),DESTINATION,plan,4.5,w.current::get));
+        w.unloaded.clear();w.put(SUPPORT,Blocks.dirt);
+        assertFalse(NScaffoldRaycast.hasRotationSupport(w,p.getPositionEyes(1),DESTINATION,plan,4.5,w.current::get));
+        w.put(SUPPORT,Blocks.stone);w.invalidateOnRead=true;
+        assertFalse("a block callback cannot renew an obsolete scene's intent",
+                NScaffoldRaycast.hasRotationSupport(w,p.getPositionEyes(1),DESTINATION,plan,4.5,w.current::get));
+    }
     @Test public void hiddenFirstSupportDoesNotHideTheVisibleAlternative()throws Exception {
         Scene w=scene();w.put(SUPPORT,Blocks.stone);w.put(DESTINATION.east(),Blocks.stone);w.put(DESTINATION.up(),new PartialOccluder());
         EntityPlayerSP p=player(w,.5,64,.5);float[] west=aim(p.getPositionEyes(1),new Vec3(0,63.5,.5));
