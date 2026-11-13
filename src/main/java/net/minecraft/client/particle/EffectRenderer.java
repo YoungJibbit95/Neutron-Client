@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.Callable;
+import me.youngjibbit.core.diagnostics.PerformanceOptions;
 import net.minecraft.block.Block;
 import net.minecraft.block.material.Material;
 import net.minecraft.block.state.IBlockState;
@@ -44,6 +45,7 @@ public class EffectRenderer
     /** RNG. */
     private Random rand = new Random();
     private Map<Integer, IParticleFactory> particleTypes = Maps.<Integer, IParticleFactory>newHashMap();
+    private ParticleRemovalBuffer<EntityFX> particleRemovalBuffer;
 
     public EffectRenderer(World worldIn, TextureManager rendererIn)
     {
@@ -192,41 +194,57 @@ public class EffectRenderer
 
     private void updateEffectAlphaLayer(List<EntityFX> entitiesFX)
     {
-        List<EntityFX> list = Lists.newArrayList();
-        long i = System.currentTimeMillis();
-        int j = entitiesFX.size();
-
-        for (int k = 0; k < entitiesFX.size(); ++k)
+        ParticleRemovalBuffer<EntityFX> cleanup = null;
+        if (PerformanceOptions.isFastParticleCleanupEnabled())
         {
-            EntityFX entityfx = entitiesFX.get(k);
-            this.tickParticle(entityfx);
-
-            if (entityfx.isDead)
-            {
-                list.add(entityfx);
-            }
-
-            --j;
-
-            if (System.currentTimeMillis() > i + 20L)
-            {
-                break;
-            }
+            if (this.particleRemovalBuffer == null)
+                this.particleRemovalBuffer = new ParticleRemovalBuffer<EntityFX>();
+            if (this.particleRemovalBuffer.tryAcquire()) cleanup = this.particleRemovalBuffer;
         }
+        List<EntityFX> list = cleanup == null ? Lists.<EntityFX>newArrayList() : cleanup.removed();
 
-        if (j > 0)
+        try
         {
-            int l = j;
+            long i = System.currentTimeMillis();
+            int j = entitiesFX.size();
 
-            for (Iterator iterator = entitiesFX.iterator(); iterator.hasNext() && l > 0; --l)
+            for (int k = 0; k < entitiesFX.size(); ++k)
             {
-                EntityFX entityfx1 = (EntityFX)iterator.next();
-                entityfx1.setDead();
-                iterator.remove();
-            }
-        }
+                EntityFX entityfx = entitiesFX.get(k);
+                this.tickParticle(entityfx);
 
-        entitiesFX.removeAll(list);
+                if (entityfx.isDead)
+                {
+                    list.add(entityfx);
+                }
+
+                --j;
+
+                if (System.currentTimeMillis() > i + 20L)
+                {
+                    break;
+                }
+            }
+
+            if (j > 0)
+            {
+                int l = j;
+
+                for (Iterator iterator = entitiesFX.iterator(); iterator.hasNext() && l > 0; --l)
+                {
+                    EntityFX entityfx1 = (EntityFX)iterator.next();
+                    entityfx1.setDead();
+                    iterator.remove();
+                }
+            }
+
+            if (cleanup == null) entitiesFX.removeAll(list);
+            else cleanup.removeFrom(entitiesFX);
+        }
+        finally
+        {
+            if (cleanup != null) cleanup.release();
+        }
     }
 
     private void tickParticle(final EntityFX p_178923_1_)

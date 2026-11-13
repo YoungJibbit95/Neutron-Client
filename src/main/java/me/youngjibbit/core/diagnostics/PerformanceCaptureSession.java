@@ -22,7 +22,7 @@ public final class PerformanceCaptureSession {
     private Object world;
     private int width, height, guiScale, fpsLimit, renderDistance;
     private boolean vsync;
-    private long shaderGeneration, firstFrameSequence, lastFrameSequence;
+    private long shaderGeneration, performanceRevision, firstFrameSequence, lastFrameSequence;
     private JsonObject metadata, settingsStart, settingsEnd, memoryStart, memoryEnd;
     private Map<String, Long> countersStart, countersEnd;
     private PerformanceCaptureSession() { }
@@ -38,6 +38,7 @@ public final class PerformanceCaptureSession {
         owner = Thread.currentThread();
         metadata = nextMetadata;
         settingsStart = nextSettings;
+        performanceRevision = nextSettings.getAsJsonObject("effectivePerformance").get("revision").getAsLong();
         settingsEnd = null; memoryEnd = null; countersEnd = null;
         world = mc.theWorld; width = mc.displayWidth; height = mc.displayHeight;
         guiScale = mc.gameSettings.guiScale; fpsLimit = mc.gameSettings.limitFramerate;
@@ -73,6 +74,7 @@ public final class PerformanceCaptureSession {
 
     /** Called once after swap, limiter wait and all completed game-loop work. */
     public void frame(Minecraft mc) {
+        if (active && Thread.currentThread() == owner && !performanceConfigurationUnchanged()) return;
         GpuPassTimings.INSTANCE.poll();
         if (!active || Thread.currentThread() != owner) return;
         if (world != mc.theWorld || width != mc.displayWidth || height != mc.displayHeight
@@ -89,17 +91,31 @@ public final class PerformanceCaptureSession {
         if (!FrameTimeCapture.INSTANCE.isRecording()) finish(mc);
     }
     public boolean isRecording() { return active; }
-    public long beginCpu() { return active && phaseArmed ? cpu.begin() : Long.MIN_VALUE; }
+    public long beginCpu() {
+        return performanceConfigurationUnchanged() && phaseArmed ? cpu.begin() : Long.MIN_VALUE;
+    }
     public void endCpu(CpuPhaseTimings.Phase phase, long token, long frameSequence) {
-        if (active && phaseArmed) cpu.end(phase, token, frameSequence);
+        if (performanceConfigurationUnchanged() && phaseArmed) cpu.end(phase, token, frameSequence);
     }
     public long beginGpu(String phase) {
-        return active && phaseArmed ? GpuPassTimings.INSTANCE.begin(phase, Minecraft.getMinecraft().getRenderFrameSequence()) : 0;
+        return performanceConfigurationUnchanged() && phaseArmed
+                ? GpuPassTimings.INSTANCE.begin(phase, Minecraft.getMinecraft().getRenderFrameSequence()) : 0;
     }
-    public void endGpu(long token) { GpuPassTimings.INSTANCE.end(token); }
+    public void endGpu(long token) {
+        if (active && !performanceConfigurationUnchanged()) return;
+        // stop() may happen inside a pass and deliberately leaves it draining. Its
+        // late end must still belong to the original policy, including round trips.
+        if (!active && token != GpuPassTimings.NONE && owner != null
+                && PerformanceOptions.current().revision != performanceRevision) {
+            requireOwner();
+            GpuPassTimings.INSTANCE.abort("Performance options changed while GPU capture was draining");
+            return;
+        }
+        GpuPassTimings.INSTANCE.end(token);
+    }
     public void stop() {
         requireOwner();
-        if (!active) return;
+        if (!performanceConfigurationUnchanged()) return;
         FrameTimeCapture.INSTANCE.stop(); finish(Minecraft.getMinecraft());
     }
     public void abort(String reason) {
@@ -132,6 +148,7 @@ public final class PerformanceCaptureSession {
     }
     public String status() {
         requireOwner();
+        performanceConfigurationUnchanged();
         FrameTimeCapture.Snapshot snapshot = FrameTimeCapture.INSTANCE.snapshot();
         FrameTimeStatistics stats = snapshot.statistics;
         if (stats.frames == 0) return snapshot.state + ": no complete frame intervals yet";
@@ -143,6 +160,7 @@ public final class PerformanceCaptureSession {
     /** Explicit export after capture; no hashing or file writes occur in render hooks. */
     public File export(Minecraft mc, String label) throws IOException {
         requireOwner(); validateLabel(label);
+        performanceConfigurationUnchanged();
         if (active) throw new IllegalStateException("Stop capture before export");
         if (metadata == null) throw new IllegalStateException("No capture to export");
         GpuPassTimings.INSTANCE.poll();
@@ -156,7 +174,7 @@ public final class PerformanceCaptureSession {
         report.add("environment", metadata); report.add("artifact", PerformanceCaptureMetadata.artifact());
         report.add("settingsStart", settingsStart); report.add("settingsEnd", settingsEnd);
         report.addProperty("settingsMatchAtEndpoints", settingsStart.equals(settingsEnd));
-        report.addProperty("configurationRule", "Keep settings fixed. Endpoint equality cannot detect temporary changes and restoration.");
+        report.addProperty("configurationRule", "Keep settings fixed. Performance-option revisions detect intervening changes; other endpoint equality cannot detect temporary changes and restoration.");
         report.addProperty("firstGameFrameSequence", firstFrameSequence);
         report.addProperty("lastCompleteGameFrameSequence", lastFrameSequence);
         report.addProperty("state", frames.state.name()); report.addProperty("reason", frames.reason);
@@ -235,6 +253,22 @@ public final class PerformanceCaptureSession {
         return result;
     }
     private static long shaderGeneration() { return OpenGlHelper.shadersSupported ? Shaders.getRenderResourceGeneration() : 0; }
+
+    /** Policy setters are GL-free; cleanup is deferred to an actual owner-thread capture hook. */
+    private boolean performanceConfigurationUnchanged() {
+        if (!active) return false;
+        requireOwner();
+        if (PerformanceOptions.current().revision == performanceRevision) return true;
+        String reason = "Performance options changed";
+        try {
+            abort(reason);
+        } finally {
+            // Abandon open pairs before their now-stale end hooks can add mixed-configuration samples.
+            GpuPassTimings.INSTANCE.abort(reason);
+        }
+        return false;
+    }
+
     private void requireOwner() {
         if (owner != null && Thread.currentThread() != owner) throw new IllegalStateException("Performance capture belongs to its starting render thread");
     }
