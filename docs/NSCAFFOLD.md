@@ -4,7 +4,9 @@ NScaffold unter **World** verwendet den Scaffold-Ablauf aus
 [DemisePrivate, Commit e219a97](https://github.com/YoungJibbit95/DemisePrivate/tree/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb).
 Rotation, MoveFix und die Bewegungsmodi stammen weiterhin aus diesem Port.
 Auf den anschließenden Nutzerauftrag wurden RayTrace-Planung, Platzierungszeitpunkt,
-CPS und Kantenschutz gezielt erweitert. Quellen und Abweichungen stehen in
+CPS und Kantenschutz gezielt erweitert. Die Folgekorrektur erhält Rotationen
+zwischen Platzierungen und ergänzt nötige Zwischenschritte beim diagonalen Bridgen.
+Quellen und Abweichungen stehen in
 [NSCAFFOLD-DEMISE-PARITY.md](NSCAFFOLD-DEMISE-PARITY.md).
 
 ## Rotation und Kamera
@@ -27,11 +29,24 @@ zuerst das bisherige Ziel integriert, dann ein neues Scaffold-Ziel berechnet und
 anschließend die physische Mausbewegung auf die Kamera angewendet, auch bei
 Mausdelta null.
 
-Beim Ausschalten stoppt die Zielaktualisierung. Nach Ablauf des originalen
-150-ms-Timers beginnt die Rückführung. Sie muss nach 150 ms nicht abgeschlossen
+Hat NScaffold bereits einen Zielwinkel angefordert, bleibt diese Rotationsabsicht
+getrennt vom gerade verfügbaren Klickplan erhalten. Ist die Fußzelle nach einer
+Platzierung belegt, kann die Drehung deshalb weiterlaufen, etwa beim stehenden
+Tower. Voraussetzung ist eine frisch geprüfte, geladene und geeignete Stütze
+unter dem Spieler oder der weiterhin erreichbare letzte Stützblock. Dabei wird
+der letzte angeforderte Zielwinkel erneut verwendet; die laufende Glättung behält
+ihren Verlauf. Erst ein neuer gültiger Klickplan kann eine weitere Platzierung
+erlauben. Ohne nachweisbare Stütze wird die Rotationsabsicht nicht weiter erneuert.
+
+Telly erneuert das Ziel weiterhin erst ab seiner Flugtick-Schwelle; ein aktives
+Aura-Ziel unterbricht die Erneuerung ebenfalls. Beim Ausschalten stoppt die
+Zielaktualisierung. Erst nach mehr als 150 ms seit der letzten Anforderung beginnt
+die originale Rückführung. Sie muss nach 150 ms nicht abgeschlossen
 sein: Ganzzahl-Mausquantisierung kann bei kleinen diagonalen Restwinkeln
 stehenbleiben. Dieser Quellfall bleibt erhalten; es gibt keinen neuen Timeout.
-Ungültige Szenen und Verbindungen verwerfen alte Zustände.
+Profiländerungen, Ein-/Ausschalten und Szenenwechsel verwerfen die gespeicherte
+Rotationsabsicht. Der beschriebene normale Ausschalt-Nachlauf bleibt davon getrennt;
+ungültige Szenen und Verbindungen verwerfen auch die alte Engine-Pose.
 
 ## Brücke und Clutch
 
@@ -49,12 +64,49 @@ Flächen. Sie prüft tatsächlich den gerade berechneten Strahl und verwendet ei
 begrenzte Anzahl von Flächenpunkten sowie deduplizierte Nachbarpositionen.
 Eine schon passende Ausrichtung wird bevorzugt. Die Vorschau auf den nächsten
 Schritt bereitet die Drehung vor, ohne eine Platzierung zu bestätigen.
+Die Wahl der nächsten Zielzelle folgt der beabsichtigten, begrenzten Bewegung
+auch dann, wenn der Kantenschutz den tatsächlichen Schritt gerade anhält.
+Überquert die Vorschau mehrere Zellgrenzen, darf sie die nötigen orthogonalen
+Zwischenschritte im direkten Rechteck zwischen Ausgangs- und Zielzelle wählen.
+Das umfasst diagonale Übergänge und Schritte über zwei Zellen bei höherer
+Geschwindigkeit. Diese Vorschau bleibt auf derselben Bauhöhe und gibt keine
+beliebigen seitlichen oder tiefer liegenden Ausweichzellen frei.
+
+Für den beabsichtigten Laufpfad zählt die Entfernung von der tatsächlichen
+Spielerposition zur Mitte der Zielzelle. Das gilt sowohl für die frühe Vorschau
+(`findAhead`) als auch für die Suche bei bereits leerer Fußzelle und aktiver
+physischer Bewegungseingabe (`findMoving`). Unter gleich nahen Kandidaten hat
+ein bereits passender bevorzugter Strahl Vorrang. Nach der Erstausrichtung wird
+unter den geprüften Alternativen die kleinste zusätzliche Drehung gewählt.
+Ohne physische Bewegungseingabe behält die Recovery-Suche `find` ihre bisherige
+Distanz- und Nachbarreihenfolge. Ein während der Suche gemerkter Kandidat wird
+vor der Rückgabe erneut auf freie Zielzelle, unveränderte Stütze und gültige
+Lebensdauer geprüft.
+
+Bei geerdeter Bewegung ohne Sprungabsicht prüft die Vorschau außerdem, wo der
+noch belegte Fußsupport tatsächlich endet. Kürzt der Kollisionsschutz diese
+begrenzte Probe, verwendet die frühe Ausrichtung deren erreichbaren Endpunkt.
+Die beabsichtigte Zielrichtung und die tatsächliche Bewegungsbegrenzung bleiben
+eigenständig.
+
+Sobald die Fußzelle leer ist, wird die Drehung aus der erwarteten, vom Kantenschutz
+begrenzten nächsten Bewegungsposition geplant. Dabei wird berücksichtigt, ob
+Minecraft die kleine Verschiebung im nächsten Spielerpaket überhaupt als neue
+Position melden würde. Die Planung berücksichtigt damit auch den erwarteten
+Ausgangspunkt eines an der Kante gestoppten Spielers. Die endgültige
+Platzierungsprüfung verwendet weiterhin ausschließlich die später tatsächlich
+angenommene Pose.
+
 Bereits gültige Koordinaten auf der Fläche bleiben erhalten; nur außerhalb der
-nutzbaren Fläche liegende Anteile werden nach innen korrigiert. Bei Normal und
-gedrückten Bewegungstasten wird ein rückwärts zur Eingaberichtung ausgerichteter
-Strahl bevorzugt, sofern er die echte Fläche trifft. Das verhindert, dass ein
+nutzbaren Fläche liegende Anteile werden nach innen korrigiert. Mit
+**Rotations: Normal**, außerhalb von Breezily und bei gedrückten Bewegungstasten
+wird ein rückwärts zur Eingaberichtung ausgerichteter Strahl bevorzugt, sofern
+er die echte Fläche trifft. Das verhindert, dass ein
 zufällig zuerst erreichter schräger Winkel dauerhaft seitliche Drift im diskreten
-MoveFix erzeugt. Weitere Flächenpunkte bleiben begrenzte Alternativen.
+MoveFix erzeugt. Ein bereits angeforderter Pitch bleibt dabei die bevorzugte
+Zielneigung. Der noch interpolierte Zwischenwert setzt dieses Ziel während einer
+laufenden Drehung nicht fortwährend zurück. Weitere Flächenpunkte bleiben
+begrenzte Alternativen.
 Die eigentliche RayTrace-Abfrage bleibt in Minecrafts nativer Voxel- und
 Blockgeometrie; ihre numerische Verlängerung überschreitet die Controller-Reichweite
 nicht. Wenn ein belegbar gültiges geometrisches Ziel bereits in Demises
@@ -117,7 +169,9 @@ normalen 20 Spielerticks/s. CPS garantiert keine Mindestanzahl erfolgreicher Bl�
 Der Kantenschutz prüft reale Kollisionsflächen unter dem gesamten Fußabdruck
 entlang des Weges. Ein geplantes Ziel oder ein abgeschickter Klick gilt noch
 nicht als tragender Block. Erst die tatsächlich vorhandene lokale Stütze gibt
-die Bewegung frei. Freiwillige Sprünge, Telly-Sprünge, Tower-Aufwärtsbewegung,
+die Bewegung frei. Das gilt auch für eine bereits vorbereitete diagonale Drehung
+und für eine zwischen Platzierungen gehaltene Rotation. Freiwillige Sprünge,
+Telly-Sprünge, Tower-Aufwärtsbewegung,
 Flug und bereits laufende Luftbewegung werden nicht auf den Boden gezwungen.
 Der Schutz ist keine nachträgliche Rettung aus dem freien Fall.
 
@@ -171,3 +225,33 @@ Framezeit-Limit von den Renderframes abhängig und wird gesondert zeitlich begre
 Der Durchsatzvergleich verwendet für alle Fälle dieselben Ticks 21–100; reale
 Treffer, freie Kamera, Bodenstütze, Gesamtstrecke und Klickreihenfolge werden
 über den gesamten Lauf geprüft.
+
+Zusätzliche Diagonaltests verwenden alle vier Kombinationen aus positiver und
+negativer X-/Z-Bewegung, ebenfalls beide Platzierungsmodi und 30, 60 sowie 144 FPS.
+Sie verlangen mindestens zwölf Blockeinheiten Fortschritt entlang der
+beabsichtigten Diagonale, sechs auf jeder Achse und zwölf erfolgreiche
+Platzierungen. In Ticks 21–100 darf kein Stillstand länger als drei Ticks dauern;
+höchstens acht Stillstandsticks dürfen über die nachgewiesene Legit-Pause
+hinausgehen. Für Default zählen dabei alle Stillstandsticks.
+
+In Legit wird eine Wartezeit nur dann der normalen Vier-Tick-Pause zugerechnet,
+wenn der angenommene Strahl die geplante Stützfläche trifft, das Ziel frei ist,
+NScaffold die Rotation besitzt und die Rechtsklick-Pause noch läuft. Auch der
+Tick mit einer tatsächlichen Platzierung zum frühestmöglichen Zeitpunkt zählt
+zu diesen Wartezeiten: Seine Bewegung findet vor dem POST-Klick statt. Die
+zusätzliche Wartezeit durch Legit wird damit für den einzelnen Tick belegt.
+Fortschritt, längster Stillstand und übrige Stillstandsticks bleiben getrennte
+Prüfbedingungen.
+
+Der stationäre Tower-Test verwendet den Jump-Modus mit dessen
+Sprungwartezeit, echten Sprung-, Reise- und Kollisionsmethoden sowie angenommenen
+Bewegungspaketen. Er verlangt mehrere belegte Lücken von mehr als 150 ms ohne
+Klickplan und prüft dort die aktive Zielerneuerung und den Pitch-Verlauf. Kamera
+und vorhandene Blocksäule werden weiterhin getrennt geprüft. Weitere Fälle
+prüfen Aura, Telly, Ausschalten und Epochenwechsel sowie ein Aura-Ziel, das erst
+während der Stützblock-Abfrage entsteht.
+
+Diese Beschreibung nennt den Prüfumfang, keine vorweggenommenen Erfolgszahlen.
+Die Ergebnisse der jeweiligen integrierten Fassung stehen im zugehörigen Pull
+Request. Die Bewegungsfälle verwenden synthetische Welten und lokalen Transport;
+sie ersetzen keinen manuellen Spieltest und bestätigen keinen entfernten Server.
