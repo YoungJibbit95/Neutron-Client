@@ -35,6 +35,7 @@ public class BacktrackImpulseSafetyTest {
                     move(f); assertEquals(1, f.pipe().delays().size());
                     f.receive(new S12PacketEntityVelocity(1, .3, .2, 0));
                     assertEquals(mode, 0, f.pipe().delays().size());
+                    assertTrue("knockback ends the operation without changing activation", back.isToggled());
                     back.setToggled(false); back.setToggled(true);
                     assertTrue(f.controller.tryAttackEntity(f.player, enemy, () -> true));
                     move(f); assertEquals(0, f.pipe().delays().size());

@@ -90,6 +90,7 @@ public class TickbaseStableFrameFlowTest {
                 // The real NetHandler resolves S12 by entity ID from the loaded world.
                 f.world.entities.put(f.player.getEntityId(),f.player);
                 f.receive(new S12PacketEntityVelocity(1,.3,.3,0));
+                assertTrue("knockback ends the operation without changing activation",tick.isToggled());
                 assertEquals(0,tick.getDiagnostics().credit);
                 assertEquals(1,step(f));
                 frame(f,1,50);

@@ -12,6 +12,35 @@ import static org.junit.Assert.*;
 
 /** Differential checks against the pinned Demise method bodies, not the production implementation. */
 public class DemiseRotationParityTest {
+    @Test public void auraDistanceReductionFollowsCorrelationBeforeTheOriginalHandlerClamp() {
+        for(float distance:new float[]{0,.01f,1,4,8,8.01f})
+            for(DemiseRotationEngine.Smoothing mode:DemiseRotationEngine.Smoothing.values()) {
+                DemiseOriginalRotation.Clock clock=new DemiseOriginalRotation.Clock();
+                DemiseOriginalRotation original=new DemiseOriginalRotation(clock);
+                DemiseRotationEngine actual=new DemiseRotationEngine(()->clock.millis,()->clock.nanos,
+                        (lo,hi)->lo==.9f?1.05f:lo);
+                DemiseRotationSettings.Snapshot controls=settings(mode,true,true,false,true,40,100);
+                me.youngjibbit.core.combat.AdaptiveDemiseSettings.Configuration config=
+                        new me.youngjibbit.core.combat.AdaptiveDemiseSettings.Configuration(controls,true,0,8,.5f);
+                actual.updateSpeeds(controls);
+                float reduction=distance>=0 && distance<=8 ? (distance/.01f)*.5f : 0;
+                float h=net.minecraft.util.MathHelper.clamp_float(40*1.05f-reduction,0,180);
+                float v=net.minecraft.util.MathHelper.clamp_float(100*1.05f-reduction,0,180);
+                float[] target={95,31};
+                original.setRotation(target,DemiseOriginalRotation.MovementCorrectionMode.None,new float[]{h,v},
+                        true,new float[]{.25f,.67f},DemiseOriginalRotation.SmoothMode.valueOf(mode.name()),true,.15f);
+                actual.setRotation(target,controls,config.reduction(distance));
+                for(long frame:new long[]{1,6,17,50,8}) {
+                    clock.millis+=frame;clock.nanos+=frame*1_000_000L;original.mc.gameSettings.mouseSensitivity=.5f;
+                    original.onMouseMove(new DemiseOriginalRotation.MouseMoveEvent(DemiseOriginalRotation.MouseMoveEvent.State.PRE));
+                    actual.mousePre();
+                    original.onMouseMove(new DemiseOriginalRotation.MouseMoveEvent(DemiseOriginalRotation.MouseMoveEvent.State.UPDATE));
+                    DemiseRotationEngine.Aim aim=actual.mouseUpdate(0,0,.5f);
+                    assertFloatBits(original.currentRotation[0],aim.yaw);assertFloatBits(original.currentRotation[1],aim.pitch);
+                }
+            }
+    }
+
     @Test public void referenceResourcesMatchPinnedGitBlobs() throws Exception {
         assertEquals("29555b7cfca3b1e5cccad94e4d5ed06902784a31", gitBlob("RotationHandler.java.txt"));
         assertEquals("bd1c4a35710e21784f5150f15f6730b23cab874d", gitBlob("MoveUtil.java.txt"));

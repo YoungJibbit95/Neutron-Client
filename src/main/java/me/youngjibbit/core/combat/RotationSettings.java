@@ -26,6 +26,8 @@ public final class RotationSettings {
     public SliderValue adaptiveHitpointAmount, adaptiveHitpointTempo;
     public ComboValue adaptiveLegacyHitpointProfile, adaptiveLegacyHitpointAlgorithm;
     public SliderValue adaptiveLegacyHitpointRadius, adaptiveLegacyHitpointTravelSpeed, adaptiveLegacyHitpointTravelNoise;
+    public ComboValue adaptiveEngine;
+    public AdaptiveDemiseSettings adaptiveDemise;
     private boolean tuningAppended, pathAmountImported, pathTempoImported, hitpointAmountImported, hitpointTempoImported;
     private final Module owner;
     private final ComboValue hitpointProfile;
@@ -141,7 +143,7 @@ public final class RotationSettings {
             @Override public String getName() { return "Adaptive Speed Noise Amount"; }
         } : null;
         adaptiveAimPoint = auraOnly ? new ComboValue("Adaptive Aim Point",parent,
-                new String[]{"Straight","Nearest","Legacy","Head","Torso","Legs"},0) : null;
+                new String[]{"Straight","Nearest","Legacy","Head","Torso","Legs","Neutron Noise"},0) : null;
         adaptiveKeepAim = auraOnly ? new CheckBoxValue("Adaptive Keep Valid Aim",parent,true) : null;
         adaptiveMinAimSpeed = auraOnly ? new SliderValue("Adaptive Min Aim Speed",parent,360D,20,1800,true) {
             @Override public String getName() { return "Adaptive Min Aim Speed (deg/s)"; }
@@ -218,10 +220,20 @@ public final class RotationSettings {
         adaptiveLegacyHitpointRadius = percent("Adaptive Legacy Hitpoint Radius", parent, 30);
         adaptiveLegacyHitpointTravelSpeed = new SliderValue("Adaptive Legacy Hitpoint Travel Speed", parent, 1D, .1, 3, false);
         adaptiveLegacyHitpointTravelNoise = percent("Adaptive Legacy Hitpoint Travel Noise", parent, 25);
+        // Append after all historical values: index-based legacy profiles keep their meaning.
+        adaptiveEngine = new ComboValue("Adaptive Rotation Engine", parent, new String[]{"Demise","Neutron"}, 0);
+        adaptiveEngine.setVisibility(m -> adaptive());
+        adaptiveDemise = new AdaptiveDemiseSettings(parent, this::demiseAdaptiveMotion);
         tuningAppended = true;
-        adaptiveCurveStrength.setVisibility(m -> adaptive() && !"Linear".equals(adaptiveCurve.getValue()));
-        adaptivePathAmount.setVisibility(m -> adaptive());
-        adaptivePathTempo.setVisibility(m -> adaptive() && adaptivePathAmount.getValue() > 0);
+        for (Value<?> value : new Value<?>[]{adaptiveSpeedPreset,adaptiveMinAimSpeed,adaptiveMaxAimSpeed,
+                adaptiveAdvancedAim,adaptiveCurve,adaptiveNoiseProfile}) value.setVisibility(m -> neutronAdaptiveMotion());
+        adaptiveVariationStrength.setVisibility(m -> neutronAdaptiveMotion() && !"Off".equals(adaptiveNoiseProfile.getValue()));
+        adaptiveNoiseTempo.setVisibility(m -> adaptiveVariationStrength.isVisible() && adaptiveVariationStrength.getValue() > 0);
+        adaptiveYawScale.setVisibility(m -> neutronAdaptiveMotion() && adaptiveAdvancedAim.getValue());
+        adaptivePitchScale.setVisibility(m -> neutronAdaptiveMotion() && adaptiveAdvancedAim.getValue());
+        adaptiveCurveStrength.setVisibility(m -> neutronAdaptiveMotion() && !"Linear".equals(adaptiveCurve.getValue()));
+        adaptivePathAmount.setVisibility(m -> neutronAdaptiveMotion());
+        adaptivePathTempo.setVisibility(m -> neutronAdaptiveMotion() && adaptivePathAmount.getValue() > 0);
         adaptiveInitialRadius.setVisibility(m -> adaptive());
         adaptiveHitpointPreset.setVisibility(m -> adaptive() && !legacyAdaptivePoint());
         adaptiveHitpointAmount.setVisibility(m -> adaptive() && !legacyAdaptivePoint()
@@ -235,7 +247,11 @@ public final class RotationSettings {
                     && "Custom".equals(adaptiveLegacyHitpointProfile.getValue()));
     }
 
-    private boolean legacyAdaptivePoint() { return "Legacy".equals(adaptiveAimPoint.getValue()); }
+    private boolean legacyAdaptivePoint() {
+        return "Legacy".equals(adaptiveAimPoint.getValue()) || "Neutron Noise".equals(adaptiveAimPoint.getValue());
+    }
+    private boolean demiseAdaptiveMotion() { return adaptive() && adaptiveEngine != null && "Demise".equals(adaptiveEngine.getValue()); }
+    private boolean neutronAdaptiveMotion() { return adaptive() && !demiseAdaptiveMotion(); }
 
     private static SliderValue percent(String name, Module parent, double initial) {
         return new SliderValue(name, parent, initial, 0, 100, false) {
@@ -257,6 +273,10 @@ public final class RotationSettings {
         adaptiveAdvancedAim.reset();
         adaptiveCurve.reset();adaptiveNoiseProfile.reset();adaptiveNoiseTempo.reset();
         if(tuningAppended)for(Value<?> value:tuningValues())value.reset();
+        // A saved pre-selector Adaptive profile explicitly keeps its old Neutron behavior.
+        // Incoming engine keys are assigned after this hook and win independently of JSON order.
+        if(adaptiveEngine != null) adaptiveEngine.setValue("Neutron");
+        if(adaptiveDemise != null) adaptiveDemise.reset();
         minAimImported=maxAimImported=yawScaleImported=pitchScaleImported=advancedAimImported=false;
         pathAmountImported=pathTempoImported=hitpointAmountImported=hitpointTempoImported=false;
         adaptiveConfigImport=true;
@@ -313,6 +333,7 @@ public final class RotationSettings {
             p.adaptiveVariation=adaptiveVariationStrength.getValue().floatValue();
             p.adaptiveAimPoint=AdaptivePresetMotion.AimPoint.values()[adaptiveAimPoint.getSelectedIndex()];
             p.adaptiveKeepAim=adaptiveKeepAim.getValue();
+            if(demiseAdaptiveMotion()) p.adaptiveDemise=adaptiveDemise.snapshot();
             p.adaptiveExplicitControls=true;
             p.adaptiveMinAimSpeed=Math.min(f(adaptiveMinAimSpeed),f(adaptiveMaxAimSpeed));
             p.adaptiveMaxAimSpeed=Math.max(f(adaptiveMinAimSpeed),f(adaptiveMaxAimSpeed));

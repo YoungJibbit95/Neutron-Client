@@ -97,7 +97,7 @@ public class AdaptiveAimControlsTest {
 
     @Test public void addedAnchorsAndCoherentOffsetsStayWithinMovingRealBoxes() {
         for(AdaptivePresetMotion.AimPoint anchor:AdaptivePresetMotion.AimPoint.values()) {
-            if(anchor==AdaptivePresetMotion.AimPoint.LEGACY)continue;
+            if(anchor==AdaptivePresetMotion.AimPoint.LEGACY || anchor==AdaptivePresetMotion.AimPoint.NEUTRON_NOISE)continue;
             AdaptivePresetMotion.HitpointTrajectory path=new AdaptivePresetMotion.HitpointTrajectory(7,
                     config(AdaptiveMotionController.Curve.RELATIVE,AdaptivePresetMotion.Noise.ORGANIC,1,150,500));
             for(int tick=0;tick<100;tick++) {

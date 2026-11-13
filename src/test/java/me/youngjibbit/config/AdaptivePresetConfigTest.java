@@ -29,6 +29,7 @@ public class AdaptivePresetConfigTest {
         assertEquals(.5, a.getNumberSetting("Adaptive Variation Strength").getValue(), 0);
         assertFalse(a.getValueByName("Adaptive Speed").isVisible());
         a.getModeSetting("Rot Mode").setValue("Adaptive");
+        a.getModeSetting("Adaptive Rotation Engine").setValue("Neutron");
         assertTrue(a.getValueByName("Adaptive Speed").isVisible());
         assertTrue(a.getValueByName("Adaptive Hitpoint").isVisible());
         assertTrue(a.getValueByName("Adaptive Variation Strength").isVisible());
@@ -43,6 +44,7 @@ public class AdaptivePresetConfigTest {
         ConfigManager c = new ConfigManager(temp.newFolder().toPath(),
                 Collections.<Module>singletonList(a), () -> false, msg -> {});
         a.getModeSetting("Rot Mode").setValue("Adaptive");
+        a.getModeSetting("Adaptive Rotation Engine").setValue("Neutron");
         a.getModeSetting("Adaptive Speed").setValue("Swift");
         a.getModeSetting("Adaptive Hitpoint").setValue("Dynamic");
         a.getNumberSetting("Adaptive Variation Strength").setValue(.75);
@@ -78,6 +80,7 @@ public class AdaptivePresetConfigTest {
         ConfigManager config=new ConfigManager(directory,Collections.<Module>singletonList(a),
                 ()->false,message->{});
         a.getModeSetting("Rot Mode").setValue("Adaptive");
+        a.getModeSetting("Adaptive Rotation Engine").setValue("Neutron");
         a.getModeSetting("Adaptive Speed").setValue("Swift");
         a.getModeSetting("Adaptive Hitpoint").setValue("Dynamic");
         a.getNumberSetting("Adaptive Variation Strength").setValue(1D);
@@ -103,6 +106,7 @@ public class AdaptivePresetConfigTest {
         ConfigManager config=new ConfigManager(dir,Collections.<Module>singletonList(a),
                 ()->false,message->{});
         a.getModeSetting("Rot Mode").setValue("Adaptive");
+        a.getModeSetting("Adaptive Rotation Engine").setValue("Neutron");
         a.getModeSetting("Adaptive Speed").setValue("Balanced");
         String before=config.serialize();
         String invalid="{\"version\":2,\"modules\":{\"aura\":{\"rotationVersion\":2,"

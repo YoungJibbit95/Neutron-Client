@@ -998,6 +998,8 @@ public final class RotationManager {
         if (!VISIBLE_STOP.equals(owner)) cancelVisibleAssistStop();
         if (owner != null) {
             RotationState state = state(owner);
+            if (state.adaptiveDemise != null)
+                state.adaptiveDemise.accepted(baseYaw, basePitch, effectiveYaw, effectivePitch);
             state.visibleStep = winner.visibleStep;
             state.yaw = effectiveYaw;
             state.pitch = effectivePitch;
@@ -1024,6 +1026,47 @@ public final class RotationManager {
 
     /** Read the existing monotonic source without advancing any motion, trajectory or action state. */
     public long readMonotonicNanos() { return clock.getAsLong(); }
+
+    /** Real mouse-frame timing for Adaptive Demise. This never submits a request or grants ownership. */
+    public void adaptiveDemiseFramePre() {
+        RotationState state = currentAdaptiveDemiseFrame();
+        if (state != null) state.adaptiveDemise.framePre();
+    }
+
+    public void adaptiveDemiseFrameUpdate() {
+        RotationState state = currentAdaptiveDemiseFrame();
+        if (state != null) state.adaptiveDemise.frameUpdate(mc.thePlayer.rotationYaw,
+                mc.thePlayer.rotationPitch, mc.gameSettings.mouseSensitivity);
+    }
+
+    public void adaptiveDemiseFrameInactive() {
+        RotationState state = states.get("aura");
+        if (state != null && state.adaptiveDemise != null) state.invalidateAdaptive();
+    }
+
+    private RotationState currentAdaptiveDemiseFrame() {
+        RotationState state = states.get("aura");
+        if (collecting || state == null || state.adaptiveDemise == null) return null;
+        RuntimeObservation observation = RuntimeServices.observation();
+        Object entity = state.adaptiveTarget.get();
+        if (mc == null || mc.thePlayer == null || mc.theWorld == null || mc.gameSettings == null
+                || mc.currentScreen != null || !mc.inGameHasFocus || mc.isGamePaused()
+                || mc.getRenderViewEntity() != mc.thePlayer || !(entity instanceof EntityLivingBase)
+                || ((EntityLivingBase) entity).isDead || ((EntityLivingBase) entity).worldObj != mc.theWorld
+                || !((EntityLivingBase) entity).isEntityAlive()
+                || mc.theWorld.getEntityByID(((EntityLivingBase) entity).getEntityId()) != entity
+                || motionPlayer.get() != mc.thePlayer || motionWorld.get() != mc.theWorld
+                || observation == null || state.adaptiveScene == null
+                || observation.getObservedSuspensionRevision() != state.adaptiveSuspension
+                || !state.adaptiveDemise.fresh(clock.getAsLong())
+                || Float.compare(state.adaptiveSensitivity,mc.gameSettings.mouseSensitivity) != 0
+                || (owner != null && !"aura".equals(owner))
+                || !observation.isCurrent(state.adaptiveScene)) {
+            state.invalidateAdaptive(); return null;
+        }
+        // Scene observation may invoke lifecycle callbacks. Never step a replaced acquisition.
+        return states.get("aura") == state && state.adaptiveDemise != null ? state : null;
+    }
 
     /** Capture only when the feature is used: OFF retains its original clock-read order. */
     private long curveMotionTime() {
@@ -1220,7 +1263,7 @@ public final class RotationManager {
             if(!"aura".equals(source) || visible) {state.invalidateAi();return null;}
             return aiRotations(state,target,box,eyes,profile,fromYaw,fromPitch);
         }
-        if(!profile.adaptive && profile.stopOnTarget && rays.canHitFrom(feet,target,fromYaw,fromPitch,profile.reach,profile.throughWalls)) {
+        if(!profile.adaptive && profile.preAimPredictionTicks <= 0 && profile.stopOnTarget && rays.canHitFrom(feet,target,fromYaw,fromPitch,profile.reach,profile.throughWalls)) {
             state.invalidateAdaptive();
             state.arsenic.reset();
             if(profile.speedCurve==RotationProfile.SpeedCurve.BEZIER) {
@@ -1249,7 +1292,7 @@ public final class RotationManager {
         if(base==null)return null;
         Vec3 aim=state.trajectory.point(target,box,base,profile);
         if((profile.smartAim || profile.heuristics) && !hitsPoint(rays,feet,target,aim,profile))aim=base;
-        float[] desired=angles(eyes,aim);
+        float[] desired=angles(eyes,preAimPoint(target,aim,profile.preAimPredictionTicks));
         return profileStep(source,cameraYaw,cameraPitch,target,desired[0],desired[1],eyes.distanceTo(aim),profile,visible);
     }
 
@@ -1408,6 +1451,13 @@ public final class RotationManager {
             state.adaptive=null;
             state.adaptivePreset=null;
         }
+        if (state.adaptiveDemiseSettings == null ? profile.adaptiveDemise != null
+                : !state.adaptiveDemiseSettings.same(profile.adaptiveDemise)) {
+            state.invalidateAdaptive();
+            state.adaptiveDemiseSettings = profile.adaptiveDemise;
+        }
+        if (state.adaptiveDemise != null && !state.adaptiveDemise.fresh(clock.getAsLong()))
+            state.invalidateAdaptive();
         // No second acquisition is permitted within a consumed physical motion sequence.
         if(state.adaptiveBlockedSequence==sequence) return new float[]{fromYaw,fromPitch};
         // A previously accepted different owner cannot carry an Adaptive trajectory.
@@ -1418,6 +1468,7 @@ public final class RotationManager {
         final long suspension=observation.getObservedSuspensionRevision();
         if(profile.adaptiveExplicitControls
                 && Float.compare(state.adaptiveSensitivity,mc.gameSettings.mouseSensitivity)!=0) {
+            if (state.adaptiveDemise != null) state.invalidateAdaptive();
             state.adaptiveSensitivity=mc.gameSettings.mouseSensitivity;
             state.adaptiveYawRemainder=state.adaptivePitchRemainder=state.adaptiveCountCredit=0;
             state.adaptiveQuantizedSequence=Long.MIN_VALUE;
@@ -1442,9 +1493,12 @@ public final class RotationManager {
         // scene and the existing range/obstruction checks. Holding still consumes
         // the normal motion clock below; it cannot accumulate a later turn burst.
         boolean keepAim=profile.adaptiveKeepAim
+                && profile.adaptiveAimPoint != AdaptivePresetMotion.AimPoint.NEUTRON_NOISE
+                && profile.preAimPredictionTicks <= 0
                 && rays.canHitFrom(feet,target,fromYaw,fromPitch,profile.reach,profile.throughWalls);
         Vec3 point=baseAimPoint(target,bestHitVec,box);
-        if(!keepAim && profile.adaptiveAimPoint!=AdaptivePresetMotion.AimPoint.LEGACY) {
+        if(!keepAim && profile.adaptiveAimPoint!=AdaptivePresetMotion.AimPoint.LEGACY
+                && profile.adaptiveAimPoint!=AdaptivePresetMotion.AimPoint.NEUTRON_NOISE) {
             double[] anchor=AdaptivePresetMotion.aimPoint(profile.adaptiveAimPoint,
                     eyes.xCoord,eyes.yCoord,eyes.zCoord,box.minX,box.minY,box.minZ,box.maxX,box.maxY,box.maxZ);
             if(anchor!=null)point=new Vec3(anchor[0],anchor[1],anchor[2]);
@@ -1458,10 +1512,10 @@ public final class RotationManager {
         final long now=curveMotionTime();
         if(acquire) {
             state.invalidateAdaptive();
-            if(state.adaptive==null) {
+            if(state.adaptive==null && profile.adaptiveDemise == null) {
                 state.adaptive=new AdaptiveMotionController(state.adaptiveSeed, preset.limits());
-                state.adaptivePreset=preset;
             }
+            state.adaptivePreset=preset;
             state.adaptiveToken=new AdaptiveMotionController.Acquisition(state,mc.theWorld,target,
                     scene.getConnectionGeneration(),++state.adaptiveOrdinal);
             state.adaptiveTarget=new WeakReference<>(target);
@@ -1471,6 +1525,8 @@ public final class RotationManager {
             state.adaptiveHitpoint=new AdaptivePresetMotion.HitpointTrajectory(
                     state.adaptiveSeed ^ (state.adaptiveOrdinal * 0x9e3779b97f4a7c15L),
                     preset);
+            if (profile.adaptiveDemise != null) state.adaptiveDemise = new AdaptiveDemiseMotion(clock,
+                    state.adaptiveSeed ^ state.adaptiveOrdinal, profile.adaptiveDemise, fromYaw, fromPitch);
         }
         // Relative monotonic time is safe even when the VM's System.nanoTime origin is negative.
         long elapsed=now-state.adaptiveStartNanos;
@@ -1486,7 +1542,26 @@ public final class RotationManager {
             // Preserve the original raycast/visibility policy: an invalid point is never sent.
             if(adaptivePointHit(rays,feet,target,candidate,profile,fromYaw,fromPitch)) point=candidate;
         }
-        final float[] desired=keepAim?new float[]{fromYaw,fromPitch}:angles(eyes,point);
+        final float[] desired=keepAim?new float[]{fromYaw,fromPitch}:
+                angles(eyes,preAimPoint(target,point,profile.preAimPredictionTicks));
+        if (state.adaptiveDemise != null) {
+            double dx = Math.max(box.minX - eyes.xCoord, Math.max(0, eyes.xCoord - box.maxX));
+            double dy = Math.max(box.minY - eyes.yCoord, Math.max(0, eyes.yCoord - box.maxY));
+            double dz = Math.max(box.minZ - eyes.zCoord, Math.max(0, eyes.zCoord - box.maxZ));
+            float[] candidate = state.adaptiveDemise.target(sequence, now, fromYaw, fromPitch,
+                    desired[0], desired[1], Math.sqrt(dx*dx+dy*dy+dz*dz), keepAim);
+            state.adaptiveLastSequence=sequence;
+            if (!observation.isCurrent(scene) || observation.getObservedSuspensionRevision()!=suspension
+                    || !collecting || mc.currentScreen!=null || !mc.inGameHasFocus) {
+                state.invalidateAdaptive(); return null;
+            }
+            float yaw = fromYaw + MathHelper.wrapAngleTo180_float(candidate[0] - fromYaw);
+            float[] snapped = quantize(yaw, candidate[1], fromYaw, fromPitch, mc.gameSettings.mouseSensitivity);
+            if (!Float.isFinite(snapped[0]) || !Float.isFinite(snapped[1])) { state.invalidateAdaptive(); return null; }
+            state.adaptiveQuantizedSequence=sequence;
+            state.adaptiveQuantizedYaw=snapped[0];state.adaptiveQuantizedPitch=snapped[1];
+            return snapped;
+        }
         AdaptiveMotionController.Result result=state.adaptive.advance(state.adaptiveToken,sequence,
                 elapsed,fromYaw,fromPitch,desired[0],desired[1],true);
         state.adaptiveLastSequence=sequence;
@@ -1572,6 +1647,12 @@ public final class RotationManager {
         return rays.canHitFrom(feet,target,direction[0],direction[1],profile.reach,profile.throughWalls);
     }
     private static double sampleDelta(double delta) { return Double.isFinite(delta) && Math.abs(delta)<=2?delta:0; }
+    private Vec3 preAimPoint(EntityLivingBase target, Vec3 point, float ticks) {
+        if (ticks <= 0 || point == null) return point;
+        double[] lead = PreAimPrediction.offset(target.posX-target.lastTickPosX, target.posZ-target.lastTickPosZ,
+                mc.thePlayer.posX-mc.thePlayer.lastTickPosX, mc.thePlayer.posZ-mc.thePlayer.lastTickPosZ, ticks);
+        return point.addVector(lead[0],0,lead[1]);
+    }
     private Vec3 visibleAimPoint(EntityLivingBase target,AxisAlignedBB box,Vec3 base,Vec3 feet,float yaw,float pitch,RotationProfile profile,RaycastService rays) {
         Vec3 eyes=feet.addVector(0,mc.thePlayer.getEyeHeight(),0);
         List<Vec3> candidates=new ArrayList<>();candidates.add(base);
@@ -1862,6 +1943,8 @@ public final class RotationManager {
         long aiLastSequence=Long.MIN_VALUE,aiBlockedSequence=Long.MIN_VALUE,
                 aiOfferedSequence=Long.MIN_VALUE;
         AdaptivePresetMotion.Configuration adaptivePreset;
+        AdaptiveDemiseSettings.Configuration adaptiveDemiseSettings;
+        AdaptiveDemiseMotion adaptiveDemise;
         AdaptivePresetMotion.HitpointTrajectory adaptiveHitpoint;
         AdaptiveMotionController.Acquisition adaptiveToken;
         SceneContext adaptiveScene;
@@ -1878,6 +1961,7 @@ public final class RotationManager {
             if(adaptive!=null && adaptiveToken!=null) adaptive.invalidateIfCurrent(adaptiveToken);
             adaptiveToken=null;
             adaptiveHitpoint=null;
+            adaptiveDemise=null;
             adaptiveScene=null;
             adaptiveTarget.clear();
             adaptiveQuantizedSequence=Long.MIN_VALUE;

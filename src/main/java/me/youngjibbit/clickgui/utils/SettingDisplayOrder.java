@@ -14,9 +14,9 @@ public final class SettingDisplayOrder {
 
     private static final List<String> TARGET = Arrays.asList(
             "rotations", "rot_mode", "mode", "sort_mode", "switch_delay_ms", "multi_targets",
-            "reach", "aim_range_margin", "players", "animals", "mobs", "invisibles", "teams", "through_walls");
+            "reach", "pre_aim_range", "pre_aim_prediction", "aim_range_margin", "players", "animals", "mobs", "invisibles", "teams", "through_walls");
     private static final List<String> AIM = Arrays.asList(
-            "adaptive_aim_point", "adaptive_keep_valid_aim", "adaptive_speed", "adaptive_curve", "adaptive_curve_strength",
+            "adaptive_rotation_engine", "adaptive_aim_point", "adaptive_keep_valid_aim", "adaptive_speed", "adaptive_curve", "adaptive_curve_strength",
             "adaptive_min_aim_speed", "adaptive_max_aim_speed", "adaptive_noise_profile",
             "adaptive_variation_strength", "adaptive_noise_tempo", "adaptive_path_amount", "adaptive_path_tempo",
             "adaptive_hitpoint", "adaptive_initial_hitpoint_radius", "adaptive_hitpoint_amount", "adaptive_hitpoint_tempo",

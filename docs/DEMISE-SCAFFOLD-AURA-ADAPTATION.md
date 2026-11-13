@@ -1,5 +1,9 @@
 # Demise geometry adapted for Neutron
 
+The geometry-only adaptation below is historical. The later
+[Adaptive Demise engine and Neutron Noise option](RELEASE-OPERATIONS-AURA-20261113.md)
+complete Aura smoothing while retaining this geometry and ownership contract.
+
 Reference revision: [`YoungJibbit95/DemisePrivate@e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb`](https://github.com/YoungJibbit95/DemisePrivate/commit/e219a97fb8aab3e2b6cb88bb10fb3daab80a17eb), supplied by the maintainer for this integration on 2026-11-10.
 
 ## Source mapping

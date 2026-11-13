@@ -59,6 +59,7 @@ public class LagRangeImpulseSafetyTest {
                 assertNull(f.connection.channel.readOutbound());assertTrue(lag.getInfo().endsWith("Q1"));
                 velocity(f);
                 assertSame("pre-impulse movement is released in order",before,f.connection.channel.readOutbound());
+                assertTrue("knockback ends the operation without changing activation",lag.isToggled());
                 assertEquals(0,f.pipe().delays().size());
                 C03PacketPlayer after=new C03PacketPlayer(true);f.connection.network.sendPacket(after);
                 assertSame("new movement is not held during impulse recovery",after,f.connection.channel.readOutbound());

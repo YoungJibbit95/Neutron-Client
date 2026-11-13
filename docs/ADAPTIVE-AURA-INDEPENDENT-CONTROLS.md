@@ -1,5 +1,10 @@
 # Adaptive Aura: independent motion and in-box points
 
+These controls describe `Adaptive Rotation Engine = Neutron`. The later
+[Demise engine and explicit Neutron Noise choice](RELEASE-OPERATIONS-AURA-20261113.md)
+separate smoothing from point variation. Legacy retains the hold behavior below;
+Neutron Noise continues moving while Keep Valid Aim is enabled.
+
 This change extends the existing Adaptive mathematical candidate planner. It does
 not replace the action pipeline, change reach, expand a target box, add a packet
 path, or provide server-specific movement patterns.

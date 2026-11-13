@@ -45,7 +45,8 @@ public class AdaptiveAimTuningConfigTest {
                 "adaptive_initial_hitpoint_radius","adaptive_hitpoint_amount","adaptive_hitpoint_tempo",
                 "adaptive_legacy_hitpoint_profile","adaptive_legacy_hitpoint_algorithm",
                 "adaptive_legacy_hitpoint_radius","adaptive_legacy_hitpoint_travel_speed",
-                "adaptive_legacy_hitpoint_travel_noise"),ids.subList(start,ids.size()));
+                "adaptive_legacy_hitpoint_travel_noise"),ids.subList(start,start+11));
+        assertEquals("adaptive_rotation_engine",ids.get(start+11));
         assertTrue(ids.indexOf("raycast")<start);assertTrue(ids.indexOf("attack_mode")<start);
         List<Value<?>> before=new ArrayList<>(aura.getValues());
         settings(aura).appendAdaptiveTuning(aura);
@@ -68,6 +69,7 @@ public class AdaptiveAimTuningConfigTest {
         Aura aura=new Aura();
         assertFalse(aura.getValueByName("adaptive_path_amount").isVisible());
         aura.getModeSetting("Rot Mode").setValue("Adaptive");
+        aura.getModeSetting("Adaptive Rotation Engine").setValue("Neutron");
         aura.getModeSetting("Adaptive Speed Noise Profile").setValue("Off");
         assertFalse(aura.getValueByName("adaptive_variation_strength").isVisible());
         assertTrue(aura.getValueByName("adaptive_path_amount").isVisible());
@@ -98,6 +100,7 @@ public class AdaptiveAimTuningConfigTest {
     @Test public void explicitIndependentControlsRoundTripIncludingExplicitZeroValues()throws Exception {
         Aura aura=new Aura();Path dir=temp.newFolder().toPath();ConfigManager config=manager(aura,dir);
         aura.getModeSetting("Rot Mode").setValue("Adaptive");
+        aura.getModeSetting("Adaptive Rotation Engine").setValue("Neutron");
         aura.getModeSetting("Adaptive Aim Point").setValue("Legacy");
         aura.getModeSetting("Adaptive Legacy Hitpoint Profile").setValue("Custom");
         aura.getModeSetting("Adaptive Legacy Hitpoint Algorithm").setValue("ValueCubic");
@@ -158,6 +161,7 @@ public class AdaptiveAimTuningConfigTest {
 
     @Test public void hiddenLegacyHitpointAndMissValuesCannotAlterTheAdaptiveConfiguration()throws Exception {
         Aura aura=new Aura();aura.getModeSetting("Rot Mode").setValue("Adaptive");
+        aura.getModeSetting("Adaptive Rotation Engine").setValue("Neutron");
         aura.getModeSetting("Adaptive Aim Point").setValue("Legacy");
         AdaptivePresetMotion.Configuration before=AdaptivePresetMotion.Configuration.fromProfile(settings(aura).snapshot());
         aura.getNumberSetting("Hit Vec Radius").setValue(5D);

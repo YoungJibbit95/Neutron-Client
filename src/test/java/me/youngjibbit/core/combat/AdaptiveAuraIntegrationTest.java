@@ -75,6 +75,15 @@ public class AdaptiveAuraIntegrationTest {
     @Test public void independentPointStateCannotSurviveRejectedTransportOrReconfiguration() throws Exception {
         me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "independentPointStateCannotSurviveRejectedTransportOrReconfiguration");
     }
+    @Test public void demiseFramesReachAcceptedAuraWithoutChangingTheCameraOrEmittingActions() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "demiseFramesReachAcceptedAuraWithoutChangingTheCameraOrEmittingActions");
+    }
+    @Test public void demiseRejectedTransportTargetAndSceneChangesDiscardTheOldFrameTrajectory() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "demiseRejectedTransportTargetAndSceneChangesDiscardTheOldFrameTrajectory");
+    }
+    @Test public void explicitNeutronNoiseContinuesMovingInsideAValidHitboxWithEitherEngine() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "explicitNeutronNoiseContinuesMovingInsideAValidHitboxWithEitherEngine");
+    }
 
     public static class Checks {
     private static final class Harness implements AutoCloseable {
@@ -93,6 +102,8 @@ public class AdaptiveAuraIntegrationTest {
             f.player.usingItem = true; // Do not perform a real attack; this test verifies movement/ownership.
             f.aura.getBooleanSetting("Best Aim Vec").setValue(false);
             f.aura.getModeSetting("Rot Mode").setValue("Adaptive");
+            // Historical tests below assert the Neutron motion controller's caps and curves.
+            f.aura.getModeSetting("Adaptive Rotation Engine").setValue("Neutron");
             f.aura.onEnable();
         }
 
@@ -132,6 +143,18 @@ public class AdaptiveAuraIntegrationTest {
             scene.motionTime.set(nanos);
             ScaffoldClientFlowTest.ordinaryWalking(f);
             drain();
+        }
+
+        void frameAt(long nanos) {
+            scene.motionTime.set(nanos);
+            me.youngjibbit.core.world.DemiseRotationHooks.mousePre();
+            me.youngjibbit.core.world.DemiseRotationHooks.mouseUpdate();
+            drain();
+        }
+
+        void framesBefore(int tick) {
+            long start=(tick-1)*50_000_000L;
+            frameAt(start+16_000_000L);frameAt(start+33_000_000L);frameAt(start+49_000_000L);
         }
 
         public void close() throws Exception {
@@ -606,6 +629,72 @@ public class AdaptiveAuraIntegrationTest {
             h.walk(10);
             assertTrue(h.rotation.isMotionAccepted());assertEquals("aura",h.rotation.getConfirmedOwner());
             h.f.aura.onDisable();assertNull(h.rotation.getConfirmedOwner());assertNull(h.f.aura.getActiveTarget());
+        }
+    }
+
+    @Test public void demiseFramesReachAcceptedAuraWithoutChangingTheCameraOrEmittingActions() throws Exception {
+        for (String smoothing : new String[]{"Linear","Relative"}) try(Harness h=new Harness()) {
+            h.f.aura.getModeSetting("Adaptive Rotation Engine").setValue("Demise");
+            h.f.aura.getModeSetting("Demise Smooth Mode").setValue(smoothing);
+            h.f.aura.getBooleanSetting("Adaptive Keep Valid Aim").setValue(false);
+            h.walk(0);
+            assertEquals(0,h.rotation.getEffectiveYaw(),0);
+            h.frameAt(8_000_000L);
+            assertEquals("frames cannot publish accepted rotation",0,h.rotation.getEffectiveYaw(),0);
+            for(int tick=1;tick<15;tick++) { h.framesBefore(tick);h.walk(tick); }
+            assertTrue("Demise frame curve must reach real accepted C03",Math.abs(h.rotation.getEffectiveYaw())>5);
+            assertEquals("aura",h.rotation.getConfirmedOwner());
+            assertEquals(0,h.f.player.rotationYaw,0);assertEquals(0,h.f.player.rotationPitch,0);
+            assertTrue(h.sawC03);
+        }
+    }
+
+    @Test public void demiseRejectedTransportTargetAndSceneChangesDiscardTheOldFrameTrajectory() throws Exception {
+        try(Harness h=new Harness()) {
+            h.f.aura.getModeSetting("Adaptive Rotation Engine").setValue("Demise");
+            h.f.aura.getBooleanSetting("Adaptive Keep Valid Aim").setValue(false);
+            h.walk(0);h.framesBefore(1);h.walk(1);
+            float yaw=h.rotation.getEffectiveYaw(),pitch=h.rotation.getEffectivePitch();
+            h.framesBefore(2);
+            CancelC03 cancel=new CancelC03();Pulsar.BUS.subscribe(cancel);
+            try {h.walk(2);} finally {Pulsar.BUS.unsubscribe(cancel);}
+            h.framesBefore(3);h.walk(3);
+            assertEquals("rejection reacquires from accepted pose",yaw,h.rotation.getEffectiveYaw(),.001);
+            assertEquals(pitch,h.rotation.getEffectivePitch(),.001);
+            h.framesBefore(4);h.setTarget(h.target(2,-1));h.walk(4);
+            assertEquals("target switch cannot use previous target's frame candidate",yaw,h.rotation.getEffectiveYaw(),.001);
+            h.framesBefore(5);
+            h.f.mc.currentScreen=new GuiScreen(){};h.frameAt(249_500_000L);h.f.mc.currentScreen=null;
+            h.walk(5);assertEquals("GUI interruption discards pending frame work",yaw,h.rotation.getEffectiveYaw(),.001);
+            h.f.runtime.getObservation().invalidateScene();
+            h.framesBefore(6);h.walk(6);
+            assertEquals("scene boundary must reacquire",yaw,h.rotation.getEffectiveYaw(),.001);
+        }
+    }
+
+    @Test public void explicitNeutronNoiseContinuesMovingInsideAValidHitboxWithEitherEngine() throws Exception {
+        for(String engine:new String[]{"Neutron","Demise"})try(Harness h=new Harness()) {
+            independentLegacy(h);
+            h.f.aura.getModeSetting("Adaptive Rotation Engine").setValue(engine);
+            h.f.aura.getModeSetting("Adaptive Aim Point").setValue("Neutron Noise");
+            h.f.aura.getNumberSetting("adaptive_initial_hitpoint_radius").setValue(0D);
+            h.f.aura.getNumberSetting("adaptive_path_amount").setValue(0D);
+            RaycastService rays=h.f.runtime.getRaycastService();
+            net.minecraft.util.Vec3 feet=new net.minecraft.util.Vec3(h.f.player.posX,h.f.player.posY,h.f.player.posZ);
+            boolean acquired=false,movedWhileHit=false;float yaw=0,pitch=0;int validSamples=0;
+            for(int tick=0;tick<160;tick++) {
+                if(tick>0)h.framesBefore(tick);
+                h.walk(tick);
+                boolean hit=rays.canHitFrom(feet,h.first,h.rotation.getEffectiveYaw(),h.rotation.getEffectivePitch(),3.2f,false);
+                if(acquired && hit && Math.hypot(h.rotation.getEffectiveYaw()-yaw,h.rotation.getEffectivePitch()-pitch)>.01)
+                    movedWhileHit=true;
+                if(hit){acquired=true;validSamples++;}
+                yaw=h.rotation.getEffectiveYaw();pitch=h.rotation.getEffectivePitch();
+                assertEquals(0,h.f.player.rotationYaw,0);
+            }
+            assertTrue(engine+" must acquire a real target ray",acquired);
+            assertTrue(engine+" must keep following selected noise after a valid ray",movedWhileHit);
+            assertTrue(engine+" must retain repeated valid in-box rays",validSamples>40);
         }
     }
 

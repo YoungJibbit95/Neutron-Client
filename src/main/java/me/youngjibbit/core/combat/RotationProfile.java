@@ -23,6 +23,8 @@ public final class RotationProfile {
     public AdaptivePresetMotion.Noise adaptiveNoise=AdaptivePresetMotion.Noise.SOFT;
     /** Appended Aura controls; absent on historical/other consumers. Immutable per-call snapshot. */
     public AdaptivePresetMotion.Tuning adaptiveTuning;
+    /** Non-null selects the original Demise frame smoother inside Adaptive. */
+    public AdaptiveDemiseSettings.Configuration adaptiveDemise;
     public boolean softArsenicMotion;
     public enum HitpointNoise {
         CALM(.45, .25), BALANCED(.85, .48), DYNAMIC(1.4, .8);
@@ -33,6 +35,10 @@ public final class RotationProfile {
     public float hitpointSpeed = 1, hitpointStrength;
 
     public float predictionTicks=1, missChance=.05f;
+    /** Aura sets this only for a current target outside attack Reach; zero preserves ordinary aiming. */
+    public float preAimPredictionTicks;
+    /** Distinguishes an explicit zero pre-aim horizon from ordinary in-range aiming. */
+    public boolean preAiming;
     public enum SpeedCurve { OFF, BEZIER }
     /** Independent opt-in; legacy randomization presets never enable or override it. */
     public SpeedCurve speedCurve=SpeedCurve.OFF;

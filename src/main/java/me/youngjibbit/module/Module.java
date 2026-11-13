@@ -143,6 +143,8 @@ public abstract class Module implements Subscriber {
             return null;
         }
 
+        if (actionSafety != null) nameOrId = actionSafety.canonicalName(nameOrId);
+
         for (Value<?> value : valueList) {
             if (value.getName().equalsIgnoreCase(nameOrId) || value.getId().equalsIgnoreCase(nameOrId)) {
                 return (Value<T>) value;
@@ -172,6 +174,12 @@ public abstract class Module implements Subscriber {
     /** Append after existing values in modules which own timing work. */
     protected final void enableActionSafety(java.util.function.Supplier<Minecraft> client) {
         if (actionSafety == null) actionSafety = new ModuleActionSafety(this, client);
+    }
+
+    /** Keep user activation separate from an opted-in consumer's current operation. */
+    protected final void enableActionSafety(java.util.function.Supplier<Minecraft> client,
+                                           java.util.function.Consumer<String> abortOperation) {
+        if (actionSafety == null) actionSafety = new ModuleActionSafety(this, client, abortOperation);
     }
 
     protected final boolean actionSafetyAllows() {

@@ -20,6 +20,7 @@ public class DemiseAdaptiveAimGeometryTest {
         assertNotNull(point);assertEquals(.001,point[0],1e-12);
         assertEquals(1.998,point[1],1e-12);assertEquals(.999,point[2],1e-12);
         assertNull(AdaptivePresetMotion.aimPoint(AdaptivePresetMotion.AimPoint.LEGACY,0,0,0,0,0,0,1,2,1));
+        assertNull(AdaptivePresetMotion.aimPoint(AdaptivePresetMotion.AimPoint.NEUTRON_NOISE,0,0,0,0,0,0,1,2,1));
         assertNull(AdaptivePresetMotion.aimPoint(AdaptivePresetMotion.AimPoint.STRAIGHT,Double.NaN,0,0,0,0,0,1,2,1));
         assertNull(AdaptivePresetMotion.aimPoint(AdaptivePresetMotion.AimPoint.STRAIGHT,0,0,0,0,0,0,0,2,1));
     }

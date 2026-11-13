@@ -17,7 +17,7 @@ public final class SettingSubcategories {
         List<SubcategoryValue> result = new ArrayList<>();
         if (values.size() <= 5) return result;
         Map<String,List<Value<?>>> groups = new LinkedHashMap<>();
-        for (String name : Arrays.asList("General", "Targets", "Bridge", "Clutch", "Interaction", "Aiming", "Rotation Speed", "Rotation Shape", "Rotation Pauses", "Movement", "Attacks", "Blocking", "Placement", "Selection", "Hotbar", "Cleanup", "Halo", "Hitpoint", "Safety", "Timing", "Indicator", "Appearance", "Widgets", "Advanced"))
+        for (String name : Arrays.asList("General", "Targets", "Pre Aim", "Bridge", "Clutch", "Interaction", "Aiming", "Rotation Speed", "Rotation Shape", "Rotation Pauses", "Movement", "Attacks", "Blocking", "Placement", "Selection", "Hotbar", "Cleanup", "Halo", "Hitpoint", "Safety", "Timing", "Indicator", "Appearance", "Widgets", "Advanced"))
             groups.put(name, new ArrayList<>());
         for (Value<?> value : values) groups.get(group(module.getId(), value.getId())).add(value);
         for (Map.Entry<String,List<Value<?>>> entry : groups.entrySet()) {
@@ -37,6 +37,7 @@ public final class SettingSubcategories {
     }
     static String group(String module, String id) {
         if (id.startsWith("smart_disable_on_") || is(id,"stop_on_damage","exclusive_timing")) return "Safety";
+        if ("backtrack".equals(module) && "release_on_velocity".equals(id)) return "Safety";
         if (is(module,"invmanager","stealer")) {
             if (is(id,"interaction_mode","preview_time_ms","resume_delay_ms")) return "Interaction";
             if (is(id,"speed_profile","min_action_delay_ms","max_action_delay_ms","variation_rate")) return "Timing";
@@ -97,6 +98,15 @@ public final class SettingSubcategories {
             return "Aiming";
         }
         if ("aura".equals(module) || "aimassist".equals(module) || "aim_assist".equals(module)) {
+            if (is(id,"pre_aim_range","pre_aim_prediction")) return "Pre Aim";
+            if ("aura".equals(module) && id.startsWith("demise_")) {
+                if (has(id,"stop")) return "Rotation Pauses";
+                if (has(id,"speed","range","decrement")) return "Rotation Speed";
+                return "Rotation Shape";
+            }
+            if ("aura".equals(module) && (id.startsWith("adaptive_legacy_hitpoint_")
+                    || id.startsWith("adaptive_hitpoint") || is(id,"adaptive_aim_point","adaptive_initial_hitpoint_radius")))
+                return "Hitpoint";
             if (is(id,"mode","sort_mode","switch_delay_ms","multi_targets","reach","range","fov","aim_range_margin","players","animals","mobs","invisibles","teams","through_walls")) return "Targets";
             if (has(id,"autoblock","block_frequency","block_range","reblock")) return "Blocking";
             if (has(id,"movefix","body_rotation","smooth_rotation_stop","return_ticks")) return "Movement";
@@ -120,6 +130,15 @@ public final class SettingSubcategories {
         return "General";
     }
     private static String description(String module, String name) {
+        if (is(module,"backtrack","tickbase","lagrange","lag_range") && "Safety".equals(name))
+            return "Abort the current operation; keep the module enabled and resume only from valid state";
+        if ("aura".equals(module)) {
+            if ("Aiming".equals(name)) return "Rotation engine, valid-ray hold and Neutron motion controls";
+            if ("Rotation Speed".equals(name)) return "Demise per-axis speed limits and optional distance reduction";
+            if ("Rotation Shape".equals(name)) return "Demise frame smoothing, acceleration and axis correlation";
+            if ("Rotation Pauses".equals(name)) return "Demise short stops after accumulated rotation travel";
+            if ("Hitpoint".equals(name)) return "In-box anchors and continuous Neutron Noise movement, independent of the rotation engine";
+        }
         if (is(module,"nscaffold","bedbreaker")) {
             if ("Rotation Speed".equals(name)) return "Yaw and pitch speed ranges sampled each update";
             if ("Rotation Shape".equals(name)) return "Frame-based smoothing and acceleration";
@@ -133,6 +152,7 @@ public final class SettingSubcategories {
         if ("bedbreaker".equals(module) && "Targets".equals(name)) return "Bed access and target selection";
         switch (name) {
             case "Targets": return "Selection, reach and filters";
+            case "Pre Aim": return "Aim range in blocks, separate from attack Reach; prediction in ticks (50 ms) outside Reach, 0 disables prediction";
             case "Bridge": return "Bridge behavior and inventory";
             case "Clutch": return "Reachable recovery, prediction and grounded sneak";
             case "Rotation Speed": return "Independent yaw and pitch limits per player tick";
