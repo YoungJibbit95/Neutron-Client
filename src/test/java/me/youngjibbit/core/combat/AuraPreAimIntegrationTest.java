@@ -268,11 +268,17 @@ public class AuraPreAimIntegrationTest {
         @Test public void inReachAndStationaryTargetsReceiveNoPredictionLead() throws Exception {
             for (String engine : new String[]{"Neutron", "Demise"}) {
                 try (Harness h = new Harness(engine)) {
+                    // The reference Demise default (.15) deliberately has a slow
+                    // mouse-count deadband. This case tests reach/prediction, not
+                    // that convergence behavior (covered by the frame parity tests).
+                    // Use the same deterministic full-gain setting as checkPrediction.
+                    if ("Demise".equals(engine))
+                        h.fixture.aura.getNumberSetting("Demise Extra Smoothing").setValue(1D);
                     h.range(6);
                     h.prediction(3);
                     h.moveTarget(2.5, .2);
                     assertEquals("a moving target within Reach uses its current point", 0, h.settle(), .35);
-                    assertTrue("the in-range assertion must exercise a live attack path", h.attacks > 0);
+                    assertTrue(engine + ": the in-range assertion must exercise a live attack path", h.attacks > 0);
                     int inRangeAttacks = h.attacks;
                     h.moveTarget(5.5, 0);
                     AxisAlignedBB box = h.target.getEntityBoundingBox();
