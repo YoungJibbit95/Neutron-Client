@@ -30,6 +30,8 @@ public final class PerformanceCaptureNativeCheck {
         System.setProperty("user.home", new File(root, "home").getAbsolutePath());
         File data = Files.createTempDirectory(root.toPath(), "fixture-").toFile();
         boolean previousCounters = RenderDiagnostics.enabled;
+        PerformanceOptions.Snapshot previousOptions = PerformanceOptions.current();
+        PerformanceOptions.defaults();
         try (PbufferTestContext context = new PbufferTestContext()) {
             Minecraft mc = new Minecraft(new GameConfiguration(
                     new GameConfiguration.UserInformation(new Session("CaptureFixture",
@@ -66,6 +68,11 @@ public final class PerformanceCaptureNativeCheck {
                 JsonObject counters = report.getAsJsonObject("renderCounterDelta");
                 require(counters.get("programBinds").getAsLong() >= 3, "Real program API requests were not counted");
                 require(counters.get("framebufferBinds").getAsLong() >= 3, "Real framebuffer API requests were not counted");
+                JsonObject initialOptions = report.getAsJsonObject("settingsStart").getAsJsonObject("effectivePerformance");
+                require(initialOptions.get("revision").getAsLong() == PerformanceOptions.current().revision,
+                        "Start metadata did not use the effective option snapshot");
+                require(initialOptions.get("sceneBlurDivisor").getAsInt() == 1
+                        && !initialOptions.get("fastGaussian").getAsBoolean(), "Default effective options not exported");
 
                 // Settings abort must keep prior full-frame evidence and preserve an already enabled counter owner.
                 RenderDiagnostics.enabled = true;
@@ -79,9 +86,134 @@ public final class PerformanceCaptureNativeCheck {
                 require(!report.get("settingsMatchAtEndpoints").getAsBoolean(), "Settings change went unreported");
                 mc.gameSettings.guiScale = guiScale;
 
+                // Reapplying unchanged effective values must not interrupt a real capture.
+                CAPTURE.start(mc, 120); boundary(mc, 220); completeFrame(mc, 221);
+                long unchangedRevision = PerformanceOptions.current().revision;
+                require(!PerformanceOptions.configure(false, false, false, 1, 1, 4), "Unchanged options were published");
+                require(PerformanceOptions.current().revision == unchangedRevision, "Unchanged revision advanced");
+                completeFrame(mc, 222);
+                require(CAPTURE.isRecording(), "Unchanged apply aborted recording");
+                CAPTURE.stop(); drain(mc);
+                report = exportAndCheck(mc, "performance-unchanged", 2, "STOPPED");
+                require(report.get("settingsMatchAtEndpoints").getAsBoolean(), "Unchanged options differ at endpoints");
+
+                // Settings callbacks remain GL-free. A changed-and-restored policy is still detected
+                // at the next owner-thread boundary, before accepting an interval with mixed choices.
+                CAPTURE.start(mc, 120); boundary(mc, 240); completeFrame(mc, 241);
+                PerformanceOptions.Snapshot beforeRoundTrip = PerformanceOptions.current();
+                sequence.setLong(mc, 242);
+                long interruptedCpu = CAPTURE.beginCpu();
+                long interruptedGpu = CAPTURE.beginGpu("POLICY_PENDING");
+                require(interruptedGpu != 0, "Policy fixture did not open its real GPU pair");
+                int queryIds = GpuPassTimings.INSTANCE.snapshot().queryObjectsRemaining;
+                PerformanceOptions.configure(true, true, true, 4, 2, 8);
+                restoreOptions(beforeRoundTrip);
+                require(CAPTURE.isRecording(), "Policy publication performed capture teardown in the setting callback");
+                require(GpuPassTimings.INSTANCE.snapshot().queryObjectsRemaining == queryIds,
+                        "Policy setter deleted native queries");
+                require(PerformanceOptions.current().revision == beforeRoundTrip.revision + 2,
+                        "Changed-and-restored options lost their monotone revision");
+                boundary(mc, 242);
+                require(!CAPTURE.isRecording(), "Intervening policy change escaped the frame boundary");
+                require(GpuPassTimings.INSTANCE.snapshot().queryObjectsRemaining == 0, "Policy abort retained query IDs");
+                require(GpuPassTimings.INSTANCE.snapshot().abandoned > 0, "Interrupted GPU pass was not reported abandoned");
+                CAPTURE.endCpu(CpuPhaseTimings.Phase.WORLD, interruptedCpu, 242);
+                CAPTURE.endGpu(interruptedGpu);
+                require(GpuPassTimings.INSTANCE.snapshot().queryObjectsRemaining == 0, "Stale policy-pass end recreated queries");
+                report = exportAndCheck(mc, "performance-roundtrip-abort", 1, "ABORTED");
+                require("Performance options changed".equals(report.get("reason").getAsString()), "Policy abort reason missing");
+                require(!report.get("settingsMatchAtEndpoints").getAsBoolean(), "Revision did not reveal the restored change");
+                JsonObject startOptions = report.getAsJsonObject("settingsStart").getAsJsonObject("effectivePerformance");
+                JsonObject endOptions = report.getAsJsonObject("settingsEnd").getAsJsonObject("effectivePerformance");
+                require(startOptions.get("revision").getAsLong() == beforeRoundTrip.revision,
+                        "Capture revision did not match its start snapshot");
+                require(endOptions.get("revision").getAsLong() == beforeRoundTrip.revision + 2,
+                        "Capture end omitted the intervening revisions");
+                require(startOptions.get("fastGaussian").equals(endOptions.get("fastGaussian"))
+                        && startOptions.get("sceneBlurDivisor").equals(endOptions.get("sceneBlurDivisor")),
+                        "Fixture must actually restore the original option values");
+
+                // The earlier end-hook also detects a change without waiting for a full-frame hook.
+                CAPTURE.start(mc, 120); boundary(mc, 260); completeFrame(mc, 261);
+                sequence.setLong(mc, 262);
+                interruptedCpu = CAPTURE.beginCpu();
+                interruptedGpu = CAPTURE.beginGpu("POLICY_END_HOOK");
+                require(interruptedGpu != 0, "End-hook fixture did not open a GPU pair");
+                PerformanceOptions.configure(false, false, true, 2);
+                CAPTURE.endGpu(interruptedGpu);
+                CAPTURE.endCpu(CpuPhaseTimings.Phase.WORLD, interruptedCpu, 262);
+                require(!CAPTURE.isRecording() && GpuPassTimings.INSTANCE.snapshot().queryObjectsRemaining == 0,
+                        "Policy-changing end hook retained active capture or query objects");
+                report = exportAndCheck(mc, "performance-pass-abort", 1, "ABORTED");
+                require(report.getAsJsonObject("settingsEnd").getAsJsonObject("effectivePerformance")
+                        .get("fastGaussian").getAsBoolean(), "Effective enabled option missing at abort");
+                PerformanceOptions.defaults();
+
+                // Legacy budget-only callers participate in the same revision contract; stop must
+                // report the configuration interruption even when no subsequent frame was drawn.
+                CAPTURE.start(mc, 120); boundary(mc, 280); completeFrame(mc, 281);
+                ChunkFrameBudget.configure(1.25, 5);
+                CAPTURE.stop();
+                report = exportAndCheck(mc, "performance-budget-abort", 1, "ABORTED");
+                require("Performance options changed".equals(report.get("reason").getAsString()),
+                        "Budget-only change was mislabeled as a normal stop");
+                PerformanceOptions.defaults();
+
+                // A normal stop inside a GPU pass must preserve its unchanged late end.
+                CAPTURE.start(mc, 120); boundary(mc, 300); completeFrame(mc, 301);
+                sequence.setLong(mc, 302);
+                long stoppedGpu = CAPTURE.beginGpu("STOP_UNCHANGED");
+                require(stoppedGpu != 0, "Stop fixture did not open a GPU pair");
+                CAPTURE.stop();
+                require(GpuPassTimings.INSTANCE.snapshot().state == GpuPassTimings.State.DRAINING,
+                        "Stop did not leave the open GPU pair draining");
+                CAPTURE.endGpu(stoppedGpu); drain(mc);
+                GpuPassTimings.Snapshot stopped = GpuPassTimings.INSTANCE.snapshot();
+                require(stopped.state == GpuPassTimings.State.STOPPED && stopped.samples.size() == 2
+                        && stopped.abandoned == 0, "Unchanged late GPU end was lost");
+                require(stopped.samples.get(1).frameSequence == 302,
+                        "Partial stop-frame GPU pass lost its actual frame mapping");
+                require(FrameTimeCapture.INSTANCE.snapshot().statistics.frames == 1,
+                        "GPU draining invented a completed frame interval");
+
+                // The frame capture has ended, but an open GPU bracket must not cross
+                // an option revision before its late end hook, even when values return.
+                CAPTURE.start(mc, 120); boundary(mc, 320); completeFrame(mc, 321);
+                sequence.setLong(mc, 322);
+                stoppedGpu = CAPTURE.beginGpu("STOP_POLICY_PENDING");
+                require(stoppedGpu != 0, "Stopped-policy fixture did not open a GPU pair");
+                PerformanceOptions.Snapshot beforeStoppedChange = PerformanceOptions.current();
+                CAPTURE.stop();
+                GpuPassTimings.Snapshot draining = GpuPassTimings.INSTANCE.snapshot();
+                require(draining.state == GpuPassTimings.State.DRAINING && draining.pending > 0,
+                        "Stopped-policy fixture did not retain its open pair");
+                PerformanceOptions.configure(false, false, true, 2);
+                restoreOptions(beforeStoppedChange);
+                require(GpuPassTimings.INSTANCE.snapshot().queryObjectsRemaining == draining.queryObjectsRemaining,
+                        "Policy setter touched the stopped capture's native query pool");
+                CAPTURE.endGpu(stoppedGpu);
+                GpuPassTimings.Snapshot discarded = GpuPassTimings.INSTANCE.snapshot();
+                require(discarded.state == GpuPassTimings.State.ABORTED && discarded.pending == 0
+                        && discarded.queryObjectsRemaining == 0, "Changed late GPU end retained pending queries");
+                require(discarded.abandoned == draining.abandoned + draining.pending
+                        && discarded.samples.size() == draining.samples.size(),
+                        "Changed late GPU end accepted new samples or discarded already resolved evidence");
+                CAPTURE.endGpu(stoppedGpu); // repeated stale ends remain neutral after cleanup
+                require(GpuPassTimings.INSTANCE.snapshot().abandoned == discarded.abandoned,
+                        "Repeated stale end changed abandoned-sample accounting");
+                report = exportAndCheck(mc, "performance-stopped-pass-abort", 1, "STOPPED");
+                require("ABORTED".equals(report.getAsJsonObject("gpu").get("state").getAsString())
+                        && "Performance options changed while GPU capture was draining".equals(
+                                report.getAsJsonObject("gpu").get("reason").getAsString()),
+                        "Stopped frame capture hid the interrupted GPU drain");
+                require(report.get("settingsMatchAtEndpoints").getAsBoolean()
+                        && report.getAsJsonObject("settingsEnd").getAsJsonObject("effectivePerformance")
+                                .get("revision").getAsLong() == beforeStoppedChange.revision,
+                        "Later GPU cleanup rewrote the completed frame capture's stop snapshot");
+
                 // Context teardown may occur before asynchronous queries finish; it must never wait or leak IDs.
                 RenderDiagnostics.enabled = false;
-                CAPTURE.start(mc, 120); boundary(mc, 300); completeFrame(mc, 301);
+                CAPTURE.start(mc, 120); boundary(mc, 340); completeFrame(mc, 341);
                 long unfinished = CAPTURE.beginGpu("ABORT_PENDING");
                 require(unfinished != 0 && GpuPassTimings.INSTANCE.snapshot().pending > 0,
                         "Context-abort fixture must own an unfinished real timestamp pair");
@@ -98,14 +230,20 @@ public final class PerformanceCaptureNativeCheck {
                 GpuPassTimings.INSTANCE.reset();
                 target.deleteFramebuffer();
                 RenderDiagnostics.enabled = previousCounters;
+                restoreOptions(previousOptions);
             }
         }
-        System.out.println("PASS: real GL capture orchestration, frame/CPU/GPU CSV join, JSON export, settings/context abort retention, counter restoration and query cleanup.");
+        System.out.println("PASS: real GL capture orchestration, frame/CPU/GPU CSV join, JSON export, settings/context abort retention, performance revision/roundtrip/open-pass guards, counter restoration and query cleanup.");
         System.out.println("NOT COVERED: actual runGameLoop, native Display, full game world, external shaderpacks or hardware performance gains.");
     }
 
     private static void boundary(Minecraft mc, long frame) throws Exception {
         sequence.setLong(mc, frame); CAPTURE.frame(mc);
+    }
+    private static void restoreOptions(PerformanceOptions.Snapshot options) {
+        PerformanceOptions.configure(options.fastParticleCleanup, options.fastVisibilityGraph,
+                options.fastGaussian, options.sceneBlurDivisor,
+                options.uploadLimits.nanoseconds / 1_000_000D, options.uploadLimits.bytes / 1_048_576D);
     }
     private static void completeFrame(Minecraft mc, long frame) throws Exception {
         sequence.setLong(mc, frame);

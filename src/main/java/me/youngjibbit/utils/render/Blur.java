@@ -2,6 +2,7 @@ package me.youngjibbit.utils.render;
 
 import net.minecraft.client.Minecraft;
 import me.youngjibbit.utils.render.shader.blur.GaussianBlur;
+import me.youngjibbit.utils.render.shader.blur.SceneBlurSize;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.GlStateManager;
 import net.minecraft.client.shader.Framebuffer;
@@ -20,8 +21,13 @@ public final class Blur {
     public static void startBlur() {
         if(depth++>0)return;
         state=new RenderState();Minecraft mc=Minecraft.getMinecraft();
-        if(buffers[0]==null||buffers[0].framebufferWidth!=mc.displayWidth||buffers[0].framebufferHeight!=mc.displayHeight) {
-            for(int i=0;i<4;i++){if(buffers[i]!=null)buffers[i].deleteFramebuffer();buffers[i]=new Framebuffer(mc.displayWidth,mc.displayHeight,false);buffers[i].setFramebufferFilter(GL_LINEAR);}
+        int divisor=GaussianBlur.effectiveSceneBlurDivisor();
+        for(int i=0;i<4;i++){
+            int width=i<2?mc.displayWidth:SceneBlurSize.dimension(mc.displayWidth,divisor);
+            int height=i<2?mc.displayHeight:SceneBlurSize.dimension(mc.displayHeight,divisor);
+            if(buffers[i]==null||buffers[i].framebufferWidth!=width||buffers[i].framebufferHeight!=height){
+                if(buffers[i]!=null)buffers[i].deleteFramebuffer();buffers[i]=new Framebuffer(width,height,false);buffers[i].setFramebufferFilter(GL_LINEAR);
+            }
         }
         state.bindTarget();bind(0,buffers[1].framebufferTexture);
         glCopyTexSubImage2D(GL_TEXTURE_2D,0,0,0,0,0,mc.displayWidth,mc.displayHeight);
@@ -38,7 +44,7 @@ public final class Blur {
             if(!UiEffects.blurEnabled()&&!UiEffects.glass())return;
             screen();
             float r=UiEffects.options().configured?UiEffects.blurRadius(radius)*new ScaledResolution(mc).getScaleFactor():radius*compression;
-            if(UiEffects.blurEnabled())GaussianBlur.renderScene(buffers[2],buffers[3],buffers[1].framebufferTexture,r);
+            if(UiEffects.blurEnabled())GaussianBlur.renderSceneAtResolution(buffers[2],buffers[3],buffers[1].framebufferTexture,r,mc.displayWidth,mc.displayHeight);
             state.bindTarget();state.restoreClip();
             GlStateManager.enableBlend();glEnable(GL_BLEND);GlStateManager.blendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
             if(RenderDiagnostics.enabled)RenderDiagnostics.composites++;

@@ -7,6 +7,8 @@ on:
     paths:
       - '.github/workflows/legacy-ui-render.yml'
       - '.github/scripts/run-ui-render-checks.sh'
+      - '.github/scripts/*scene_blur_performance.py'
+      - '.github/scripts/check_render_performance.py'
       - '.github/scripts/install_native_runtime.py'
       - '.github/scripts/test_native_runtime.py'
       - 'pom.xml'
@@ -115,5 +117,6 @@ jobs:
             target/legacy-ui-render/run.*/screenshots/**/shader-modes.json
             target/legacy-ui-render/run.*/screenshots/**/target-esp.json
             target/legacy-ui-render/run.*/screenshots/**/inventory-assist-report.json
+            target/legacy-ui-render/run.*/screenshots/**/scene-blur-report.json
           if-no-files-found: error
           retention-days: 14

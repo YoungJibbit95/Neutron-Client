@@ -2,6 +2,7 @@ package me.youngjibbit.utils.render;
 
 import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.render.shader.blur.GaussianBlur;
+import me.youngjibbit.utils.render.shader.blur.SceneBlurSize;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.ScaledResolution;
 import net.minecraft.client.renderer.GlStateManager;
@@ -20,6 +21,11 @@ public final class ArrayListSurface implements AutoCloseable {
     private final Framebuffer[] buffers = new Framebuffer[5];
     private final FloatBuffer cornerBuffer = BufferUtils.createFloatBuffer(MAX_CORNERS*4);
     private int bufferWidth, bufferHeight;
+    private int sceneDivisor=1;
+    private int activeScenes;
+    private int[] activeSoftTextures;
+    // A reduced scene never borrows the full-resolution scratch used by halo masks.
+    private Framebuffer sceneScratch;
     // Mask, scratch and halo are consumed before a content callback: one shared trio suffices even for nested panels.
     private static final Framebuffer[] effects=new Framebuffer[3];private static int effectsWidth,effectsHeight;
     private int capturedClean,capturedSoft;private boolean capturedBlur;private float capturedRadius;private Theme capturedTheme;private UiEffects.SurfacePolicy capturedPolicy;
@@ -61,8 +67,11 @@ public final class ArrayListSurface implements AutoCloseable {
 
     private static void releaseEffects(){haloCache.clear();for(int i=0;i<effects.length;i++)if(effects[i]!=null){effects[i].deleteFramebuffer();effects[i]=null;}}
     public boolean withCapturedScene(Runnable content){
-        if(!UiEffects.effectsSupported()||capturedClean<=0||bufferWidth!=Minecraft.getMinecraft().displayWidth||bufferHeight!=Minecraft.getMinecraft().displayHeight||!glIsTexture(capturedClean))return false;
-        try(UiEffects.SceneContext scope=UiEffects.scene(capturedClean,capturedSoft,capturedBlur,capturedTheme,capturedPolicy,false,capturedRadius)){content.run();}return true;
+        if(!UiEffects.effectsSupported()||capturedClean<=0||bufferWidth!=Minecraft.getMinecraft().displayWidth||bufferHeight!=Minecraft.getMinecraft().displayHeight||!glIsTexture(capturedClean)
+                ||capturedBlur&&(capturedSoft<=0||!glIsTexture(capturedSoft)))return false;
+        enterScene(capturedSoft);
+        try(UiEffects.SceneContext scope=UiEffects.scene(capturedClean,capturedSoft,capturedBlur,capturedTheme,capturedPolicy,false,capturedRadius)){content.run();}
+        finally{activeScenes--;}return true;
     }
     /** Bands share the left edge and tile the vertical interval without gaps. */
     public static final class Shape {
@@ -247,7 +256,7 @@ public final class ArrayListSurface implements AutoCloseable {
             if(!borrow&&(blur||cleanScene)){
                 int slot=cleanScene?4:0;texture(0,buffers[slot].framebufferTexture);glCopyTexSubImage2D(GL_TEXTURE_2D,0,0,0,0,0,mc.displayWidth,mc.displayHeight);clean=buffers[slot].framebufferTexture;
             }
-            if(computeBlur){GaussianBlur.renderScene(buffers[1],buffers[3],clean,effectiveRadius*sr.getScaleFactor());soft=buffers[3].framebufferTexture;}
+            if(computeBlur){blurScene(clean,effectiveRadius*sr.getScaleFactor());soft=buffers[3].framebufferTexture;}
             if(!blur)soft=clean;
             int haloTexture=0;
             if (glow&&!shapedGlow) {
@@ -300,7 +309,9 @@ public final class ArrayListSurface implements AutoCloseable {
             // Legacy masks can reuse slot zero for glow; only modern snapshots remain clean for nested fills.
             capturedClean=cleanScene||borrow?clean:0;capturedSoft=soft;capturedBlur=blur;capturedTheme=theme;capturedPolicy=policy;capturedRadius=effectiveRadius;
             state.restoreColorMask();
+            enterScene(soft);
             try(UiEffects.SceneContext context=UiEffects.scene(capturedClean,soft,blur,theme,policy,background&&policy.style>=0,effectiveRadius)){text.run();}
+            finally{activeScenes--;}
         }
     }
 
@@ -325,13 +336,16 @@ public final class ArrayListSurface implements AutoCloseable {
         watchShaderResources();
         theme=theme(theme);
         UiEffects.SurfacePolicy policy=UiEffects.surface(local,theme,true,true,false,0,surfaceStyle);UiEffects.SceneContext parent=UiEffects.scene();
-        if(parent!=null&&parent.clean>0){try(UiEffects.SceneContext scope=UiEffects.scene(parent.clean,parent.soft,parent.blurred,theme,policy,parent.replacing,parent.radius)){content.run();}return;}
+        if(parent!=null&&parent.clean>0){enterScene(parent.soft);try(UiEffects.SceneContext scope=UiEffects.scene(parent.clean,parent.soft,parent.blurred,theme,policy,parent.replacing,parent.radius)){content.run();}finally{activeScenes--;}return;}
         if(!OpenGlHelper.shadersSupported||!OpenGlHelper.isFramebufferEnabled()){content.run();return;}
         Minecraft mc=Minecraft.getMinecraft();boolean blur=policy.blur;
         try(RenderState state=new RenderState()){
             ensureBuffers(mc.displayWidth,mc.displayHeight,false,blur,true);state.bindTarget();texture(0,buffers[4].framebufferTexture);glCopyTexSubImage2D(GL_TEXTURE_2D,0,0,0,0,0,mc.displayWidth,mc.displayHeight);
-            if(blur)GaussianBlur.renderScene(buffers[1],buffers[3],buffers[4].framebufferTexture,UiEffects.blurRadius(5)*new ScaledResolution(mc).getScaleFactor());
-            state.bindTarget();prepare();state.restoreClip();state.restoreColorMask();try(UiEffects.SceneContext scope=UiEffects.scene(buffers[4].framebufferTexture,blur?buffers[3].framebufferTexture:buffers[4].framebufferTexture,blur,theme,policy,false,UiEffects.blurRadius(5))){content.run();}
+            if(blur)blurScene(buffers[4].framebufferTexture,UiEffects.blurRadius(5)*new ScaledResolution(mc).getScaleFactor());
+            state.bindTarget();prepare();state.restoreClip();state.restoreColorMask();
+            enterScene(blur?buffers[3].framebufferTexture:buffers[4].framebufferTexture);
+            try(UiEffects.SceneContext scope=UiEffects.scene(buffers[4].framebufferTexture,blur?buffers[3].framebufferTexture:buffers[4].framebufferTexture,blur,theme,policy,false,UiEffects.blurRadius(5))){content.run();}
+            finally{activeScenes--;}
         }
     }
 
@@ -347,8 +361,10 @@ public final class ArrayListSurface implements AutoCloseable {
         float radius=sceneBlurRadius(blurRadius);boolean applyBlur=policy.blur;
         UiEffects.SceneContext parent=UiEffects.scene();
         if(canBorrowScene(parent,applyBlur,radius)){
+            enterScene(applyBlur?parent.soft:parent.clean);
             try(UiEffects.SceneContext scope=UiEffects.scene(parent.clean,applyBlur?parent.soft:parent.clean,
                     applyBlur,theme,policy,parent.replacing,radius)){content.accept(policy);}
+            finally{activeScenes--;}
             return;
         }
         if(!OpenGlHelper.shadersSupported||!OpenGlHelper.isFramebufferEnabled()){content.accept(policy);return;}
@@ -357,11 +373,12 @@ public final class ArrayListSurface implements AutoCloseable {
             ensureBuffers(mc.displayWidth,mc.displayHeight,false,applyBlur,ownClean);
             state.bindTarget();int clean=ownClean?buffers[4].framebufferTexture:parent.clean;
             if(ownClean){texture(0,clean);glCopyTexSubImage2D(GL_TEXTURE_2D,0,0,0,0,0,mc.displayWidth,mc.displayHeight);}
-            if(applyBlur)GaussianBlur.renderScene(buffers[1],buffers[3],clean,
-                    radius*new ScaledResolution(mc).getScaleFactor());
+            if(applyBlur)blurScene(clean,radius*new ScaledResolution(mc).getScaleFactor());
             state.bindTarget();prepare();state.restoreClip();state.restoreColorMask();
+            enterScene(applyBlur?buffers[3].framebufferTexture:clean);
             try(UiEffects.SceneContext scope=UiEffects.scene(clean,applyBlur?buffers[3].framebufferTexture:clean,
                     applyBlur,theme,policy,parent!=null&&parent.replacing,radius)){content.accept(policy);}
+            finally{activeScenes--;}
         }
     }
     UiEffects.SurfacePolicy scenePolicy(Theme theme,boolean background,boolean blur){
@@ -384,10 +401,39 @@ public final class ArrayListSurface implements AutoCloseable {
     private void ensureBuffers(int width,int height,boolean glow,boolean blur,boolean snapshot) {
         if(bufferWidth!=width||bufferHeight!=height){close();bufferWidth=width;bufferHeight=height;}
         if(effectsWidth!=width||effectsHeight!=height){releaseEffects();effectsWidth=width;effectsHeight=height;}
-        for(int i=0;i<5;i++)if(i==0&&(glow||blur&&!snapshot)||i==1&&(glow||blur)||i==2&&glow||i==3&&blur||i==4&&snapshot){
-            if(i<3){if(effects[i]==null)effects[i]=createBuffer(width,height);buffers[i]=effects[i];}
-            else if(buffers[i]==null)buffers[i]=createBuffer(width,height);
+        if(blur){
+            int divisor=GaussianBlur.effectiveSceneBlurDivisor();
+            // A different owner can also borrow this output through withCapturedScene.
+            // Defer resizing while any active callback still references its texture.
+            if(divisor!=sceneDivisor&&(buffers[3]==null||!sceneInUse(buffers[3].framebufferTexture))){
+                capturedClean=capturedSoft=0;
+                if(buffers[3]!=null){invalidateCapturedSoft(buffers[3].framebufferTexture);buffers[3].deleteFramebuffer();buffers[3]=null;}
+                if(sceneScratch!=null){sceneScratch.deleteFramebuffer();sceneScratch=null;}
+                sceneDivisor=divisor;
+            }
         }
+        int sceneWidth=SceneBlurSize.dimension(width,sceneDivisor),sceneHeight=SceneBlurSize.dimension(height,sceneDivisor);
+        for(int i=0;i<5;i++)if(i==0&&(glow||blur&&!snapshot)||i==1&&(glow||blur&&sceneDivisor==1)||i==2&&glow||i==3&&blur||i==4&&snapshot){
+            if(i<3){if(effects[i]==null)effects[i]=createBuffer(width,height);buffers[i]=effects[i];}
+            else if(buffers[i]==null)buffers[i]=createBuffer(i==3?sceneWidth:width,i==3?sceneHeight:height);
+        }
+        if(blur&&sceneDivisor!=1&&sceneScratch==null)sceneScratch=createBuffer(sceneWidth,sceneHeight);
+    }
+    private void enterScene(int soft){
+        if(activeSoftTextures==null)activeSoftTextures=new int[4];
+        else if(activeScenes==activeSoftTextures.length)activeSoftTextures=Arrays.copyOf(activeSoftTextures,activeScenes*2);
+        activeSoftTextures[activeScenes++]=soft;
+    }
+    private static boolean sceneInUse(int texture){
+        for(ArrayListSurface owner:owners)for(int i=0;i<owner.activeScenes;i++)if(owner.activeSoftTextures[i]==texture)return true;
+        return false;
+    }
+    private static void invalidateCapturedSoft(int texture){
+        // Invalidate before deletion: glIsTexture alone cannot detect GL name reuse.
+        for(ArrayListSurface owner:owners)if(owner.capturedSoft==texture)owner.capturedClean=owner.capturedSoft=0;
+    }
+    private void blurScene(int clean,float fullRadius){
+        GaussianBlur.renderSceneAtResolution(sceneDivisor==1?buffers[1]:sceneScratch,buffers[3],clean,fullRadius,bufferWidth,bufferHeight);
     }
     private static Framebuffer createBuffer(int width,int height){
         Framebuffer buffer=new Framebuffer(width,height,false);buffer.setFramebufferFilter(GL_LINEAR);texture(0,buffer.framebufferTexture);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_S,GL12.GL_CLAMP_TO_EDGE);glTexParameteri(GL_TEXTURE_2D,GL_TEXTURE_WRAP_T,GL12.GL_CLAMP_TO_EDGE);return buffer;
@@ -428,9 +474,11 @@ public final class ArrayListSurface implements AutoCloseable {
     @Override public void close() {
         effectMotion.reset();
         capturedClean=capturedSoft=0;
-        boolean any=false;for(Framebuffer buffer:buffers)any|=buffer!=null;if(!any)return;
+        sceneDivisor=1;
+        boolean any=sceneScratch!=null;for(Framebuffer buffer:buffers)any|=buffer!=null;if(!any)return;
         try (RenderState state=new RenderState()) {
             for (int i=0;i<buffers.length;i++) if (buffers[i]!=null) { if(i>=3)buffers[i].deleteFramebuffer(); buffers[i]=null; }
+            if(sceneScratch!=null){sceneScratch.deleteFramebuffer();sceneScratch=null;}
         }
     }
 
