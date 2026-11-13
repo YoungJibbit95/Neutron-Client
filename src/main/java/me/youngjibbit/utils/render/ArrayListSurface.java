@@ -234,7 +234,9 @@ public final class ArrayListSurface implements AutoCloseable {
             prepare();
             ShaderUtil shader=OpenGlHelper.shadersSupported&&OpenGlHelper.isFramebufferEnabled()?shader():null;
             if(shader==null){
-                GL20.glUseProgram(0);fallback(shape,theme,background,fillAlpha*opacity,outlineAlpha*opacity);text.run();return;
+                state.restoreColorMask();
+                GL20.glUseProgram(0);fallback(shape,theme,background,fillAlpha*opacity,outlineAlpha*opacity);
+                state.restoreColorMask();text.run();return;
             }
             shader.init();
             cornerBuffer.clear(); cornerBuffer.put(shape.corners).flip();
@@ -300,11 +302,13 @@ public final class ArrayListSurface implements AutoCloseable {
             GlStateManager.blendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA); glBlendFunc(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA);
             float pad=glow?(shapedGlow?ContourEffects.padding(glowMode,glowExtent):glowExtent*2+4):2;
             state.restoreClip();
+            state.restoreColorMask();
             ShaderUtil.drawQuads(shape.left-pad,shape.top-pad,shape.right-shape.left+pad*2,shape.bottom-shape.top+pad*2);
             shader.unload();
             texture(0,0);
             // Legacy masks can reuse slot zero for glow; only modern snapshots remain clean for nested fills.
             capturedClean=cleanScene||borrow?clean:0;capturedSoft=soft;capturedBlur=blur;capturedTheme=theme;capturedPolicy=policy;capturedRadius=effectiveRadius;
+            state.restoreColorMask();
             enterScene(soft);
             try(UiEffects.SceneContext context=UiEffects.scene(capturedClean,soft,blur,theme,policy,background&&policy.style>=0,effectiveRadius)){text.run();}
             finally{activeScenes--;}
@@ -338,7 +342,8 @@ public final class ArrayListSurface implements AutoCloseable {
         try(RenderState state=new RenderState()){
             ensureBuffers(mc.displayWidth,mc.displayHeight,false,blur,true);state.bindTarget();texture(0,buffers[4].framebufferTexture);glCopyTexSubImage2D(GL_TEXTURE_2D,0,0,0,0,0,mc.displayWidth,mc.displayHeight);
             if(blur)blurScene(buffers[4].framebufferTexture,UiEffects.blurRadius(5)*new ScaledResolution(mc).getScaleFactor());
-            state.bindTarget();prepare();state.restoreClip();enterScene(blur?buffers[3].framebufferTexture:buffers[4].framebufferTexture);
+            state.bindTarget();prepare();state.restoreClip();state.restoreColorMask();
+            enterScene(blur?buffers[3].framebufferTexture:buffers[4].framebufferTexture);
             try(UiEffects.SceneContext scope=UiEffects.scene(buffers[4].framebufferTexture,blur?buffers[3].framebufferTexture:buffers[4].framebufferTexture,blur,theme,policy,false,UiEffects.blurRadius(5))){content.run();}
             finally{activeScenes--;}
         }
@@ -369,7 +374,7 @@ public final class ArrayListSurface implements AutoCloseable {
             state.bindTarget();int clean=ownClean?buffers[4].framebufferTexture:parent.clean;
             if(ownClean){texture(0,clean);glCopyTexSubImage2D(GL_TEXTURE_2D,0,0,0,0,0,mc.displayWidth,mc.displayHeight);}
             if(applyBlur)blurScene(clean,radius*new ScaledResolution(mc).getScaleFactor());
-            state.bindTarget();prepare();state.restoreClip();
+            state.bindTarget();prepare();state.restoreClip();state.restoreColorMask();
             enterScene(applyBlur?buffers[3].framebufferTexture:clean);
             try(UiEffects.SceneContext scope=UiEffects.scene(clean,applyBlur?buffers[3].framebufferTexture:clean,
                     applyBlur,theme,policy,parent!=null&&parent.replacing,radius)){content.accept(policy);}
@@ -389,7 +394,7 @@ public final class ArrayListSurface implements AutoCloseable {
         try (RenderState state=new RenderState()) {
             ScaledResolution sr=new ScaledResolution(mc);
             glMatrixMode(GL_PROJECTION); glLoadIdentity(); glOrtho(0,sr.getScaledWidth_double(),sr.getScaledHeight_double(),0,-1000,1000);
-            glMatrixMode(GL_MODELVIEW); glLoadIdentity(); prepare(); text.run();
+            glMatrixMode(GL_MODELVIEW); glLoadIdentity(); prepare(); state.restoreColorMask(); text.run();
         }
     }
 

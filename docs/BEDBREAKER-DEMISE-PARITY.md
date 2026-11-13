@@ -103,6 +103,10 @@ Nach einem ausgewählten Controlleraufruf sendet die Referenz ein
 dafür nicht `player.swingItem()` auf und besitzt keinen eigenen `Swing`-Regler.
 Der bisherige Neutron-Kostenplaner, Hotbar-Wechsel, Tool-Spoofing und zusätzliche
 ESP- oder Reach-Einstellungen sind keine Bestandteile dieses Demise-Moduls.
+Die nachfolgend ergänzte [Bed-Zeitanzeige und BedESP](BED-VISUALS.md) liest diesen
+Aktionspfad nur aus. Vier zusätzliche Indicator-Werte werden nach den
+ursprünglichen 19 BedBreaker-/Host-Werten angehängt; BedESP ist ein getrenntes
+Render-Modul und verändert die Demise-Ausführung nicht.
 
 ## Rotationen, MoveFix und ausdrücklich gewünschte Übergänge
 

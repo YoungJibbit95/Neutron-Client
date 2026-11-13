@@ -72,18 +72,21 @@ public class BedBreakerDemiseConfigTest {
                 {"pitch_rotation_speed_(min)", 180D}, {"pitch_rotation_speed_(max)", 180D},
                 {"movement_correction", "Silent"}, {"short_stop", false}, {"duration", 50D},
                 {"rotation_diff_buildup_to_stop", 180D}, {"max_threshold_attempts_to_stop", 1D},
-                {"smart_disable_on_death", false}, {"smart_disable_on_world_change", false}
+                {"smart_disable_on_death", false}, {"smart_disable_on_world_change", false},
+                {"break_indicator", true}, {"indicator_x", 50D}, {"indicator_y", 68D}, {"indicator_scale", 1D}
         };
         for (Object[] entry : entries) defaults.put((String) entry[0], entry[1]);
         return defaults;
     }
 
-    @Test public void allSeventeenDemiseControlsAndHostLifecycleChoicesAreRegisteredOnce() {
+    @Test public void allDemiseAndLifecycleControlsPrecedeTheFourPresentationControls() {
         BedBreaker module = new BedBreaker();
         assertEquals(defaults(), values(module));
         List<String> ids = new ArrayList<>();
         for (Value<?> value : module.getValues()) ids.add(value.getId());
-        assertEquals(19, ids.size()); assertEquals(ids.size(), new HashSet<>(ids).size());
+        assertEquals(23, ids.size()); assertEquals(ids.size(), new HashSet<>(ids).size());
+        assertEquals(new ArrayList<>(defaults().keySet()), ids);
+        assertEquals(Arrays.asList("break_indicator", "indicator_x", "indicator_y", "indicator_scale"), ids.subList(19, 23));
         assertArrayEquals(new String[]{"Linear", "Relative"}, module.getModeSetting("Smooth mode").getOptions());
         assertArrayEquals(new String[]{"Silent", "Strict", "None"}, module.getModeSetting("Movement correction").getOptions());
         assertNull(module.getValueByName("Turn Speed")); assertNull(module.getValueByName("Swing"));
@@ -166,6 +169,8 @@ public class BedBreakerDemiseConfigTest {
         module.getNumberSetting("Pitch accel factor").setValue(.7777777D);
         module.getNumberSetting("Duration").setValue(37.5D);
         module.getNumberSetting("Max threshold attempts to stop").setValue(0D);
+        module.getNumberSetting("Indicator X").setValue(0D); module.getNumberSetting("Indicator Y").setValue(100D);
+        module.getNumberSetting("Indicator Scale").setValue(.875D);
         Map<String,Object> expected = values(module);
         assertTrue(config.getLastError(), config.saveConfig("Demise")); String serialized = config.serialize();
         for (Value<?> value : module.getValues()) value.reset();
@@ -175,6 +180,11 @@ public class BedBreakerDemiseConfigTest {
         assertFalse(module.getNumberSetting("Yaw accel factor").isVisible());
         assertFalse(module.getNumberSetting("Duration").isVisible());
         assertEquals(0D, module.getNumberSetting("Max threshold attempts to stop").getValue(), 0);
+        assertFalse(module.getBooleanSetting("Break Indicator").getValue());
+        assertFalse(module.getNumberSetting("Indicator X").isVisible());
+        assertEquals(0D, module.getNumberSetting("Indicator X").getValue(), 0);
+        assertEquals(100D, module.getNumberSetting("Indicator Y").getValue(), 0);
+        assertEquals(.875D, module.getNumberSetting("Indicator Scale").getValue(), 0);
     }
 
     @Test public void invalidCurrentAndRetiredSettingsRejectTheWholeImportAndPreserveFiles() throws Exception {
@@ -189,7 +199,8 @@ public class BedBreakerDemiseConfigTest {
                 "\"duration\":24", "\"rotation_diff_buildup_to_stop\":721", "\"max_threshold_attempts_to_stop\":-1",
                 "\"smart_disable_on_death\":\"false\"", "\"turn_speed\":0", "\"turn_speed\":181",
                 "\"turn_speed\":\"30\"", "\"turn_speed\":null", "\"turn_speed\":1e1000",
-                "\"turn_speed\":{}", "\"swing\":\"false\"", "\"swing\":1", "\"swing\":null"
+                "\"turn_speed\":{}", "\"swing\":\"false\"", "\"swing\":1", "\"swing\":null",
+                "\"break_indicator\":\"true\"", "\"indicator_x\":100.1", "\"indicator_y\":-0.1", "\"indicator_scale\":0.64"
         };
         for (String settings : invalidSettings) {
             String invalid = v2("\"imperfect_correlation\":false," + settings); write(directory, "Invalid", invalid);
@@ -254,7 +265,7 @@ public class BedBreakerDemiseConfigTest {
         assertTrue(config.getLastError(), config.saveDefaultConfig());
         JsonObject saved = new JsonParser().parse(read(directory, ".last-state")).getAsJsonObject();
         JsonObject settings = saved.getAsJsonObject("modules").getAsJsonObject("bedbreaker").getAsJsonObject("settings");
-        assertEquals(20, settings.size()); assertEquals(17, settings.get("future_option").getAsInt());
+        assertEquals(24, settings.size()); assertEquals(17, settings.get("future_option").getAsInt());
         assertFalse(settings.get("silent").getAsBoolean());
         assertTrue(settings.get("smart_disable_on_death").getAsBoolean());
         assertTrue(settings.get("smart_disable_on_world_change").getAsBoolean());
@@ -272,7 +283,7 @@ public class BedBreakerDemiseConfigTest {
         JsonObject saved = new JsonParser().parse(read(directory, ".last-state")).getAsJsonObject();
         assertEquals(2, saved.get("version").getAsInt());
         JsonObject settings = saved.getAsJsonObject("modules").getAsJsonObject("bedbreaker").getAsJsonObject("settings");
-        assertEquals(19, settings.size()); assertTrue(settings.get("silent").getAsBoolean());
+        assertEquals(23, settings.size()); assertTrue(settings.get("silent").getAsBoolean());
         assertEquals("Silent", settings.get("movement_correction").getAsString());
         assertEquals(180D, settings.get("yaw_rotation_speed_(min)").getAsDouble(), 0);
         assertTrue(settings.get("smart_disable_on_death").getAsBoolean());

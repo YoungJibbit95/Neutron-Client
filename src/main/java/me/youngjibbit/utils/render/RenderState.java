@@ -46,6 +46,11 @@ public final class RenderState implements AutoCloseable {
         }
         public boolean enabledScissor(){return scissor;}
         public void restoreClip(){if(stencil)glEnable(GL_STENCIL_TEST);else glDisable(GL_STENCIL_TEST);glScissor(scissorBox.get(0),scissorBox.get(1),scissorBox.get(2),scissorBox.get(3));if(scissor)glEnable(GL_SCISSOR_TEST);else glDisable(GL_SCISSOR_TEST);}
+        /** Offscreen passes write all channels; caller output keeps the captured eye/channel mask. */
+        public void restoreColorMask(){
+            boolean red=mask.get(0)!=0,green=mask.get(1)!=0,blue=mask.get(2)!=0,alpha=mask.get(3)!=0;
+            GlStateManager.colorMask(red,green,blue,alpha);glColorMask(red,green,blue,alpha);
+        }
         public void screenSpace(){Minecraft mc=Minecraft.getMinecraft();ScaledResolution sr=new ScaledResolution(mc);glMatrixMode(GL_PROJECTION);glLoadIdentity();glOrtho(0,sr.getScaledWidth_double(),sr.getScaledHeight_double(),0,-1000,1000);glMatrixMode(GL_MODELVIEW);glLoadIdentity();glDisable(GL_DEPTH_TEST);GlStateManager.disableDepth();glDisable(GL_ALPHA_TEST);GlStateManager.disableAlpha();glDisable(GL_LIGHTING);GlStateManager.disableLighting();glDisable(GL_STENCIL_TEST);glDisable(GL_SCISSOR_TEST);}
         /** Restore the drawing destination and make it the source for scene copies in this pass. */
         public void bindTarget() {
@@ -118,7 +123,7 @@ public final class RenderState implements AutoCloseable {
             GlStateManager.colorMaterial(materialFace,materialMode);GlStateManager.shadeModel(shade);
             GlStateManager.depthFunc(depthFunction);GlStateManager.depthMask(depthWrite);GlStateManager.alphaFunc(alphaFunction,alphaReference);
             GlStateManager.tryBlendFuncSeparate(src,dst,srcA,dstA);
-            GlStateManager.colorMask(mask.get(0)!=0,mask.get(1)!=0,mask.get(2)!=0,mask.get(3)!=0);
+            restoreColorMask();
             GlStateManager.color(color.get(0),color.get(1),color.get(2),color.get(3));
             GlStateManager.clearColor(clear.get(0),clear.get(1),clear.get(2),clear.get(3));
             for (int i=0;i<units.length;i++) {

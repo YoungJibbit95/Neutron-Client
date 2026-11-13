@@ -26,6 +26,7 @@ public final class PacketPipeline {
     private final Consumer<Packet<?>> appliedInbound;
     private final ArrayDeque<Handoff> handoff = new ArrayDeque<>();
     private final PacketDelays delays;
+    private final DemiseFakeLagQueue fakeLag;
     private final CombatTimingCoordinator combatTiming;
     private net.minecraft.client.entity.EntityPlayerSP impulsePlayer;
     private long impulseAt;
@@ -52,6 +53,7 @@ public final class PacketPipeline {
         this.thread = thread; this.connected = connected;
         this.acceptedOutbound = acceptedOutbound; this.failure = failure;
         this.delays = delays;
+        this.fakeLag = new DemiseFakeLagQueue(() -> this.delays.now());
         this.combatTiming = new CombatTimingCoordinator(() -> this.delays.now());
         this.appliedInbound = appliedInbound;
     }
@@ -92,14 +94,21 @@ public final class PacketPipeline {
         CombatDiagnostics.packetStage(trace,selected,Stage.SELECTED);
         if (!isActive() || attemptedScene != appliedScene) { CombatDiagnostics.packetStage(trace,selected,Stage.DENIED);return null; }
         long scene = appliedScene;
+        final long fakeLagEpoch = contextVersion;
+        final DemiseFakeLagQueue.Ticket[] held = {null};
         boolean[] accepted = {false};
         Runnable apply = () -> {
+          try {
             final boolean valid;
-            try { valid = isActive() && scene == appliedScene && validAction.test(selected); }
+            try { valid = isActive() && scene == appliedScene && (held[0] == null || held[0].current()) && validAction.test(selected); }
             catch (RuntimeException | Error failure) {
                 CombatDiagnostics.packetStage(trace,selected,Stage.FAILED);throw failure;
             }
             if (!valid) {
+                CombatDiagnostics.packetStage(trace,selected,Stage.DENIED);return;
+            }
+            if (held[0] != null && (!held[0].beforeApply() || !isActive() || scene != appliedScene
+                    || !validAction.test(selected) || !held[0].current())) {
                 CombatDiagnostics.packetStage(trace,selected,Stage.DENIED);return;
             }
             try { transport.accept(selected); }
@@ -110,19 +119,32 @@ public final class PacketPipeline {
             onAccepted.accept(selected);
             CombatDiagnostics.packetStage(trace,selected,Stage.LOCAL_ACCEPTED);
             acceptedOutbound.accept(selected);
+            if (held[0] != null) held[0].accepted();
             if (!silent) post(selected, EventFlow.OUTBOUND, EventPhase.POST);
+          } finally { if (held[0] != null) held[0].finish(); }
         };
         // Actions are dependency barriers: a hit/placement must never overtake withheld movement.
         boolean movement = selected instanceof C03PacketPlayer;
         boolean independentReply = selected instanceof C00PacketKeepAlive || selected instanceof C0FPacketConfirmTransaction;
-        if (correction || movement && recoveringLocalImpulse() || !movement && !independentReply) {
-            CombatDiagnostics.packetStage(trace,selected,Stage.BARRIER);delays.barrier(EventFlow.OUTBOUND);
-        } else if (movement && !silent && delays.defer(selected, EventFlow.OUTBOUND, apply)) {
+        Runnable deliver = () -> {
+            if (correction || movement && recoveringLocalImpulse() || !movement && !independentReply) {
+                CombatDiagnostics.packetStage(trace,selected,Stage.BARRIER);delays.barrier(EventFlow.OUTBOUND);
+            } else if (movement && !silent && delays.defer(selected, EventFlow.OUTBOUND, apply)) {
+                CombatDiagnostics.packetStage(trace,selected,Stage.HELD);return;
+            } else if (movement && silent) {
+                CombatDiagnostics.packetStage(trace,selected,Stage.BARRIER);delays.barrier(EventFlow.OUTBOUND);
+            }
+            apply.run();
+        };
+        if (!silent && fakeLag.defer(selected, EventFlow.OUTBOUND,
+                () -> isActive() && scene == appliedScene && fakeLagEpoch == contextVersion,
+                ticket -> { held[0] = ticket; deliver.run(); })) {
             CombatDiagnostics.packetStage(trace,selected,Stage.HELD);return null;
-        } else if (movement && silent) {
-            CombatDiagnostics.packetStage(trace,selected,Stage.BARRIER);delays.barrier(EventFlow.OUTBOUND);
         }
-        apply.run();
+        if (!silent && fakeLagEpoch != contextVersion) {
+            CombatDiagnostics.packetStage(trace,selected,Stage.DENIED);return null;
+        }
+        deliver.run();
         return accepted[0] ? selected : null;
     }
 
@@ -166,48 +188,85 @@ public final class PacketPipeline {
                         : selected instanceof S08PacketPlayerPosLook
                         ? me.youngjibbit.module.impl.render.Diagnostics.captureCorrection((S08PacketPlayerPosLook)selected,this,silent) : null;
                 final long applicationScene = appliedScene;
+                final long fakeLagEpoch = contextVersion;
+                final DemiseFakeLagQueue.Ticket[] held = {null};
                 BooleanSupplier entityIdentity = handler instanceof net.minecraft.client.network.NetHandlerPlayClient
                         ? ((net.minecraft.client.network.NetHandlerPlayClient) handler).captureEntityIdentity(selected) : () -> true;
+                BooleanSupplier heldEntityIdentity = captureHeldEntityIdentity(selected, handler, entityIdentity);
                 Runnable positionApplied = handler instanceof net.minecraft.client.network.NetHandlerPlayClient
                         ? receivedPositions.receive(((net.minecraft.client.network.NetHandlerPlayClient) handler).clientWorldController, selected)
                         : () -> { };
                 if (!silent) Pulsar.BUS.post(new me.youngjibbit.event.packet.PacketReceiveEvent(selected, this));
                 if (!isActive() || !handlerValid.getAsBoolean() || applicationScene != appliedScene) return;
+                final boolean[] awaitingApplication = {false};
                 Runnable apply = () -> {
+                  try {
+                    if (held[0] != null && (!isActive() || !handlerValid.getAsBoolean() || !entityIdentity.getAsBoolean()
+                            || applicationScene != appliedScene || !held[0].beforeApply())) return;
                     if (selected instanceof S08PacketPlayerPosLook || selected instanceof S07PacketRespawn
                             || selected instanceof S06PacketUpdateHealth && ((S06PacketUpdateHealth)selected).getHealth() <= 0) {
                         discardDelayed();
                         me.youngjibbit.core.combat.RotationManager rotation=me.youngjibbit.core.bootstrap.RuntimeServices.rotation();
                         if (rotation.isConnection(this)) rotation.reset();
                     }
+                    awaitingApplication[0] = held[0] != null;
+                    if (held[0] != null) held[0].awaitApplication();
                     PacketApplication.process(selected, handler,
-                        () -> isActive() && handlerValid.getAsBoolean() && entityIdentity.getAsBoolean()
+                        () -> (held[0] == null || held[0].current()) && isActive()
+                                && handlerValid.getAsBoolean() && entityIdentity.getAsBoolean()
                                 && applicationScene == appliedScene, () -> {
                             positionApplied.run();
                             me.youngjibbit.module.impl.render.Diagnostics.appliedCorrection(diagnosticCorrection);
                             me.youngjibbit.core.activity.WidgetIncidentObservations.appliedCorrection(widgetCorrection);
                             appliedInbound.accept(selected);
+                            if (held[0] != null) held[0].accepted();
                             if (!silent) post(selected, EventFlow.INBOUND, EventPhase.POST);
+                        }, held[0] == null ? null : failure -> {
+                            awaitingApplication[0] = false;
+                            held[0].finish();
+                            if (failure != null) fakeLag.discard();
                         });
+                  } catch (RuntimeException | Error failure) {
+                    awaitingApplication[0] = false; throw failure;
+                  } finally { if (held[0] != null && !awaitingApplication[0]) held[0].finish(); }
                 };
-                if (recoveringLocalImpulse()) {
-                    delays.barrier(EventFlow.INBOUND);
-                } else if (!silent && (selected instanceof S14PacketEntity || selected instanceof S19PacketEntityStatus
-                        || selected instanceof S29PacketSoundEffect
-                        || selected instanceof S06PacketUpdateHealth && ((S06PacketUpdateHealth) selected).getHealth() > 0)) {
-                    if (delays.defer(selected, EventFlow.INBOUND, apply)) return;
-                } else if (!(selected instanceof S00PacketKeepAlive)
-                        && !(selected instanceof S02PacketChat) && !(selected instanceof S03PacketTimeUpdate)
-                        && !(selected instanceof S32PacketConfirmTransaction)) {
-                    delays.barrier(EventFlow.INBOUND);
-                }
-                apply.run();
+                Runnable deliver = () -> {
+                    if (recoveringLocalImpulse()) {
+                        delays.barrier(EventFlow.INBOUND);
+                    } else if (!silent && (selected instanceof S14PacketEntity || selected instanceof S19PacketEntityStatus
+                            || selected instanceof S29PacketSoundEffect
+                            || selected instanceof S06PacketUpdateHealth && ((S06PacketUpdateHealth) selected).getHealth() > 0)) {
+                        if (delays.defer(selected, EventFlow.INBOUND, apply)) return;
+                    } else if (!(selected instanceof S00PacketKeepAlive)
+                            && !(selected instanceof S02PacketChat) && !(selected instanceof S03PacketTimeUpdate)
+                            && !(selected instanceof S32PacketConfirmTransaction)) {
+                        delays.barrier(EventFlow.INBOUND);
+                    }
+                    apply.run();
+                };
+                if (!silent && fakeLag.defer(selected, EventFlow.INBOUND,
+                        () -> isActive() && handlerValid.getAsBoolean() && heldEntityIdentity.getAsBoolean()
+                                && applicationScene == appliedScene && fakeLagEpoch == contextVersion,
+                        ticket -> { held[0] = ticket; deliver.run(); })) return;
+                if (!silent && fakeLagEpoch != contextVersion) return;
+                deliver.run();
             } finally { worldBoundary = previousBoundary; correction = previousCorrection; }
         }, false);
     }
 
     public PacketDelays delays() { return delays; }
+    public DemiseFakeLagQueue fakeLag() { return fakeLag; }
     public CombatTimingCoordinator combatTiming() { return combatTiming; }
+
+    /** Metadata is newly delayable only for FakeLag; preserve the ordinary handler path's guard unchanged. */
+    private static BooleanSupplier captureHeldEntityIdentity(Packet<?> packet, INetHandler handler, BooleanSupplier existing) {
+        if (!(packet instanceof S1CPacketEntityMetadata) || !(handler instanceof net.minecraft.client.network.NetHandlerPlayClient)) return existing;
+        net.minecraft.client.network.NetHandlerPlayClient play = (net.minecraft.client.network.NetHandlerPlayClient) handler;
+        net.minecraft.client.multiplayer.WorldClient world = play.clientWorldController;
+        int id = ((S1CPacketEntityMetadata) packet).getEntityId();
+        net.minecraft.entity.Entity entity = world == null ? null : world.getEntityByID(id);
+        return () -> world != null && play.clientWorldController == world && world.getEntityByID(id) == entity;
+    }
 
     /** Called after velocity cancellation/selection, before vanilla changes local motion. */
     public boolean beforeLocalImpulse(net.minecraft.client.entity.EntityPlayerSP player) {
@@ -238,11 +297,11 @@ public final class PacketPipeline {
     }
     /** Invalidates action evidence even when silent application intentionally omits packet events. */
     public long getContextVersion() { return contextVersion; }
-    private void discardDelayed() { contextVersion++; impulsePlayer = null; combatTiming.reset(); delays.discard(); receivedPositions.clear(); }
+    private void discardDelayed() { contextVersion++; impulsePlayer = null; combatTiming.reset(); fakeLag.discard(); delays.discard(); receivedPositions.clear(); }
     public void pump() {
         if (!thread.isCallingFromMinecraftThread()) throw new IllegalStateException("Packet pump requires client thread");
         if (!isActive()) { discardDelayed(); return; }
-        try { delays.pump(); }
+        try { fakeLag.pump(); delays.pump(); }
         catch (Throwable error) { close();failure.accept(error); }
     }
     public void worldChanged() {
@@ -348,6 +407,7 @@ public final class PacketPipeline {
         if (!closing.compareAndSet(false,true)) return;
         closed = true;
         Runnable ended = () -> {
+            fakeLag.close();
             impulsePlayer = null;
             combatTiming.reset();
             receivedPositions.clear();

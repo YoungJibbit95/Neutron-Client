@@ -466,6 +466,9 @@ public class PlayerControllerMP
     }
     public long getMiningRevision(){return miningRevision;}
 
+    /** Read-only remaining native cooldown; reading it does not advance mining. */
+    public int getBlockHitDelay() { return Math.max(0, blockHitDelay); }
+
     /** Read-only cost input; never transfers or advances native mining ownership. */
     public float getBlockDamageProgress(BlockPos pos) {
         return isMiningBlock(pos) && isHittingPosition(pos) && Float.isFinite(curBlockDamageMP)
