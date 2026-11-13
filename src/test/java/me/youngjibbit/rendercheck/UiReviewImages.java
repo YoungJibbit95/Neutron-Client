@@ -64,6 +64,8 @@ public final class UiReviewImages {
     private static boolean selected(String path) {
         if (!path.endsWith(".png")) return false;
         String name = path.substring(path.lastIndexOf('/') + 1);
+        if (path.startsWith("bed_visuals/bed-visuals-preview/")) return name.equals("world-glow.png")
+                || name.equals("hud-progress-half.png");
         if (path.startsWith("demise_scaffold/demise-scaffold-overlay-preview/")) return name.equals("world-fill.png")
                 || name.equals("blur-mask.png") || name.equals("glow-mask.png") || name.equals("composited-effects.png")
                 || name.equals("blur-only-before.png") || name.equals("blur-only.png") || name.equals("glow-only.png");

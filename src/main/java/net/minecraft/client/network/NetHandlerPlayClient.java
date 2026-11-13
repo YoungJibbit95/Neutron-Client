@@ -2286,6 +2286,12 @@ public class NetHandlerPlayClient implements INetHandlerPlayClient
         return this.netManager;
     }
 
+    /** Read-only terrain readiness for connection-owned timing modules. */
+    public boolean isDoneLoadingTerrain()
+    {
+        return this.doneLoadingTerrain;
+    }
+
     public Collection<NetworkPlayerInfo> getPlayerInfoMap()
     {
         return this.playerInfoMap.values();

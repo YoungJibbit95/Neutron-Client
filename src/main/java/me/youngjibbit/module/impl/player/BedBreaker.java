@@ -9,11 +9,14 @@ import me.youngjibbit.core.contract.AutomationEligibility.ModuleAction;
 import me.youngjibbit.core.network.PacketPipeline;
 import me.youngjibbit.core.observation.AutomatedActionAdmission;
 import me.youngjibbit.core.observation.RuntimeObservation;
+import me.youngjibbit.core.world.BedBreakEstimate;
+import me.youngjibbit.core.world.BedWorldTracker;
 import me.youngjibbit.core.world.DemiseBedBreakerGeometry;
 import me.youngjibbit.core.world.DemiseRotationEngine;
 import me.youngjibbit.core.world.DemiseRotationHooks;
 import me.youngjibbit.core.world.DemiseRotationSettings;
 import me.youngjibbit.event.packet.TickEvent;
+import me.youngjibbit.event.render.Event2D;
 import me.youngjibbit.event.world.WorldEvent;
 import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
@@ -23,6 +26,8 @@ import me.youngjibbit.module.impl.combat.Aura;
 import me.youngjibbit.module.impl.exploit.LagRange;
 import me.youngjibbit.module.impl.world.NScaffold;
 import me.youngjibbit.module.impl.world.Scaffold;
+import me.youngjibbit.utils.render.BedBreakerIndicator;
+import me.youngjibbit.value.Value;
 import me.youngjibbit.value.impl.CheckBoxValue;
 import me.zero.alpine.listener.Listener;
 import me.zero.alpine.listener.Subscribe;
@@ -35,6 +40,7 @@ import net.minecraft.client.multiplayer.WorldClient;
 import net.minecraft.client.network.NetHandlerPlayClient;
 import net.minecraft.client.settings.GameSettings;
 import net.minecraft.item.ItemStack;
+import net.minecraft.item.ItemSword;
 import net.minecraft.network.play.client.C0APacketAnimation;
 import net.minecraft.util.BlockPos;
 import net.minecraft.util.EnumFacing;
@@ -68,21 +74,104 @@ public final class BedBreaker extends Module {
     private final TickBudget updateBudget = new TickBudget();
     private final ManualBudget manualAttack = new ManualBudget();
 
-    public BedBreaker() { enableSmartDisable(); }
+    private final BedBreakerIndicator indicator;
+    private boolean presentationChange;
+
+    public BedBreaker() { enableSmartDisable(); indicator = new BedBreakerIndicator(this); }
     @Override public void onEnable() {
+        indicator.reset();
         endAction(Status.WAITING, Cleanup.ABORT);
         DemiseRotationHooks.bindBed();
         capture();
         super.onEnable();
     }
     @Override public void onDisable() {
-        try { endAction(Status.OFF, Cleanup.ABORT); } finally { super.onDisable(); }
+        try { endAction(Status.OFF, Cleanup.ABORT); }
+        finally { try { indicator.close(); } finally { super.onDisable(); } }
+    }
+    @Override public void valueChanged(Value<?> value) {
+        boolean previous = presentationChange;
+        presentationChange = BedBreakerIndicator.isSetting(value);
+        try { super.valueChanged(value); } finally { presentationChange = previous; }
+    }
+    @Override public void endConfigUpdate() {
+        boolean previous = presentationChange;
+        presentationChange = !getConfigChanges().isEmpty() && getConfigChanges().stream().allMatch(BedBreakerIndicator::isSetting);
+        try { super.endConfigUpdate(); } finally { presentationChange = previous; }
     }
     @Override public void onValueChange() {
+        if (presentationChange) { if (indicator != null) indicator.settingsChanged(); return; }
         // Slider construction can notify its owner before the engine field is initialized.
         if (rotationEngine != null) endAction(isToggled() ? Status.WAITING : Status.OFF, Cleanup.ABORT);
     }
     public Status getStatus() { return status; }
+    /** Presentation lease only; observing it never admits or advances an action. */
+    public long getBreakEstimateRevision() { return generation; }
+
+    // Presentation-only state. This cache cannot choose targets, advance damage or admit an action.
+    private final BedBreakEstimate.ProgressTracker estimateProgress = new BedBreakEstimate.ProgressTracker();
+    private BedBreakEstimate estimate;
+    private long estimateRevision = Long.MIN_VALUE, estimateTick = Long.MIN_VALUE, estimateGeneration = Long.MIN_VALUE;
+
+    /** Immutable remaining work for the currently owned bed-related action; unknown is never a countdown. */
+    public BedBreakEstimate getBreakEstimate() {
+        final Scene frame = scene;
+        final Mine attempt = owned;
+        final DemiseBedBreakerGeometry.Target bed = target;
+        if (estimateGeneration != generation) {
+            estimateProgress.clear(); estimate = null; estimateRevision = Long.MIN_VALUE; estimateTick = Long.MIN_VALUE;
+            estimateGeneration = generation;
+        }
+        if (!isToggled() || frame == null || !current(frame) || bed == null) {
+            estimateProgress.clear(); estimate = null; estimateRevision = Long.MIN_VALUE;
+            return BedBreakEstimate.unavailable(BedBreakEstimate.State.WAITING, bed == null ? null : bed.pos, null);
+        }
+        if (!admitted(frame)) return BedBreakEstimate.unavailable(BedBreakEstimate.State.PAUSED, bed.pos, attempt == null ? null : attempt.pos);
+        if (!rotationReady(frame)) return BedBreakEstimate.unavailable(BedBreakEstimate.State.ALIGNING, bed.pos, attempt == null ? null : attempt.pos);
+        if (attempt == null || attempt.bed != bed || attempt.generation != generation || attempt.scene != frame
+                || frame.controller.getMiningRevision() != attempt.revision || !frame.controller.isMiningBlock(attempt.pos)
+                || !attempt.sameTool() || legit.getValue() != attempt.legitimate)
+            return BedBreakEstimate.unavailable(BedBreakEstimate.State.WAITING, bed.pos, attempt == null ? null : attempt.pos);
+        final long action = generation;
+        BedBreakEstimate.Access access = new BedBreakEstimate.Access() {
+            public boolean current() {
+                return active(frame, action) && target == bed && owned == attempt && attempt.sameTool()
+                        && frame.controller.getMiningRevision() == attempt.revision && frame.controller.isMiningBlock(attempt.pos)
+                        && legit.getValue() == attempt.legitimate;
+            }
+            public IBlockState stateIfLoaded(BlockPos pos) { return current() ? BedWorldTracker.stateIfLoaded(frame.world, pos) : null; }
+            public MovingObjectPosition ray(Vec3 from, Vec3 to) { return frame.world.rayTraceBlocks(from, to, false, false, false); }
+            public boolean creative() { return frame.controller.isInCreativeMode(); }
+            public boolean mayMine(BlockPos pos, IBlockState state) {
+                if (frame.player.isSpectator() || !frame.world.getWorldBorder().contains(pos)) return false;
+                ItemStack held = frame.player.getHeldItem();
+                if (creative()) return held == null || !(held.getItem() instanceof ItemSword);
+                if (state.getBlock().getBlockHardness(frame.world, pos) < 0) return false;
+                return !frame.controller.getCurrentGameType().isAdventure() || frame.player.isAllowEdit()
+                        || held != null && held.canDestroy(state.getBlock());
+            }
+            public double relativeHardness(BlockPos pos, IBlockState state) {
+                return state.getBlock().getPlayerRelativeBlockHardness(frame.player, frame.world, pos);
+            }
+            public double progress(BlockPos pos) { return frame.controller.getBlockDamageProgress(pos); }
+            public boolean mining(BlockPos pos) { return frame.controller.isMiningBlock(pos); }
+            public int hitDelay() { return frame.controller.getBlockHitDelay(); }
+        };
+        // Recheck identity/state even when several frames read this tick's cached path.
+        if (!bed.state.equals(access.stateIfLoaded(bed.pos)) || !access.current())
+            return BedBreakEstimate.unavailable(BedBreakEstimate.State.INVALIDATED, bed.pos, attempt.pos);
+        if (!attempt.expected.equals(access.stateIfLoaded(attempt.pos)) || !access.current())
+            return BedBreakEstimate.unavailable(BedBreakEstimate.State.INVALIDATED, bed.pos, attempt.pos);
+        Vec3 eyes = frame.player.getPositionEyes(1);
+        double reach = attempt.legitimate ? frame.controller.getBlockReachDistance() : DemiseBedBreakerGeometry.REACH;
+        if (estimate != null && estimateRevision == attempt.revision && estimateTick == frame.player.ticksExisted
+                && (!estimate.hasEstimate() || estimate.isCurrent(access, eyes, reach, !attempt.legitimate))) return estimate;
+        if (!access.current()) return BedBreakEstimate.unavailable(BedBreakEstimate.State.INVALIDATED, bed.pos, attempt.pos);
+        BedBreakEstimate next = BedBreakEstimate.calculate(access, bed.pos, attempt.pos, eyes, reach, !attempt.legitimate);
+        if (!access.current()) return BedBreakEstimate.unavailable(BedBreakEstimate.State.INVALIDATED, bed.pos, attempt.pos);
+        estimate = estimateProgress.apply(next, access); estimateRevision = attempt.revision; estimateTick = frame.player.ticksExisted;
+        return estimate;
+    }
 
     /** AngleEvent only refreshes the selected bed center; it never scans or mines. */
     public void onDemiseAngle() {
@@ -172,7 +261,7 @@ public final class BedBreaker extends Module {
         rotationEngine.clear(client != null && client.thePlayer != null ? client.thePlayer.rotationYaw : 0,
                 client != null && client.thePlayer != null ? client.thePlayer.rotationPitch : 0);
         if (previous != null) previous.rotations.reset(ROTATION_SOURCE);
-        finish(old, Cleanup.DISCARD);
+        try { finish(old, Cleanup.DISCARD); } finally { if (indicator != null) indicator.close(); }
     }
 
     private enum Cleanup { ABORT, DISCARD, MANUAL }
@@ -205,6 +294,10 @@ public final class BedBreaker extends Module {
             else if (!viewReady(scene)) pause(scene);
         }
     });
+    @Subscribe private final Listener<Event2D> renderIndicator = new Listener<>(this::renderIndicator);
+    private void renderIndicator(Event2D event) {
+        if (isToggled() && indicator != null) indicator.render(this, event.getSr());
+    }
 
     private static BedBreaker instance() {
         ModuleManager modules = Pulsar.INSTANCE.getMm();

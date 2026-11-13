@@ -17,7 +17,7 @@ public final class SettingSubcategories {
         List<SubcategoryValue> result = new ArrayList<>();
         if (values.size() <= 5) return result;
         Map<String,List<Value<?>>> groups = new LinkedHashMap<>();
-        for (String name : Arrays.asList("General", "Targets", "Bridge", "Clutch", "Interaction", "Aiming", "Rotation Speed", "Rotation Shape", "Rotation Pauses", "Movement", "Attacks", "Blocking", "Placement", "Selection", "Hotbar", "Cleanup", "Halo", "Hitpoint", "Safety", "Timing", "Appearance", "Advanced"))
+        for (String name : Arrays.asList("General", "Targets", "Bridge", "Clutch", "Interaction", "Aiming", "Rotation Speed", "Rotation Shape", "Rotation Pauses", "Movement", "Attacks", "Blocking", "Placement", "Selection", "Hotbar", "Cleanup", "Halo", "Hitpoint", "Safety", "Timing", "Indicator", "Appearance", "Widgets", "Advanced"))
             groups.put(name, new ArrayList<>());
         for (Value<?> value : values) groups.get(group(module.getId(), value.getId())).add(value);
         for (Map.Entry<String,List<Value<?>>> entry : groups.entrySet()) {
@@ -60,9 +60,24 @@ public final class SettingSubcategories {
             return "Aiming";
         }
         if ("bedbreaker".equals(module)) {
+            if ("break_indicator".equals(id) || id.startsWith("indicator_")) return "Indicator";
             if ("legit".equals(id)) return "Targets";
             if ("movement_correction".equals(id)) return "Movement";
             return "Aiming";
+        }
+        if ("bedesp".equals(module)) {
+            if ("range".equals(id)) return "Targets";
+            if (has(id,"widget") || id.startsWith("show_")) return "Widgets";
+            return "Appearance";
+        }
+        if ("fakelag".equals(module)) {
+            if (is(id,"mode","smart","always_spoof")) return "General";
+            if (is(id,"only_onground","only_on_killaura","pause_on_backtrack")) return "Safety";
+            if (is(id,"attack_range","search_range","team_check")) return "Targets";
+            if ("force_first_hit".equals(id)) return "Attacks";
+            if (is(id,"keep_range_mode","timer","timer_ticks")) return "Movement";
+            if (is(id,"display_real_pos","render_mode")) return "Appearance";
+            return "Timing";
         }
         if ("targetesp".equals(module)) {
             if ("target_halo".equals(id) || id.startsWith("halo_")) return "Halo";
@@ -136,7 +151,9 @@ public final class SettingSubcategories {
             case "Hitpoint": return "Accepted rotation and exact ray position";
             case "Safety": return "Lifecycle, recovery and safeguards";
             case "Timing": return "Delays and timing windows";
+            case "Indicator": return "Remaining bed-access work and draggable glass HUD";
             case "Appearance": return "Style, colors and visibility";
+            case "Widgets": return "Defense layers, exposure and uncertain team-color hints";
             case "Advanced": return "Specialized controls and diagnostics";
             default: return "Core behavior and modes";
         }

@@ -44,7 +44,7 @@ public final class ContourMaskRenderer implements AutoCloseable {
                 jump.setUniformf("jumpStep",step);ShaderUtil.drawQuads();current=next;
             }
             jump.unload();
-            state.bindTarget();state.screenSpace();state.restoreClip();
+            state.bindTarget();state.screenSpace();state.restoreClip();state.restoreColorMask();
             GlStateManager.enableBlend();glEnable(GL_BLEND);
             GL14.glBlendEquation(GL14.GL_FUNC_ADD);
             GL14.glBlendFuncSeparate(GL_SRC_ALPHA,GL_ONE_MINUS_SRC_ALPHA,GL_ONE,GL_ONE_MINUS_SRC_ALPHA);
