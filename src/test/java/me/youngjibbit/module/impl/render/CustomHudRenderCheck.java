@@ -28,6 +28,8 @@ final class CustomHudRenderCheck {
         ClientSettings settings = ClientSettings.current();
         HUD hud = HUD.current();
         boolean oldHotbar = hotbar.isToggled(), oldScoreboard = scoreboard.isToggled();
+        boolean oldPosition = scoreboard.getBooleanSetting("Custom Position").getValue();
+        double oldScoreboardScale = scoreboard.getNumberSetting("Scale").getValue();
         boolean oldVisible = hud.visible.getValue(), oldReduced = settings.reducedMotion.getValue();
         boolean oldAnimations = settings.animations.getValue(), oldDiagnostics = RenderDiagnostics.enabled;
         int width = mc.displayWidth, height = mc.displayHeight, guiScale = mc.gameSettings.guiScale;
@@ -42,12 +44,17 @@ final class CustomHudRenderCheck {
         ScoreObjective objective = CustomScoreboardTest.objective();
         List<BufferedImage> pictures = new ArrayList<>();
         List<String> captions = new ArrayList<>();
+        List<BufferedImage> clearances = new ArrayList<>();
+        List<String> clearanceCaptions = new ArrayList<>();
         try {
+            mc.currentScreen = null;
             hud.visible.setValue(true);
             settings.animations.setValue(true);
             settings.reducedMotion.setValue(true);
             hotbar.setToggled(true);
             scoreboard.setToggled(true);
+            scoreboard.getBooleanSetting("Custom Position").setValue(false);
+            scoreboard.getNumberSetting("Scale").setValue(1D);
             for (int[] viewport : new int[][]{{640, 480, 2}, {1100, 640, 2}, {960, 540, 1}, {1001, 751, 3}}) {
                 mc.displayWidth = viewport[0];
                 mc.displayHeight = viewport[1];
@@ -58,12 +65,29 @@ final class CustomHudRenderCheck {
                 SessionInfoRenderCheck.backdrop();
                 BufferedImage empty = SessionInfoRenderCheck.capture();
                 hotbarRoute.invoke(IngameHudRenderCheck.overlay, resolution, 0f);
+                BufferedImage unobstructedHotbar = SessionInfoRenderCheck.capture();
                 scoreboardRoute.invoke(IngameHudRenderCheck.overlay, objective, resolution);
                 BufferedImage custom = SessionInfoRenderCheck.capture();
                 require(!WatermarkCheck.equal(empty, custom), "Custom scoreboard/hotbar did not draw");
+                checkClearance(scoreboard, objective, resolution, unobstructedHotbar, custom);
                 pictures.add(custom);
                 captions.add("Custom / " + resolution.getScaledWidth() + "x" + resolution.getScaledHeight()
                         + " / GUI " + resolution.getScaleFactor() + " / long formatted title + 15 rows");
+                clearances.add(custom);
+                clearanceCaptions.add("Default scale 1 / " + resolution.getScaledWidth() + "x" + resolution.getScaledHeight());
+                for (double requestedScale : new double[]{.65, 1.6}) {
+                    scoreboard.getNumberSetting("Scale").setValue(requestedScale);
+                    SessionInfoRenderCheck.backdrop();
+                    hotbarRoute.invoke(IngameHudRenderCheck.overlay, resolution, 0f);
+                    BufferedImage hotbarOnly = SessionInfoRenderCheck.capture();
+                    scoreboardRoute.invoke(IngameHudRenderCheck.overlay, objective, resolution);
+                    BufferedImage combined = SessionInfoRenderCheck.capture();
+                    checkClearance(scoreboard, objective, resolution, hotbarOnly, combined);
+                    clearances.add(combined);
+                    clearanceCaptions.add("Scoreboard scale " + requestedScale + " / "
+                            + resolution.getScaledWidth() + "x" + resolution.getScaledHeight() + " / hotbar pixels unchanged");
+                }
+                scoreboard.getNumberSetting("Scale").setValue(1D);
 
                 scoreboard.setToggled(false);
                 SessionInfoRenderCheck.backdrop();
@@ -129,12 +153,16 @@ final class CustomHudRenderCheck {
             require(RenderDiagnostics.framebufferCreates == 0 && RenderDiagnostics.programCreates == 0,
                     "Warm custom HUD frames allocated GPU programs/framebuffers");
             SessionInfoRenderCheck.sheet("release-custom-hud-resize.png", captions, pictures, true);
+            SessionInfoRenderCheck.sheet("release-custom-hud-clearance.png", clearanceCaptions, clearances, true);
             require(glGetError() == GL_NO_ERROR, "Custom HUD regression left an OpenGL error");
             System.out.println("PASS: font-measured scoreboard + 15 filtered rows; real native fallback routing; "
                     + "hotbar icons/counts and smooth selection; GUI scales 1/2/3; chat preview; reduced motion; "
+                    + "automatic sidebar clears native status rows and preserves every hotbar pixel at scales .65/1/1.6; "
                     + "incoming GL/FBO restoration and warm GPU reuse");
         } finally {
             RenderDiagnostics.enabled = oldDiagnostics;
+            scoreboard.getNumberSetting("Scale").setValue(oldScoreboardScale);
+            scoreboard.getBooleanSetting("Custom Position").setValue(oldPosition);
             hotbar.setToggled(oldHotbar);
             scoreboard.setToggled(oldScoreboard);
             settings.reducedMotion.setValue(oldReduced);
@@ -149,6 +177,26 @@ final class CustomHudRenderCheck {
             GlStateManager.disableDepth();
             GlStateManager.depthMask(true);
         }
+    }
+
+    private static void checkClearance(CustomScoreboard scoreboard, ScoreObjective objective,
+                                       ScaledResolution resolution, BufferedImage hotbarOnly, BufferedImage combined) {
+        Minecraft mc = IngameHudRenderCheck.mc;
+        int width = resolution.getScaledWidth(), height = resolution.getScaledHeight();
+        CustomScoreboard.Frame card = scoreboard.layout(objective, width, height,
+                me.youngjibbit.Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 20"),
+                me.youngjibbit.Pulsar.INSTANCE.getFontManager().getFont("Poppins-Medium 20"));
+        CustomHotbar.Layout bar = CustomHotbar.layout(width, height);
+        require(card.rows.size() == 15 && card.y + card.screenHeight() <= Math.min(bar.y, height - 49) - 6 + .001,
+                "Automatic scoreboard overlaps the native status/hotbar area at " + width + "x" + height);
+        int scale = resolution.getScaleFactor();
+        int left = Math.max(0, (int) Math.ceil(bar.x * scale));
+        int top = Math.max(0, (int) Math.ceil(bar.y * scale));
+        int right = Math.min(mc.displayWidth, (int) Math.floor((bar.x + bar.width) * scale));
+        int bottom = Math.min(mc.displayHeight, (int) Math.floor((bar.y + bar.height) * scale));
+        for (int y = top; y < bottom; y++) for (int x = left; x < right; x++)
+            require(hotbarOnly.getRGB(x, y) == combined.getRGB(x, y),
+                    "Scoreboard altered a hotbar/item pixel at " + x + "," + y);
     }
 
     private static void require(boolean value, String message) {

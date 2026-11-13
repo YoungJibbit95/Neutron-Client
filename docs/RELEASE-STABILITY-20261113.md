@@ -90,6 +90,10 @@ Evidence: [OpenAuth LoginFrame](https://github.com/Litarvan/OpenAuth/blob/fd5d5c
 Removed the unused GlowESP `renderGlint` flag, redundant mask guards, commented debug compositor
 and GuiIngame's duplicate HUD surfaces/theme helpers.
 GuiIngame's commented native hotbar is now the active fallback.
+Startup also drops an unused scheduled executor/accessor, an unused Pulsar-owned
+PanelUtils instance and the obsolete MinecraftAccounts directory creation.
+Repository-wide call-site and reflection searches found no consumers. The actual
+account store remains owned by AccountManager under the configured client/alts path.
 
 ## Validation and outstanding acceptance
 

@@ -37,6 +37,10 @@ import java.util.List;
         description = "Draggable scoreboard design; disable for the vanilla sidebar", category = Category.Render)
 public final class CustomScoreboard extends Module {
     private static final float PADDING = 8;
+    // Vanilla's normal armor/air row starts 49 GUI pixels above the bottom.
+    // Keep a small gap above it and the actual custom hotbar rectangle.
+    private static final float STATUS_HUD_HEIGHT = 49;
+    private static final float BOTTOM_HUD_GAP = 6;
     private final CheckBoxValue showScores = new CheckBoxValue("Show Scores", this, true);
     private final CheckBoxValue background = new CheckBoxValue("Background", this, true);
     private final CheckBoxValue blur = new CheckBoxValue("Blur", this, true);
@@ -141,7 +145,13 @@ public final class CustomScoreboard extends Module {
         float lineHeight = (float) Math.ceil(font.getLineHeight()) + 2;
         float headerHeight = (float) Math.ceil(titleFont.getLineHeight()) + 9;
         float height = PADDING * 2 + headerHeight + names.size() * lineHeight;
-        float drawingScale = Math.min(scale.getValue().floatValue(), Math.max(1, screenHeight - 8) / height);
+        boolean manual = customPosition.getValue();
+        // The editor already removed its footer from screenHeight. A manually
+        // placed sidebar retains the full existing screen/editor drag bounds.
+        float availableHeight = manual || (mc != null && mc.currentScreen instanceof DiagnosticsEditor) ? screenHeight
+                : Math.max(1, Math.min(CustomHotbar.layout(screenWidth, screenHeight).y,
+                        screenHeight - STATUS_HUD_HEIGHT) - BOTTOM_HUD_GAP);
+        float drawingScale = Math.min(scale.getValue().floatValue(), Math.max(1, availableHeight - 8) / height);
         float scoreWidth = 0;
         for (String score : scores) scoreWidth = Math.max(scoreWidth, font.getWidth(score));
         float gap = scoreWidth > 0 ? 8 : 0;
@@ -158,10 +168,12 @@ public final class CustomScoreboard extends Module {
         for (int i = 0; i < names.size(); i++) {
             frame.rows.add(new Row(fit(font, names.get(i), nameWidth), fit(font, scores.get(i), scoreWidth)));
         }
-        float x = customPosition.getValue() ? positionX.getValue().floatValue() : screenWidth - frame.screenWidth() - 6;
-        float y = customPosition.getValue() ? positionY.getValue().floatValue() : (screenHeight - frame.screenHeight()) / 2;
+        float x = manual ? positionX.getValue().floatValue() : screenWidth - frame.screenWidth() - 6;
+        float y = manual ? positionY.getValue().floatValue()
+                : Math.min((screenHeight - frame.screenHeight()) / 2,
+                        availableHeight - frame.screenHeight() - 4);
         HudPlacement.Point point = HudPlacement.clamp(x, y, screenWidth, screenHeight,
-                frame.screenWidth(), frame.screenHeight(), HUD.bounded() || Diagnostics.editing(mc.currentScreen));
+                frame.screenWidth(), frame.screenHeight(), HUD.bounded() || (mc != null && Diagnostics.editing(mc.currentScreen)));
         frame.x = point.x;
         frame.y = point.y;
         return frame;

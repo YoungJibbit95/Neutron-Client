@@ -7,7 +7,6 @@ import me.youngjibbit.account.Account;
 import me.youngjibbit.account.AccountManager;
 import me.youngjibbit.altmanager.GuiAltManager;
 import me.youngjibbit.clickgui.ClickGui;
-import me.youngjibbit.clickgui.utils.PanelUtils;
 import me.youngjibbit.command.CommandManager;
 import me.youngjibbit.config.ConfigManager;
 import me.youngjibbit.core.bootstrap.ClientRuntime;
@@ -43,8 +42,6 @@ import net.minecraft.util.Session;
 import org.lwjgl.opengl.Display;
 
 import java.io.File;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
 
 @Getter
 public enum Pulsar implements Subscriber {
@@ -72,8 +69,6 @@ public enum Pulsar implements Subscriber {
     private final String defaultUsername = "youngjibbit";
     private boolean destructed;
 
-    private static final ScheduledExecutorService ex = Executors.newScheduledThreadPool(4);
-
     public FontManager fontManager;
     private ModuleManager mm;
     private ConfigManager configManager;
@@ -82,12 +77,10 @@ public enum Pulsar implements Subscriber {
     private ClickGui panel;
     private me.youngjibbit.clickgui.DropdownGui dropdown;
     private iOS iOS;
-    private PanelUtils panelUtils;
     private SettingsMenu cs;
     private AccountManager accountManager;
     private AltService altService;
     public SlotSpoofHandler slotSpoofHandler;
-    File accountsFolder = new File(System.getProperty("user.home"), "MinecraftAccounts");
 
     private int startTime;
     private long startTimeLong;
@@ -99,10 +92,6 @@ public enum Pulsar implements Subscriber {
         Display.setTitle(name + " | " + version + " by " + author + " for " + mc.getSession().getUsername());
 
         new GuiAltManager();
-
-        if (!accountsFolder.exists()) {
-            accountsFolder.mkdirs();
-        }
 
         me.youngjibbit.theme.ThemeRuntime.initialize(mc.mcDataDir);
 
@@ -124,7 +113,6 @@ public enum Pulsar implements Subscriber {
         panel = new ClickGui();
         dropdown = new me.youngjibbit.clickgui.DropdownGui();
         iOS = new iOS();
-        panelUtils = new PanelUtils();
         cs = new SettingsMenu();
         slotSpoofHandler = new SlotSpoofHandler();
 
@@ -243,10 +231,6 @@ public enum Pulsar implements Subscriber {
             me.youngjibbit.altmanager.thread.AccountLoginThread.cancelPending();
             mc.setSession(session);
         });
-    }
-
-    public static ScheduledExecutorService getExecutor() {
-        return ex;
     }
 
     @Subscribe

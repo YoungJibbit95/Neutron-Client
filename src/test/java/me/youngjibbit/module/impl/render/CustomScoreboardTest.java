@@ -77,6 +77,40 @@ public class CustomScoreboardTest {
         assertTrue(frame.height > title.getLineHeight());
     }
 
+    @Test public void automaticSidebarKeepsHotbarAndNativeStatusRowsClearAtEveryModuleScale() {
+        CustomScoreboard custom = new CustomScoreboard();
+        for (int[] size : new int[][]{{320, 240}, {550, 320}, {334, 251}, {960, 540}}) {
+            CustomHotbar.Layout hotbar = CustomHotbar.layout(size[0], size[1]);
+            for (double scale : new double[]{.65, 1, 1.6}) {
+                custom.getNumberSetting("Scale").setValue(scale);
+                CustomScoreboard.Frame frame = custom.layout(objective(), size[0], size[1], body, title);
+                assertEquals(15, frame.rows.size());
+                assertTrue("Automatic sidebar covers the hotbar at " + size[0] + "x" + size[1] + "/" + scale,
+                        frame.y + frame.screenHeight() <= hotbar.y - 6 + .001);
+                assertTrue("Automatic sidebar covers the native armor/air row",
+                        frame.y + frame.screenHeight() <= size[1] - 49 - 6 + .001);
+                assertTrue(frame.x >= 0 && frame.y >= 0);
+                assertTrue(frame.x + frame.screenWidth() <= size[0] + .001);
+            }
+        }
+    }
+
+    @Test public void manualSidebarStillUsesTheFullScreenAndResetRestoresAutomaticClearance() {
+        CustomScoreboard custom = new CustomScoreboard();
+        custom.getBooleanSetting("Custom Position").setValue(true);
+        custom.getNumberSetting("Position X").setValue(20D);
+        custom.getNumberSetting("Position Y").setValue(230D);
+        custom.getNumberSetting("Scale").setValue(1.6D);
+        CustomScoreboard.Frame frame = custom.layout(objective(), 320, 240, body, title);
+        assertTrue("A manually positioned sidebar must retain access to the lower screen",
+                frame.y + frame.screenHeight() > 240 - 49 - 6);
+        assertTrue(frame.y >= 0 && frame.y + frame.screenHeight() <= 240.001);
+        assertTrue(frame.x >= 0 && frame.x + frame.screenWidth() <= 320.001);
+        custom.resetPosition();
+        frame = custom.layout(objective(), 320, 240, body, title);
+        assertTrue(frame.y + frame.screenHeight() <= CustomHotbar.layout(320, 240).y - 6 + .001);
+    }
+
     @Test public void completeNumericScoresKeepTheirWidthBeforeLongNamesAreTruncated() {
         CustomScoreboard custom = new CustomScoreboard();
         Scoreboard board = new Scoreboard();
