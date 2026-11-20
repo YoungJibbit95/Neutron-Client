@@ -161,7 +161,10 @@ public class WatermarkHUDModule extends Module {
     @Subscribe private final Listener<Event2D> onRender2D=new Listener<>(event->{if(!mc.gameSettings.showDebugInfo)renderWatermark();else if(islandActive){resetIsland();surface.close();textEffects.close();logoInk.close();}});
     @Subscribe private final Listener<me.youngjibbit.event.world.WorldEvent> islandWorldChanged=new Listener<>(event->resetIsland());
     @Subscribe private final Listener<me.youngjibbit.event.update.EventUpdate> islandVisibility=new Listener<>(event->{
-        if(!canSampleIslandFrames())WidgetIncidentJournal.global().suspendFrames();
+        if(!canSampleIslandFrames()){
+            WidgetIncidentJournal.global().suspendFrames();
+            suspendClockReminder();
+        }
     });
     private boolean canSampleIslandFrames(){
         return islandSelected()&&HUD.visible()&&mc.theWorld!=null&&mc.thePlayer!=null&&!mc.skipRenderWorld
@@ -268,7 +271,8 @@ public class WatermarkHUDModule extends Module {
         me.youngjibbit.core.network.PacketPipeline packetContext=mc.getNetHandler()==null?null:
                 mc.getNetHandler().getNetworkManager().getClientPackets();
         incidentsJournal.context(mc.theWorld,packetContext,packetContext==null?0:packetContext.getContextVersion());
-        if(islandFpsWidget.getValue()&&canSampleIslandFrames())
+        boolean playing = canSampleIslandFrames();
+        if(islandFpsWidget.getValue()&&playing)
             incidentsJournal.observeFrame(now);else incidentsJournal.suspendFrames();
         if(!islandActive)islandNotices.reset(now,ModuleToggleJournal.currentSequence());
         islandActive=true;
@@ -291,14 +295,15 @@ public class WatermarkHUDModule extends Module {
                 islandLocalWarnings.getValue(),islandEpoch,now);
 
         // Clock Reminder: diskrete 10-Minuten-Marke als Event anbieten.
-        IslandStateMachine.ClockReminder clockRem=null;
         long wall=System.currentTimeMillis();
-        java.time.ZoneId zone=java.time.ZoneId.systemDefault();
-        if(islandClock.getValue()&&clockSchedule.poll(wall,zone)){
+        boolean showClock = islandClock.getValue();
+        java.time.ZoneId zone=showClock ? java.time.ZoneId.systemDefault() : null;
+        if (!playing || !showClock) {
+            suspendClockReminder();
+        } else if(clockSchedule.poll(wall,zone)){
             String t=java.time.Instant.ofEpochMilli(wall).atZone(zone)
                     .format(java.time.format.DateTimeFormatter.ofPattern("HH:mm",Locale.ROOT));
             islandState.offer(IslandStateMachine.State.CLOCK_REMINDER,"clock:"+(wall/60_000L),t,islandEpoch,now);
-            clockRem=new IslandStateMachine.ClockReminder(t,false);
         }
 
         IslandStateMachine.Scaffold scaffoldView=islandScaffoldSnapshot(now);
@@ -311,8 +316,8 @@ public class WatermarkHUDModule extends Module {
         NotificationManager.IslandNotification notification=canPresentIslandNotifications()
                 ?NotificationManager.islandNotification():null;
         IslandStateMachine.Selection selected=islandState.resolve(islandEpoch,System.nanoTime(),
-                islandTargetSnapshot(),scaffoldView,clockRem,islandInventorySnapshot(now),
-                islandTarget.getValue(),islandScaffold.getValue(),islandClock.getValue(),islandLiveInventory.getValue(),notification);
+                islandTargetSnapshot(),scaffoldView,null,islandInventorySnapshot(now),
+                islandTarget.getValue(),islandScaffold.getValue(),playing && showClock,islandLiveInventory.getValue(),notification);
         String key=IslandContentKey.of(selected);
         if(!key.equals(islandLastKey)){
             // Idle and a frozen local clock may crossfade; never retain a lost gameplay target.
@@ -400,11 +405,11 @@ public class WatermarkHUDModule extends Module {
         final Theme theme=Theme.resolve(Theme.getDefaultTheme());
         final TTFFontRenderer font=Pulsar.INSTANCE.getFontManager().getFont("DmSansMedium 18");
         // Freeze settings and text before scheduling a deferred surface pass.
-        final IslandClockFace liveClock=IslandClockFace.capture(wall,zone,animations&&!reduced);
-        final String clockText=islandClock.getValue()?liveClock.time:"";
+        final IslandClockFace liveClock=showClock ? IslandClockFace.capture(wall,zone,animations&&!reduced) : null;
+        final String clockText=showClock ? liveClock.time : "";
         final String clientName=Pulsar.INSTANCE.getName(), clientVersion=Pulsar.INSTANCE.getVersion();
         final TTFFontRenderer wordmark=Pulsar.INSTANCE.getFontManager().getWordmarkFont(clientName,"DmSansMedium 18");
-        final boolean showName=name.getValue(), showVersion=version.getValue(), showClock=islandClock.getValue();
+        final boolean showName=name.getValue(), showVersion=version.getValue();
         final boolean modernClock=showClock&&"Modern".equals(islandClockStyle.getValue());
         final boolean panel=background.getValue(), useBlur=blur.getValue(),
                 useGlow=glow.getValue();
@@ -1121,7 +1126,14 @@ public class WatermarkHUDModule extends Module {
         }
         return islandClockText;
     }
+    private void suspendClockReminder() {
+        clockSchedule.suspend();
+        islandState.dismissClockReminder();
+        if (islandLastSelection != null && islandLastSelection.state == IslandStateMachine.State.CLOCK_REMINDER) islandLastSelection = null;
+        if (islandPrevious != null && islandPrevious.state == IslandStateMachine.State.CLOCK_REMINDER) islandPrevious = null;
+    }
     private void resetIsland(){
+        clockSchedule.suspend();
         islandState.reset();islandMotion.reset();islandNMorph.reset();islandPlacements.reset();islandWorld=null;islandEpoch++;
         islandAttachmentKind=null;islandTargetTrail.reset();islandTrailTarget=Integer.MIN_VALUE;
         resetIslandWidgetMotion();

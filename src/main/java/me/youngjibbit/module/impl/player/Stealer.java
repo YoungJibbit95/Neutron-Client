@@ -13,6 +13,8 @@ import me.youngjibbit.value.impl.CheckBoxValue;
 import me.youngjibbit.value.impl.SliderValue;
 import me.youngjibbit.value.impl.ComboValue;
 import me.youngjibbit.core.inventory.*;
+import me.youngjibbit.core.inventory.InventoryItemClassifier.LootGroup;
+import java.util.EnumMap;
 import me.zero.alpine.listener.Listener;
 import me.zero.alpine.listener.Subscribe;
 import net.minecraft.client.Minecraft;
@@ -85,8 +87,10 @@ public class Stealer extends Module {
                         && (event.getPacket() instanceof net.minecraft.network.play.server.S2FPacketSetSlot
                         || event.getPacket() instanceof net.minecraft.network.play.server.S30PacketWindowItems
                         || event.getPacket() instanceof net.minecraft.network.play.server.S2DPacketOpenWindow
-                        || event.getPacket() instanceof net.minecraft.network.play.server.S2EPacketCloseWindow))
+                        || event.getPacket() instanceof net.minecraft.network.play.server.S2EPacketCloseWindow)) {
                     clearActivity();
+                    this.assistance.cancelPreview();
+                }
             });
     private final TimerUtil openDelayTimer = new TimerUtil();
     private final InventoryPacing actionPacing = new InventoryPacing();
@@ -95,6 +99,9 @@ public class Stealer extends Module {
     private InventorySlotOrder slotOrder;
     private InventoryInteractionSettings interaction;
     private ComboValue pickProfile;
+    private final CheckBoxValue buildingBlocksFirst;
+    private final ComboValue lootSelection;
+    private final EnumMap<LootGroup, CheckBoxValue> customGroups = new EnumMap<>(LootGroup.class);
     private final TimerUtil emptyTimer = new TimerUtil();
     private ActivityInventoryContext transferScene;
     private boolean observedEmpty, actionInProgress, updateInProgress;
@@ -114,7 +121,25 @@ public class Stealer extends Module {
         interaction = new InventoryInteractionSettings(this, 80, 120);
         pickProfile = new ComboValue("Pick Profile", this, "Shuffle", new String[]{"Shuffle", "Rows", "Nearby"});
         pickProfile.setVisibility(m -> randomItem.getValue());
+        buildingBlocksFirst = new CheckBoxValue("Building Blocks First", this, false);
+        lootSelection = new ComboValue("Loot Selection", this, "Everything",
+                new String[]{"Everything", "Useful First", "Custom"});
+        addCustomGroup(LootGroup.BLOCKS, "Take Building Blocks", true);
+        addCustomGroup(LootGroup.EQUIPMENT, "Take Equipment", true);
+        addCustomGroup(LootGroup.SUPPLIES, "Take Supplies", true);
+        addCustomGroup(LootGroup.OTHER, "Take Other Items", false);
         delay.setVisibility(m -> interaction.legacySpeed());
+    }
+
+    private void addCustomGroup(LootGroup group, String name, boolean initiallyEnabled) {
+        CheckBoxValue setting = new CheckBoxValue(name, this, initiallyEnabled);
+        setting.setVisibility(ignored -> "Custom".equals(lootSelection.getValue()));
+        customGroups.put(group, setting);
+    }
+
+    private boolean selected(ItemStack stack) {
+        return stack != null && (!"Custom".equals(lootSelection.getValue())
+                || customGroups.get(InventoryItemClassifier.lootGroup(stack)).getValue());
     }
 
     @Override
@@ -157,7 +182,7 @@ public class Stealer extends Module {
         }
         if (activityContext != null && !activityContext.isCurrent(mc)) clearActivity();
         final ActivityInventoryContext scene = transferScene;
-        final long updateActivityGeneration = activityGeneration;
+        final long generation = activityGeneration;
         {
             final ContainerChest chest = (ContainerChest) mc.thePlayer.openContainer;
             if (!openDelayTimer.hasTimeElapsed(openDelay.getValue().longValue(), false)) {
@@ -166,34 +191,36 @@ public class Stealer extends Module {
             if (attemptedThisTick()) return;
             List<Integer> slots = getSlotsToSteal(chest);
             if (!validChest() || scene != transferScene || !scene.sameScene(mc) || !isToggled()) return;
+            // Leaving filtered items behind keeps the physical chest open for manual use.
             boolean empty = empty(chest);
-            if (scene != transferScene || !scene.sameScene(mc)) return;
+            if (scene != transferScene || !scene.sameScene(mc) || generation != activityGeneration) return;
             if (empty) {
                 if (!observedEmpty) { observedEmpty = true; emptyTimer.reset(); }
-                if (updateActivityGeneration == activityGeneration) publishActivity(Action.COMPLETE, false);
+                publishActivity(Action.COMPLETE, false);
                 if (autoclose.getValue() && emptyTimer.hasTimeElapsed(autocloseDelay.getValue().longValue(), false)
                         && validChest() && scene == transferScene && scene.sameScene(mc) && mc.thePlayer.inventory.getItemStack() == null
-                        && !mouseBusy()) {
+                        && !mouseBusy() && generation == activityGeneration) {
                     mc.thePlayer.closeScreen(); clearActivity(); resetStealer();
                 }
                 return;
             }
             observedEmpty = false;
             if (!interaction.ready(actionPacing, delay.getValue(), delay.getValue())) return;
+            if (buildingBlocksFirst.getValue() || "Useful First".equals(lootSelection.getValue()))
+                slots = prioritizeLoot(chest, slots);
             for (int slot : slots) {
                 ItemStack candidate = chest.getLowerChestInventory().getStackInSlot(slot);
-                if (candidate != null && canReceive(chest, candidate)) {
-                    final long generation = activityGeneration;
+                if (selected(candidate) && canReceive(chest, candidate)) {
                     final int sourceCount = candidate.stackSize;
                     final ActivityInventoryContext exact = ActivityInventoryContext.capture(mc, slot);
-                    if (exact == null) return;
+                    if (exact == null || generation != activityGeneration) return;
                     if (interaction.click() && !assistance.ready(mc, "Transfer", slot, 0, 1, -1,
                             interaction.preview.getValue(), interaction.resume.getValue())) return;
                     final Object actionPlayer = mc.thePlayer, actionWorld = mc.theWorld,
                             actionScreen = mc.currentScreen, actionController = mc.playerController;
                     final int actionWindow = chest.windowId;
                     if (!validChest() || scene != transferScene || !scene.sameScene(mc) || mc.thePlayer.inventory.getItemStack() != null
-                            || mouseBusy() || chest.getLowerChestInventory().getStackInSlot(slot) != candidate
+                            || mouseBusy() || chest.getLowerChestInventory().getStackInSlot(slot) != candidate || !selected(candidate)
                             || scene != transferScene || !scene.sameScene(mc) || attemptedThisTick()) return;
                     boolean attempted;
                     actionInProgress = true;
@@ -201,10 +228,10 @@ public class Stealer extends Module {
                         if (interaction.click()) {
                             attempted = assistance.execute(mc,
                                     () -> exact.isCurrent(mc) && canReceive(chest, candidate),
-                                    () -> validChest() && scene == transferScene && scene.sameScene(mc),
-                                    this::claimTransferAttempt);
+                                    () -> validChest() && scene == transferScene && scene.sameScene(mc) && generation == activityGeneration,
+                                    () -> claimTransferAttempt(exact, generation));
                         } else {
-                            attempted = claimTransferAttempt();
+                            attempted = claimTransferAttempt(exact, generation);
                             if (attempted) mc.playerController.windowClick(chest.windowId, slot, 0, 1, mc.thePlayer);
                         }
                     } finally { actionInProgress = false; }
@@ -225,7 +252,7 @@ public class Stealer extends Module {
                             if (changed && after == null && activityTotal >= 0 && activityProcessed < activityTotal)
                                 activityProcessed++;
                             publishActivity(changed ? Action.STEALING : Action.SCANNING, changed, slot);
-                            if (changed && empty(chest)) publishActivity(Action.COMPLETE, false);
+                            if (changed && empty(chest) && generation == activityGeneration) publishActivity(Action.COMPLETE, false);
                         }
                     }
                     // One attempted transfer per client tick, including a rejected/full transfer.
@@ -236,8 +263,9 @@ public class Stealer extends Module {
         }
     }
 
-    private boolean claimTransferAttempt() {
-        if (!validChest() || attemptedThisTick() || mouseBusy() || mc.thePlayer.inventory.getItemStack() != null) return false;
+    private boolean claimTransferAttempt(ActivityInventoryContext source, long generation) {
+        if (!validChest() || attemptedThisTick() || mouseBusy() || !source.isCurrent(mc)
+                || mc.thePlayer.inventory.getItemStack() != null || generation != activityGeneration) return false;
         lastTransferTick = mc.thePlayer.ticksExisted;
         lastTransferPlayer = new WeakReference<>(mc.thePlayer); lastTransferWorld = new WeakReference<>(mc.theWorld);
         actionPacing.reset(); return true;
@@ -292,6 +320,24 @@ public class Stealer extends Module {
         }
         return false;
     }
+    /** Stable within each priority. The transfer loop still validates selection, capacity and input. */
+    private List<Integer> prioritizeLoot(ContainerChest chest, List<Integer> pending) {
+        List<Integer> blocks = new ArrayList<>();
+        List<Integer> useful = new ArrayList<>();
+        List<Integer> other = new ArrayList<>();
+        for (int slot : pending) {
+            ItemStack stack = chest.getLowerChestInventory().getStackInSlot(slot);
+            if (stack == null) continue;
+            LootGroup group = InventoryItemClassifier.lootGroup(stack);
+            if (buildingBlocksFirst.getValue() && group == LootGroup.BLOCKS) blocks.add(slot);
+            else if ("Useful First".equals(lootSelection.getValue()) && group != LootGroup.OTHER) useful.add(slot);
+            else other.add(slot);
+        }
+        blocks.addAll(useful);
+        blocks.addAll(other);
+        return blocks;
+    }
+
     private List<Integer> getSlotsToSteal(ContainerChest chest) {
         final long generation = activityGeneration;
         ActivityInventoryContext before = ActivityInventoryContext.capture(mc);
@@ -301,7 +347,7 @@ public class Stealer extends Module {
                 randomItem.getValue() ? pickProfile.getValue() : "Sequential", selectionSeeds.nextLong());
         List<Integer> slots = slotOrder.pendingSlots();
         for (int i = 0; i < size; i++) {
-            if (chest.getLowerChestInventory().getStackInSlot(i) != null) {
+            if (selected(chest.getLowerChestInventory().getStackInSlot(i))) {
                 occupied++;
                 if (firstOccupied < 0) firstOccupied = i;
             }

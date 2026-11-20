@@ -21,12 +21,17 @@ public class ClickGUI  extends Module
     private final CheckBoxValue headingGlow=new CheckBoxValue("Heading Glow",this,false);
     private final ComboValue mode = new ComboValue("Mode", this, new String[]{"Panel", "Dropdown"}, 0);
 
+    private final ComboValue modernLayout = new ComboValue("Neutron 2.0 Layout", this,
+            new String[]{"Panel", "Dropdown"}, 0);
+
     // A separate 2.0 screen; never instantiate it before the module manager is ready.
     private NeutronTwoGui modern;
 
     public ClickGUI()
     {
         setKey(Keyboard.KEY_RSHIFT);
+        mode.setVisibility(ignored -> !ThemeMode.APPROACH_TWO.equals(ThemeMode.selected()));
+        modernLayout.setVisibility(ignored -> ThemeMode.APPROACH_TWO.equals(ThemeMode.selected()));
     }
 
     @Override
@@ -60,6 +65,7 @@ public class ClickGUI  extends Module
 
     private GuiScreen resolveScreen(String modeValue) {
         if (ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())) {
+            if ("Dropdown".equals(modernLayout.getValue())) return Pulsar.INSTANCE.getDropdown();
             if (modern == null) modern = new NeutronTwoGui();
             return modern;
         }

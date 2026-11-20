@@ -55,6 +55,12 @@ public final class LegacyUiStyle {
             GL11.glBegin(GL11.GL_TRIANGLES);
             try {
             switch (name.toLowerCase(Locale.ROOT)) {
+                case "folder":
+                    line(2,4,6,4,c); line(6,4,8,6,c); line(8,6,14,6,c);
+                    line(14,6,14,13,c); line(14,13,2,13,c); line(2,13,2,4,c); break;
+                case "file":
+                    line(4,2,9,2,c); line(9,2,12,5,c); line(12,5,12,14,c);
+                    line(12,14,4,14,c); line(4,14,4,2,c); line(6,9,10,9,c); break;
                 case "save":
                     box(2, 2, 12, 12, c); box(5, 2, 6, 4, c); box(5, 9, 6, 5, c); break;
                 case "load": case "download":

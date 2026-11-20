@@ -29,4 +29,13 @@ public class ClockReminderScheduleTest {
         long mark=at("2026-11-09T12:10:00Z");assertTrue(schedule.poll(mark,utc));
         assertFalse(schedule.poll(mark-600_000,utc));assertFalse(schedule.poll(mark,utc));
     }
+    @Test public void resumeDuringAMarkSkipsItsRemainingFramesAndEmitsTheNextMark() {
+        ClockReminderSchedule schedule = new ClockReminderSchedule();
+        ZoneId zone = ZoneId.of("+05:45");
+        schedule.suspend();
+        long mark = at("2026-11-09T06:25:00Z");
+        assertFalse(schedule.poll(mark + 20_000, zone));
+        assertFalse(schedule.poll(mark + 59_999, zone));
+        assertTrue(schedule.poll(mark + 600_000, zone));
+    }
 }
