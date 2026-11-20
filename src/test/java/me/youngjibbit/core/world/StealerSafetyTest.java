@@ -1,6 +1,7 @@
 package me.youngjibbit.core.world;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.core.inventory.InventorySlotOrder;
 import me.youngjibbit.core.combat.RotationBehaviorHookTest;
 import me.youngjibbit.event.update.EventUpdate;
 import me.youngjibbit.event.world.WorldEvent;
@@ -15,6 +16,7 @@ import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.PlayerCapabilities;
 import net.minecraft.init.Bootstrap;
 import net.minecraft.init.Items;
+import net.minecraft.init.Blocks;
 import net.minecraft.inventory.ContainerChest;
 import net.minecraft.inventory.ContainerPlayer;
 import net.minecraft.inventory.InventoryBasic;
@@ -26,7 +28,9 @@ import net.minecraft.network.play.server.S2FPacketSetSlot;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 import static org.junit.Assert.*;
 
@@ -98,6 +102,59 @@ public class StealerSafetyTest {
         @Override public void close() throws Exception {
             try { stealer.setToggled(false); }
             finally { f.close(); }
+        }
+    }
+
+    @Test public void buildingBlocksFirstUsesBothChestSizesAndPreservesPickOrderWithinEachGroup() throws Exception {
+        for (int size : new int[]{27,54}) try (Run r = new Run(size)) {
+            r.stealer.getBooleanSetting("Building Blocks First").setValue(true);
+            r.put(0, Items.diamond, 2);
+            r.put(1, Item.getItemFromBlock(Blocks.tnt), 64);
+            r.put(2, Item.getItemFromBlock(Blocks.chest), 64);
+            r.put(3, Item.getItemFromBlock(Blocks.sand), 64);
+            r.put(size - 2, Item.getItemFromBlock(Blocks.planks), 48);
+            r.put(size - 1, Item.getItemFromBlock(Blocks.wool), 64);
+            for (int expected : new int[]{size - 2, size - 1, 0, 1, 2, 3}) {
+                r.update(); r.update();
+                assertEquals(Integer.valueOf(expected), r.controller.attempts.get(r.controller.attempts.size() - 1));
+                assertEquals(1, r.drainClicks());
+                assertNull(r.storage.getStackInSlot(expected));
+                r.nextTick();
+            }
+        }
+    }
+
+    @Test public void rowsStillBreakTiesAndOldProfilesKeepTheirMixedPickOrder() throws Exception {
+        for (boolean prefer : new boolean[]{false,true}) try (Run r = new Run(27)) {
+            long seed = 143;
+            r.stealer.getBooleanSetting("Randomness").setValue(true);
+            r.stealer.getModeSetting("Pick Profile").setValue("Rows");
+            if (prefer) r.stealer.getBooleanSetting("Building Blocks First").setValue(true);
+            ScaffoldClientFlowTest.set(Stealer.class, r.stealer, "selectionSeeds", new Random(seed));
+            List<Integer> order = new InventorySlotOrder(27, "Rows", new Random(seed).nextLong()).slots();
+            r.put(order.get(0), Items.diamond, 1);
+            r.put(order.get(1), Item.getItemFromBlock(Blocks.planks), 16);
+            r.put(order.get(2), Item.getItemFromBlock(Blocks.wool), 32);
+            r.update();
+            assertEquals(Collections.singletonList(order.get(prefer ? 1 : 0)), r.controller.attempts);
+            assertEquals(1, r.drainClicks());
+        }
+    }
+
+    @Test public void unavailableBuildingBlocksYieldToOneItemThatFitsAndFullInventoryStops() throws Exception {
+        try (Run r = new Run(54)) {
+            r.stealer.getBooleanSetting("Building Blocks First").setValue(true);
+            r.put(0, Item.getItemFromBlock(Blocks.planks), 48);
+            r.put(53, Items.diamond, 3);
+            for (int i = 0; i < 36; i++) r.f.player.inventory.mainInventory[i] = new ItemStack(Items.stick,64);
+            r.f.player.inventory.mainInventory[8] = new ItemStack(Items.diamond, 63);
+            r.update(); r.update();
+            assertEquals(Collections.singletonList(53), r.controller.attempts);
+            assertEquals(1, r.drainClicks());
+            assertEquals(2, r.storage.getStackInSlot(53).stackSize);
+            assertEquals(48, r.storage.getStackInSlot(0).stackSize);
+            r.nextTick(); r.update();
+            assertEquals(1, r.controller.attempts.size()); assertEquals(0, r.drainClicks());
         }
     }
 

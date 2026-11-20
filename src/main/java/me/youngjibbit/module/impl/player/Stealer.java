@@ -13,6 +13,7 @@ import me.youngjibbit.value.impl.CheckBoxValue;
 import me.youngjibbit.value.impl.SliderValue;
 import me.youngjibbit.value.impl.ComboValue;
 import me.youngjibbit.core.inventory.*;
+import me.youngjibbit.core.world.DemiseScaffoldInventory;
 import me.zero.alpine.listener.Listener;
 import me.zero.alpine.listener.Subscribe;
 import net.minecraft.client.Minecraft;
@@ -97,6 +98,7 @@ public class Stealer extends Module {
     private InventorySlotOrder slotOrder;
     private InventoryInteractionSettings interaction;
     private ComboValue pickProfile;
+    private final CheckBoxValue buildingBlocksFirst;
     private final TimerUtil emptyTimer = new TimerUtil();
     private ActivityInventoryContext transferScene;
     private boolean observedEmpty, actionInProgress, updateInProgress;
@@ -116,6 +118,7 @@ public class Stealer extends Module {
         interaction = new InventoryInteractionSettings(this, 80, 120);
         pickProfile = new ComboValue("Pick Profile", this, "Shuffle", new String[]{"Shuffle", "Rows", "Nearby"});
         pickProfile.setVisibility(m -> randomItem.getValue());
+        buildingBlocksFirst = new CheckBoxValue("Building Blocks First", this, false);
         delay.setVisibility(m -> interaction.legacySpeed());
     }
 
@@ -182,6 +185,7 @@ public class Stealer extends Module {
             }
             observedEmpty = false;
             if (!interaction.ready(actionPacing, delay.getValue(), delay.getValue())) return;
+            if (buildingBlocksFirst.getValue()) slots = prioritizeBuildingBlocks(chest, slots);
             for (int slot : slots) {
                 ItemStack candidate = chest.getLowerChestInventory().getStackInSlot(slot);
                 if (candidate != null && canReceive(chest, candidate)) {
@@ -294,6 +298,21 @@ public class Stealer extends Module {
         }
         return false;
     }
+    /** Stable partition of the pending pick order. Both groups still use the normal capacity and input checks. */
+    private List<Integer> prioritizeBuildingBlocks(ContainerChest chest, List<Integer> pending) {
+        List<Integer> blocks = new ArrayList<>();
+        List<Integer> other = new ArrayList<>();
+        for (int slot : pending) {
+            ItemStack stack = chest.getLowerChestInventory().getStackInSlot(slot);
+            if (stack == null) continue;
+            if (InventoryItemClassifier.blockKind(stack) == BlockStackPlanner.Kind.BUILDABLE
+                    && DemiseScaffoldInventory.isValidBlock(stack)) blocks.add(slot);
+            else other.add(slot);
+        }
+        blocks.addAll(other);
+        return blocks;
+    }
+
     private List<Integer> getSlotsToSteal(ContainerChest chest) {
         final long generation = activityGeneration;
         ActivityInventoryContext before = ActivityInventoryContext.capture(mc);
