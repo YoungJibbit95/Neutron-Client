@@ -4,6 +4,7 @@ import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.bootstrap.RuntimeServices;
 import me.youngjibbit.core.combat.RotationManager;
 import me.youngjibbit.core.diagnostics.CorrectionHistory;
+import me.youngjibbit.core.activity.InputClickJournal;
 import me.youngjibbit.core.activity.LocalCorrectionSnapshot;
 import me.youngjibbit.core.diagnostics.RenderTimings;
 import me.youngjibbit.core.network.PacketDelays;
@@ -187,7 +188,7 @@ public final class Diagnostics extends Module {
         rotation=mc.thePlayer==null?null:RuntimeServices.rotation().diagnosticSnapshot(mc.thePlayer,mc.theWorld,pipe);
         queue=pipe==null?null:pipe.delays().diagnosticSnapshot();
         NetworkPlayerInfo info=mc.thePlayer==null||mc.getNetHandler()==null?null:mc.getNetHandler().getPlayerInfo(mc.thePlayer.getUniqueID());
-        ping=info==null?-1:Math.max(0,info.getResponseTime());
+        ping=info==null?-1:Math.max(-1,info.getResponseTime());
         // Live labels refresh independently; the 30-second graph keeps its half-second samples.
         if(historyDue){
             historyAt=now;
@@ -320,8 +321,15 @@ public final class Diagnostics extends Module {
         }
         List<Panel> panels=new ArrayList<>();
         if(performanceWidget.getValue()) {
-            Panel p=new Panel(widgets[0],"Performance",MinecraftFps()+" FPS");
-            p.line("Render CPU / frame",fmt(renderSnapshot.sections.stream().mapToDouble(r->r.milliseconds).sum())+" ms");
+            int fps = MinecraftFps();
+            Panel p=new Panel(widgets[0],"Performance",fps+" FPS");
+            if (ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())) {
+                boolean inGame = mc.theWorld != null && mc.thePlayer != null && mc.inGameHasFocus && mc.currentScreen == null;
+                InputClickJournal.Snapshot clicks = inGame ? InputClickJournal.global().snapshot(mc.theWorld, true, System.nanoTime()) : null;
+                p.metrics = new DiagnosticsHudHeader(fps, ping, clicks);
+            }
+            p.line("Render CPU / frame", renderSnapshot.sections.isEmpty() ? "--" :
+                    fmt(renderSnapshot.sections.stream().mapToDouble(r->r.milliseconds).sum())+" ms");
             int shown=0;for(RenderTimings.Row row:renderSnapshot.sections) {if(shown++==3)break;p.meter(shortSection(row.name),fmt(row.milliseconds)+" ms  "+Math.round(row.share*100)+"%",row.share);}
             if(renderSnapshot.sections.isEmpty())p.line("Waiting for render samples","");
             int surfaces=0;for(RenderTimings.Row row:renderSnapshot.surfaces){if(surfaces++==2)break;p.line("UI: "+row.name,fmt(row.milliseconds)+" ms");}
@@ -484,8 +492,14 @@ public final class Diagnostics extends Module {
                 int ink=me.youngjibbit.gui.NeutronVisualTokens.ink(theme);
                 int muted=modern?0xffc6bdd0:
                         Theme.interpolateRGB(ink,theme.getPrimaryGradientRGB(),.22f)|0xff000000;
-                heading.drawString(p.title,modern?12:9,7,ink);
-                small.drawString(p.status,243-small.getWidth(p.status),10,muted);
+                if (modern && p.metrics != null) {
+                    p.metrics.draw(heading, body, theme, ink, muted, s);
+                } else if (modern && w == widgets[3] && p.plot == null) {
+                    DiagnosticsHudHeader.correction(p.status, heading, body, theme, ink, muted);
+                } else {
+                    heading.drawString(p.title,modern?12:9,7,ink);
+                    small.drawString(p.status,243-small.getWidth(p.status),10,muted);
+                }
                 if (p.plot != null) {
                     p.plot.draw(theme, small, muted);
                     return;
@@ -564,6 +578,7 @@ public final class Diagnostics extends Module {
     final class Panel {
         final Widget widget;final String title,status;final List<Line> lines=new ArrayList<>();
         DiagnosticsPlots.Plot plot;
+        DiagnosticsHudHeader metrics;
         String footer="";double[] graph;float scale;int height,visibleRows;
         Panel(Widget w,String title,String status){widget=w;this.title=title;this.status=status;}
         void line(String label,String value){lines.add(new Line(label,value,-1));}
