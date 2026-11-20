@@ -2,6 +2,7 @@ package me.youngjibbit.core.module;
 
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.core.network.PacketPipeline;
+import me.youngjibbit.event.input.GameFocusLostEvent;
 import me.youngjibbit.event.motion.EventRotation;
 import me.youngjibbit.event.packet.EventPacket;
 import me.youngjibbit.event.packet.TickEvent;
@@ -182,6 +183,11 @@ public final class ModuleActionSafety implements Subscriber {
         if (event.isPost() && event.isInbound() && current != null && event.getPipeline() == pipeline(current)) allows();
     }
     @Subscribe private final Listener<EventPacket> packet = new Listener<>(this::appliedPacket, EventPriority.HIGHEST);
+    private void focusLost(GameFocusLostEvent event) {
+        if (abortOperation != null && active && client.get() == event.client) stop("focus_lost");
+    }
+    @Subscribe private final Listener<GameFocusLostEvent> focus = new Listener<>(this::focusLost, EventPriority.HIGHEST);
+
     private void sceneChanged(WorldEvent event) {
         if (abortOperation == null || !active) return;
         // The owner receives the same event and clears its operation. Unload runs
