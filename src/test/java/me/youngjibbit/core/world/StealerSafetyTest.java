@@ -28,6 +28,7 @@ import net.minecraft.network.play.server.S2FPacketSetSlot;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
@@ -155,6 +156,47 @@ public class StealerSafetyTest {
             assertEquals(48, r.storage.getStackInSlot(0).stackSize);
             r.nextTick(); r.update();
             assertEquals(1, r.controller.attempts.size()); assertEquals(0, r.drainClicks());
+        }
+    }
+
+    @Test public void usefulFirstKeepsStableOrderAndFallsBackToUnclassifiedItems() throws Exception {
+        for (int size : new int[]{27, 54}) try (Run r = new Run(size)) {
+            r.stealer.getModeSetting("Loot Selection").setValue("Useful First");
+            r.put(0, Items.rotten_flesh, 1);
+            r.put(1, Items.bread, 4);
+            r.put(2, Items.iron_chestplate, 1);
+            r.put(size - 1, Item.getItemFromBlock(Blocks.planks), 48);
+            for (int expected : new int[]{1, 2, size - 1, 0}) {
+                r.update(); r.update();
+                assertEquals(Integer.valueOf(expected), r.controller.attempts.get(r.controller.attempts.size() - 1));
+                assertEquals(1, r.drainClicks());
+                r.nextTick();
+            }
+        }
+    }
+
+    @Test public void customSelectionCountsEligibleLootAndLeavesExcludedContentsForThePlayer() throws Exception {
+        for (int size : new int[]{27, 54}) try (Run r = new Run(size)) {
+            r.stealer.getModeSetting("Loot Selection").setValue("Custom");
+            r.stealer.getBooleanSetting("Take Equipment").setValue(false);
+            r.stealer.getBooleanSetting("Take Building Blocks").setValue(false);
+            r.stealer.getBooleanSetting("Auto Close").setValue(true);
+            r.put(0, Items.iron_chestplate, 1); r.put(1, Items.poisonous_potato, 2);
+            r.put(2, Item.getItemFromBlock(Blocks.stone), 32); r.put(size - 1, Items.arrow, 8);
+            r.f.player.inventory.setItemStack(new ItemStack(Items.stick));
+            r.update(); assertTrue(r.controller.attempts.isEmpty());
+            r.f.player.inventory.setItemStack(null);
+            r.update(); r.nextTick(); r.update();
+            assertEquals(Collections.singletonList(size - 1), r.controller.attempts);
+            assertTrue(r.stealer.getActivitySnapshot().isComplete());
+            assertEquals(1, r.stealer.getActivitySnapshot().getTotal());
+            assertEquals(1, r.stealer.getActivitySnapshot().getProcessed());
+            assertSame(r.screen, r.f.mc.currentScreen);
+            assertNotNull(r.storage.getStackInSlot(0)); assertNotNull(r.storage.getStackInSlot(2));
+            r.stealer.getBooleanSetting("Take Other Items").setValue(true);
+            r.update();
+            assertEquals(Arrays.asList(size - 1, 1), r.controller.attempts);
+            assertNull(r.storage.getStackInSlot(1));
         }
     }
 

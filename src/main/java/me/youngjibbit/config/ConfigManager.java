@@ -550,6 +550,11 @@ public class ConfigManager {
                 else {
                     defaultSetting(change, "pick_profile", "Shuffle");
                     defaultSetting(change, "building_blocks_first", false);
+                    defaultSetting(change, "loot_selection", "Everything");
+                    defaultSetting(change, "take_building_blocks", true);
+                    defaultSetting(change, "take_equipment", true);
+                    defaultSetting(change, "take_supplies", true);
+                    defaultSetting(change, "take_other_items", false);
                 }
             }
             // A present NScaffold profile owns its complete Demise setup. Current
