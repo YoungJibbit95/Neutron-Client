@@ -152,6 +152,15 @@ public class NScaffoldFlowTest {
     @Test public void clutchRetainsTheOriginalHundredAndTwoHundredMillisecondWindows() throws Exception {
         isolated("clutchRetainsTheOriginalHundredAndTwoHundredMillisecondWindows");
     }
+    @Test public void airborneClutchFollowsTheNextDiagonalFootCellOnAscentAndDescent() throws Exception {
+        isolated("airborneClutchFollowsTheNextDiagonalFootCellOnAscentAndDescent");
+    }
+    @Test public void airborneClutchRespectsKeepYAndAnAlreadySupportedLanding() throws Exception {
+        isolated("airborneClutchRespectsKeepYAndAnAlreadySupportedLanding");
+    }
+    @Test public void mouseOverClutchTurnsWhenTheRayHitsTheWrongFaceOfItsSupport() throws Exception {
+        isolated("mouseOverClutchTurnsWhenTheRayHitsTheWrongFaceOfItsSupport");
+    }
     @Test public void successfulPlacementsDriveJumpSneakCountersAndOnlyOneSneakScale() throws Exception {
         isolated("successfulPlacementsDriveJumpSneakCountersAndOnlyOneSneakScale");
     }
@@ -1612,6 +1621,78 @@ public class NScaffoldFlowTest {
                     assertEquals("diagonal Telly uses its separate two-tick window", tick == 2, r.world.blocks.containsKey(r.target));
                 }
                 assertEquals(1, r.placements(r.drain()));
+            }
+        }
+
+        @Test public void airborneClutchFollowsTheNextDiagonalFootCellOnAscentAndDescent() throws Exception {
+            for (double dy : new double[]{-.25, .32}) try (Run r = new Run()) {
+                r.module.getBooleanSetting("Clutch").setValue(true);
+                r.module.getModeSetting("Clutch rotation mode").setValue("Center");
+                double y = dy < 0 ? 64.12 : 63.87;
+                BlockPos destination = new BlockPos(1, y + dy - 1, 1);
+                r.world.blocks.clear();
+                r.world.blocks.put(destination.east(), Blocks.stone.getDefaultState());
+                r.world.realPlacementConditions = true;
+                r.world.loadedEntityList.add(r.f.player);
+                r.f.player.setPosition(.90, y, .90);
+                r.f.player.onGround = false;
+                r.f.player.motionX = .35; r.f.player.motionY = dy; r.f.player.motionZ = .35;
+                r.updateOnly();
+                assertEquals("prepare the reachable landing cell before travel", destination, r.module.targetBlock);
+                assertEquals(y, r.f.player.posY, 0);
+                assertEquals(dy, r.f.player.motionY, 0);
+                assertEquals(0, r.placements(r.drain()));
+                r.frames(120);
+                r.physicsAt(r.nanos.get() + 50_000_000L);
+                assertEquals("vanilla travel consumes the observed impulse", y + dy, r.f.player.posY, 1.0e-6);
+                assertEquals(1, r.placements(r.drain()));
+                assertSame(Blocks.stone, r.world.getBlockState(destination).getBlock());
+                assertEquals(15, r.f.player.inventory.mainInventory[8].stackSize);
+            }
+        }
+
+        @Test public void airborneClutchRespectsKeepYAndAnAlreadySupportedLanding() throws Exception {
+            try (Run r = new Run()) {
+                r.module.getBooleanSetting("Clutch").setValue(true);
+                r.module.getBooleanSetting("KeepY").setValue(true);
+                r.world.blocks.clear();
+                BlockPos keptFloor = new BlockPos(1, 63, 1);
+                r.world.blocks.put(keptFloor.east(), Blocks.stone.getDefaultState());
+                r.f.player.setPosition(.90, 64.12, .90);
+                r.f.player.onGround = false;
+                r.f.player.motionX = .35; r.f.player.motionY = -.25; r.f.player.motionZ = .35;
+                r.updateOnly();
+                assertEquals(keptFloor, r.module.targetBlock);
+                r.module.getBooleanSetting("KeepY").setValue(false);
+                r.world.blocks.put(keptFloor.down(), Blocks.stone.getDefaultState());
+                r.updateOnly();
+                assertNull("an existing landing needs no new block", field(NScaffold.class, "rayPlan").get(r.module));
+                r.walking();
+                assertEquals(0, r.placements(r.drain()));
+                assertEquals(16, r.f.player.inventory.mainInventory[8].stackSize);
+            }
+        }
+
+        @Test public void mouseOverClutchTurnsWhenTheRayHitsTheWrongFaceOfItsSupport() throws Exception {
+            try (Run r = new Run()) {
+                r.module.getBooleanSetting("Clutch").setValue(true);
+                r.module.getModeSetting("Rotations").setValue("Reverse");
+                r.module.getBooleanSetting("Static-ify").setValue(true);
+                r.f.player.setPosition(.5, 64, .18);
+                r.f.player.rotationYaw = 0;
+                r.world.blocks.clear();
+                BlockPos support = new BlockPos(0, 63, -1);
+                r.world.blocks.put(support, Blocks.stone.getDefaultState());
+                r.forward(true);
+                MovingObjectPosition original = DemiseScaffoldGeometry.rayTrace(r.f.player, new float[]{-180, 80}, 4.5, 1);
+                assertEquals(support, original.getBlockPos());
+                assertEquals(EnumFacing.UP, original.sideHit);
+                r.updateOnly();
+                NScaffoldRaycast.Plan plan = (NScaffoldRaycast.Plan) field(NScaffold.class, "rayPlan").get(r.module);
+                assertNotNull(plan);
+                assertEquals(support, plan.data.blockPos);
+                assertEquals(EnumFacing.SOUTH, plan.data.facing);
+                assertEquals(NScaffold.Status.CLUTCHING, r.module.getStatus());
             }
         }
 
