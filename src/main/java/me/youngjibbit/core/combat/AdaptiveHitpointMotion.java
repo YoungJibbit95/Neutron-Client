@@ -14,7 +14,8 @@ public final class AdaptiveHitpointMotion {
     public enum Algorithm {
         OPEN_SIMPLEX_2S(FastNoiseLite.NoiseType.OpenSimplex2S),
         PERLIN(FastNoiseLite.NoiseType.Perlin),
-        VALUE_CUBIC(FastNoiseLite.NoiseType.ValueCubic);
+        VALUE_CUBIC(FastNoiseLite.NoiseType.ValueCubic),
+        FIGURE_EIGHT(null);
 
         final FastNoiseLite.NoiseType type;
         Algorithm(FastNoiseLite.NoiseType type) { this.type = type; }
@@ -22,7 +23,7 @@ public final class AdaptiveHitpointMotion {
 
     public enum Profile { OFF, SUBTLE, BALANCED, STRONG, CUSTOM }
 
-    /** Radius is a fraction of each box half-extent; tempo is noise-coordinate units/second. */
+    /** Radius is a fraction of each box half-extent; tempo is noise units or figure-eight cycles per second. */
     public static final class Configuration {
         public final Profile profile;
         public final Algorithm algorithm;
@@ -55,13 +56,18 @@ public final class AdaptiveHitpointMotion {
     private final Configuration settings;
     private final AdaptiveAimNoise pointNoise, tempoNoise;
     private final double[] initial = new double[3], origin = new double[3];
+    private final double sweepX, sweepZ;
     private double previousSeconds = Double.NaN, phase;
 
     public AdaptiveHitpointMotion(long seed, Configuration settings, double initialRadius) {
         if (settings == null || !unit(initialRadius))
             throw new IllegalArgumentException("invalid initial hitpoint controls");
         this.settings = settings;
-        pointNoise = settings.radius > 0 ? new AdaptiveAimNoise(seed, 1, settings.algorithm.type) : null;
+        boolean sweep = settings.algorithm == Algorithm.FIGURE_EIGHT && settings.radius > 0;
+        double heading = sweep ? new Random(seed).nextDouble() * Math.PI * 2 : 0;
+        sweepX = sweep ? Math.cos(heading) : 0;
+        sweepZ = sweep ? Math.sin(heading) : 0;
+        pointNoise = !sweep && settings.radius > 0 ? new AdaptiveAimNoise(seed, 1, settings.algorithm.type) : null;
         tempoNoise = settings.radius > 0 && settings.travelNoise > 0
                 ? new AdaptiveAimNoise(seed ^ 0x4b53ad37d2e6191bL, .7) : null;
         if (initialRadius > 0) {
@@ -92,7 +98,7 @@ public final class AdaptiveHitpointMotion {
         if (!Double.isNaN(previousSeconds)) {
             double gap = seconds - previousSeconds;
             if (!Double.isFinite(gap) || gap < 0) return null;
-            if (gap > 0 && pointNoise != null) {
+            if (gap > 0 && settings.radius > 0) {
                 double dt = Math.min(MAX_STEP_SECONDS, gap);
                 double variation = tempoNoise == null ? 0
                         : tempoNoise.sample(previousSeconds + dt * .5, 0) * settings.travelNoise;
@@ -102,9 +108,17 @@ public final class AdaptiveHitpointMotion {
         previousSeconds = seconds;
         double[] offset = new double[3];
         double lengthSquared = 0;
-        if (pointNoise != null) for (int axis = 0; axis < 3; axis++) {
-            offset[axis] = (pointNoise.sample(phase, axis + 1) - origin[axis]) * .5;
-            lengthSquared += offset[axis] * offset[axis];
+        if (settings.algorithm == Algorithm.FIGURE_EIGHT && settings.radius > 0) {
+            double angle = phase * 2 * Math.PI;
+            double horizontal = Math.sin(angle);
+            offset[0] = sweepX * horizontal;
+            offset[1] = .5 * Math.sin(2 * angle);
+            offset[2] = sweepZ * horizontal;
+        } else if (pointNoise != null) {
+            for (int axis = 0; axis < 3; axis++) {
+                offset[axis] = (pointNoise.sample(phase, axis + 1) - origin[axis]) * .5;
+                lengthSquared += offset[axis] * offset[axis];
+            }
         }
         // One ellipsoid radius, not three independently full-radius corner offsets.
         double scale = settings.radius / Math.max(1, Math.sqrt(lengthSquared));

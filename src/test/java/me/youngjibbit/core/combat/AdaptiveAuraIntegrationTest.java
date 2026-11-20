@@ -85,7 +85,31 @@ public class AdaptiveAuraIntegrationTest {
         me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "explicitNeutronNoiseContinuesMovingInsideAValidHitboxWithEitherEngine");
     }
 
+    @Test public void demiseDropsFramesFromThePreviousSideOfAMovingTarget() throws Exception {
+        me.youngjibbit.core.world.Wave2IsolatedCase.run(Checks.class, "demiseDropsFramesFromThePreviousSideOfAMovingTarget");
+    }
+
     public static class Checks {
+    @Test public void demiseDropsFramesFromThePreviousSideOfAMovingTarget() throws Exception {
+        try (Harness h = new Harness()) {
+            h.f.aura.getModeSetting("Adaptive Rotation Engine").setValue("Demise");
+            h.f.aura.getBooleanSetting("Adaptive Keep Valid Aim").setValue(false);
+            h.walk(0);
+            h.framesBefore(1);
+            h.first.lastTickPosX = h.first.posX;
+            h.first.posX = 2;
+            h.first.setEntityBoundingBox(h.first.getEntityBoundingBox().offset(3, 0, 0));
+            h.walk(1);
+            assertSame(h.first, h.f.aura.getActiveTarget());
+            assertEquals("the frames for the opposite side must be discarded", 0, h.rotation.getEffectiveYaw(), .001);
+            h.framesBefore(2);
+            h.walk(2);
+            assertTrue("fresh frames must turn toward the new box", h.rotation.getEffectiveYaw() < -1);
+            assertEquals("aura", h.rotation.getConfirmedOwner());
+            assertEquals(0, h.f.player.rotationYaw, 0);
+        }
+    }
+
     private static final class Harness implements AutoCloseable {
         final RotationBehaviorHookTest.Fixture f;
         final ScaffoldClientFlowTest.Scene scene;
@@ -673,10 +697,12 @@ public class AdaptiveAuraIntegrationTest {
     }
 
     @Test public void explicitNeutronNoiseContinuesMovingInsideAValidHitboxWithEitherEngine() throws Exception {
-        for(String engine:new String[]{"Neutron","Demise"})try(Harness h=new Harness()) {
+        for (String pattern : new String[]{"Perlin", "Figure Eight"})
+        for (String engine : new String[]{"Neutron", "Demise"}) try(Harness h=new Harness()) {
             independentLegacy(h);
             h.f.aura.getModeSetting("Adaptive Rotation Engine").setValue(engine);
             h.f.aura.getModeSetting("Adaptive Aim Point").setValue("Neutron Noise");
+            h.f.aura.getModeSetting("Hitbox Pattern").setValue(pattern);
             h.f.aura.getNumberSetting("adaptive_initial_hitpoint_radius").setValue(0D);
             h.f.aura.getNumberSetting("adaptive_path_amount").setValue(0D);
             RaycastService rays=h.f.runtime.getRaycastService();

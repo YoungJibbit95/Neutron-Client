@@ -39,6 +39,7 @@ public class AdaptiveDemiseConfigTest {
         assertTrue(aura.getValueByName("Demise Yaw Acceleration").isVisible());
         assertEquals(.01,((DemiseSliderValue)aura.getNumberSetting("Demise Extra Smoothing")).getIncrement(),1e-7);
         aura.getModeSetting("Adaptive Aim Point").setValue("Neutron Noise");
+        assertFalse(aura.getValueByName("Adaptive Keep Valid Aim").isVisible());
         assertTrue(aura.getValueByName("Adaptive Legacy Hitpoint Profile").isVisible());
         aura.getModeSetting("Adaptive Legacy Hitpoint Profile").setValue("Custom");
         assertTrue(aura.getValueByName("Adaptive Legacy Hitpoint Travel Speed").isVisible());
@@ -64,6 +65,9 @@ public class AdaptiveDemiseConfigTest {
         aura.getNumberSetting("Demise Stop Duration").setValue(125D);
         aura.getModeSetting("Adaptive Aim Point").setValue("Neutron Noise");
         aura.getModeSetting("Adaptive Legacy Hitpoint Profile").setValue("Balanced");
+        aura.getModeSetting("Hitbox Pattern").setValue("Figure Eight");
+        assertSame(aura.getModeSetting("Hitbox Variation"), aura.getModeSetting("Adaptive Legacy Hitpoint Profile"));
+        assertEquals("adaptive_legacy_hitpoint_algorithm", aura.getModeSetting("Hitbox Pattern").getId());
         AdaptiveDemiseSettings.Configuration before=settings(aura).snapshot().adaptiveDemise;
         assertEquals(25,before.rotation.yawRotationSpeedMin,0);
         assertEquals(70,before.rotation.yawRotationSpeedMax,0);
@@ -75,6 +79,9 @@ public class AdaptiveDemiseConfigTest {
         assertTrue(before.same(settings(aura).snapshot().adaptiveDemise));
         assertEquals("Neutron Noise",aura.getModeSetting("Adaptive Aim Point").getValue());
         assertEquals("Balanced",aura.getModeSetting("Adaptive Legacy Hitpoint Profile").getValue());
+        assertEquals("Figure Eight",aura.getModeSetting("Adaptive Legacy Hitpoint Algorithm").getValue());
+        assertEquals(me.youngjibbit.core.combat.AdaptiveHitpointMotion.Algorithm.FIGURE_EIGHT,
+                settings(aura).snapshot().adaptiveTuning.legacyHitpoint.algorithm);
         assertEquals(saved,config.serialize());
     }
 

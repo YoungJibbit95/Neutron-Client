@@ -2,6 +2,8 @@ package me.youngjibbit.core.combat;
 
 import me.youngjibbit.core.world.DemiseRotationEngine;
 
+import net.minecraft.util.MathHelper;
+
 import java.util.Random;
 import java.util.function.LongSupplier;
 
@@ -38,7 +40,23 @@ final class AdaptiveDemiseMotion {
         holding = hold;
         if (hold) engine.hold(fromYaw, fromPitch);
         engine.setRotation(new float[]{yaw, pitch}, settings.rotation, settings.reduction(distance));
-        return hold ? new float[]{fromYaw, fromPitch} : engine.rotation();
+        if (hold) return new float[]{fromYaw, fromPitch};
+        // Mouse frames advanced toward the last walking step's target. The same
+        // entity can cross the current view before this step samples its new box.
+        float[] candidate = engine.rotation();
+        boolean staleYaw = pointsAway(MathHelper.wrapAngleTo180_float(candidate[0] - fromYaw),
+                MathHelper.wrapAngleTo180_float(yaw - fromYaw));
+        boolean stalePitch = pointsAway(candidate[1] - fromPitch, pitch - fromPitch);
+        if (staleYaw || stalePitch) {
+            if (staleYaw) candidate[0] = fromYaw;
+            if (stalePitch) candidate[1] = fromPitch;
+            engine.hold(candidate[0], candidate[1]);
+        }
+        return candidate;
+    }
+
+    private static boolean pointsAway(float step, float remaining) {
+        return step > 0 && remaining <= 0 || step < 0 && remaining >= 0;
     }
 
     void framePre() { engine.mousePre(); framePrepared = true; }
