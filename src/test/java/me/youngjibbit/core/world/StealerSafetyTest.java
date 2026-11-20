@@ -10,6 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.inventory.GuiChest;
 import net.minecraft.client.gui.inventory.GuiInventory;
 import net.minecraft.client.multiplayer.PlayerControllerMP;
+import net.minecraft.client.network.NetHandlerPlayClient;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.PlayerCapabilities;
 import net.minecraft.init.Bootstrap;
@@ -21,6 +22,7 @@ import net.minecraft.inventory.Slot;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.play.client.C0EPacketClickWindow;
+import net.minecraft.network.play.server.S2FPacketSetSlot;
 import org.junit.Test;
 
 import java.util.ArrayList;
@@ -257,6 +259,55 @@ public class StealerSafetyTest {
             assertEquals(0, r.controller.attempts.size()); assertEquals(0, r.drainClicks());
             assertSame(source, r.storage.getStackInSlot(0)); assertEquals(3, source.stackSize);
             assertEquals(0, r.inventoryCount(Items.diamond));
+        }
+    }
+
+    @Test public void chestRefreshDuringCapacityCheckRequiresAFreshPlan() throws Exception {
+        try (Run r = new Run(54)) {
+            ScaffoldClientFlowTest.set(NetHandlerPlayClient.class, r.f.player.sendQueue, "gameController", r.f.mc);
+            r.put(0, Items.diamond, 3);
+            Slot destination = new Slot(r.f.player.inventory, 9, 0, 0) {
+                boolean refreshed;
+                @Override public boolean isItemValid(ItemStack candidate) {
+                    if (!refreshed) {
+                        refreshed = true;
+                        r.f.channel.writeInbound(new S2FPacketSetSlot(r.chest.windowId, 53, new ItemStack(Items.apple)));
+                    }
+                    return super.isItemValid(candidate);
+                }
+            };
+            destination.slotNumber = 54;
+            r.chest.inventorySlots.set(54, destination);
+            r.update();
+            assertSame(Items.apple, r.storage.getStackInSlot(53).getItem());
+            assertTrue("a window refresh invalidates the selection in progress", r.controller.attempts.isEmpty());
+            assertEquals(0, r.drainClicks());
+            assertEquals(3, r.storage.getStackInSlot(0).stackSize);
+            r.nextTick(); r.update();
+            assertEquals(1, r.controller.attempts.size()); assertEquals(1, r.drainClicks());
+            assertEquals(3, r.inventoryCount(Items.diamond));
+            assertEquals(2, r.stealer.getActivitySnapshot().getTotal());
+        }
+    }
+
+    @Test public void refillingAnEmptyChestDuringTheCloseDelayKeepsTheWindowOpen() throws Exception {
+        try (Run r = new Run(27)) {
+            ScaffoldClientFlowTest.set(NetHandlerPlayClient.class, r.f.player.sendQueue, "gameController", r.f.mc);
+            r.stealer.getBooleanSetting("Auto Close").setValue(true);
+            TimerUtil closeTimer = new TimerUtil() {
+                @Override public boolean hasTimeElapsed(long time, boolean reset) {
+                    r.f.channel.writeInbound(new S2FPacketSetSlot(r.chest.windowId, 26, new ItemStack(Items.apple)));
+                    return true;
+                }
+            };
+            ScaffoldClientFlowTest.set(Stealer.class, r.stealer, "emptyTimer", closeTimer);
+            r.update();
+            assertSame(r.chest, r.f.player.openContainer);
+            assertSame(r.screen, r.f.mc.currentScreen);
+            assertSame(Items.apple, r.storage.getStackInSlot(26).getItem());
+            assertNull(r.stealer.getActivitySnapshot());
+            r.nextTick(); r.update();
+            assertEquals(1, r.inventoryCount(Items.apple));
         }
     }
 

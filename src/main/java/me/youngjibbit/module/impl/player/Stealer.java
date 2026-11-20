@@ -85,8 +85,10 @@ public class Stealer extends Module {
                         && (event.getPacket() instanceof net.minecraft.network.play.server.S2FPacketSetSlot
                         || event.getPacket() instanceof net.minecraft.network.play.server.S30PacketWindowItems
                         || event.getPacket() instanceof net.minecraft.network.play.server.S2DPacketOpenWindow
-                        || event.getPacket() instanceof net.minecraft.network.play.server.S2EPacketCloseWindow))
+                        || event.getPacket() instanceof net.minecraft.network.play.server.S2EPacketCloseWindow)) {
                     clearActivity();
+                    this.assistance.cancelPreview();
+                }
             });
     private final TimerUtil openDelayTimer = new TimerUtil();
     private final InventoryPacing actionPacing = new InventoryPacing();
@@ -157,7 +159,7 @@ public class Stealer extends Module {
         }
         if (activityContext != null && !activityContext.isCurrent(mc)) clearActivity();
         final ActivityInventoryContext scene = transferScene;
-        final long updateActivityGeneration = activityGeneration;
+        final long generation = activityGeneration;
         {
             final ContainerChest chest = (ContainerChest) mc.thePlayer.openContainer;
             if (!openDelayTimer.hasTimeElapsed(openDelay.getValue().longValue(), false)) {
@@ -167,13 +169,13 @@ public class Stealer extends Module {
             List<Integer> slots = getSlotsToSteal(chest);
             if (!validChest() || scene != transferScene || !scene.sameScene(mc) || !isToggled()) return;
             boolean empty = empty(chest);
-            if (scene != transferScene || !scene.sameScene(mc)) return;
+            if (scene != transferScene || !scene.sameScene(mc) || generation != activityGeneration) return;
             if (empty) {
                 if (!observedEmpty) { observedEmpty = true; emptyTimer.reset(); }
-                if (updateActivityGeneration == activityGeneration) publishActivity(Action.COMPLETE, false);
+                publishActivity(Action.COMPLETE, false);
                 if (autoclose.getValue() && emptyTimer.hasTimeElapsed(autocloseDelay.getValue().longValue(), false)
                         && validChest() && scene == transferScene && scene.sameScene(mc) && mc.thePlayer.inventory.getItemStack() == null
-                        && !mouseBusy()) {
+                        && !mouseBusy() && generation == activityGeneration) {
                     mc.thePlayer.closeScreen(); clearActivity(); resetStealer();
                 }
                 return;
@@ -183,10 +185,9 @@ public class Stealer extends Module {
             for (int slot : slots) {
                 ItemStack candidate = chest.getLowerChestInventory().getStackInSlot(slot);
                 if (candidate != null && canReceive(chest, candidate)) {
-                    final long generation = activityGeneration;
                     final int sourceCount = candidate.stackSize;
                     final ActivityInventoryContext exact = ActivityInventoryContext.capture(mc, slot);
-                    if (exact == null) return;
+                    if (exact == null || generation != activityGeneration) return;
                     if (interaction.click() && !assistance.ready(mc, "Transfer", slot, 0, 1, -1,
                             interaction.preview.getValue(), interaction.resume.getValue())) return;
                     final Object actionPlayer = mc.thePlayer, actionWorld = mc.theWorld,
@@ -201,10 +202,10 @@ public class Stealer extends Module {
                         if (interaction.click()) {
                             attempted = assistance.execute(mc,
                                     () -> exact.isCurrent(mc) && canReceive(chest, candidate),
-                                    () -> validChest() && scene == transferScene && scene.sameScene(mc),
-                                    this::claimTransferAttempt);
+                                    () -> validChest() && scene == transferScene && scene.sameScene(mc) && generation == activityGeneration,
+                                    () -> claimTransferAttempt(exact, generation));
                         } else {
-                            attempted = claimTransferAttempt();
+                            attempted = claimTransferAttempt(exact, generation);
                             if (attempted) mc.playerController.windowClick(chest.windowId, slot, 0, 1, mc.thePlayer);
                         }
                     } finally { actionInProgress = false; }
@@ -225,7 +226,7 @@ public class Stealer extends Module {
                             if (changed && after == null && activityTotal >= 0 && activityProcessed < activityTotal)
                                 activityProcessed++;
                             publishActivity(changed ? Action.STEALING : Action.SCANNING, changed, slot);
-                            if (changed && empty(chest)) publishActivity(Action.COMPLETE, false);
+                            if (changed && empty(chest) && generation == activityGeneration) publishActivity(Action.COMPLETE, false);
                         }
                     }
                     // One attempted transfer per client tick, including a rejected/full transfer.
@@ -236,8 +237,9 @@ public class Stealer extends Module {
         }
     }
 
-    private boolean claimTransferAttempt() {
-        if (!validChest() || attemptedThisTick() || mouseBusy() || mc.thePlayer.inventory.getItemStack() != null) return false;
+    private boolean claimTransferAttempt(ActivityInventoryContext source, long generation) {
+        if (!validChest() || attemptedThisTick() || mouseBusy() || !source.isCurrent(mc)
+                || mc.thePlayer.inventory.getItemStack() != null || generation != activityGeneration) return false;
         lastTransferTick = mc.thePlayer.ticksExisted;
         lastTransferPlayer = new WeakReference<>(mc.thePlayer); lastTransferWorld = new WeakReference<>(mc.theWorld);
         actionPacing.reset(); return true;
