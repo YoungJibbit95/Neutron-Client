@@ -177,7 +177,7 @@ public final class RotationSettings {
                     && adaptiveVariationStrength.getValue()>0);
             adaptiveVariationStrength.setVisibility(m -> adaptive() && !"Off".equals(adaptiveNoiseProfile.getValue()));
             adaptiveAimPoint.setVisibility(m -> adaptive());
-            adaptiveKeepAim.setVisibility(m -> adaptive());
+            adaptiveKeepAim.setVisibility(m -> adaptive() && !"Neutron Noise".equals(adaptiveAimPoint.getValue()));
             for(Value<?> value:new Value<?>[]{adaptiveMinAimSpeed,adaptiveMaxAimSpeed,adaptiveAdvancedAim,
                     adaptiveCurve,adaptiveNoiseProfile,adaptiveNoiseTempo})value.setVisibility(m->adaptive());
             adaptiveYawScale.setVisibility(m->adaptive() && adaptiveAdvancedAim.getValue());
@@ -214,12 +214,18 @@ public final class RotationSettings {
             @Override public void setValue(Double value) { super.setValue(value); if(adaptiveConfigImport)hitpointTempoImported=true; }
         };
         adaptiveLegacyHitpointProfile = new ComboValue("Adaptive Legacy Hitpoint Profile", parent,
-                new String[]{"Off","Subtle","Balanced","Strong","Custom"}, 0);
+                new String[]{"Off","Subtle","Balanced","Strong","Custom"}, 0) {
+            @Override public String getName() { return "Hitbox Variation"; }
+        };
         adaptiveLegacyHitpointAlgorithm = new ComboValue("Adaptive Legacy Hitpoint Algorithm", parent,
-                new String[]{"OpenSimplex2S","Perlin","ValueCubic"}, 0);
-        adaptiveLegacyHitpointRadius = percent("Adaptive Legacy Hitpoint Radius", parent, 30);
-        adaptiveLegacyHitpointTravelSpeed = new SliderValue("Adaptive Legacy Hitpoint Travel Speed", parent, 1D, .1, 3, false);
-        adaptiveLegacyHitpointTravelNoise = percent("Adaptive Legacy Hitpoint Travel Noise", parent, 25);
+                new String[]{"OpenSimplex2S","Perlin","ValueCubic","Figure Eight"}, 0) {
+            @Override public String getName() { return "Hitbox Pattern"; }
+        };
+        adaptiveLegacyHitpointRadius = percent("Adaptive Legacy Hitpoint Radius", parent, 30, "Hitbox Radius");
+        adaptiveLegacyHitpointTravelSpeed = new SliderValue("Adaptive Legacy Hitpoint Travel Speed", parent, 1D, .1, 3, false) {
+            @Override public String getName() { return "Hitbox Travel Speed"; }
+        };
+        adaptiveLegacyHitpointTravelNoise = percent("Adaptive Legacy Hitpoint Travel Noise", parent, 25, "Hitbox Speed Variation");
         // Append after all historical values: index-based legacy profiles keep their meaning.
         adaptiveEngine = new ComboValue("Adaptive Rotation Engine", parent, new String[]{"Demise","Neutron"}, 0);
         adaptiveEngine.setVisibility(m -> adaptive());
@@ -254,8 +260,12 @@ public final class RotationSettings {
     private boolean neutronAdaptiveMotion() { return adaptive() && !demiseAdaptiveMotion(); }
 
     private static SliderValue percent(String name, Module parent, double initial) {
+        return percent(name, parent, initial, name);
+    }
+
+    private static SliderValue percent(String name, Module parent, double initial, String label) {
         return new SliderValue(name, parent, initial, 0, 100, false) {
-            @Override public String getName() { return name + " (%)"; }
+            @Override public String getName() { return label + " (%)"; }
         };
     }
 
@@ -388,6 +398,11 @@ public final class RotationSettings {
     public static String canonicalName(String name) {
         if(name==null)return null;
         switch(name.toLowerCase(java.util.Locale.ROOT).replace("_","").replace(" ","")) {
+            case "adaptivelegacyhitpointprofile":return "adaptive_legacy_hitpoint_profile";
+            case "adaptivelegacyhitpointalgorithm":return "adaptive_legacy_hitpoint_algorithm";
+            case "adaptivelegacyhitpointradius":case "adaptivelegacyhitpointradius(%)":return "adaptive_legacy_hitpoint_radius";
+            case "adaptivelegacyhitpointtravelspeed":return "adaptive_legacy_hitpoint_travel_speed";
+            case "adaptivelegacyhitpointtravelnoise":case "adaptivelegacyhitpointtravelnoise(%)":return "adaptive_legacy_hitpoint_travel_noise";
             case "adaptivespeed":case "adaptiveresponse":return "adaptive_speed";
             case "adaptivevariationstrength":case "adaptivenoiseamount":case "adaptivespeednoiseamount":return "adaptive_variation_strength";
             case "adaptivenoiseprofile":case "adaptivespeednoiseprofile":return "adaptive_noise_profile";

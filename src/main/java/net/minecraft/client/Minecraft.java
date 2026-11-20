@@ -37,6 +37,7 @@ import javax.imageio.ImageIO;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.event.Event;
 import me.youngjibbit.event.input.EventKey;
+import me.youngjibbit.event.input.GameFocusLostEvent;
 import me.youngjibbit.event.packet.TickEvent;
 import me.youngjibbit.event.world.WorldEvent;
 import me.youngjibbit.gui.MainMenu;
@@ -1479,6 +1480,7 @@ public class Minecraft implements IThreadListener, IPlayerUsage
             KeyBinding.unPressAllKeys();
             this.inGameHasFocus = false;
             this.mouseHelper.ungrabMouseCursor();
+            Pulsar.BUS.post(new GameFocusLostEvent(this));
         }
     }
 

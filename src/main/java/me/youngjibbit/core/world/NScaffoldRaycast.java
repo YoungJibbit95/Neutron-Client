@@ -172,6 +172,28 @@ public final class NScaffoldRaycast {
         return plan != null && valid(world, plan, current) ? plan : null;
     }
 
+    /** On a diagonal, both orthogonal first steps can lead to the same empty corner. */
+    public static Plan keepDiagonalStep(EntityPlayerSP player, Vec3 eyes, BlockPos wanted, Plan previous,
+                                        Plan next, double reach, BooleanSupplier current, double margin) {
+        if (previous == null || next == null || previous.world != next.world
+                || previous.destination.equals(next.destination) || !previous.data.blockPos.equals(next.data.blockPos))
+            return next;
+        BlockPos corner = next.data.blockPos;
+        if (corner.getY() != wanted.getY() || Math.abs(wanted.getX() - corner.getX()) != 1
+                || Math.abs(wanted.getZ() - corner.getZ()) != 1 || previous.destination.distanceSq(wanted) != 1
+                || next.destination.distanceSq(wanted) != 1) return next;
+
+        // The two step centers are one block apart on each horizontal axis. A squared-distance
+        // lead of 1/8 corresponds to a difference of 1/16 block in progress along those axes.
+        double oldDistance = previous.destination.distanceSqToCenter(player.posX, player.posY, player.posZ);
+        double newDistance = next.destination.distanceSqToCenter(player.posX, player.posY, player.posZ);
+        if (oldDistance - newDistance > 1.0 / 8) return next;
+        MovingObjectPosition hit = trace(next.world, eyes, previous.yaw, previous.pitch, reach, previous, current);
+        if (!interiorHit(previous, hit, margin)) return currentPlan(next.world, next, current);
+        Surface surface = new Surface(corner, previous.data.facing, previous.supportState, previous.actualBounds);
+        return new Plan(next.world, previous.destination, surface, previous.yaw, previous.pitch, hit.hitVec);
+    }
+
     private static boolean onForwardPath(BlockPos from, BlockPos destination, BlockPos cell) {
         return cell.getY() == destination.getY() && !cell.equals(from)
                 && cell.getX() >= Math.min(from.getX(), destination.getX())
