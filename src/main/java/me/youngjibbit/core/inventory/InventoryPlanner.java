@@ -26,6 +26,16 @@ public final class InventoryPlanner {
                 Role.BLOCKS, Role.HEALING, Role.FOOD, Role.PEARLS};
     }
 
+    public static Role[] presetRoles(String profile) {
+        if ("Bridge".equals(profile))
+            return new Role[]{Role.SWORD, Role.BLOCKS, Role.BLOCKS, Role.PICKAXE, Role.AXE,
+                    Role.WATER, Role.PEARLS, Role.FOOD, Role.HEALING};
+        if ("PvP".equals(profile))
+            return new Role[]{Role.SWORD, Role.ROD, Role.BOW, Role.HEALING, Role.PEARLS,
+                    Role.FOOD, Role.BLOCKS, Role.PICKAXE, Role.WATER};
+        return organizedRoles();
+    }
+
     public static final class Stack {
         public final int slot, count, durability;
         public final Role role;
