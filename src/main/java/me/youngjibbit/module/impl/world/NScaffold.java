@@ -510,6 +510,9 @@ public final class NScaffold extends Module {
             plan = NScaffoldRaycast.findAhead(p, planningEyes, feet, wanted, previousBlock,
                     preferred[0], preferred[1], reach, valid, margin);
         }
+        if (walking && p.onGround && is(rotations, "Normal") && !is(mode, "Breezily") && valid.getAsBoolean()) {
+            plan = NScaffoldRaycast.keepDiagonalStep(p, planningEyes, wanted, rotationSupport, plan, reach, valid, margin);
+        }
         if (!valid.getAsBoolean()) return;
         rayPlan = plan;
         data = plan == null ? null : plan.data;

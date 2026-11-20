@@ -119,6 +119,9 @@ public class NScaffoldFlowTest {
     @Test public void diagonalLegitBridgeAdvancesAcrossRealRaysAndFrameSequences() throws Exception {
         isolated("diagonalLegitBridgeAdvancesAcrossRealRaysAndFrameSequences");
     }
+    @Test public void diagonalFootJitterKeepsAValidFaceUntilAnotherStepIsClearlyCloser() throws Exception {
+        isolated("diagonalFootJitterKeepsAValidFaceUntilAnotherStepIsClearlyCloser");
+    }
     @Test public void stationaryJumpTowerKeepsItsAimBetweenRealPlacements() throws Exception {
         isolated("stationaryJumpTowerKeepsItsAimBetweenRealPlacements");
     }
@@ -882,6 +885,43 @@ public class NScaffoldFlowTest {
 
         @Test public void diagonalLegitBridgeAdvancesAcrossRealRaysAndFrameSequences() throws Exception {
             checkDiagonalBridge("Legit");
+        }
+
+        @Test public void diagonalFootJitterKeepsAValidFaceUntilAnotherStepIsClearlyCloser() throws Exception {
+            try (Run r = new Run()) {
+                r.module.getModeSetting("Rotations").setValue("Normal");
+                r.module.getBooleanSetting("Strict rayTrace").setValue(true);
+                r.world.blocks.clear();
+                r.world.blocks.put(new BlockPos(0, 63, 0), Blocks.stone.getDefaultState());
+                r.left(true); r.forward(true);
+                r.f.player.setPosition(.892, 64, .888);
+                r.updateOnly();
+                NScaffoldRaycast.Plan first = (NScaffoldRaycast.Plan) field(NScaffold.class, "rayPlan").get(r.module);
+                assertNotNull(first);
+                assertEquals(new BlockPos(1, 63, 0), first.destination);
+                for (int i = 0; i < 6; i++) {
+                    double shift = i % 2 == 0 ? -.002 : .002;
+                    r.f.player.setPosition(.89 + shift, 64, .89 - shift);
+                    r.updateOnly();
+                    Vec3 eyes = (Vec3) field(NScaffold.class, "planningEyes").get(r.module);
+                    MovingObjectPosition hit = NScaffoldRaycast.trace(r.world, eyes, first.yaw, first.pitch,
+                            r.f.mc.playerController.getBlockReachDistance(), first, () -> true);
+                    assertTrue("the initial face stays visible inside the strict margin", NScaffoldRaycast.interiorHit(first, hit, .01));
+                    assertEquals(first.destination, r.module.targetBlock);
+                    float[] requested = (float[]) field(NScaffold.class, "rotationTarget").get(r.module);
+                    assertEquals(first.yaw, requested[0], .001F);
+                    assertEquals(first.pitch, requested[1], .001F);
+                }
+                r.f.player.setPosition(.81, 64, .97);
+                r.updateOnly();
+                assertEquals("a clear lead on Z selects the other diagonal step", new BlockPos(0, 63, 1), r.module.targetBlock);
+                r.world.blocks.put(r.module.targetBlock, Blocks.stone.getDefaultState());
+                r.f.player.setPosition(.892, 64, .888);
+                r.updateOnly();
+                assertEquals("the new support makes the diagonal destination directly reachable",
+                        new BlockPos(1, 63, 1), r.module.targetBlock);
+                assertEquals(0, r.placements(r.drain()));
+            }
         }
 
         private void checkDiagonalBridge(String placementMode) throws Exception {
