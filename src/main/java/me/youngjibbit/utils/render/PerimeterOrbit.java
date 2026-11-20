@@ -22,7 +22,7 @@ public final class PerimeterOrbit {
         float perimeter=perimeter(width,height,requestedRadius);
         if(perimeter<=0||!finite(x)||!finite(y))return 0;
         float r=radius(width,height,requestedRadius);
-        x=clamp(x,0,width);y=clamp(y,0,height);
+        // Keep the halo point on its corner normal. Clipping it to the bounding box changes its angle.
         float top=width-2*r,right=height-2*r,arc=(float)(Math.PI*r/2),distance;
         if(r>0&&x>=width-r&&y<=r) {
             float angle=(float)Math.atan2(y-r,x-(width-r));

@@ -3,6 +3,7 @@ package me.youngjibbit.clickgui.component.impl;
 import me.youngjibbit.Pulsar;
 import me.youngjibbit.clickgui.utils.ClickControlStyle;
 import me.youngjibbit.gui.LiquidGlass;
+import me.youngjibbit.gui.NeutronVisualTokens;
 import me.youngjibbit.module.Module;
 import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.font.TTFFontRenderer;
@@ -20,6 +21,11 @@ public final class DropdownModule extends ClickModule {
         Theme theme = Theme.resolve(Theme.getDefaultTheme());
         float active = getToggleProgress();
         float over = Math.min(1, Math.abs(getPresentation().amount()));
+        if (!ClickControlStyle.legacy()) {
+            drawModernRow(theme, active, over);
+            drawSettings(mouseX, mouseY);
+            return;
+        }
         if (over > .02f)
             UIUtils.drawDecorationRound(x + 1, y + 1, Math.max(1, width - 2), ROW_HEIGHT - 2, 3,
                     LiquidGlass.fill(theme, Math.round(20 + 46 * over)));
@@ -41,6 +47,25 @@ public final class DropdownModule extends ClickModule {
             UIUtils.drawDecorationRound(x + width - 8, y + 7, 5, 1, 0, new Color(245, 241, 250));
         }
         drawSettings(mouseX, mouseY);
+    }
+
+    private void drawModernRow(Theme theme, float active, float over) {
+        UIUtils.drawDecorationRound(x + 2, y + .5f, width - 4, ROW_HEIGHT - 1, 3,
+                LiquidGlass.fill(theme, Math.round(144 + 60 * over)));
+        drawFeedback();
+
+        float switchX = x + width - 23;
+        float switchY = y + (ROW_HEIGHT - 8) / 2;
+        int track = Theme.interpolateRGB(NeutronVisualTokens.TRACK.getRGB(),
+                theme.getPrimaryGradientRGB(), active);
+        UIUtils.drawDecorationRound(switchX, switchY, 17, 8, 4, new Color(track, true));
+        int thumb = Theme.interpolateRGB(NeutronVisualTokens.FAINT, NeutronVisualTokens.INK, active);
+        UIUtils.drawDecorationRound(switchX + 1 + 9 * active, switchY + 1, 6, 6, 3, new Color(thumb, true));
+
+        TTFFontRenderer font = Pulsar.INSTANCE.getFontManager().getFont("Poppins-Regular 16");
+        String title = ClickControlStyle.fit(font, getModule().getName(), switchX - x - 11);
+        font.drawString(title, x + 7, y + (ROW_HEIGHT - font.getHeight(title)) / 2,
+                hoverInk(NeutronVisualTokens.ink(theme)));
     }
 
     @Override public void mouseClicked(int mouseX, int mouseY, int button) {
