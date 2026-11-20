@@ -14,6 +14,7 @@ import me.youngjibbit.utils.Theme;
 import me.youngjibbit.utils.font.TTFFontRenderer;
 import me.youngjibbit.utils.render.*;
 import net.minecraft.client.gui.GuiScreen;
+import net.minecraft.util.ResourceLocation;
 import org.lwjgl.input.Keyboard;
 import org.lwjgl.input.Mouse;
 import java.awt.Color;
@@ -23,6 +24,8 @@ import java.util.List;
 
 /** The ClickGUI's local library. Browsing never changes the active config or theme. */
 public class ClickLibraryScreen extends GuiScreen {
+    private static final ResourceLocation LOGO = new ResourceLocation("pulsar/Logo1.png");
+    private static final ThemeLogoRenderer HEADER_LOGO = new ThemeLogoRenderer();
     private final GuiScreen parent;
     private final ConfigLibrary configs;
     private final ThemeCatalog catalog;
@@ -77,23 +80,29 @@ public class ClickLibraryScreen extends GuiScreen {
     private boolean compactConfigs() { return h < 300; }
     private boolean inlineSearch() { return w >= 520; }
     private boolean splitConfigs() { return !themes && w >= 540 && h >= 300; }
-    private float configListWidth() { return splitConfigs() ? (w - 40) * (creative()?.5f:.58f) : w - 24; }
-    private float detailsX() { return x + 28 + configListWidth(); }
-    private float detailsWidth() { return w - 40 - configListWidth(); }
+    private float sidebarWidth() { return two() && w >= 540 && h >= 300 ? Math.min(112, w * .17f) : 0; }
+    private float contentX() { return x + sidebarWidth() + 12; }
+    private float contentWidth() { return w - sidebarWidth() - 24; }
+    private float configListWidth() { return splitConfigs() ? (contentWidth() - 16) * (creative()?.5f:.60f) : contentWidth(); }
+    private float detailsX() { return contentX() + configListWidth() + 16; }
+    private float detailsWidth() { return contentWidth() - configListWidth() - 16; }
     protected ClipRect listBounds() {
         if(legacyConfigs()) {
             float top=compactConfigs()?94:inlineSearch()?88:118;
             float bottom=nameBounds().y-y-(compactConfigs()?6:14);
             return new ClipRect(x+16,y+top,w-32,Math.max(24,bottom-top));
         }
-        if (!themes) return new ClipRect(x + 12, y + (splitConfigs() ? 108 : 82), configListWidth(), Math.max(28, h - (splitConfigs() ? 140 : 170)));
-        return new ClipRect(x + 12, y + 90, w - 24, Math.max(8, h - 170));
+        if (!themes) {
+            float top = splitConfigs() ? (sidebarWidth() > 0 ? 89 : 108) : 82;
+            return new ClipRect(contentX(), y+top, configListWidth(), Math.max(28,h-top-(splitConfigs()?32:88)));
+        }
+        return new ClipRect(contentX(), y + 90, contentWidth(), Math.max(8, h - 170));
     }
     protected ClipRect searchBounds() {
         if(legacyConfigs())return inlineSearch()?new ClipRect(x+218,y+43,w-234,25)
                 :new ClipRect(x+16,y+(compactConfigs()?62:76),w-32,25);
-        if (!themes) return new ClipRect(x + 12, y + (splitConfigs() ? 82 : 56), configListWidth() - 70, 20);
-        return new ClipRect(x + 12, y + 62, w - 24, 22);
+        if (!themes) return new ClipRect(contentX(), y + (splitConfigs() ? (sidebarWidth()>0?63:82) : 56), configListWidth() - 70, 20);
+        return new ClipRect(contentX(), y + 62, contentWidth(), 22);
     }
     protected ClipRect nameBounds() {
         if(legacyConfigs())return new ClipRect(x+16,y+h-(compactConfigs()?74:84),w-32,compactConfigs()?22:25);
@@ -104,7 +113,7 @@ public class ClickLibraryScreen extends GuiScreen {
             }
             return new ClipRect(x+12,y+h-44,w-102,22);
         }
-        return new ClipRect(x + 12, y + h - 78, w - 24, 22);
+        return new ClipRect(contentX(), y + h - 78, contentWidth(), 22);
     }
     /** The save form follows Rename as one stack; paint and hit testing share these bounds. */
     protected ClipRect saveSectionBounds() {
@@ -123,7 +132,11 @@ public class ClickLibraryScreen extends GuiScreen {
             float available=Math.min(548,w-32),gap=5,bw=(available-gap*4)/5;
             return new ClipRect(x+(w-available)/2+index*(bw+gap),y+h-(compactConfigs()?45:48),bw,26);
         }
-        if (id == 6 || id == 7) return new ClipRect(x + 12 + (id - 6) * 88, y + (themes ? 34 : 30), 82, themes ? 22 : 20);
+        if (id == 6 || id == 7) {
+            float rail = sidebarWidth();
+            if (rail > 0) return new ClipRect(x + 8, y + 49 + (id - 6) * 33, rail - 14, 26);
+            return new ClipRect(x + 12 + (id - 6) * 88, y + (themes ? 34 : 30), 82, themes ? 22 : 20);
+        }
         if (id == 8) return new ClipRect(x + w - 50, y + 10, 38, 22);
         if (!themes) {
             if (id == 3) { ClipRect search = searchBounds(); return new ClipRect(search.x + search.width + 6, search.y, 64, 20); }
@@ -141,12 +154,12 @@ public class ClickLibraryScreen extends GuiScreen {
             return new ClipRect(x + 12 + column * (third + 6), y + h - 86, third, 22);
         }
         int tb = themes ? 5 : 4;
-        float bw = Math.max(1,(w - 24 - 6 * (tb - 1)) / tb);
-        return new ClipRect(x + 12 + id * (bw + 6), y + h - 50, bw, 24);
+        float bw = Math.max(1,(contentWidth() - 6 * (tb - 1)) / tb);
+        return new ClipRect(contentX() + id * (bw + 6), y + h - 50, bw, 24);
     }
     private int columns() {
         if(legacyConfigs())return Math.max(1,Math.min(4,(int)((listBounds().width+8)/168)));
-        return themes ? Math.max(1, Math.min(creative()?4:3, (int)((w - 18) / 150))) : 1;
+        return themes ? Math.max(1, Math.min(creative()?4:3, (int)((contentWidth() + 6) / 150))) : 1;
     }
     private boolean compactList() { return h < 300; }
     private float rowHeight() {
@@ -208,26 +221,24 @@ public class ClickLibraryScreen extends GuiScreen {
                     two()?4:8,two()?.98f:.92f,two()?.2f:.8f,()->{
                 try(GuiClip clip=GuiClip.push(new ClipRect(x+2,y+2,w-4,h-4))){
                     if(two()){
-                        // The outer panel retains the chosen material; readable backing is local to each control.
-                        UIUtils.drawDecorationRound(x+17,y+31,
-                                Math.max(1,w-34),1,.5f,NeutronVisualTokens.HAIRLINE);
-                        UIUtils.drawDecorationRound(x+12,y+11,2,18,1,
-                                NeutronVisualTokens.accent(theme,200));
-                        if(creative&&UiEffects.motion()){
-                            // Ambient accent follows the user's motion preference.
-                            float spark=UiEffects.time()*1.5f;
-                            float sx=x+w-28+(float)Math.sin(spark)*8f;
-                            float sy=y+15+(float)Math.cos(spark*.6f)*5f;
-                            UIUtils.drawRound(sx,sy,6,6,3,NeutronVisualTokens.accent(theme,(int)(150+80*Math.abs((float)Math.sin(spark*.3f)))));
+                        UIUtils.drawGradientHorizontal(x+3,y+3,w-6,25,6,
+                                NeutronVisualTokens.accent(theme,creative?56:39),NeutronVisualTokens.secondary(theme,8));
+                        if (mc.getTextureManager() != null) HEADER_LOGO.draw(LOGO,x+12,y+7,20,theme,1);
+                        if (sidebarWidth() > 0) {
+                            float rail = sidebarWidth();
+                            UIUtils.drawDecorationGradientVertical(x+3,y+34,rail-2,h-58,6,
+                                    NeutronVisualTokens.accent(theme,20),NeutronVisualTokens.secondary(theme,7));
+                            UIUtils.drawDecorationRound(x+rail+2,y+38,1,h-66,.5f,NeutronVisualTokens.HAIRLINE);
                         }
                     }
                     TTFFontRenderer brand=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Bold 28");
-                    brand.drawString(two()?"Library":"Neutron",x+(two()?21:12),y+12,
+                    brand.drawString(two()?"Neutron | Library":"Neutron",x+(two()?39:12),y+10,
                             two()?NeutronVisualTokens.INK:ink);
                     TTFFontRenderer sub=Pulsar.INSTANCE.fontManager.getFont("Product-Sans-Regular 16");
+                    float subtitleX=two()?39+brand.getWidth("Neutron | Library")+12:107;
                     sub.drawString(ClickControlStyle.fit(sub,two()?(themes?"Theme palettes":"Saved configurations"):
-                            themes?"Configs & themes":"Local configs",w-170),
-                            x+(two()?115:107),y+17,
+                            themes?"Configs & themes":"Local configs",Math.max(0,w-subtitleX-62)),
+                            x+subtitleX,y+14,
                             two()?(creative?NeutronVisualTokens.accent(theme,180).getRGB():NeutronVisualTokens.MUTED):ink);
                     if (!themes) configSections(ink);
                     for (int id : new int[]{0,1,2,3,4,6,7,8}) {
@@ -235,8 +246,11 @@ public class ClickLibraryScreen extends GuiScreen {
                         motion[id].stepForInput(dt, r.contains(mx,my), focus == id, pressed == id, active, ClientSettings.current());
                         r = GuiStyle.buttonBounds(r, motion[id]);
                         if(two()){
-                            MenuSurface.card(r.x,r.y,r.width,r.height,theme,active&&(id==6&&!themes||id==7&&themes),motion[id].amount());
-                            if(active&&(id==1||id==6||id==7))
+                            boolean selectedTab = active && (id==6&&!themes || id==7&&themes);
+                            MenuSurface.card(r.x,r.y,r.width,r.height,theme,selectedTab,motion[id].amount());
+                            if (selectedTab) UIUtils.drawGradientHorizontal(r.x+1,r.y+1,r.width-2,r.height-2,5,
+                                    NeutronVisualTokens.accent(theme,66),NeutronVisualTokens.secondary(theme,24));
+                            if(active&&id==1&&!themes)
                                 UIUtils.drawDecorationRound(r.x+3,r.y+r.height-3,
                                         Math.max(1,r.width-6),1,.5f,
                                         NeutronVisualTokens.accent(theme,152));
@@ -254,9 +268,17 @@ public class ClickLibraryScreen extends GuiScreen {
                             UIUtils.drawDecorationRound(r.x,r.y,r.width,r.height,3,new Color(fill,true));
                         }
                         GuiStyle.feedback(r,motion[id]);
-                        text(label(id), r.x + 6, r.y + 6, r.width - 12, UiEffects.alpha(ink, active ? 1 : .42f));
+                        int actionInk = UiEffects.alpha(ink, active ? 1 : .42f);
+                        float inset = 6;
+                        if (two() && (id == 6 || id == 7)) {
+                            LegacyUiStyle.icon(id == 6 ? "folder" : "palette", r.x+7, r.y+(r.height-12)/2,12,actionInk);
+                            inset = 25;
+                        }
+                        text(label(id),r.x+inset,r.y+(r.height-10)/2,r.width-inset-5,actionInk);
                     }
-                    field(searchBounds(), query.isEmpty() && focus != -1 ? "Search " + (themes ? "themes" : "configs") : query + (focus == -1 ? "_" : ""), focus == -1, ink);
+                    String searchText = query.isEmpty() ? (focus == -1 ? "_ " : "") + "Search " + (themes ? "themes" : "configs")
+                            : query + (focus == -1 ? "_" : "");
+                    field(searchBounds(),searchText,focus == -1,ink,true);
                     try (GuiClip list = GuiClip.push(listBounds())) {
                         List<String> items = items();
                         for (int i = 0; i < items.size(); i++) {
@@ -297,15 +319,22 @@ public class ClickLibraryScreen extends GuiScreen {
                             if (themes) {
                                 Theme tile = catalog.find(ref);
                                 // Literal swatches: the selected global gradient must never recolor another preset.
-                                if(creative()&&!compactList())
-                                    UIUtils.drawLiteralGradient(r.x+10,r.y+8,r.width-20,24,12,tile.getPrimaryGradientColor(),tile.getSecondaryGradientColor());
-                                else UIUtils.drawLiteralGradient(r.x+5,r.y+4,r.width-10,compactList()?11:18,2,tile.getPrimaryGradientColor(),tile.getSecondaryGradientColor());
+                                boolean wideSwatch = creative() && !compactList();
+                                float pad = wideSwatch ? 10 : 5;
+                                float swatchY = r.y + (wideSwatch ? 8 : 4);
+                                float swatchHeight = wideSwatch ? 24 : compactList() ? 11 : 18;
+                                if (tile.isVertical()) UIUtils.drawLiteralGradientVertical(r.x+pad,swatchY,r.width-2*pad,swatchHeight,
+                                        wideSwatch?12:2,tile.getPrimaryGradientColor(),tile.getSecondaryGradientColor());
+                                else UIUtils.drawLiteralGradient(r.x+pad,swatchY,r.width-2*pad,swatchHeight,
+                                        wideSwatch?12:2,tile.getPrimaryGradientColor(),tile.getSecondaryGradientColor());
                                 float labelY=r.y+(compactList()?19:creative()?40:31);
                                 text(tile.getDisplayName(), r.x+7,labelY,r.width-27,ink);
-                                if (chosen) text("+",r.x+r.width-16,labelY,10,ink);
+                                if (chosen) LegacyUiStyle.icon("check",r.x+r.width-19,labelY-1,11,ink);
                             } else {
-                                text(ref,r.x+10,r.y+(r.height-10)/2,r.width-(chosen&&splitConfigs()?70:20),ink);
-                                if(chosen&&splitConfigs()) text("Selected",r.x+r.width-55,r.y+11,48,UiEffects.alpha(ink,.75f));
+                                LegacyUiStyle.icon("file",r.x+10,r.y+(r.height-12)/2,12,
+                                        chosen?theme.getPrimaryGradientRGB():NeutronVisualTokens.MUTED);
+                                text(ref,r.x+29,r.y+(r.height-10)/2,r.width-(chosen?55:38),ink);
+                                if(chosen) LegacyUiStyle.icon("check",r.x+r.width-19,r.y+(r.height-11)/2,11,ink);
                             }
                         }
                         if (items.isEmpty()) text(query.isEmpty() ? themes ? "No themes available." : configs.available() ? "No saved configs. Save your current setup." : "Config storage unavailable." : "No matches. Try another search.",
@@ -315,7 +344,7 @@ public class ClickLibraryScreen extends GuiScreen {
                         ClipRect r=listBounds(); float thumb=Math.max(10,r.height*r.height/content);
                         UIUtils.drawDecorationRound(r.x+r.width-2,r.y+scroll/(content-r.height)*(r.height-thumb),2,thumb,1,UiEffects.color(ink,.7f));
                     }
-                    if (!themes) field(nameBounds(),renaming&&focus==-4?(renameBuffer.isEmpty()?"New name":renameBuffer+(focus==-4?"_":"")):(name.isEmpty()&&focus!=-3?"Config name":name+(focus==-3?"_":"")),renaming?focus==-4:focus==-3,ink);
+                    if (!themes) field(nameBounds(),renaming&&focus==-4?(renameBuffer.isEmpty()?"New name":renameBuffer+(focus==-4?"_":"")):(name.isEmpty()&&focus!=-3?"Config name":name+(focus==-3?"_":"")),renaming?focus==-4:focus==-3,ink,false);
                     else {
                         Theme selection=catalog.find(selectedTheme);
                         String info=selection==null?"Select a theme":selection.getDisplayName()+(selection.isCustom()?" / Custom":" / Preset")+
@@ -431,7 +460,7 @@ public class ClickLibraryScreen extends GuiScreen {
     }
     private void configSections(int ink) {
         if (splitConfigs()) {
-            text("Saved configs · " + configs.entries().size(),x+12,y+65,configListWidth(),ink);
+            text("Saved configs · " + configs.entries().size(),contentX(),searchBounds().y-17,configListWidth(),ink);
             UIUtils.drawDecorationRound(detailsX()-8,y+64,1,h-96,0,UiEffects.color(ink,.12f));
             text("Selected config",detailsX(),y+66,detailsWidth(),UiEffects.alpha(ink,.72f));
             String visible = visibleConfigSelection();
@@ -444,16 +473,22 @@ public class ClickLibraryScreen extends GuiScreen {
             text("Save current setup as",section.x,section.y,section.width,UiEffects.alpha(ink,.8f));
         }
     }
-    private void field(ClipRect r,String value,boolean focused,int ink) {
+    private void field(ClipRect r,String value,boolean focused,int ink,boolean search) {
         if(ThemeMode.APPROACH_TWO.equals(ThemeMode.selected())){
             MenuSurface.card(r.x,r.y,r.width,r.height,Theme.getDefaultTheme(),focused&&showsKeyboardFocus(),false);
             if(focused&&showsKeyboardFocus())UIUtils.drawDecorationRound(r.x+4,
                     r.y+r.height-2,Math.max(1,r.width-8),1,.5f,
                     NeutronVisualTokens.accent(Theme.getDefaultTheme(),185));
         }else MenuSurface.card(r.x,r.y,r.width,r.height,Theme.getDefaultTheme(),focused&&showsKeyboardFocus(),false);
-        try(GuiClip clip=GuiClip.push(new ClipRect(r.x+5,r.y+2,r.width-10,r.height-4))) {
-            if(focused)while(value.length()>1&&font().getWidth(value)>r.width-14)value=value.substring(value.offsetByCodePoints(0,1));
-            text(value,r.x+7,r.y+6,r.width-14,ink);
+        float inset = 7;
+        if (search && two()) {
+            LegacyUiStyle.icon("search",r.x+7,r.y+(r.height-11)/2,11,NeutronVisualTokens.MUTED);
+            inset = 24;
+        }
+        float textWidth = Math.max(0,r.width-inset-7);
+        try(GuiClip clip=GuiClip.push(new ClipRect(r.x+inset-2,r.y+2,textWidth+4,r.height-4))) {
+            if(focused)while(value.length()>1&&font().getWidth(value)>textWidth)value=value.substring(value.offsetByCodePoints(0,1));
+            text(value,r.x+inset,r.y+6,textWidth,ink);
         }
     }
     private ClipRect confirmBounds(boolean accept) {
@@ -601,6 +636,7 @@ public class ClickLibraryScreen extends GuiScreen {
         if(enter||key==Keyboard.KEY_SPACE)activate(focus);
     }
     @Override public void onGuiClosed() {
+        HEADER_LOGO.close();
         pressed=-99;configs.cancel();renaming=false;renameBuffer="";surface.close();for(UiSpring state:motion)state.reset();cardMotion.clear();
         if(Keyboard.isCreated()&&ownsKeyboardRepeat)Keyboard.enableRepeatEvents(repeatBefore);
         ownsKeyboardRepeat=false;
