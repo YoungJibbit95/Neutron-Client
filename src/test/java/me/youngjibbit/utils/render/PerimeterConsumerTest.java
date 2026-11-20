@@ -29,6 +29,24 @@ public class PerimeterConsumerTest {
         }
     }
 
+    @Test public void outerGlowKeepsTheBorderPhaseAlongEachRoundedCornerNormal() {
+        float left = 40, top = 60, width = 50, height = 32, radius = 13;
+        ArrayListSurface.Shape shape = ArrayListSurface.Shape.roundedRectangle(left, top, width, height, radius);
+        try (UiEffects.GradientSpace ignored = shape.gradientSpace()) {
+            for (int sx : new int[]{-1, 1}) for (int sy : new int[]{-1, 1}) {
+                float centerX = left + (sx < 0 ? radius : width - radius);
+                float centerY = top + (sy < 0 ? radius : height - radius);
+                // (5,12) lies exactly on a radius-13 arc. Its multiple is the same ray in the halo.
+                for (int direction : new int[]{0, -1}) for (float phase : new float[]{.14f, .47f, .75f}) {
+                    UiEffects.Gradient orbit = orbit(phase, direction);
+                    float border = UiEffects.gradientPosition(orbit, centerX + sx * 5, centerY + sy * 12, 854, 480);
+                    float halo = UiEffects.gradientPosition(orbit, centerX + sx * 10, centerY + sy * 24, 854, 480);
+                    assertEquals("border and halo must share the same palette stop", border, halo, .000001f);
+                }
+            }
+        }
+    }
+
     @Test public void translatedPanelKeepsTheSameLocalContour() {
         ArrayListSurface.Shape shape=panel();
         UiEffects.Gradient gradient=orbit(.31f,-1);

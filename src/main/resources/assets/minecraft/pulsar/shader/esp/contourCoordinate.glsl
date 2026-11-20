@@ -1,9 +1,9 @@
 #ifndef NEUTRON_CONTOUR_COORDINATE
 #define NEUTRON_CONTOUR_COORDINATE
 // Original Neutron arc-length implementation, matching PerimeterOrbit.contour.
-float uiContour(vec2 point, vec2 size, float radius) {
+// Halo fragments outside the box must keep their direction from the rounded corner center.
+float uiContour(vec2 p, vec2 size, float radius) {
  vec2 wh=max(size,vec2(1.0));
- vec2 p=clamp(point,vec2(0.0),wh);
  float r=clamp(radius,0.0,min(wh.x,wh.y)*.5);
  float top=wh.x-2.0*r, right=wh.y-2.0*r, arc=1.57079632679*r;
  float perimeter=2.0*top+2.0*right+4.0*arc;
