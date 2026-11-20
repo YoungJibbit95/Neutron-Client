@@ -1,5 +1,9 @@
 package me.youngjibbit.module.impl.client;
 
+import me.youngjibbit.Pulsar;
+import me.youngjibbit.core.combat.RotationBehaviorHookTest;
+import me.youngjibbit.event.update.EventUpdate;
+import net.minecraft.client.settings.GameSettings;
 import me.youngjibbit.value.impl.ComboValue;
 import me.youngjibbit.value.impl.CheckBoxValue;
 import org.junit.Test;
@@ -12,6 +16,30 @@ import java.lang.reflect.Field;
 import static org.junit.Assert.*;
 
 public class WatermarkIslandModeTest {
+    @Test public void losingFocusWithdrawsOnlyTheActiveClockEvenBetweenRenderFrames() throws Exception {
+        try (RotationBehaviorHookTest.Fixture f = new RotationBehaviorHookTest.Fixture()) {
+            f.mc.gameSettings = RotationBehaviorHookTest.bare(GameSettings.class);
+            WatermarkHUDModule module = new WatermarkHUDModule();
+            module.getModeSetting("Mode").setValue("Modern");
+            Field field = WatermarkHUDModule.class.getDeclaredField("islandState");
+            field.setAccessible(true);
+            IslandStateMachine state = (IslandStateMachine) field.get(module);
+            long now = System.nanoTime();
+            Pulsar.BUS.subscribe(module);
+            try {
+                assertTrue(state.offer(IslandStateMachine.State.CLOCK_REMINDER, "mark", "12:10", 1, now));
+                Pulsar.BUS.post(new EventUpdate());
+                assertEquals(1, state.pendingEventCount());
+                f.mc.inGameHasFocus = false;
+                Pulsar.BUS.post(new EventUpdate());
+                assertEquals("a reminder must end on focus loss", 0, state.pendingEventCount());
+                assertTrue(state.offer(IslandStateMachine.State.MODULE_TOAST, "module", "Enabled", 1, now + 1));
+                Pulsar.BUS.post(new EventUpdate());
+                assertEquals(1, state.pendingEventCount());
+            } finally { Pulsar.BUS.unsubscribe(module); }
+        }
+    }
+
     @Test public void sanitizedEmptyTargetNeverEntersTheNotificationRenderer() throws Exception {
         me.youngjibbit.module.impl.client.island.IslandStateMachine model=new me.youngjibbit.module.impl.client.island.IslandStateMachine();
         me.youngjibbit.module.impl.client.island.IslandPresentation target=

@@ -294,6 +294,9 @@ public final class IslandStateMachine {
     }
 
     public int pendingEventCount() { return active == null ? 0 : 1; }
+    public void dismissClockReminder() {
+        if (active != null && active.state == State.CLOCK_REMINDER) active = null;
+    }
     public int rememberedEventCount() { return recentCount; }
 
     public void reset() {
