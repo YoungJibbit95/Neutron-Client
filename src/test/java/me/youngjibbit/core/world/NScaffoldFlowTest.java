@@ -158,6 +158,9 @@ public class NScaffoldFlowTest {
     @Test public void airborneClutchFollowsTheNextDiagonalFootCellOnAscentAndDescent() throws Exception {
         isolated("airborneClutchFollowsTheNextDiagonalFootCellOnAscentAndDescent");
     }
+    @Test public void airborneImpulseLandsBeforeTheDiagonalSupportIsPassed() throws Exception {
+        isolated("airborneImpulseLandsBeforeTheDiagonalSupportIsPassed");
+    }
     @Test public void airborneClutchRespectsKeepYAndAnAlreadySupportedLanding() throws Exception {
         isolated("airborneClutchRespectsKeepYAndAnAlreadySupportedLanding");
     }
@@ -1661,6 +1664,41 @@ public class NScaffoldFlowTest {
                     assertEquals("diagonal Telly uses its separate two-tick window", tick == 2, r.world.blocks.containsKey(r.target));
                 }
                 assertEquals(1, r.placements(r.drain()));
+            }
+        }
+
+        @Test public void airborneImpulseLandsBeforeTheDiagonalSupportIsPassed() throws Exception {
+            try (Run r = new Run()) {
+                r.module.getModeSetting("Rotations").setValue("Normal");
+                r.module.getBooleanSetting("Clutch").setValue(true);
+                r.world.blocks.clear();
+                r.world.blocks.put(new BlockPos(0, 63, 0), Blocks.stone.getDefaultState());
+                r.world.realPlacementConditions = true;
+                r.world.loadedEntityList.add(r.f.player);
+                r.f.player.setPosition(.83, 64, .83);
+                r.f.player.rotationYaw = 0; r.f.player.rotationPitch = 30;
+                r.f.player.onGround = true;
+                long start = r.nanos.get();
+                long nextFrame = start + 33_333_333L;
+                int clicks = 0;
+                boolean airborne = false, landed = false;
+                for (int tick = 1; tick <= 30; tick++) {
+                    long time = start + tick * 50_000_000L;
+                    if (tick == 8) {
+                        r.f.player.motionX = .28; r.f.player.motionY = .2615; r.f.player.motionZ = .28;
+                    }
+                    while (nextFrame <= time) {
+                        r.frameAt(nextFrame); nextFrame += 33_333_333L;
+                    }
+                    r.physicsAt(time);
+                    clicks += r.placements(r.drain());
+                    if (tick >= 8) airborne |= !r.f.player.onGround;
+                    landed |= airborne && r.f.player.onGround && Math.abs(r.f.player.posY - 64) < 1.0E-6;
+                }
+                assertTrue("the impulse leaves the platform", airborne);
+                assertTrue("the requested face is hit while it can still support the player: " + clicks
+                        + " placements, Y " + r.f.player.posY, clicks >= 2 && landed);
+                assertEquals(64, r.f.player.posY, 1.0E-6);
             }
         }
 
