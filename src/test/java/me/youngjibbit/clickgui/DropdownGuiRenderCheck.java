@@ -11,6 +11,7 @@ import me.youngjibbit.module.impl.client.ClientSettings;
 import me.youngjibbit.module.impl.render.ClickGUI;
 import me.youngjibbit.rendercheck.PbufferTestContext;
 import me.youngjibbit.utils.Theme;
+import me.youngjibbit.theme.ThemeMode;
 import me.youngjibbit.utils.render.ArrayListSurface;
 import me.youngjibbit.utils.render.RenderDiagnostics;
 import me.youngjibbit.value.impl.ComboValue;
@@ -83,6 +84,7 @@ public final class DropdownGuiRenderCheck {
             checkBounds(gui, true);
             snapshot("01-columns.png");
             checkMode(gui);
+            checkModernSwitch(gui, settings);
             checkScissor(gui);
             checkHeadingPasses(gui);
             checkInputs(gui);
@@ -113,6 +115,59 @@ public final class DropdownGuiRenderCheck {
         resolve.setAccessible(true);
         require(resolve.invoke(owner, "Dropdown") == gui, "Selected mode must resolve to production dropdown screen");
         require(!gui.doesGuiPauseGame(), "ClickGUI must not pause gameplay");
+    }
+
+    private static void checkModernSwitch(Gui gui, ClientSettings settings) throws Exception {
+        ClickGUI owner = (ClickGUI)Pulsar.INSTANCE.getMm().getModule(ClickGUI.class);
+        String previousTheme = ThemeMode.selected();
+        boolean reduced = settings.reducedMotion.getValue();
+        DropdownModule row = row(panel(gui, Category.Combat), "AimAssist");
+        boolean wasEnabled = row.getModule().isToggled();
+        try {
+            ThemeMode.select(ThemeMode.APPROACH_TWO);
+            settings.reducedMotion.setValue(true);
+            row.getModule().setToggled(false);
+            frame(gui, -1, -1);
+            int left = (int)(row.getX() + row.getWidth() - 19);
+            int right = left + 9;
+            int middle = (int)(row.getY() + DropdownModule.ROW_HEIGHT / 2);
+            int offDifference = greenAt(left, middle) - greenAt(right, middle);
+            gui.click(right, middle, 0);
+            gui.release();
+            frame(gui, -1, -1);
+            snapshot("02-approach2-switches.png");
+            require(row.getModule().isToggled() && !row.isOpen(),
+                    "Clicking the modern switch must toggle once without opening settings");
+            require(offDifference > 30 && greenAt(right, middle) - greenAt(left, middle) > 30,
+                    "Reduced motion must draw the thumb at opposite ends in the first OFF and ON frames");
+
+            gui.key(' ', Keyboard.KEY_SPACE);
+            frame(gui, -1, -1);
+            require(!row.getModule().isToggled() && greenAt(left, middle) - greenAt(right, middle) > 30,
+                    "Keyboard activation must move the same switch to OFF immediately");
+            gui.click(right, middle, 1);
+            require(row.isOpen() && !row.getModule().isToggled(), "Right click must still disclose settings");
+            ComboValue modernLayout = owner.getModeSetting("Neutron 2.0 Layout");
+            modernLayout.setValue("Dropdown");
+            Method resolve = ClickGUI.class.getDeclaredMethod("resolveScreen", String.class);
+            resolve.setAccessible(true);
+            require(resolve.invoke(owner, "Panel") == gui, "Modern Dropdown selection must open the tested screen");
+            modernLayout.reset();
+        } finally {
+            row.setOpen(false);
+            row.getModule().setToggled(wasEnabled);
+            settings.reducedMotion.setValue(reduced);
+            ThemeMode.select(previousTheme);
+            gui.initGui();
+            frame(gui, -1, -1);
+        }
+    }
+
+    private static int greenAt(int x, int y) {
+        int scale = new ScaledResolution(mc).getScaleFactor();
+        ByteBuffer pixel = BufferUtils.createByteBuffer(4);
+        glReadPixels(x * scale, mc.displayHeight - 1 - y * scale, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixel);
+        return pixel.get(1) & 255;
     }
 
     private static void checkScissor(Gui gui) {
