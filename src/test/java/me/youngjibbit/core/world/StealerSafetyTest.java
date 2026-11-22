@@ -1,6 +1,7 @@
 package me.youngjibbit.core.world;
 
 import me.youngjibbit.Pulsar;
+import me.youngjibbit.core.inventory.InventorySlotOrder;
 import me.youngjibbit.core.combat.RotationBehaviorHookTest;
 import me.youngjibbit.event.update.EventUpdate;
 import me.youngjibbit.event.world.WorldEvent;
@@ -10,10 +11,12 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.inventory.GuiChest;
 import net.minecraft.client.gui.inventory.GuiInventory;
 import net.minecraft.client.multiplayer.PlayerControllerMP;
+import net.minecraft.client.network.NetHandlerPlayClient;
 import net.minecraft.entity.player.EntityPlayer;
 import net.minecraft.entity.player.PlayerCapabilities;
 import net.minecraft.init.Bootstrap;
 import net.minecraft.init.Items;
+import net.minecraft.init.Blocks;
 import net.minecraft.inventory.ContainerChest;
 import net.minecraft.inventory.ContainerPlayer;
 import net.minecraft.inventory.InventoryBasic;
@@ -21,10 +24,14 @@ import net.minecraft.inventory.Slot;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.network.play.client.C0EPacketClickWindow;
+import net.minecraft.network.play.server.S2FPacketSetSlot;
 import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
+import java.util.Random;
 
 import static org.junit.Assert.*;
 
@@ -96,6 +103,100 @@ public class StealerSafetyTest {
         @Override public void close() throws Exception {
             try { stealer.setToggled(false); }
             finally { f.close(); }
+        }
+    }
+
+    @Test public void buildingBlocksFirstUsesBothChestSizesAndPreservesPickOrderWithinEachGroup() throws Exception {
+        for (int size : new int[]{27,54}) try (Run r = new Run(size)) {
+            r.stealer.getBooleanSetting("Building Blocks First").setValue(true);
+            r.put(0, Items.diamond, 2);
+            r.put(1, Item.getItemFromBlock(Blocks.tnt), 64);
+            r.put(2, Item.getItemFromBlock(Blocks.chest), 64);
+            r.put(3, Item.getItemFromBlock(Blocks.sand), 64);
+            r.put(size - 2, Item.getItemFromBlock(Blocks.planks), 48);
+            r.put(size - 1, Item.getItemFromBlock(Blocks.wool), 64);
+            for (int expected : new int[]{size - 2, size - 1, 0, 1, 2, 3}) {
+                r.update(); r.update();
+                assertEquals(Integer.valueOf(expected), r.controller.attempts.get(r.controller.attempts.size() - 1));
+                assertEquals(1, r.drainClicks());
+                assertNull(r.storage.getStackInSlot(expected));
+                r.nextTick();
+            }
+        }
+    }
+
+    @Test public void rowsStillBreakTiesAndOldProfilesKeepTheirMixedPickOrder() throws Exception {
+        for (boolean prefer : new boolean[]{false,true}) try (Run r = new Run(27)) {
+            long seed = 143;
+            r.stealer.getBooleanSetting("Randomness").setValue(true);
+            r.stealer.getModeSetting("Pick Profile").setValue("Rows");
+            if (prefer) r.stealer.getBooleanSetting("Building Blocks First").setValue(true);
+            ScaffoldClientFlowTest.set(Stealer.class, r.stealer, "selectionSeeds", new Random(seed));
+            List<Integer> order = new InventorySlotOrder(27, "Rows", new Random(seed).nextLong()).slots();
+            r.put(order.get(0), Items.diamond, 1);
+            r.put(order.get(1), Item.getItemFromBlock(Blocks.planks), 16);
+            r.put(order.get(2), Item.getItemFromBlock(Blocks.wool), 32);
+            r.update();
+            assertEquals(Collections.singletonList(order.get(prefer ? 1 : 0)), r.controller.attempts);
+            assertEquals(1, r.drainClicks());
+        }
+    }
+
+    @Test public void unavailableBuildingBlocksYieldToOneItemThatFitsAndFullInventoryStops() throws Exception {
+        try (Run r = new Run(54)) {
+            r.stealer.getBooleanSetting("Building Blocks First").setValue(true);
+            r.put(0, Item.getItemFromBlock(Blocks.planks), 48);
+            r.put(53, Items.diamond, 3);
+            for (int i = 0; i < 36; i++) r.f.player.inventory.mainInventory[i] = new ItemStack(Items.stick,64);
+            r.f.player.inventory.mainInventory[8] = new ItemStack(Items.diamond, 63);
+            r.update(); r.update();
+            assertEquals(Collections.singletonList(53), r.controller.attempts);
+            assertEquals(1, r.drainClicks());
+            assertEquals(2, r.storage.getStackInSlot(53).stackSize);
+            assertEquals(48, r.storage.getStackInSlot(0).stackSize);
+            r.nextTick(); r.update();
+            assertEquals(1, r.controller.attempts.size()); assertEquals(0, r.drainClicks());
+        }
+    }
+
+    @Test public void usefulFirstKeepsStableOrderAndFallsBackToUnclassifiedItems() throws Exception {
+        for (int size : new int[]{27, 54}) try (Run r = new Run(size)) {
+            r.stealer.getModeSetting("Loot Selection").setValue("Useful First");
+            r.put(0, Items.rotten_flesh, 1);
+            r.put(1, Items.bread, 4);
+            r.put(2, Items.iron_chestplate, 1);
+            r.put(size - 1, Item.getItemFromBlock(Blocks.planks), 48);
+            for (int expected : new int[]{1, 2, size - 1, 0}) {
+                r.update(); r.update();
+                assertEquals(Integer.valueOf(expected), r.controller.attempts.get(r.controller.attempts.size() - 1));
+                assertEquals(1, r.drainClicks());
+                r.nextTick();
+            }
+        }
+    }
+
+    @Test public void customSelectionCountsEligibleLootAndLeavesExcludedContentsForThePlayer() throws Exception {
+        for (int size : new int[]{27, 54}) try (Run r = new Run(size)) {
+            r.stealer.getModeSetting("Loot Selection").setValue("Custom");
+            r.stealer.getBooleanSetting("Take Equipment").setValue(false);
+            r.stealer.getBooleanSetting("Take Building Blocks").setValue(false);
+            r.stealer.getBooleanSetting("Auto Close").setValue(true);
+            r.put(0, Items.iron_chestplate, 1); r.put(1, Items.poisonous_potato, 2);
+            r.put(2, Item.getItemFromBlock(Blocks.stone), 32); r.put(size - 1, Items.arrow, 8);
+            r.f.player.inventory.setItemStack(new ItemStack(Items.stick));
+            r.update(); assertTrue(r.controller.attempts.isEmpty());
+            r.f.player.inventory.setItemStack(null);
+            r.update(); r.nextTick(); r.update();
+            assertEquals(Collections.singletonList(size - 1), r.controller.attempts);
+            assertTrue(r.stealer.getActivitySnapshot().isComplete());
+            assertEquals(1, r.stealer.getActivitySnapshot().getTotal());
+            assertEquals(1, r.stealer.getActivitySnapshot().getProcessed());
+            assertSame(r.screen, r.f.mc.currentScreen);
+            assertNotNull(r.storage.getStackInSlot(0)); assertNotNull(r.storage.getStackInSlot(2));
+            r.stealer.getBooleanSetting("Take Other Items").setValue(true);
+            r.update();
+            assertEquals(Arrays.asList(size - 1, 1), r.controller.attempts);
+            assertNull(r.storage.getStackInSlot(1));
         }
     }
 
@@ -257,6 +358,55 @@ public class StealerSafetyTest {
             assertEquals(0, r.controller.attempts.size()); assertEquals(0, r.drainClicks());
             assertSame(source, r.storage.getStackInSlot(0)); assertEquals(3, source.stackSize);
             assertEquals(0, r.inventoryCount(Items.diamond));
+        }
+    }
+
+    @Test public void chestRefreshDuringCapacityCheckRequiresAFreshPlan() throws Exception {
+        try (Run r = new Run(54)) {
+            ScaffoldClientFlowTest.set(NetHandlerPlayClient.class, r.f.player.sendQueue, "gameController", r.f.mc);
+            r.put(0, Items.diamond, 3);
+            Slot destination = new Slot(r.f.player.inventory, 9, 0, 0) {
+                boolean refreshed;
+                @Override public boolean isItemValid(ItemStack candidate) {
+                    if (!refreshed) {
+                        refreshed = true;
+                        r.f.channel.writeInbound(new S2FPacketSetSlot(r.chest.windowId, 53, new ItemStack(Items.apple)));
+                    }
+                    return super.isItemValid(candidate);
+                }
+            };
+            destination.slotNumber = 54;
+            r.chest.inventorySlots.set(54, destination);
+            r.update();
+            assertSame(Items.apple, r.storage.getStackInSlot(53).getItem());
+            assertTrue("a window refresh invalidates the selection in progress", r.controller.attempts.isEmpty());
+            assertEquals(0, r.drainClicks());
+            assertEquals(3, r.storage.getStackInSlot(0).stackSize);
+            r.nextTick(); r.update();
+            assertEquals(1, r.controller.attempts.size()); assertEquals(1, r.drainClicks());
+            assertEquals(3, r.inventoryCount(Items.diamond));
+            assertEquals(2, r.stealer.getActivitySnapshot().getTotal());
+        }
+    }
+
+    @Test public void refillingAnEmptyChestDuringTheCloseDelayKeepsTheWindowOpen() throws Exception {
+        try (Run r = new Run(27)) {
+            ScaffoldClientFlowTest.set(NetHandlerPlayClient.class, r.f.player.sendQueue, "gameController", r.f.mc);
+            r.stealer.getBooleanSetting("Auto Close").setValue(true);
+            TimerUtil closeTimer = new TimerUtil() {
+                @Override public boolean hasTimeElapsed(long time, boolean reset) {
+                    r.f.channel.writeInbound(new S2FPacketSetSlot(r.chest.windowId, 26, new ItemStack(Items.apple)));
+                    return true;
+                }
+            };
+            ScaffoldClientFlowTest.set(Stealer.class, r.stealer, "emptyTimer", closeTimer);
+            r.update();
+            assertSame(r.chest, r.f.player.openContainer);
+            assertSame(r.screen, r.f.mc.currentScreen);
+            assertSame(Items.apple, r.storage.getStackInSlot(26).getItem());
+            assertNull(r.stealer.getActivitySnapshot());
+            r.nextTick(); r.update();
+            assertEquals(1, r.inventoryCount(Items.apple));
         }
     }
 

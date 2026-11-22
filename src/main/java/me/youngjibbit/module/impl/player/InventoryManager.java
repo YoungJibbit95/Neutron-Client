@@ -173,7 +173,7 @@ public class InventoryManager extends Module
     public CheckBoxValue keepArmor = new CheckBoxValue("Keep Armor", this,false);
     public CheckBoxValue onlyStill = new CheckBoxValue("Only When Standing Still", this,false);
     // Appended: legacy setting indexes remain stable.
-    public final ComboValue layout = new ComboValue("Layout", this, "Organized", new String[]{"Organized", "Custom", "Legacy"});
+    public final ComboValue layout = new ComboValue("Layout", this, "Organized", new String[]{"Organized", "Custom", "Legacy", "PvP", "Bridge"});
     public final CheckBoxValue keepOnePerType = new CheckBoxValue("Keep One Per Type", this, true);
     public final ComboValue vacantSlots = new ComboValue("Vacant Slots", this, "Utility Fallback", new String[]{"Utility Fallback", "Reserve", "Leave"});
     public final ComboValue[] hotbarRoles = new ComboValue[9];
@@ -256,7 +256,7 @@ public class InventoryManager extends Module
                     getTrashStore().contains(TrashItemStore.keyFor(stack)));
             if (snapshot != null) snapshots.add(snapshot);
         }
-        InventoryPlanner.Role[] roles = InventoryPlanner.organizedRoles();
+        InventoryPlanner.Role[] roles = InventoryPlanner.presetRoles(layout.getValue());
         if ("Custom".equals(layout.getValue())) for (int i = 0; i < roles.length; i++) roles[i] = InventoryPlanner.Role.named(hotbarRoles[i].getValue());
         InventoryPlanner.Vacant vacant = "Reserve".equals(vacantSlots.getValue()) ? InventoryPlanner.Vacant.RESERVE
                 : "Leave".equals(vacantSlots.getValue()) ? InventoryPlanner.Vacant.LEAVE : InventoryPlanner.Vacant.UTILITY;
