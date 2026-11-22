@@ -14,6 +14,7 @@ import me.youngjibbit.event.packet.TickEvent;
 import me.youngjibbit.event.player.AttackEvent;
 import me.youngjibbit.event.player.MovementInputEvent;
 import me.youngjibbit.event.render.Event3D;
+import me.youngjibbit.event.input.GameFocusLostEvent;
 import me.youngjibbit.event.world.WorldEvent;
 import me.youngjibbit.module.Category;
 import me.youngjibbit.module.Module;
@@ -112,6 +113,10 @@ public final class FakeLag extends Module {
     public EntityPlayer getTarget() { return target; }
     public int queuedPackets() { return scene != null && scene.objects() ? scene.pipeline.fakeLag().size() : 0; }
 
+    private void focusLost(GameFocusLostEvent event) {
+        if (event.client == client && scene != null) reset(true);
+    }
+    @Subscribe private final Listener<GameFocusLostEvent> onFocusLost = new Listener<>(this::focusLost);
     @Subscribe private final Listener<WorldEvent> onWorld = new Listener<>(event -> {
         if (event instanceof WorldEvent.Unload) unloadedWorld = new WeakReference<>(event.world);
         else if (event instanceof WorldEvent.Load) unloadedWorld.clear();

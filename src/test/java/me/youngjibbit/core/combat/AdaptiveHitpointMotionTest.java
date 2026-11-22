@@ -128,6 +128,19 @@ public class AdaptiveHitpointMotionTest {
         assertArrayEquals(point(baseline,.05),point(checked,.05),0);
     }
 
+    @Test public void figureEightUsesTheConfiguredRadiusAndPeriodWithinTheMovingBox() {
+        AdaptiveHitpointMotion motion = new AdaptiveHitpointMotion(42,
+                custom(AdaptiveHitpointMotion.Algorithm.FIGURE_EIGHT, .8, 2, 0), 0);
+        for (int i = 0; i <= 16; i++) {
+            double time = i / 32.0, x = 25 + time;
+            double[] p = motion.point(x, 3, 9, x - 1, 1, 8, x + 1, 5, 10, time);
+            double angle = time * 2 * Math.PI * 2;
+            assertEquals(.8 * Math.abs(Math.sin(angle)), Math.hypot(p[0] - x, p[2] - 9), 1e-12);
+            assertEquals(3 + .8 * Math.sin(2 * angle), p[1], 1e-12);
+            assertArrayEquals(p, motion.point(x, 3, 9, x - 1, 1, 8, x + 1, 5, 10, time), 0);
+        }
+    }
+
     @Test public void invalidRadiusTempoAndNoiseAreRejectedBeforeSampling() {
         for(double bad:new double[]{-.1,1.1,Double.NaN,Double.POSITIVE_INFINITY}) {
             try { custom(AdaptiveHitpointMotion.Algorithm.PERLIN,bad,1,0);fail("radius "+bad); }

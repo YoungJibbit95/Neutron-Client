@@ -222,11 +222,14 @@ public final class NScaffold extends Module {
         spoofing = true;
         data = null; rayPlan = null; planningEyes = null;
         if (p.onGround) onGroundY = p.getEntityBoundingBox().minY;
-        double posY = p.getEntityBoundingBox().minY;
-        if (keepY.getValue() || speedKeepY.getValue() && speedEnabled() && !c.gameSettings.keyBindJump.isKeyDown()) posY = onGroundY;
-        if (towerMoving() || towering()) onGroundY = posY = p.getEntityBoundingBox().minY;
+        boolean fixedFloor = keepY.getValue() || speedKeepY.getValue() && speedEnabled() && !c.gameSettings.keyBindJump.isKeyDown();
+        if (towerMoving() || towering()) {
+            onGroundY = p.getEntityBoundingBox().minY;
+            fixedFloor = false;
+        }
+        double posY = fixedFloor ? onGroundY : p.getEntityBoundingBox().minY;
         targetBlock = new BlockPos(p.posX, posY - 1, p.posZ);
-        if (usesRayTrace()) prepareRayPlan(current, targetBlock, posY);
+        if (usesRayTrace()) prepareRayPlan(current, targetBlock, posY, fixedFloor);
         else {
             PlaceData found = DemiseScaffoldGeometry.findBlock(current.world, targetBlock, p.getPosition(), previousBlock);
             if (!currentGeneration(current, angleGeneration) || !scopeCurrent(current)) return;
@@ -253,8 +256,7 @@ public final class NScaffold extends Module {
         if (generation != angleGeneration || !isToggled() || !scopeCurrent(current) || data != aiming) return;
         MovingObjectPosition mouse = c.objectMouseOver;
         // A plan already preserves a suitable preferred ray; update its future aiming origin as we move.
-        boolean rotateCheck = rayPlan != null || mouse == null || mouse.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK
-                || !data.blockPos.equals(mouse.getBlockPos()) || mouse.sideHit != data.facing;
+        boolean rotateCheck = rayPlan != null || !hitsFace(mouse, aiming);
         if (rotateCheck) {
             switch (mode.getValue()) {
                 case "Normal": case "Telly":
@@ -290,8 +292,7 @@ public final class NScaffold extends Module {
                 case "MouseOver":
                     MovingObjectPosition ray = DemiseScaffoldGeometry.rayTrace(p, rotation, 4.5, 1);
                     if (!aimingCurrent(current, angleGeneration, aiming)) return;
-                    if (ray.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK || !moving()
-                            || ray.getBlockPos() != null && ray.getBlockPos().distanceSq(aiming.blockPos) > 1) {
+                    if (!hitsFace(ray, aiming) || !moving()) {
                         if (!setClutchRot(rotateCheck)) return;
                         clutching = true;
                     } else clutching = false;
@@ -310,7 +311,7 @@ public final class NScaffold extends Module {
         } else clutching = false;
         if (generation != angleGeneration || !isToggled() || !scopeCurrent(current) || data != aiming) return;
         if (!is(mode, "Telly") || p.offGroundTicks >= tellyTicks) {
-            DemiseRotationSettings.Snapshot settings = rotationSettings.snapshot();
+            DemiseRotationSettings.Snapshot settings = rotationSettings.snapshot(landingResponse(p));
             float[] requested = placementRotationTarget(current, angleGeneration, aiming,
                     new float[]{clutching ? yaw : initialYaw, clutching ? pitch : initialPitch}, settings);
             if (requested == null || !aimingCurrent(current, angleGeneration, aiming)) return;
@@ -320,6 +321,25 @@ public final class NScaffold extends Module {
             status = clutching ? Status.CLUTCHING : Status.ALIGNING;
         } else status = Status.TELLY_WAIT;
         publishActivity();
+    }
+
+    /** Reduce aim lag only while a reachable placement still has a short airborne landing window. */
+    private float landingResponse(EntityPlayerSP player) {
+        if (!clutch.getValue() || rayPlan == null || !is(mode, "Normal") || player.onGround
+                || player.capabilities == null || player.capabilities.isFlying || player.noClip || player.isRiding()
+                || player.isInWater() || player.isInLava() || player.isOnLadder()) return 0;
+        double height = player.getEntityBoundingBox().minY - (rayPlan.destination.getY() + 1);
+        double velocity = player.motionY;
+        if (!Double.isFinite(height) || !Double.isFinite(velocity) || height < 0) return 0;
+        // Vanilla applies vertical travel, then gravity and drag. A fixed fraction per frame leaves
+        // the aim trailing the exposed side as the player drops past its top. Accumulate the turn
+        // within the remaining ticks while the engine retains the configured axis speed limits.
+        for (int ticks = 1; ticks <= 8; ++ticks) {
+            height += velocity;
+            if (height < 0) return (float) Math.min(.65, 1 - Math.pow(.05, 1.0 / ticks));
+            velocity = (velocity - .08) * .98;
+        }
+        return 0;
     }
 
     /** Demise refreshes its last target even while the destination is already occupied. */
@@ -408,7 +428,7 @@ public final class NScaffold extends Module {
     }
 
     /** Aim ahead of the next walking packet; only the later real ray can authorize a click. */
-    private void prepareRayPlan(Scope current, BlockPos feet, double feetY) {
+    private void prepareRayPlan(Scope current, BlockPos feet, double feetY, boolean fixedFloor) {
         EntityPlayerSP p = current.player;
         final long planGeneration = generation;
         final double originX = p.posX, originY = p.posY, originZ = p.posZ;
@@ -421,12 +441,17 @@ public final class NScaffold extends Module {
         // Clamping this vector to the already supported path would starve the next target.
         Vec3 motion = predictedMotion(p);
         if (!valid.getAsBoolean()) return;
+        Vec3 flight = airborneClutchStep(current, body, motion, valid);
+        if (!valid.getAsBoolean()) return;
+        if (flight != null) {
+            feet = new BlockPos(flight.xCoord, (fixedFloor ? feetY : flight.yCoord) - 1, flight.zCoord);
+        }
         float[] preferred = rotationEngine.shouldRotate() ? rotationEngine.rotation()
                 : new float[]{p.rotationYaw, p.rotationPitch};
         net.minecraft.client.settings.GameSettings keys = current.client.gameSettings;
         boolean walking = keys.keyBindForward.isKeyDown() != keys.keyBindBack.isKeyDown()
                 || keys.keyBindLeft.isKeyDown() != keys.keyBindRight.isKeyDown();
-        if (!is(mode, "Breezily") && is(rotations, "Normal") && walking) {
+        if (flight == null && !is(mode, "Breezily") && is(rotations, "Normal") && walking) {
             // Align the preferred ray with the intended path instead of retaining the first
             // oblique acquisition angle and feeding its sideways drift back into discrete MoveFix.
             preferred[0] = movement.keyYaw(p, keys) - 180;
@@ -448,6 +473,8 @@ public final class NScaffold extends Module {
         BlockPos wanted = feet;
         double length = Math.hypot(motion.xCoord, motion.zCoord);
         if (!underfootEmpty) {
+            // The projected landing already has support; avoid aiming beyond it in flight.
+            if (flight != null) return;
             if (length < 1.0E-5) return;
             // Begin turning before the centre crosses the current support's edge.
             wanted = new BlockPos(p.posX + motion.xCoord + motion.xCoord / length * .32,
@@ -471,7 +498,7 @@ public final class NScaffold extends Module {
         // A stopped player cannot reach an unguarded forecast; tiny local motion may also
         // leave vanilla's reported position unchanged. Reuse its actual reporting decision.
         planningEyes = underfootEmpty
-                ? p.getPlannedMovementPosition(originX + supportedMotion.xCoord, body.minY,
+                ? p.getPlannedMovementPosition(originX + supportedMotion.xCoord, flight == null ? body.minY : flight.yCoord,
                         originZ + supportedMotion.zCoord).addVector(0, p.getEyeHeight(), 0)
                 : length > 1.0E-5
                         ? eyes.addVector(motion.xCoord / length * advance, 0, motion.zCoord / length * advance) : eyes;
@@ -502,10 +529,30 @@ public final class NScaffold extends Module {
             plan = NScaffoldRaycast.findAhead(p, planningEyes, feet, wanted, previousBlock,
                     preferred[0], preferred[1], reach, valid, margin);
         }
+        if (walking && p.onGround && is(rotations, "Normal") && !is(mode, "Breezily") && valid.getAsBoolean()) {
+            plan = NScaffoldRaycast.keepDiagonalStep(p, planningEyes, wanted, rotationSupport, plan, reach, valid, margin);
+        }
         if (!valid.getAsBoolean()) return;
         rayPlan = plan;
         data = plan == null ? null : plan.data;
         if (plan != null) targetBlock = plan.destination;
+    }
+
+    /** In clear air, ordinary travel consumes the current vertical velocity before applying gravity. */
+    private Vec3 airborneClutchStep(Scope current, AxisAlignedBB body, Vec3 horizontal, BooleanSupplier valid) {
+        EntityPlayerSP player = current.player;
+        double dy = player.motionY;
+        if (!clutch.getValue() || player.onGround || player.noClip || player.ridingEntity != null
+                || player.capabilities == null || player.capabilities.isFlying || !Double.isFinite(dy) || Math.abs(dy) > 4) return null;
+        if (Math.abs(dy) < .005) dy = 0;
+        if (dy == 0 && horizontal.xCoord == 0 && horizontal.zCoord == 0) return null;
+        AxisAlignedBB sweep = body.addCoord(horizontal.xCoord, dy, horizontal.zCoord);
+        BlockPos min = new BlockPos(sweep.minX, sweep.minY, sweep.minZ);
+        BlockPos max = new BlockPos(sweep.maxX, sweep.maxY, sweep.maxZ);
+        // Near walls, fluids and ceilings, leave the existing search at the observed foot position.
+        if (!current.world.isAreaLoaded(min, max) || !valid.getAsBoolean()
+                || current.world.checkBlockCollision(sweep) || !valid.getAsBoolean()) return null;
+        return new Vec3(player.posX + horizontal.xCoord, body.minY + dy, player.posZ + horizontal.zCoord);
     }
 
     /** Bounded vanilla horizontal prediction; it never writes input, velocity or player position. */
@@ -586,6 +633,10 @@ public final class NScaffold extends Module {
         return rayPlan == null ? DemiseScaffoldGeometry.bestRotation(scope.player, data, rotationEngine.serverRotation())
                 : new float[]{rayPlan.yaw, rayPlan.pitch};
     }
+    private static boolean hitsFace(MovingObjectPosition hit, PlaceData target) {
+        return hit != null && hit.typeOfHit == MovingObjectPosition.MovingObjectType.BLOCK
+                && target.blockPos.equals(hit.getBlockPos()) && hit.sideHit == target.facing;
+    }
     private boolean setClutchRot(boolean rotateCheck) {
         final Scope current = scope;
         final long expected = generation;
@@ -603,8 +654,7 @@ public final class NScaffold extends Module {
         boolean instant = instantPredict.getValue() && leaning && nextAir;
         if (instantAlways.getValue()) instant = true;
         MovingObjectPosition mouse = client().objectMouseOver;
-        if (instantMiss.getValue() && (mouse == null || mouse.typeOfHit != MovingObjectPosition.MovingObjectType.BLOCK
-                || !aiming.blockPos.equals(mouse.getBlockPos()))) instant = true;
+        if (instantMiss.getValue() && !hitsFace(mouse, aiming)) instant = true;
         if (instant) rotationEngine.forceSpeeds(180, 180);
         return true;
     }

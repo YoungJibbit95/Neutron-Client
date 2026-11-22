@@ -50,6 +50,7 @@ public class FakeLagBehaviorHookTest {
     @Test public void sourceGroundLossStillEvaluatesReleaseAndKeepsItsRangeTimerUntilExpiry() throws Exception { run("sourceGroundLossStillEvaluatesReleaseAndKeepsItsRangeTimerUntilExpiry"); }
     @Test public void firstHitAndItsAttackMarkerSurviveTheSourceAuraOnlyEarlyReturn() throws Exception { run("firstHitAndItsAttackMarkerSurviveTheSourceAuraOnlyEarlyReturn"); }
     @Test public void spoofSamplesResetPositionAfterDispatchCallbacks() throws Exception { run("spoofSamplesResetPositionAfterDispatchCallbacks"); }
+    @Test public void releasingGameplayFocusPublishesTheHeldQueueBeforeAnotherTick() throws Exception { run("releasingGameplayFocusPublishesTheHeldQueueBeforeAnotherTick"); }
     private static void run(String method) throws Exception { Wave2IsolatedCase.run(Checks.class, method); }
     private static Field field(Class<?> type, String name) throws Exception { Field f = type.getDeclaredField(name); f.setAccessible(true); return f; }
 
@@ -108,6 +109,20 @@ public class FakeLagBehaviorHookTest {
     }
 
     public static final class Checks {
+        @Test public void releasingGameplayFocusPublishesTheHeldQueueBeforeAnotherTick() throws Exception {
+            try (Fixture f = new Fixture()) {
+                f.enemy(7, 5); f.enable(); f.update(51, false);
+                Packet<?> first = new C03PacketPlayer(true), second = new C0APacketAnimation();
+                f.f.network.sendPacket(first); f.f.network.sendPacket(second);
+                assertEquals(2, f.module.queuedPackets());
+                TimingFocusTransitionTest.loseFocus(f.f.mc);
+                assertEquals(Arrays.asList(first, second), f.drain());
+                assertEquals(0, f.module.queuedPackets());
+                assertFalse(f.module.isBlinking());
+                assertTrue(f.module.isToggled());
+            }
+        }
+
         @Test public void aRegisteredHitRemainsVisibleUntilPulseDispatchCompletes() throws Exception {
             try (Fixture f = new Fixture()) {
                 f.f.player.setPosition(10, 0, 0); Enemy enemy = f.enemy(7, 14.5);
