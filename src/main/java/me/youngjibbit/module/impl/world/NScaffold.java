@@ -311,7 +311,7 @@ public final class NScaffold extends Module {
         } else clutching = false;
         if (generation != angleGeneration || !isToggled() || !scopeCurrent(current) || data != aiming) return;
         if (!is(mode, "Telly") || p.offGroundTicks >= tellyTicks) {
-            DemiseRotationSettings.Snapshot settings = rotationSettings.snapshot();
+            DemiseRotationSettings.Snapshot settings = rotationSettings.snapshot(landingResponse(p));
             float[] requested = placementRotationTarget(current, angleGeneration, aiming,
                     new float[]{clutching ? yaw : initialYaw, clutching ? pitch : initialPitch}, settings);
             if (requested == null || !aimingCurrent(current, angleGeneration, aiming)) return;
@@ -321,6 +321,25 @@ public final class NScaffold extends Module {
             status = clutching ? Status.CLUTCHING : Status.ALIGNING;
         } else status = Status.TELLY_WAIT;
         publishActivity();
+    }
+
+    /** Reduce aim lag only while a reachable placement still has a short airborne landing window. */
+    private float landingResponse(EntityPlayerSP player) {
+        if (!clutch.getValue() || rayPlan == null || !is(mode, "Normal") || player.onGround
+                || player.capabilities == null || player.capabilities.isFlying || player.noClip || player.isRiding()
+                || player.isInWater() || player.isInLava() || player.isOnLadder()) return 0;
+        double height = player.getEntityBoundingBox().minY - (rayPlan.destination.getY() + 1);
+        double velocity = player.motionY;
+        if (!Double.isFinite(height) || !Double.isFinite(velocity) || height < 0) return 0;
+        // Vanilla applies vertical travel, then gravity and drag. A fixed fraction per frame leaves
+        // the aim trailing the exposed side as the player drops past its top. Accumulate the turn
+        // within the remaining ticks while the engine retains the configured axis speed limits.
+        for (int ticks = 1; ticks <= 8; ++ticks) {
+            height += velocity;
+            if (height < 0) return (float) Math.min(.65, 1 - Math.pow(.05, 1.0 / ticks));
+            velocity = (velocity - .08) * .98;
+        }
+        return 0;
     }
 
     /** Demise refreshes its last target even while the destination is already occupied. */

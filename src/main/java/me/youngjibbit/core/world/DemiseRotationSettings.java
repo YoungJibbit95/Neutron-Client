@@ -41,8 +41,10 @@ public final class DemiseRotationSettings {
         maxThresholdAttemptsToStop.setVisibility(m -> shortStop.getValue());
     }
 
-    public Snapshot snapshot() {
-        return new Snapshot(silent.getValue(), extraSmoothFactor.getValue().floatValue(),
+    public Snapshot snapshot() { return snapshot(0); }
+
+    public Snapshot snapshot(float minimumResponse) {
+        return new Snapshot(silent.getValue(), Math.max(minimumResponse, extraSmoothFactor.getValue().floatValue()),
                 DemiseRotationEngine.Smoothing.valueOf(smoothMode.getValue()), accel.getValue(),
                 yawAccelFactor.getValue().floatValue(), pitchAccelFactor.getValue().floatValue(),
                 imperfectCorrelation.getValue(), yawRotationSpeedMin.getValue().floatValue(),
