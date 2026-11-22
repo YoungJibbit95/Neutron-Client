@@ -21,6 +21,9 @@ public class InventoryManagerOrganizedTest {
     // JVM may keep a prior client's inventory in compiled scanner/action helpers.
     // Use the existing client-lifetime isolation, retaining ordinary Java 8 JIT
     // and every original assertion case; production has one stable client.
+    @Test public void pvpAndBridgePresetsSwapDifferentItemsIntoTheSecondSlot() throws Exception {
+        Wave2IsolatedCase.run(Checks.class, "pvpAndBridgePresetsSwapDifferentItemsIntoTheSecondSlot");
+    }
     @Test public void actualContainerSwapsConvergeToNineConfiguredRolesOneActionPerUpdate() throws Exception {
         Wave2IsolatedCase.run(Checks.class, "actualContainerSwapsConvergeToNineConfiguredRolesOneActionPerUpdate");
     }
@@ -76,6 +79,32 @@ public class InventoryManagerOrganizedTest {
         Clicks c = new Clicks(f.mc); f.mc.playerController = c; return c;
     }
     public static final class Checks {
+    @Test public void pvpAndBridgePresetsSwapDifferentItemsIntoTheSecondSlot() throws Exception {
+        Bootstrap.register();
+        for (String layout : new String[]{"PvP", "Bridge"}) try (RotationBehaviorHookTest.Fixture f = new RotationBehaviorHookTest.Fixture()) {
+            Clicks clicks = prepare(f);
+            InventoryManager m = manager();
+            m.layout.setValue(layout);
+            f.player.inventory.mainInventory[0] = new ItemStack(Items.iron_sword);
+            ItemStack wood = new ItemStack(Blocks.planks, 48);
+            ItemStack rod = new ItemStack(Items.fishing_rod);
+            ItemStack expected = ("PvP".equals(layout) ? rod : wood).copy();
+            f.player.inventory.mainInventory[11] = rod;
+            f.player.inventory.mainInventory[14] = wood;
+            m.setToggled(true);
+            try {
+                f.player.inventory.setItemStack(new ItemStack(Items.stick));
+                Pulsar.BUS.post(new EventUpdate());
+                assertEquals(0, clicks.calls);
+                f.player.inventory.setItemStack(null);
+                Pulsar.BUS.post(new EventUpdate()); Pulsar.BUS.post(new EventUpdate());
+                assertEquals(1, clicks.calls);
+                assertEquals(2, clicks.mode);
+                assertTrue(ItemStack.areItemStacksEqual(expected, f.player.inventory.mainInventory[1]));
+            } finally { m.setToggled(false); }
+        }
+    }
+
     @Test public void actualContainerSwapsConvergeToNineConfiguredRolesOneActionPerUpdate() throws Exception {
         Bootstrap.register(); try (RotationBehaviorHookTest.Fixture f = new RotationBehaviorHookTest.Fixture()) {
             Clicks clicks = prepare(f); InventoryManager m = manager();

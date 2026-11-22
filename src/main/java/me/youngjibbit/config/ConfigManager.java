@@ -547,7 +547,15 @@ public class ConfigManager {
                 defaultSetting(change, "interaction_mode", "Legacy");
                 defaultSetting(change, "speed_profile", "Legacy");
                 if ("invmanager".equals(module.getId())) defaultSetting(change, "drop_order", "Priority");
-                else defaultSetting(change, "pick_profile", "Shuffle");
+                else {
+                    defaultSetting(change, "pick_profile", "Shuffle");
+                    defaultSetting(change, "building_blocks_first", false);
+                    defaultSetting(change, "loot_selection", "Everything");
+                    defaultSetting(change, "take_building_blocks", true);
+                    defaultSetting(change, "take_equipment", true);
+                    defaultSetting(change, "take_supplies", true);
+                    defaultSetting(change, "take_other_items", false);
+                }
             }
             // A present NScaffold profile owns its complete Demise setup. Current
             // keys win over aliases; omitted values must not inherit warm state.

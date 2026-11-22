@@ -36,6 +36,32 @@ public final class InventoryItemClassifier {
         return block == Blocks.tnt ? BlockStackPlanner.Kind.SPECIAL : BlockStackPlanner.Kind.BUILDABLE;
     }
 
+    public enum LootGroup { BLOCKS, EQUIPMENT, SUPPLIES, OTHER }
+
+    /** Chest roles use item facts only. No inventory slot index or equipment ranking is involved. */
+    public static LootGroup lootGroup(ItemStack stack) {
+        if (stack == null || stack.stackSize <= 0) return LootGroup.OTHER;
+        Item item = stack.getItem();
+        if (item instanceof ItemBlock && blockKind(stack) == BlockStackPlanner.Kind.BUILDABLE
+                && me.youngjibbit.core.world.DemiseScaffoldInventory.isValidBlock(stack)) return LootGroup.BLOCKS;
+        if (item instanceof ItemArmor || item instanceof ItemTool || item instanceof ItemSword
+                || item instanceof ItemBow || item instanceof ItemFishingRod) return LootGroup.EQUIPMENT;
+        if (item instanceof ItemFood && safeFood(stack) || item instanceof ItemEnderPearl
+                || item == Items.arrow || item == Items.water_bucket || item == Items.lava_bucket
+                || item == Items.flint_and_steel) return LootGroup.SUPPLIES;
+        if (item instanceof ItemPotion) {
+            List<PotionEffect> effects = ((ItemPotion)item).getEffects(stack);
+            if (effects == null || effects.isEmpty()) return LootGroup.OTHER;
+            for (PotionEffect effect : effects) {
+                int id = effect.getPotionID();
+                if (id < 0 || id >= Potion.potionTypes.length || Potion.potionTypes[id] == null
+                        || Potion.potionTypes[id].isBadEffect()) return LootGroup.OTHER;
+            }
+            return LootGroup.SUPPLIES;
+        }
+        return LootGroup.OTHER;
+    }
+
     public static InventoryPlanner.Stack describe(int slot, ItemStack stack, boolean blacklisted) {
         if (stack == null || stack.stackSize <= 0 || stack.getItem() == null) return null;
         Item item = stack.getItem();

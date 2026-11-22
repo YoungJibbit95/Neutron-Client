@@ -86,11 +86,23 @@ public class InventoryLayoutConfigTest {
             module.getNumberSetting("Min Action Delay MS").setValue(80D); module.getNumberSetting("Max Action Delay MS").setValue(240D);
         }
         inventory.getModeSetting("Drop Order").setValue("Nearby"); stealer.getModeSetting("Pick Profile").setValue("Rows");
+        assertFalse(stealer.getBooleanSetting("Building Blocks First").getValue());
+        stealer.getBooleanSetting("Building Blocks First").setValue(true);
+        stealer.getModeSetting("Loot Selection").setValue("Custom");
+        stealer.getBooleanSetting("Take Equipment").setValue(false);
+        inventory.layout.setValue("Bridge");
         assertTrue(config.getLastError(), config.saveConfig("Profiles"));
+        stealer.getModeSetting("Loot Selection").reset(); stealer.getBooleanSetting("Take Equipment").reset();
+        inventory.layout.reset();
+        stealer.getBooleanSetting("Building Blocks First").setValue(false);
         for (Module module : java.util.Arrays.asList(inventory, stealer)) {
             module.getModeSetting("Interaction Mode").setValue("Legacy"); module.getModeSetting("Speed Profile").setValue("Legacy");
         }
         assertTrue(config.getLastError(), config.loadConfig("Profiles"));
+        assertTrue(stealer.getBooleanSetting("Building Blocks First").getValue());
+        assertEquals("Custom", stealer.getModeSetting("Loot Selection").getValue());
+        assertFalse(stealer.getBooleanSetting("Take Equipment").getValue());
+        assertEquals("Bridge", inventory.layout.getValue());
         for (Module module : java.util.Arrays.asList(inventory, stealer)) {
             assertEquals("Click", module.getModeSetting("Interaction Mode").getValue());
             assertEquals("Smooth", module.getModeSetting("Speed Profile").getValue());
@@ -109,12 +121,18 @@ public class InventoryLayoutConfigTest {
                 module.getModeSetting("Interaction Mode").setValue("Click"); module.getModeSetting("Speed Profile").setValue("Waves");
             }
             inventory.getModeSetting("Drop Order").setValue("Shuffle"); stealer.getModeSetting("Pick Profile").setValue("Nearby");
+            stealer.getBooleanSetting("Building Blocks First").setValue(true);
+            stealer.getModeSetting("Loot Selection").setValue("Custom");
+            stealer.getBooleanSetting("Take Other Items").setValue(true);
             write(directory, "OldProfiles" + i, old[i]); assertTrue(config.getLastError(), config.loadConfig("OldProfiles" + i));
             for (Module module : java.util.Arrays.asList(inventory, stealer)) {
                 assertEquals("Legacy", module.getModeSetting("Interaction Mode").getValue());
                 assertEquals("Legacy", module.getModeSetting("Speed Profile").getValue());
             }
             assertEquals("Priority", inventory.getModeSetting("Drop Order").getValue()); assertEquals("Shuffle", stealer.getModeSetting("Pick Profile").getValue());
+            assertFalse(stealer.getBooleanSetting("Building Blocks First").getValue());
+            assertEquals("Everything", stealer.getModeSetting("Loot Selection").getValue());
+            assertFalse(stealer.getBooleanSetting("Take Other Items").getValue());
             assertEquals(12, inventory.minDelay.getValue(), 0); assertEquals(110, stealer.getNumberSetting("Delay").getValue(), 0);
         }
     }
