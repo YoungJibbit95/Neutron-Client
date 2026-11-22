@@ -1,5 +1,6 @@
 package me.youngjibbit.module.impl.render;
 
+import me.youngjibbit.core.activity.InputClickJournal;
 import org.junit.Test;
 import static org.junit.Assert.*;
 
@@ -13,6 +14,27 @@ public class Wave07DiagnosticsCardTest {
                 Double.NEGATIVE_INFINITY,Double.POSITIVE_INFINITY})
             assertFalse(Diagnostics.graphSampleValid(bad));
     }
+    @Test public void compactMetricsDistinguishAbsenceFromMeasuredZeroAndCountMouseButtonsSeparately() {
+        InputClickJournal clicks = new InputClickJournal();
+        Object scene = new Object();
+        DiagnosticsHudHeader absent = new DiagnosticsHudHeader(0, -1, null);
+        assertEquals("--", absent.fps);
+        assertEquals("--", absent.ping);
+        assertEquals("--", absent.cps);
+
+        DiagnosticsHudHeader zero = new DiagnosticsHudHeader(119, 0, clicks.snapshot(scene, true, 0));
+        assertEquals("119", zero.fps);
+        assertEquals("0 ms", zero.ping);
+        assertEquals("0 / 0", zero.cps);
+        clicks.observe(scene, true, 0, true, 1);
+        clicks.observe(scene, true, 0, false, 2);
+        clicks.observe(scene, true, 1, true, 3);
+        clicks.observe(scene, true, 1, true, 4);
+        DiagnosticsHudHeader measured = new DiagnosticsHudHeader(119, 28, clicks.snapshot(scene, true, 5));
+        assertEquals("28 ms", measured.ping);
+        assertEquals("1 / 2", measured.cps);
+    }
+
     @Test public void easingDoesNotModifyOriginalMeasurementHistory() {
         double[] original={12.1,13.2,-1,14.3,Double.NaN,17.4};
         double[] copy=original.clone();

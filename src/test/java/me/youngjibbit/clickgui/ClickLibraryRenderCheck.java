@@ -80,6 +80,7 @@ public final class ClickLibraryRenderCheck {
             require(!Files.exists(profile)&&Arrays.equals(beforeRename,Files.readAllBytes(renamed)),"Confirmed rename preserves config bytes");
             require(field(screen,"name").equals("Practice renamed"),"Save name follows a confirmed rename");
             configLayouts(screen,actions,mc,catalog);
+            approachTwoLibrary(screen);
             screen.click(7);frame(screen);snapshot("15-themes.png");
             ClipRect firstSwatch=screen.itemBounds(0);int swatch=sample(firstSwatch.x+13,firstSwatch.y+12);
             boolean gradients=ClientSettings.current().gradients.getValue();String active=catalog.selectedReference();
@@ -157,6 +158,46 @@ public final class ClickLibraryRenderCheck {
         require(!((ConfigLibrary)field(unavailable,"configs")).available(),"Unavailable storage keeps real state");unavailable.onGuiClosed();
         resize(screen,854,480,1);screen.search("");
     }
+    private static void approachTwoLibrary(Library screen) throws Exception {
+        String previousThemeMode = ThemeMode.selected();
+        ClientSettings settings = ClientSettings.current();
+        String previousStyle = settings.neutronScreenStyle.getValue();
+        ThemeCatalog palettes = ThemeCatalog.global();
+        String previousPalette = palettes.selectedReference();
+        if (mc.getTextureManager() == null) {
+            Field textures = Minecraft.class.getDeclaredField("renderEngine");
+            textures.setAccessible(true);
+            textures.set(mc, new net.minecraft.client.renderer.texture.TextureManager(mc.getResourceManager()));
+        }
+        try {
+            ThemeMode.select(ThemeMode.APPROACH_TWO);
+            palettes.select(Theme.PinkLemonade.name());
+            for (String style : new String[]{"Modern", "Creative"}) {
+                settings.neutronScreenStyle.setValue(style);
+                resize(screen, 854, 480, 1);
+                screen.select(0);
+                frame(screen);
+                ClipRect configs = screen.actionBounds(6), themes = screen.actionBounds(7);
+                require(configs.x == themes.x && configs.y+configs.height <= themes.y
+                        && configs.x+configs.width < screen.listBounds().x, "Wide library has a separate navigation rail");
+                snapshot("approach2-library-" + style + ".png");
+                screen.click(7);
+                frame(screen);
+                snapshot("approach2-themes-" + style + ".png");
+                screen.click(6);
+                resize(screen, 320, 224, 1);
+                require(screen.actionBounds(6).y == screen.actionBounds(7).y, "Compact tabs remain horizontal");
+                frame(screen);
+                snapshot("approach2-library-compact-" + style + ".png");
+            }
+        } finally {
+            settings.neutronScreenStyle.setValue(previousStyle);
+            palettes.select(previousPalette);
+            ThemeMode.select(previousThemeMode);
+            resize(screen, 854, 480, 1);
+        }
+    }
+
     private static Object field(Object value,String name)throws Exception{
         for(Class<?> type=value.getClass();type!=null;type=type.getSuperclass())try{Field f=type.getDeclaredField(name);f.setAccessible(true);return f.get(value);}catch(NoSuchFieldException ignored){}
         throw new NoSuchFieldException(name);

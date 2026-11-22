@@ -74,7 +74,11 @@ public class ClickGuiNeutronTwoModeTest {
         assertTrue(first instanceof NeutronTwoGui);
         assertSame(first,again);
         assertEquals("Dropdown",mode.getValue());
+        assertFalse(mode.isVisible());
+        assertTrue(owner.getModeSetting("Neutron 2.0 Layout").isVisible());
         ThemeMode.select(ThemeMode.LEGACY);
+        assertTrue(mode.isVisible());
+        assertFalse(owner.getModeSetting("Neutron 2.0 Layout").isVisible());
         assertSame(Pulsar.INSTANCE.getDropdown(),route(owner,mode.getValue()));
         assertEquals("Dropdown",mode.getValue());
     }
@@ -85,6 +89,7 @@ public class ClickGuiNeutronTwoModeTest {
                 ()->false,ignored->{});
         writer.initialize(Collections.emptyList());
         owner.getModeSetting("Mode").setValue("Dropdown");
+        owner.getModeSetting("Neutron 2.0 Layout").setValue("Dropdown");
         assertTrue(writer.saveDefaultConfig());
         writer.shutdown();
 
@@ -97,6 +102,7 @@ public class ClickGuiNeutronTwoModeTest {
                 reloadedGui.getModeSetting("Mode").getOptions());
         assertEquals("Dropdown",reloadedGui.getModeSetting("Mode").getValue());
         assertEquals(1,reloadedGui.getModeSetting("Mode").getSelectedIndex());
+        assertEquals("Dropdown",reloadedGui.getModeSetting("Neutron 2.0 Layout").getValue());
         assertEquals("Blur",reloadedSettings.surface.getValue());
         assertEquals("Balanced",reloadedSettings.motionIntensity.getValue());
         reader.shutdown();
