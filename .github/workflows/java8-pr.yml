@@ -31,7 +31,7 @@ jobs:
       - name: Temurin 8u482 (preferred release toolchain)
         id: temurin
         continue-on-error: true
-        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: temurin
           java-version: '8.0.482+8'
@@ -43,7 +43,7 @@ jobs:
       # distribution when GitHub's Temurin release CDN returns HTTP 504.
       - name: Fallback Java 8 from Azul when Temurin release is unreachable
         if: steps.temurin.outcome == 'failure'
-        uses: actions/setup-java@77dd5b2ce225ea11469928ac317850245a74ae78 # v6.2.0
+        uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           distribution: zulu
           java-version: '8'
